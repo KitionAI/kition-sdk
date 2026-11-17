@@ -61,7 +61,8 @@ jobs:
   executables:
     needs: lock
     strategy:
-      fail-fast: true
+      # Every platform runs to its end, so one run shows every platform's failure.
+      fail-fast: false
       matrix:
         include:
           - { platform: darwin-arm64, target: aarch64-apple-darwin, runner: macos-15 }
@@ -147,7 +148,7 @@ jobs:
             if (missing.length) { console.error(`not installed: ${missing.join(", ")}`, kits); process.exit(1) }
             console.log(kits.map((kit) => `${kit.id} ${kit.executable}`).join("\n"))'
       - name: Pack it
-        run: npm pack "./target/kits-mcp/npm/$PLATFORM" --pack-destination target/kits-mcp/packed
+        run: mkdir -p target/kits-mcp/packed && npm pack "./target/kits-mcp/npm/$PLATFORM" --pack-destination target/kits-mcp/packed
       - uses: actions/upload-artifact@v4
         with:
           name: kits-mcp-${{ matrix.platform }}
