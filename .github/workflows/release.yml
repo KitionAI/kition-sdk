@@ -99,14 +99,17 @@ jobs:
             [ "$actual" = "$commit" ] || { echo "$repository $tag is $actual; the lock pins $commit" >&2; exit 1; }
             declared=$(node -p "require('../kition-$kit/kit.json').version")
             [ "$declared" = "$version" ] || { echo "$repository $tag kit.json is $declared; the lock pins $version" >&2; exit 1; }
-            bash "../kition-$kit/scripts/fetch-fonts.sh" "$RUNNER_TEMP/fonts-$kit"
+            # A relative path: Git Bash's sha256sum escapes a Windows path's backslashes.
+            bash "../kition-$kit/scripts/fetch-fonts.sh" "../fonts-$kit"
           done
       - run: cargo build --locked --release -p kition-kits --bins --target "$TARGET"
       - name: Build each published kit's headless executable
         run: |
           set -euo pipefail
           for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
-            (cd "../kition-$kit" && KITION_FONTS_DIR="$RUNNER_TEMP/fonts-$kit" KITION_FONTS_REQUIRED=1 cargo build --locked --release -p "kition-$kit" --target "$TARGET")
+            # The fonts folder as the compiler reads paths (D:/a/... on Windows).
+            if [ "$RUNNER_OS" = Windows ]; then fonts=$(cd "../fonts-$kit" && pwd -W); else fonts=$(cd "../fonts-$kit" && pwd); fi
+            (cd "../kition-$kit" && KITION_FONTS_DIR="$fonts" KITION_FONTS_REQUIRED=1 cargo build --locked --release -p "kition-$kit" --target "$TARGET")
           done
       # The executables, and what each kit answered to kit.initialize here (handshakes.json).
       - name: Collect and check the executables
