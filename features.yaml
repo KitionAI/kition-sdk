@@ -434,8 +434,7 @@ features:
     title: "@kition/kits-mcp starts kition-kits-mcp for this platform from npm, with the published kits, passing stdio, exit status and signals through"
     dimension: [platform, ai]
     priority: P1
-    status: partial
-    gap: The package and its platform packages are built by the manual publish workflow and are not on npm yet; win32-x64 and darwin-x64 builds are untested
+    status: has
     paths:
       - packages/kits-mcp/**
       - .github/workflows/release.yml
