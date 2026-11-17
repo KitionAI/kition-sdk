@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-classic-steps-down
+feature: sdk.editor.display-modes
+intent: >-
+  Classic keeps Classic where its ribbon fits once it gives way: large buttons small, then icons alone, then groups collapsed from the end; the frame steps down only when every group is collapsed and it still does not fit. In Kition at 1440 px, 9 of 16 kits (doc, sheet, slide, cad, layout, motion, film, photo, vector) showed Single line when Classic was chosen.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/frame/EditorFrame.test.tsx, -t, "keeps Classic where its ribbon fits once groups collapse"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

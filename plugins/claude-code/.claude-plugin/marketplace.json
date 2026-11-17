@@ -1,0 +1,16 @@
+{
+  "name": "kition",
+  "description": "Kition's Claude Code plugins: the published Kition kits (Note, for Markdown, so far) as KHP tools for files in your project.",
+  "owner": {
+    "name": "Kition",
+    "url": "https://kition.ai"
+  },
+  "plugins": [
+    {
+      "name": "kition-kits",
+      "source": "./kition-kits",
+      "description": "Create, edit and check Markdown notes in your project with the Kition Note kit's KHP tools (MCP), with its editing skill and the person's draft review. Other Kition kits join as they are published.",
+      "category": "productivity"
+    }
+  ]
+}

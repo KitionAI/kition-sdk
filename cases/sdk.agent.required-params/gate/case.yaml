@@ -1,0 +1,22 @@
+format: 1
+id: sdk.agent.required-params/gate
+feature: sdk.agent.required-params
+intent: >-
+  A headless kit's opted-in command lists its notation's required parameters in the JSON Schema
+  `commands.list` publishes, and the gate refuses a call that leaves one out as `invalid-params`,
+  one error per missing parameter naming it and where a value comes from, before the engine runs;
+  a call with only the required parameters runs.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-headless/src/tests.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: an_opted_in_command_publishes_its_required_parameters_and_the_gate_refuses_a_missing_one }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

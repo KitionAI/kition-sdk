@@ -1,0 +1,17 @@
+[package]
+name = "kition-sync-protocol"
+description = "The open sync protocol kition-sync/1: JSON-RPC 2.0 message types over WebSocket, with binary frames for KDM changes, snapshots, and blobs."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,36 @@
+{
+  "name": "@kition/kit-host",
+  "version": "0.1.0",
+  "description": "The host's side of the Kit UI protocol: mount an embedded kit UI in an iframe and serve its file calls.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@kition/kit-ui-protocol": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/kit-host"
+  },
+  "types": "./dist/types/src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/src/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "prepack": "pnpm run build"
+  }
+}

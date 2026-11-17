@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-load-id-field
+feature: sdk.agent.premise-guard
+intent: >-
+  A schema field named `id` (or `type`) is in a load's `fields` like any other. Before, loads left
+  it out (the answer's own `id` and `type` stand beside `fields`), so a kit whose tool-id field is
+  named `id` (a motion kit's items and layers, the mock's clips) had no tool ids in the guard's two
+  reads of a changed file: every change made in the file was counted in `others.unnamed`, a
+  colleague's change of the target was overwritten and its deletion was no `conflict`.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, ids_a_tool_id_field_named_id_names_changes_made_in_the_file]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

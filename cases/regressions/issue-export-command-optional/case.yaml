@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-export-command-optional
+feature: sdk.agent.manifest-exports
+intent: >-
+  A kit manifest's `exports` entry is `{ extension, mime? }` (KHP K5) and passes
+  tools/check-manifest.mjs without a `command`: the one export command is `agent.export.command`
+  (platform K21), and nothing in the SDK, the self-test, or the desktop host reads
+  `exports[].command`. Before, kit.schema.json required it, so every kit filled a field nothing
+  read, and Kition Photo and Kition Motion filled it with another command than the one agents run.
+  A kit that still names a disagreeing one is warned.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/check-manifest.test.mjs, -t, accepts exports without a command]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

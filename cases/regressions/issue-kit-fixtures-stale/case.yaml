@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-kit-fixtures-stale
+feature: sdk.testing.kit-fixtures
+intent: >-
+  kition-kits' manifest fixtures (crates/kition-kits/tests/fixtures/kits/<kit>.json) are each kit's
+  committed kit.json byte for byte: tools/sync-kit-fixtures.mjs copies them from the kit
+  repositories' HEAD, never a working tree, and its --check fails on any difference (and passes
+  where no kit repository is checked out). Manifest snapshots must track the source manifests so tests use current declarations.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-kit-fixtures.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

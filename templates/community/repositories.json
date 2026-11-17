@@ -1,0 +1,289 @@
+{
+  "$comment": "Data for tools/sync-community.mjs, by repository directory name. Defaults: docs https://developer.kition.ai (docsName \"Kition for Developers\"), developerLink true, quality true (the repository has AGENTS.md and docs/quality.md, and its check command comes from templates/quality/repositories.json, else cargo xtask ci; with quality false, give check here), changelog true, keep []. Kits also default to hasWeb true, linksTessera true (KITION_LINK=1 links kition-sdk and kition-tessera; false: kition-sdk only), fonts false (pnpm engine copies fonts from a kition-fonts checkout), uses [rust, wasm32, wasm-pack, node, pnpm], the scope rows and the build commands below under kitDefaults. keep lists generated paths the repository owns itself (a trailing /* keeps a directory). Markdown links in the data are relative to the repository root; the tool rewrites them for the files in .github/.",
+  "toolchain": {
+    "node": "22.23.4",
+    "pnpm": "10.34.9",
+    "rust": "1.95",
+    "wasmPack": "0.13.1"
+  },
+  "kitDefaults": {
+    "scope": [
+      ["`crates/`", "The engine (Rust), compiled to WebAssembly for the editor"],
+      ["`bindings/wasm`", "The engine behind Kition's `KitDocument` contract"],
+      ["`bindings/headless`", "The headless kit executable for Kition's agent"],
+      ["`web/`", "The kit's editor (React, on kition-sdk's `@kition/kit-editor`)"],
+      ["`kit.json`", "The kit manifest (KHP)"],
+      ["`tools/xtask`", "The repository's tasks: `cargo xtask ci`, the check every change passes, and the others"]
+    ],
+    "build": [
+      "cargo test --workspace",
+      "cargo build --release -p {{repo}}",
+      "cd web && pnpm install && pnpm engine && pnpm test:flow"
+    ]
+  },
+  "repositories": {
+    "kition-board": {
+      "profile": "kit",
+      "title": "Kition Board",
+      "github": "KitionAI/kition-board",
+      "description": "Kition Board: an infinite whiteboard for diagrams, mind maps and sketches, for people and AI agents",
+      "fonts": true
+    },
+    "kition-cad": {
+      "profile": "kit",
+      "title": "Kition CAD",
+      "github": "KitionAI/kition-cad",
+      "description": "Kition CAD: a 2D CAD editor for .dxf drawings, for people and AI agents"
+    },
+    "kition-design": {
+      "profile": "kit",
+      "title": "Kition Design",
+      "github": "KitionAI/kition-design",
+      "description": "Kition Design: an interface design editor, for people and AI agents",
+      "fonts": true
+    },
+    "kition-doc": {
+      "profile": "kit",
+      "title": "Kition Doc",
+      "github": "KitionAI/kition-doc",
+      "description": "Kition Doc: a word processor for .docx files, for people and AI agents",
+      "fonts": true,
+      "linksTessera": false
+    },
+    "kition-film": {
+      "profile": "kit",
+      "title": "Kition Film",
+      "github": "KitionAI/kition-film",
+      "description": "Kition Film: a video timeline editor, for people and AI agents"
+    },
+    "kition-html": {
+      "profile": "kit",
+      "title": "Kition HTML",
+      "github": "KitionAI/kition-html",
+      "description": "Kition HTML: an editor and live preview for HTML pages, for people and AI agents",
+      "linksTessera": false,
+      "uses": ["rust", "wasm32", "node", "pnpm"],
+      "scope": [
+        ["`crates/kition-html-engine`", "The renderer (Blitz and Vello CPU), with JavaScript in Boa"],
+        ["`crates/kition-html-kit`", "The shared WASM engine behind Kition's `KitDocument` contract"],
+        ["`apps/kition-html`", "The native executable: `render`, `preview`, and the headless KHP server"],
+        ["`web/`", "The kit's editor (on kition-sdk's `@kition/kit-editor`)"],
+        ["`conformance/`", "The pixel comparison corpus against Chrome"],
+        ["`tools/`", "The comparison, sample, and WebAssembly build scripts"],
+        ["`kit.json`", "The kit manifest (KHP)"]
+      ],
+      "build": [
+        "cargo test --workspace",
+        "pnpm install && pnpm test             # node --test tools/*.test.mjs",
+        "cd web && pnpm install && pnpm engine"
+      ],
+      "notes": "`pnpm engine` runs `tools/build-wasm.sh`, which needs wasm-bindgen-cli 0.2.129 (set `WASM_BINDGEN` to that executable)."
+    },
+    "kition-layout": {
+      "profile": "kit",
+      "title": "Kition Layout",
+      "github": "KitionAI/kition-layout",
+      "description": "Kition Layout: a page layout editor for flyers, posters and books, for people and AI agents",
+      "fonts": true
+    },
+    "kition-motion": {
+      "profile": "kit",
+      "title": "Kition Motion",
+      "github": "KitionAI/kition-motion",
+      "description": "Kition Motion: a motion graphics editor with keyframes and effects, for people and AI agents",
+      "fonts": true
+    },
+    "kition-note": {
+      "profile": "kit",
+      "title": "Kition Note",
+      "github": "KitionAI/kition-note",
+      "description": "Kition Note: a Markdown editor that never rewrites your file, for people and AI agents",
+      "fonts": true,
+      "build": [
+        "cargo xtask corpus                     # fetch the public round-trip corpus that some tests read",
+        "cargo test --workspace",
+        "cargo build --release -p kition-note",
+        "cd web && pnpm install && pnpm engine && pnpm test:flow"
+      ],
+      "notes": "[docs/development.md](docs/development.md) covers the requirements, the fonts, the engine, the editor, and the tests."
+    },
+    "kition-pdf": {
+      "profile": "kit",
+      "title": "Kition PDF",
+      "github": "KitionAI/kition-pdf",
+      "description": "Kition PDF: read and edit PDF files, for people and AI agents",
+      "fonts": true,
+      "linksTessera": false
+    },
+    "kition-photo": {
+      "profile": "kit",
+      "title": "Kition Photo",
+      "github": "KitionAI/kition-photo",
+      "description": "Kition Photo: a layered image editor that opens .psd files, for people and AI agents",
+      "fonts": true
+    },
+    "kition-scene": {
+      "profile": "kit",
+      "title": "Kition Scene",
+      "github": "KitionAI/kition-scene",
+      "description": "Kition Scene: a 3D scene editor, for people and AI agents"
+    },
+    "kition-sheet": {
+      "profile": "kit",
+      "title": "Kition Sheet",
+      "github": "KitionAI/kition-sheet",
+      "description": "Kition Sheet: a spreadsheet editor for .xlsx files with formulas, for people and AI agents",
+      "fonts": true
+    },
+    "kition-slide": {
+      "profile": "kit",
+      "title": "Kition Slide",
+      "github": "KitionAI/kition-slide",
+      "description": "Kition Slide: a slide editor that opens .pptx files, for people and AI agents",
+      "fonts": true,
+      "linksTessera": false
+    },
+    "kition-table": {
+      "profile": "kit",
+      "title": "Kition Table",
+      "github": "KitionAI/kition-table",
+      "description": "Kition Table: tables, views and dashboards in one file, for people and AI agents",
+      "linksTessera": false,
+      "scope": [
+        ["`crates/`", "The engine: the `.ktable` file, the request layer, AI fields, and timestamps (`crates/engine/*`); import (`crates/formats/*`)"],
+        ["`bindings/wasm`", "The engine, `kition-table-kit` (`TableDocument`, the `KitDocument` contract)"],
+        ["`apps/kition-table`", "The engine served headless, for agents, scripts, and the conformance suite"],
+        ["`web/`", "The kit's editor (on Tessera's components, through `@kition/kit-editor`)"],
+        ["`model/schema.json`", "The document's KDM schema"],
+        ["`kit.json`", "The kit manifest (KHP)"]
+      ],
+      "build": [
+        "cargo test -p kition-table-kit --features headless",
+        "cargo build -p kition-table   # the headless executable",
+        "pnpm --dir web install",
+        "pnpm --dir web engine         # bindings/wasm -> web/public/engine",
+        "pnpm --dir web test           # the built engine from Node",
+        "pnpm --dir web test:unit      # the editor's own specs (vitest, jsdom)"
+      ],
+      "notes": "SQLite needs a C compiler that targets wasm32: Homebrew's LLVM (`brew install llvm`), or `CC_wasm32_unknown_unknown` and `AR_wasm32_unknown_unknown`."
+    },
+    "kition-vector": {
+      "profile": "kit",
+      "title": "Kition Vector",
+      "github": "KitionAI/kition-vector",
+      "description": "Kition Vector: a vector graphics editor, for people and AI agents"
+    },
+    "kition-sdk": {
+      "profile": "project",
+      "title": "Kition SDK",
+      "github": "KitionAI/kition-sdk",
+      "description": "Real document editors in your app, and the same documents for your AI agents.",
+      "hasWeb": true,
+      "uses": ["rust", "wasm32", "wasm-pack", "node", "pnpm"],
+      "scope": [
+        ["`crates/`", "The Rust crates: the `KitDocument` contract, the Kit Data Model, the headless host, and `kition-kits`"],
+        ["`packages/`", "The npm packages under the `@kition` scope"],
+        ["`docs/`", "The SDK guide (`docs/sdk/`), the platform contracts (`docs/platform/`), and the development and quality references"],
+        ["`examples/`", "The grid example kit, the embed app, scripts, and the agent example"],
+        ["`schemas/`", "JSON Schemas: the kit manifest, the Kit Process Protocol, the kits service, the MCP tools"],
+        ["`tools/`", "The repository's checks and generators, and the container image (`tools/container/`)"],
+        ["`templates/`", "The quality and community files that `tools/sync-quality.mjs` and `tools/sync-community.mjs` write into Kition repositories"]
+      ],
+      "build": [
+        "pnpm install --frozen-lockfile",
+        "cargo build -p kition-kit-mock   # host tests launch the mock kit's executable",
+        "cargo test",
+        "pnpm typecheck",
+        "pnpm test"
+      ],
+      "notes": "The workspace links Kition Tessera, so clone [kition-tessera](https://github.com/KitionAI/kition-tessera) beside this repository before `pnpm install`. [docs/development.md](docs/development.md) covers building and packing the npm packages."
+    },
+    "kition-fonts": {
+      "profile": "project",
+      "title": "Kition Fonts",
+      "github": "KitionAI/kition-fonts",
+      "description": "The fonts that Kition's kit editors serve to their engines at run time.",
+      "quality": false,
+      "changelog": false,
+      "uses": ["rust"],
+      "scope": [
+        ["`fonts/`", "The font files, each with its license file, and `fonts/manifest.txt`"],
+        ["`tests/`", "The checks on every file: checksum, license, family name, and script coverage"],
+        ["`ATTRIBUTION.md`", "The authors of each font"]
+      ],
+      "build": ["cargo test"],
+      "check": "cargo test",
+      "rules": [
+        "- **Only open licenses whose terms the source proves** (Apache-2.0, OFL-1.1, or MIT), nothing from Adobe or derived from Adobe's designs, and for every file a manifest line, its license file, and an attribution row ([README.md](README.md))."
+      ],
+      "licenseNote": "Each font keeps its own license, named in `fonts/manifest.txt`."
+    },
+    "kiv": {
+      "profile": "project",
+      "title": "kiv",
+      "github": "KitionAI/kiv",
+      "description": "kiv (KIt Version) is Git for kit files.",
+      "quality": false,
+      "changelog": false,
+      "uses": ["rust"],
+      "scope": [
+        ["`src/`", "The `kiv` command: object-level diffs, merges through the kit, and the merge queue"],
+        ["`scripts/`", "The demo builder and the end-to-end tests"],
+        ["`demo/`", "The demo slide files"]
+      ],
+      "build": [
+        "cargo build --release          # target/release/kiv",
+        "cargo test --release           # alignment, diff, and merge-plan tests"
+      ],
+      "check": "cargo test --release",
+      "notes": "The build fetches kition-sdk's `kition-kit-host` from GitHub at the revision `Cargo.toml` pins. The end-to-end tests (`scripts/e2e.sh`) need the slide kit's headless executable, `kition-slide`."
+    },
+    "kition-universe": {
+      "profile": "project",
+      "title": "Kition Universe",
+      "github": "KitionAI/kition-universe",
+      "description": "A 3D star map of Kition.",
+      "quality": false,
+      "changelog": false,
+      "hasWeb": true,
+      "uses": ["node", "pnpm"],
+      "build": [
+        "pnpm install",
+        "pnpm dev        # http://localhost:4330",
+        "pnpm build"
+      ],
+      "check": "pnpm check:data && pnpm build",
+      "keep": [".github/CONTRIBUTING.md", ".github/ISSUE_TEMPLATE/*"]
+    },
+    "kitharness.org": {
+      "profile": "project",
+      "title": "kitharness.org",
+      "github": "KitionAI/kitharness.org",
+      "docs": "https://kitharness.org",
+      "docsName": "kitharness.org",
+      "developerLink": false,
+      "description": "The site of the Kit Harness Protocol (KHP): a neutral protocol site, not a product site.",
+      "quality": false,
+      "changelog": false,
+      "hasWeb": true,
+      "uses": ["node", "npm"],
+      "scope": [
+        ["`src/content/docs/`", "The pages: overview and guides in English and Simplified Chinese (`zh-cn/`), and the specification under `spec/`"],
+        ["`src/data/`", "The khp and khp-bench commits the specification and the benchmark figures come from"],
+        ["`scripts/`", "Syncing the specification, exporting the benchmark figures, checking links, drawing the OG image"],
+        ["`public/`", "Static files"]
+      ],
+      "build": [
+        "npm install",
+        "npm run dev                    # http://localhost:4321",
+        "npm run build                  # dist/, with sitemap, canonical URLs and OG tags",
+        "node scripts/check-links.mjs   # internal links and anchors in dist/"
+      ],
+      "check": "npm run build && node scripts/check-links.mjs",
+      "rules": [
+        "- **Never edit `src/content/docs/spec/` by hand.** Change the specification in the khp repository, commit, and copy it with `node scripts/sync-spec.mjs`.",
+        "- **Every statement is true at the time of the build**, and there is no Kition branding beyond the footer's \"Reference implementation\" link."
+      ]
+    }
+  }
+}

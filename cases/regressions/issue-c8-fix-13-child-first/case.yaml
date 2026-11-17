@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-13-child-first
+feature: sdk.agent.premise-guard
+intent: Deleting a tree node with live children explains the child-first contract; explicitly deleting children before their parent names every deletion and agrees with reread.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, tree_guard, tree_delete_requires_child_first]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

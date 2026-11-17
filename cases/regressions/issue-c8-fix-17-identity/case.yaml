@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-17-identity
+feature: sdk.agent.identity-confidence
+intent: A kit can refuse identity continuity for addressed objects or names after outside rereads; unknown refuses the whole write until a fresh observation.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: unprovable_identity }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

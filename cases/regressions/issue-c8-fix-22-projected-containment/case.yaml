@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-22-projected-containment
+feature: sdk.model.projected-containment
+intent: Nested projected trees and owning refs expose stable containment and precise premises through both readers.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: projections }
+  - cargo-test: { package: kition-kits, test: projected_objects, filter: nested_projected }
+  - cargo-test: { package: kition-kits, test: projected_objects, filter: nested_projected, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

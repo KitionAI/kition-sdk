@@ -1,0 +1,30 @@
+format: 1
+id: sdk.agent.premise-guard/covers
+feature: sdk.agent.premise-guard
+intent: >-
+  A place the kit tells by being asked (a world point, `covers`): after a colleague moved the node
+  at the point away (an unchanged one behind it now hit), moved another node into the point along
+  one axis or three, or moved the node's parent, a write by the point is refused as `relocated`,
+  naming where the node went and what is there now, nothing written; after a move, a mesh edit, a
+  delete or a reparent of another node away from the point it applies, and fifty rounds of
+  unrelated moves refuse no write by point or by id. kition-headless answers `context.covered` and
+  `model.derived` with the editor put back and no edit.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, covers_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, answers_what_a_place_covered_and_derived_values_without_an_edit]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

@@ -1,0 +1,29 @@
+format: 1
+id: sdk.agent.premise-guard/position
+feature: sdk.agent.premise-guard
+intent: >-
+  Position is a premise only when the command depends on it: after a ripple insert moved clip 3,
+  a write declared `x-khp-position: independent` (its opacity) applies and `others` says the clip
+  moved, while one that is not (its duration) is refused as `relocated` with where the clip is
+  now; a `start` changed alone (a field the schema marks `position`) is a move, not a change of
+  content. Integer tool ids are numbers in receipts, `others` and conflicts, and `on` takes `3`
+  or `"3"`.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/place_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, --, position_, ids_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, on_takes_the_declared_id_type]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

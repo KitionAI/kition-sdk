@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-agent-ready-export-command
+feature: sdk.testing.agent-ready
+intent: >-
+  The in-process Agent-ready check exports the way `<prefix>_export` does: every extension in
+  `exports` goes through `agent.export.command`, with its fixed `params` and `format`, and must
+  answer a non-empty base64 file in the field `agent.export.data` (Kition platform K21;
+  kit.schema.json; KHP K5 gives an export entry no command). A kit with `exports` and no
+  `agent.export` fails, and the failure names what is missing. Before, the check ran
+  `exports[].command`, failing kits whose agent export path worked.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: agent_ready::tests::exports_run_through_the_agent_export_command_and_answer_a_file }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.kit-env/cli
+feature: sdk.agent.kit-env
+intent: >-
+  `kit-env generate`, `stats`, `trace` and `score` work end to end on a workspace with the kit
+  found from a kits folder, by its id or its extension alike; wrong usage exits 2 with what is
+  wrong.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-env/tests/cli.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, cli]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

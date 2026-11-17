@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-4
+feature: sdk.host.kits-service
+intent: kition-kits-mcp started from an unpacked SDK bundle the ways the guide and --help say (bin/<platform>/kition-kits-mcp --kits-dir kits, or --kit bin/<platform>/kition-<kit>), or built elsewhere and given the bundle's kits/, offers the kits' tools without bin/ on the PATH. A kit whose executable it cannot find is named on standard error, and --list-kits gives the reason, instead of serving no tools silently.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, bundle_launch]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 600
+since: "2026-11-16"

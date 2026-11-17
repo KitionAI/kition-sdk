@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-literal-paths
+feature: sdk.agent.literal-paths
+intent: Literal JSON pointer premises hold selector-shaped map keys without confusing them with list selectors.
+layer: golden
+source: { kind: synthetic, from: Mock literal JSON members, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: literal_json_paths_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: literal_json_paths_, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

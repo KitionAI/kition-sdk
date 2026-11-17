@@ -1,0 +1,23 @@
+format: 1
+id: sdk.agent.required-params/opt-in
+feature: sdk.agent.required-params
+intent: >-
+  The notation converter lists the parameters its notation leaves without a default and not
+  optional (no `?` after the key or the type, no `=default` or literal type, no notes, not one of
+  several alternative keys or forms), marks none required by default, and marks exactly those
+  required for a command that opts in (`KitCommand::notation_required`); a missing one is refused
+  naming it, what it takes and where a valid value comes from.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kit/src/schema.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: the_notation_required_parameters }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

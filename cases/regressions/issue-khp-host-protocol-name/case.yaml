@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-khp-host-protocol-name
+feature: sdk.docs.protocol-names
+intent: >-
+  "KHP" means only the Kit Harness Protocol (how an AI agent uses a kit, bound to MCP); the
+  JSON-RPC protocol between a host and a kit process is the Kit Process Protocol, always written in
+  full. No tracked text outside CHANGELOG.md and cases calls it
+  "KHP v<n>", "KHP §<n>" or "KHP section <n>": Kit Process Protocol sections read "Kit Process Protocol
+  section <n>", and a KHP section names its spec file. Before, doc comments in kition-headless
+  and kition-kits cited "KHP section 5" for the Kit Process Protocol's documents and files.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/protocol-names.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

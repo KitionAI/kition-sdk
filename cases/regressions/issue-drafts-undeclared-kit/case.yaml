@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-drafts-undeclared-kit
+feature: sdk.agent.headless-drafts
+intent: >-
+  `kition-kits-mcp --drafts` with a kit whose kit.json does not declare `agent.drafts` (it keeps
+  no drafts and offers no `<prefix>_draft_ready`, KHP A12, A35): an edit without `draft` is
+  refused `unsupported` and changes nothing, as is one that asks for a draft; only `draft: false`
+  edits the file itself; reads still run; `drafts list` shows no draft, and the server's
+  instructions name the kit. Before, the edit went to a draft that no tool could hand to the
+  person and the agent was told to call a draft tool the server does not offer.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, drafts, draft_mode_refuses_edits_of_a_kit_without_drafts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-managed-save-after-early-save
+feature: sdk.collab.saves
+intent: >-
+  A Save made right as a managed room is joined runs after the kit's early save (made before the
+  join and written through the room), never beside it, and a Save whose edits the room has not
+  received yet waits for the room instead of reporting a save that wrote nothing: the file ends up
+  holding both edits and no write is refused as a conflict.
+layer: unit
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/managed.test.ts, -t, never beside it]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-16"

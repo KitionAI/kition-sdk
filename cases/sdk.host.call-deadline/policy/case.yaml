@@ -1,0 +1,21 @@
+format: 1
+id: sdk.host.call-deadline/policy
+feature: sdk.host.call-deadline
+intent: >-
+  every host-managed request has a deadline, including document operations;
+  shorter handshake deadlines stay shorter and a zero deadline is refused.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/src/control.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, filter: every_method_has_a_deadline }
+  - cargo-test: { package: kition-kits, test: process_control }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

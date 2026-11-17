@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-guard-held-changes
+feature: sdk.agent.premise-guard
+intent: >-
+  Another author's change inside the object a write acts on (the text of the shape it edits, held
+  in a body of paragraphs without tool ids) refuses the write as `changed`, and a change made in
+  the file to text inside another shape is described by that shape's tool id rather than missed:
+  the guard reads the document through the schema's ownership (list and tree fields, refs declared
+  `owns`) and matches changes by the holder and path change sets give, a batch naming a paragraph
+  by its object id included. Before, the comparison of a changed file followed list fields only,
+  so text inside shapes was invisible, and the check matched ids exactly.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, nested_text_changed_inside, nested_a_file_change_on_another_part, nested_a_batch_on_a_paragraph, nested_the_epoch_guard]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-guard-large-document
+feature: sdk.agent.premise-guard
+intent: >-
+  A document of any size checks the dependencies of a pending write. Before, the server walked a document's objects
+  for a change made outside only up to 20,000 objects; a larger one's change was journalled as
+  unknown, so every write with `basis` after any outside change was refused as `unknown`. Now every document is walked, and the journal's
+  object budget drops old entries first and never the newest, so the revision handed out before the
+  latest change stays usable however large that change is.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, large_, options_a_basis_older]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, journal]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

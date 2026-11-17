@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-21-editor-unavailable
+feature: sdk.agent.editor-premises
+intent: An unsupported or malformed editor premise response refuses unknown before running a write after another writer's edit.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: live_editor, filter: unavailable_editor_premises_refuse_before_the_write }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

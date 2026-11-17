@@ -1,0 +1,493 @@
+{
+  "_comment": "The save state machine (docs/platform/managed-collab.md section 3), one scenario per row: each event's expected refusal (or none) and the fields of the state after it. Shared by kition_sync_protocol::save and @kition/sync's saveTransition.",
+  "scenarios": [
+    {
+      "name": "a change makes the room dirty; a timer save writes one version with its seq",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 1,
+            "by": "ann"
+          },
+          "state": {
+            "status": "editing",
+            "dirty": true,
+            "headSeq": 1,
+            "savedSeq": 0
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "timer"
+          },
+          "state": {
+            "status": "force-save",
+            "trigger": "timer",
+            "by": "ann",
+            "savingSeq": 1
+          }
+        },
+        {
+          "event": {
+            "type": "change",
+            "seq": 2,
+            "by": "bob"
+          },
+          "state": {
+            "status": "force-save",
+            "headSeq": 2
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": "v2"
+          },
+          "state": {
+            "status": "editing",
+            "dirty": true,
+            "savedSeq": 1,
+            "version": "v2",
+            "savingSeq": null,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "one save at a time; only its session ends it, at its seq",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 1,
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "user"
+          },
+          "state": {
+            "status": "force-save",
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "bob",
+            "trigger": "user"
+          },
+          "refused": "conflict",
+          "state": {
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "user"
+          },
+          "state": {
+            "status": "force-save",
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "bob",
+            "seq": 1,
+            "version": "v9"
+          },
+          "refused": "forbidden",
+          "state": {
+            "status": "force-save"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 5,
+            "version": "v9"
+          },
+          "refused": "invalid"
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": null
+          },
+          "refused": "invalid"
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": "v2"
+          },
+          "state": {
+            "status": "editing",
+            "dirty": false,
+            "version": "v2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a clean room saves only when the person asks",
+      "events": [
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "timer"
+          },
+          "state": {
+            "status": "editing",
+            "by": null
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "command"
+          },
+          "state": {
+            "status": "editing"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "user"
+          },
+          "state": {
+            "status": "force-save",
+            "trigger": "user",
+            "savingSeq": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "a conflict or failure keeps the edits dirty and says why",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 3,
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "timer"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 3,
+            "version": null,
+            "error": "conflict"
+          },
+          "state": {
+            "status": "editing",
+            "dirty": true,
+            "savedSeq": 0,
+            "reason": "conflict"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "bob",
+            "trigger": "user"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "bob",
+            "seq": 3,
+            "version": null,
+            "error": "failed"
+          },
+          "state": {
+            "status": "editing",
+            "reason": "failed"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a corrupt save stops saving until a good one",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 1,
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "timer"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": null,
+            "error": "corrupted"
+          },
+          "state": {
+            "status": "corrupted",
+            "reason": "corrupted",
+            "dirty": true
+          }
+        },
+        {
+          "event": {
+            "type": "change",
+            "seq": 2,
+            "by": "ann"
+          },
+          "state": {
+            "status": "corrupted"
+          }
+        },
+        {
+          "event": {
+            "type": "left",
+            "by": "ann",
+            "last": true
+          },
+          "state": {
+            "status": "corrupted"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "bob",
+            "trigger": "user"
+          },
+          "state": {
+            "status": "force-save",
+            "savingSeq": 2
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "bob",
+            "seq": 2,
+            "version": "v3"
+          },
+          "state": {
+            "status": "editing",
+            "reason": null,
+            "dirty": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "the last editor leaving with unsaved changes makes it must-save; the next editor saves",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 1,
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "left",
+            "by": "ann",
+            "last": true
+          },
+          "state": {
+            "status": "must-save",
+            "dirty": true
+          }
+        },
+        {
+          "event": {
+            "type": "joined",
+            "by": "bob"
+          },
+          "state": {
+            "status": "must-save"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "bob",
+            "trigger": "command"
+          },
+          "state": {
+            "status": "force-save",
+            "by": "bob"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "bob",
+            "seq": 1,
+            "version": "v2"
+          },
+          "state": {
+            "status": "editing",
+            "dirty": false
+          }
+        },
+        {
+          "event": {
+            "type": "left",
+            "by": "bob",
+            "last": true
+          },
+          "state": {
+            "status": "closed"
+          }
+        },
+        {
+          "event": {
+            "type": "joined",
+            "by": "cy"
+          },
+          "state": {
+            "status": "editing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a saver that goes away ends its save without a version",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 1,
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "user"
+          }
+        },
+        {
+          "event": {
+            "type": "left",
+            "by": "ann",
+            "last": false
+          },
+          "state": {
+            "status": "editing",
+            "dirty": true,
+            "savingSeq": null
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "bob",
+            "trigger": "timer"
+          },
+          "state": {
+            "status": "force-save",
+            "by": "bob"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a save ends with a host version of at most 256 characters",
+      "events": [
+        {
+          "event": {
+            "type": "change",
+            "seq": 1,
+            "by": "ann"
+          }
+        },
+        {
+          "event": {
+            "type": "begin",
+            "by": "ann",
+            "trigger": "user"
+          }
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+          },
+          "refused": "invalid"
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": ""
+          },
+          "refused": "invalid"
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1
+          },
+          "refused": "invalid"
+        },
+        {
+          "event": {
+            "type": "end",
+            "by": "ann",
+            "seq": 1,
+            "version": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+          },
+          "state": {
+            "status": "editing",
+            "dirty": false
+          }
+        }
+      ]
+    }
+  ]
+}

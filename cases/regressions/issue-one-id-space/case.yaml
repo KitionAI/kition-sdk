@@ -1,0 +1,32 @@
+format: 1
+id: regressions/issue-one-id-space
+feature: sdk.agent.tool-ids
+intent: >-
+  A kit gives its tool interface one id space (KHP A47) by naming, per type of its KDM schema,
+  the read-only field holding its own id (`"toolId": { "field", "prefix"?, "parent"? }`,
+  KitObjectModel OM9): the object model then answers that id as an object's `id`, in results,
+  refs, loads and every reference a load holds, takes it in targets and references, names objects
+  by it in a draft's comparison, and refuses an id naming no object or several with the ids it may
+  have meant (A44, A48); objects created in a batch are named by `$name` and answered with the id
+  the kit gave them; a type without the key keeps object ids. Before, query and batch answered and
+  took only KDM object ids (UUIDs, fresh on every import of a file) while inspect,
+  commands and diagnostics used the kit's numbers, and edits landed on the wrong object (A46).
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: tool_ids }
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/tool-ids.test.ts]
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

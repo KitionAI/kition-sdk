@@ -1,0 +1,42 @@
+{
+  "name": "@kition/embed",
+  "version": "0.1.0",
+  "description": "Embed Kition kit editors in any web page: KitionEmbed.mount with the page's own storage and identity, single-user or co-edited through a kition-sync/1 server.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@kition/kdm": "workspace:*",
+    "@kition/kit-host": "workspace:*",
+    "@kition/kit-ui-protocol": "workspace:*",
+    "@kition/sync": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/embed"
+  },
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "main": "./dist/index.js"
+}

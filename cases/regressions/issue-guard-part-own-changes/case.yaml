@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-guard-part-own-changes
+feature: sdk.agent.premise-guard
+intent: >-
+  A step that names no object (no `on`, no target, no place, no parameter naming an object) and
+  addresses a part acts on that part: with `basis`, others' change of the part's own fields (a
+  track's setting, a comp's markers) refuses it as `changed`, nothing written, from the file and
+  between agents; changes inside the part that are not its own (a clip's opacity, a ripple insert
+  on it) and another part's change do not. Before, the part was checked for deletion only, and
+  the write overwrote the colleague's change.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, parts_a_write_to_the_part_itself_is_refused_when_others_changed_it]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

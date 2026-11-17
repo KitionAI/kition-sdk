@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-npm-package-output
+feature: sdk.packages.public
+intent: Public JavaScript packages declare built entry points, public registry metadata, and portable runtime dependencies.
+layer: golden
+source: { kind: issue, from: Public npm package contract, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/public-packages.test.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

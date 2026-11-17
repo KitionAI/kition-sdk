@@ -1,0 +1,28 @@
+format: 1
+id: sdk.agent.kit-env/generate
+feature: sdk.agent.kit-env
+intent: >-
+  Tasks generated from a workspace's files are byte-identical for the same files and seed and
+  differ for another seed; they cover the generic edit kinds (set-field, replace-text, delete,
+  move, create) with the kit's receipt as ground truth; instructions name objects by type, text
+  and place and never by id, telling twins apart by their position among their siblings; an
+  edit the kit refuses or that brings a new error diagnostic is resampled with its reason
+  counted; a kit whose object ids do not survive reopening the file is refused at once, saying
+  why.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-env/tests/generate.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

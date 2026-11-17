@@ -1,0 +1,138 @@
+name: publish-npm
+# Publishes the public @kition/* packages to npm, dependencies first.
+# Run it by hand from the Actions tab; a version already on npm is skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      kit_refs:
+        description: "The git ref of each published kit's repository whose headless executable @kition/kits-mcp carries, as <kit>=<ref> separated by spaces (KitionAI/kition-<kit>); pin tags or commits for a release"
+        required: true
+        default: "note=main"
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+jobs:
+  # kition-kits-mcp and the published kits' headless executables for each platform @kition/kits-mcp
+  # supports (packages/kits-mcp/src/platforms.json), as the packages @kition/kits-mcp-<platform>.
+  kits-mcp-servers:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { platform: darwin-arm64, target: aarch64-apple-darwin, runner: macos-15 }
+          - { platform: darwin-x64, target: x86_64-apple-darwin, runner: macos-15-intel }
+          - { platform: linux-arm64, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm }
+          - { platform: linux-x64, target: x86_64-unknown-linux-gnu, runner: ubuntu-24.04 }
+          - { platform: win32-x64, target: x86_64-pc-windows-msvc, runner: windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      KIT_REFS: ${{ inputs.kit_refs }}
+      TARGET: ${{ matrix.target }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Check out each published kit beside the SDK
+        run: |
+          set -euo pipefail
+          for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
+            ref=$(printf '%s\n' $KIT_REFS | sed -n "s/^$kit=//p")
+            if [ -z "$ref" ]; then echo "kit_refs names no ref for $kit" >&2; exit 1; fi
+            git clone "https://github.com/KitionAI/kition-$kit" "../kition-$kit"
+            git -C "../kition-$kit" checkout --detach "$ref"
+          done
+      - run: cargo build --locked --release -p kition-kits --bin kition-kits-mcp --target "$TARGET"
+      - name: Build each published kit's headless executable
+        run: |
+          set -euo pipefail
+          for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
+            (cd "../kition-$kit" && cargo build --locked --release -p "kition-$kit" --target "$TARGET")
+          done
+      - name: Write @kition/kits-mcp-${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
+          args=()
+          for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
+            args+=(--kit "../kition-$kit/kit.json=../kition-$kit/target/$TARGET/release/kition-$kit$exe")
+          done
+          node packages/kits-mcp/scripts/platform-package.mjs platform --platform "$PLATFORM" \
+            --server "target/$TARGET/release/kition-kits-mcp$exe" "${args[@]}" --out target/kits-mcp/npm
+      # The server finds every kit it carries, each with its executable.
+      - name: Smoke test the package
+        run: |
+          set -euo pipefail
+          dir="target/kits-mcp/npm/$PLATFORM"
+          "$dir/bin/kition-kits-mcp" --list-kits --kits-dir "$dir/kits" | node -e '
+            const kits = JSON.parse(require("fs").readFileSync(0, "utf8")).kits
+            const published = require("./published-kits.json")
+            const missing = published.filter((kit) => !kits.some((found) => found.id === `kit.${kit}` && found.installed))
+            if (missing.length) { console.error(`not installed: ${missing.join(", ")}`, kits); process.exit(1) }
+            console.log(kits.map((kit) => `${kit.id} ${kit.executable}`).join("\n"))'
+      - name: Pack it
+        run: npm pack "./target/kits-mcp/npm/$PLATFORM" --pack-destination target/kits-mcp/packed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kits-mcp-${{ matrix.platform }}
+          path: target/kits-mcp/packed/*.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: kits-mcp-servers
+    runs-on: ubuntu-24.04  # Playwright supports 24.04, not 26.04 yet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          registry-url: https://registry.npmjs.org
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      # The workspace links Kition Tessera from a checkout beside this repository.
+      - name: Check out Kition Tessera beside the SDK
+        run: |
+          git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
+          cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: node tools/pack-public-packages.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kits-mcp-*
+          path: target/kits-mcp/packed
+          merge-multiple: true
+      # @kition/kits-mcp depends on every platform package, optionally: npm installs the one for its platform.
+      - run: node packages/kits-mcp/scripts/platform-package.mjs link --launcher target/npm-pack/kits-mcp.tgz --out target/kits-mcp/packed
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: node tools/smoke-public-packages.mjs
+      - name: Publish in dependency order
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          publish() {
+            name=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')
+            version=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published"
+            else
+              npm publish "$1" --access public --provenance
+            fi
+          }
+          # The platform packages before @kition/kits-mcp, which depends on them.
+          for archive in target/kits-mcp/packed/*.tgz; do publish "$archive"; done
+          cd target/npm-pack
+          for p in kdm kit-ui-protocol embed kit-engine sync convergence script extensions embed-server kit-host kit-dev-host kit-editor kits-mcp; do
+            publish "./$p.tgz"
+          done

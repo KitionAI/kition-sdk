@@ -1,0 +1,30 @@
+format: 1
+id: sdk.agent.live-editor/call-context
+feature: sdk.agent.live-editor
+intent: >-
+  A run on a document open in an editor that lists `context` takes `target`, `on` and `at` with the
+  headless path's semantics and errors (`fixtures/live-context.json`): the server hands each step its
+  context, and the editor runs every agent step in an editor state of the agent's own, in one turn
+  of its engine, so the person's selection, part and playhead never move; an engine without one
+  refuses a step with a context before any runs, never ignores it.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/fixtures/live-context.json
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/kitEngine.context.test.ts]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/useKitSession.test.tsx, -t, "call context"]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --test, editor_state_web]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, live_editor, context_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

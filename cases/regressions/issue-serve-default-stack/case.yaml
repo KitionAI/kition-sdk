@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-serve-default-stack
+feature: sdk.host.kits-service
+intent: An unoptimized `kition-kits serve` started from a shell, with no RUST_MIN_STACK, answers kits.initialize and kits.ping instead of overflowing a worker thread's stack. The kits' executables give their runtime's worker threads an explicit stack (kition_kits::runtime). Before, a debug build aborted on its first request, so the headless script example could not reach any kit.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: serve, filter: the_service_answers_on_the_default_thread_stack }
+expected:
+  - { actual: out:cargo-test, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 120

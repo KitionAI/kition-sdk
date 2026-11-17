@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-11-carried-fields
+feature: sdk.agent.receipts
+intent: The carried hook sees actual fields and edits so a parent rename carries no world transform.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, carries_]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

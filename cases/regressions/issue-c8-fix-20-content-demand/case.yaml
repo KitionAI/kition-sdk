@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-20-content-demand
+feature: sdk.agent.on-demand-derived
+intent: On-demand callbacks receive complete short and long stored text checkpoints for related and unrelated changes, and journal eviction refuses unknown, with same-server and outside parity.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: on_demand_content_receives_complete_text_checkpoints_until_journal_eviction }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

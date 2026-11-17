@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.kit-env/mock-deck
+feature: sdk.agent.kit-env
+intent: >-
+  The mock kit's decks, the environment's test kit, refuse a shape's text or colour holding `|`,
+  `#` or a line break (their file's separators) in a batch and in their commands, writing
+  nothing, and report a shape without text as an error diagnostic (`mock.empty-shape`, aimed at
+  the shape) that goes when it has text again: the refusal and the new error the generator
+  resamples on.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-env/tests/mock_deck.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, mock_deck]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

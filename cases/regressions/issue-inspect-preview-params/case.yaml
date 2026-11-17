@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-inspect-preview-params
+feature: sdk.agent.previews
+intent: >-
+  `<prefix>_inspect` with `preview: true` on a kit without a render command asks the kit's
+  `view.screenshot` for the call's `maxSize` (1024 unless given), `scale` and `target`, so a kit
+  that draws scale 2 answers twice the scale 1 image and every kit answers within `maxSize`; a
+  `scale` or `target` the kit refuses fails the call with `unsupported`, naming the scale the kit
+  draws at most or the target and the call to make instead (KHP A18, A24, A39, A48), never the
+  whole document at scale 1. The screenshot request must preserve the caller's view and dimensions.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: previews, filter: the_screenshot_preview_takes_the_call_s_scale_and_max_size_and_refuses_what_it_cannot_draw }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

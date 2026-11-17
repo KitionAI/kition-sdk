@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-address
+feature: sdk.agent.scoped-address
+intent: An id-typed scoped positional string resolves through the kit's per-call window, refusing a moved-away source before the command runs while allowing unheld content edits.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: scoped_string_addresses_are_guarded_before_the_command_runs }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

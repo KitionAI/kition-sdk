@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-inspect-part-id
+feature: sdk.agent.call-context
+intent: >-
+  `<prefix>_inspect {target: {sheet: 3}}` passes the sheet's integer id to the kit's reader, as a
+  string id is passed: a part noun's value is the part's id wherever a target names a part. Before,
+  an integer was dropped and the active sheet's content was shown instead, silently.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, --, a_sheet_named_by_its_integer_id]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

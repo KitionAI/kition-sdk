@@ -1,0 +1,40 @@
+{
+  "name": "@kition/kits-mcp",
+  "version": "0.1.0",
+  "description": "Kition's kit tools as a stdio MCP server for any agent: `npx -y @kition/kits-mcp --workspace <folder>` starts kition-kits-mcp for this platform, with the published kits.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "kition-kits-mcp": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "prepack": "pnpm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/kits-mcp"
+  },
+  "keywords": ["kition", "mcp", "model-context-protocol", "khp", "agent", "markdown"],
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "main": "./dist/index.js"
+}

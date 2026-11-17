@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-guard-id-forms
+feature: sdk.agent.premise-guard
+intent: >-
+  A conflict's id takes its type's form when the guard knows the type (a track named `2` stays
+  `"2"`, a clip `2` is `2`), else the all-digits rule; a batch's `results` give created objects'
+  integer tool ids as numbers. Before, conflicts read every all-digit id as a number and results
+  were strings while every other answer gave numbers.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, conflicts_and_results_name_ids_in_their_types_form]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

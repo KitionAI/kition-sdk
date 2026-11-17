@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-15-maps
+feature: sdk.agent.kit-env
+intent: Owning maps retain direct and record-member objects and normalize their ids across rereads and task sampling.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-env, test: generate, filter: map_owned_records }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: map_owned_records }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

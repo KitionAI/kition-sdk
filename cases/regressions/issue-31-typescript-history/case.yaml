@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-31-typescript-history
+feature: sdk.agent.premise-guard
+intent: TypeScript retains stable raw identities and attributed sibling subtree deletions, and the live editor passes complete private content basis to callbacks after another agent's write.
+layer: golden
+source: { kind: synthetic, from: SDK synthetic replica and editor regression suites, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, -s, vitest, run, packages/kdm/test/member-history.test.ts, packages/kit-editor/src/engine/kitEngine.context.test.ts, --pool=forks, --poolOptions.forks.singleFork] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

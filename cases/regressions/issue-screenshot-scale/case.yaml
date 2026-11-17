@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-screenshot-scale
+feature: sdk.host.headless-kit
+intent: >-
+  `view.screenshot` takes the `scale` and `maxSize` of Kit Process Protocol section 7 (KHP A39).
+  `maxSize` bounds the longer side. `scale` (1 unless given, at most 2) is drawn by the engine up to
+  its `max_render_scale`. A larger scale, which the engine could only enlarge, is refused rather
+  than answered at 1×, and so is a `target` the default screenshot cannot draw (A24). Before,
+  kition-headless never drew above scale 1, and `scale` and `target` were dropped without a word,
+  so every kit without a render command failed khp check phase 7 ("scale 2 gives 320 × 200, not
+  twice 320 × 200").
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol_v2, view_screenshot_takes_scale_and_max_size_and_refuses_what_it_cannot_draw]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 300

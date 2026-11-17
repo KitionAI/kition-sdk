@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.premise-guard/precision
+feature: sdk.agent.premise-guard
+intent: >-
+  A write that passes `basis` runs when others changed only other objects since, and its answer
+  names what they changed and who (`others`, `by`); the agent's own earlier writes never refuse
+  it, even ones that moved objects. Under `--guard epoch` the same write is refused, under
+  `--guard off` nothing is.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/premise_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, precision_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

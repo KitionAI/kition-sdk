@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-21-covered-gone
+feature: sdk.agent.covered-content
+intent: A kit can distinguish a gone covered object from relocation and unavailable occupancy, with no write on any refusal.
+layer: unit
+direction: collab
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: covered_gone_is_deleted }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

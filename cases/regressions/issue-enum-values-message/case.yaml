@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-enum-values-message
+feature: sdk.kdm.values
+intent: >-
+  A value an enum field does not take is refused with the field's values in the message (up to
+  20, then how many more and that `describe` lists them all) and the value given, by kition-kdm
+  and `@kition/kdm` in the same words (KHP A48: an error names the values themselves when there
+  are few). Before, both answered "expects a enum value", so an agent writing Kition Photo's
+  `Image.depth`, `Image.mode` or `Layer.blend` could not tell what to send.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: schema, filter: refusal }
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/schema.test.ts, packages/kdm/test/replica.test.ts]
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

@@ -1,0 +1,23 @@
+format: 1
+id: sdk.agent.required-params/check-required
+feature: sdk.agent.required-params
+intent: >-
+  `testing::check_required` proves an opt-in on a fixture command by command: a right declaration
+  passes; a parameter published required that the engine does not need (the call runs without it)
+  and a command that fails with only its required parameters (it needs one the notation marks
+  optional) are each named, as are a panic, an opted-in command without a call, a call that does
+  not give exactly the required parameters, and a call for a command that is not opted in.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kit/src/testing.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: required_tests }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

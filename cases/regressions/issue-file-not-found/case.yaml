@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-file-not-found
+feature: sdk.host.lent-files
+intent: >-
+  A file a kit asks its host for by path (`files.resolve`) that passes every check of the host's
+  confinement (inside the workspace once `..` and links are resolved, no hidden segment, not the
+  host's own `.kition/`) and does not exist fails `-32023 file_not_found`. Every path that fails a
+  check gets the same `file_not_allowed` refusal, byte for byte, whether its target exists or not,
+  and a grant checks the extension before it looks for the file (KHP A29; KitFiles FA8; host
+  contract H3, LR2). Before, a missing file got the refusal, so missing-link diagnostics never fired.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit-host, filter: kit_files::tests::file_not_found }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

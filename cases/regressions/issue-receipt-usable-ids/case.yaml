@@ -1,0 +1,31 @@
+format: 1
+id: regressions/issue-receipt-usable-ids
+feature: sdk.agent.premise-guard
+intent: >-
+  A receipt and `others` name no object id the agent cannot use. A table cell's path named its row
+  and column by object ids a kit mints again on every read (`table.cells.<row id>:<col id>`); now,
+  when every segment of the key names an object with a tool id or a place in a list, it reads by
+  those (`table.cells.0:1`). A ref to an object no tool id names and no holder with one holds (a
+  new slide's `layout`) read as that object's minted id; now `{ "unnamed": "Layout" }`. Rust and
+  TypeScript answer alike (`fixtures/usable-ids.json`).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, --, a_receipt_names_cells]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, usable_]
+  - exec:
+      cmd: [pnpm, -s, vitest, run, packages/kdm/test/changes.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

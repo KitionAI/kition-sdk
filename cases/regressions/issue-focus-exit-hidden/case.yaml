@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-focus-exit-hidden
+feature: sdk.editor.display-modes
+intent: >-
+  Focus shows its way out: the Focus bar's Exit button is named "Exit focus" with its key (Esc),
+  and the bar shows in full for a few seconds on entering Focus before it fades. In Kition the
+  note kit's Focus showed only a faint, unlabelled icon at the bottom, and the owner found no way
+  out.
+layer: golden
+source:
+  kind: probe
+  from: owner report (a 1 MB note in Focus, "no way to exit")
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/frame/EditorFrame.test.tsx, -t, names Exit focus and its key]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

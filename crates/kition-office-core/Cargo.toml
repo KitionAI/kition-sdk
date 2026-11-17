@@ -1,0 +1,17 @@
+[package]
+name = "kition-office-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "What Kition's Office kits (doc, sheet, slide) share: drawing objects (frames, preset geometry, the KitDrawing object model and commands, hit testing, gestures, display lists), charts, ink and text warps"
+
+[lints]
+workspace = true
+
+[dependencies]
+kurbo = { version = "0.13", features = ["serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+zip = { version = "3", default-features = false, features = ["deflate"] }

@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-32-owned-register
+feature: sdk.agent.premise-guard
+intent: An owned object's JSON member holds refuse changed members and whole registers while unrelated member changes apply, without exposing private receipt facts.
+layer: golden
+source: { kind: synthetic, from: SDK mock-kit regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: owned_register_changes_conflict_only_with_held_members }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

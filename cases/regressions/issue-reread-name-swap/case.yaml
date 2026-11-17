@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-reread-name-swap
+feature: sdk.agent.premise-guard
+intent: >-
+  Another program swaps two nodes' names, each keeping its place and position: two changes of
+  `name`, not renumbered tool ids (a write on either is refused as `changed`, not `unknown`); the
+  keys exchanged with the nodes whole (names, locations and places) are a renumbering; two objects
+  alike but for one field whose values are exchanged read as two changes (the safe reading of an
+  ambiguous exchange).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, reread]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.live-editor/premise-guard
+feature: sdk.agent.live-editor
+intent: >-
+  On a document open in an editor that lists `changes`, what the person changes between the
+  agent's calls is journalled as theirs (`person`, or `other` when the editor did not say), with
+  its change set read from the editor's replica: the person's edit of another object is named in
+  the next write's `others` and the write applies; the person's deletion or move of the write's
+  target refuses it as `conflict` (`deleted`, `relocated` with where it is now), and nothing runs.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/live_editor.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, live_editor, guard_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

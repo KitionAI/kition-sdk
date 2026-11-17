@@ -1,0 +1,24 @@
+format: 1
+id: sdk.distribution.container/context
+feature: sdk.distribution.container
+intent: >-
+  The container context includes every canonical kit's manifest and prebuilt Linux executable,
+  keeps runtime asset paths, excludes unrelated SDK files and build caches, and refuses missing
+  kits, wrong architectures, replaced identities and symlinked assets. This does not certify
+  an image build or a real kit session; those require the owner's Linux smoke test.
+layer: golden
+direction: platform
+source:
+  kind: synthetic
+  from: tools/container/assemble-context.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/container/assemble-context.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,131 @@
+{
+  "schema": {
+    "kdm": 1,
+    "kit": "kit.test",
+    "schemaVersion": 1,
+    "root": "Shape",
+    "types": {
+      "Shape": {
+        "fields": {
+          "body": {
+            "kind": "ref",
+            "of": "TextBody",
+            "owns": true
+          },
+          "linked": {
+            "kind": "ref",
+            "of": "TextBody"
+          }
+        }
+      },
+      "TextBody": {
+        "fields": {
+          "paragraphs": {
+            "kind": "list",
+            "of": "Paragraph"
+          },
+          "captions": {
+            "kind": "map",
+            "owns": true
+          },
+          "data": {
+            "kind": "json"
+          }
+        }
+      },
+      "Paragraph": {
+        "toolId": {
+          "field": "key"
+        },
+        "fields": {
+          "key": {
+            "kind": "string",
+            "optional": true,
+            "readOnly": true
+          },
+          "text": {
+            "kind": "text"
+          },
+          "protected": {
+            "kind": "text",
+            "readOnly": true,
+            "optional": true
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "ops": [
+      {
+        "op": "create",
+        "type": "TextBody",
+        "id": "body",
+        "fields": {
+          "data": {
+            "text": "JSON"
+          }
+        }
+      },
+      {
+        "op": "create",
+        "type": "Shape",
+        "id": "shape",
+        "fields": {
+          "body": "body",
+          "linked": "body"
+        }
+      },
+      {
+        "op": "create",
+        "type": "Paragraph",
+        "id": "p",
+        "in": "body.paragraphs",
+        "fields": {}
+      },
+      {
+        "op": "text.insert",
+        "target": "p",
+        "field": "text",
+        "index": 0,
+        "text": "A🙂éZ"
+      },
+      {
+        "op": "create",
+        "type": "Paragraph",
+        "id": "caption",
+        "fields": {}
+      },
+      {
+        "op": "text.insert",
+        "target": "caption",
+        "field": "text",
+        "index": 0,
+        "text": "A🙂éZ"
+      },
+      {
+        "op": "map.set",
+        "target": "body",
+        "field": "captions",
+        "key": "main",
+        "value": "caption"
+      },
+      {
+        "op": "create",
+        "type": "Paragraph",
+        "id": "named",
+        "in": "body.paragraphs",
+        "fields": {
+          "key": "named"
+        }
+      },
+      {
+        "op": "text.insert",
+        "target": "named",
+        "field": "text",
+        "index": 0,
+        "text": "Named"
+      }
+    ]
+  }
+}

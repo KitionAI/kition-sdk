@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-guard-words-map-key
+feature: sdk.agent.premise-guard
+intent: >-
+  A premise in the kit's words (`transform/rotation`) is not touched by a change of a key of the
+  object's own map (`attrs.stretch`), which no word of the kit's names; a change inside its property
+  tree that the change set gives no words for still touches it. Before, a rotation
+  write by `"#6"` was refused as `changed` after any time stretch of the layer.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, a_premise_in_the_kits_words_is_not_touched_by_a_map_key]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

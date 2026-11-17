@@ -1,0 +1,30 @@
+format: 1
+id: regressions/issue-reread-constant-root
+feature: sdk.agent.premise-guard
+intent: >-
+  Two reads of a file changed by another program are paired object by object: an id both reads
+  have pairs that object only, so a root whose id is the same on every read (a real slide kit's
+  `slide-file`) no longer stops every other object from pairing; ids inside json values, map keys
+  and parts of keys are read through the pairing, never inside text. Before, on the presentation
+  kit `others` was 30-40 KB of unchanged objects after any file change, nothing was counted in
+  `unnamed`, writes on slides and pictures were refused as `changed`, a package saved again
+  unchanged was told as a change, and a table cell's edit listed every cell under old and new keys.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, reread]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, reread_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

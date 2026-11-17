@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-published-kit-boundary
+feature: sdk.distribution.published-kits
+intent: Only explicitly published kits contribute copied guides, manifests, schemas and bundle entries to the public SDK.
+layer: golden
+source:
+  kind: synthetic
+  from: tools/published-kits.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/published-kits.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

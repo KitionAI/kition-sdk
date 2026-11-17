@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-text-history
+feature: sdk.agent.text-history
+intent: Ten-thousand-character text and formatting-only changes retain complete basis values for range callbacks, with same-server and outside parity before, inside and after the held range.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: long_text_and_formatting_ranges_have_complete_guard_history }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

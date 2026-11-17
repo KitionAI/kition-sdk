@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-21-projected-placement
+feature: sdk.model.projected-objects
+intent: Unsupported projected ownership refuses at schema validation and mapped creates respect read-only destination containers.
+layer: unit
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: projections, filter: projected_ }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

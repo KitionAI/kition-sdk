@@ -1,0 +1,30 @@
+format: 1
+id: sdk.community.sync/generate-and-check
+feature: sdk.community.sync
+intent: >-
+  tools/sync-community.mjs writes the community files from templates/community/ for every entry of
+  templates/community/repositories.json with no placeholder left and issue forms that parse as YAML,
+  changes nothing on a second run, leaves a repository's kept paths alone, writes links in .github/
+  relative to .github/, and with --check writes nothing and exits 1 for a missing or changed file,
+  a CONTRIBUTING.md left at the repository root (the old location; then a write run writes nothing
+  either), or a README that breaks the README rules (the "Licence" spelling, the developer link,
+  dev.kition.ai or kition.one; for a kit's product-page README the five H2 sections in order, a
+  "Repository layout" or "Build and test" H2, the hero picture, fewer than three pictures from
+  assets/readme/, a short alt, a missing or oversized picture, a Maturity line or KHP badge that
+  differs from kit.json), or a kit with web/ whose docs/development.md does not describe
+  KITION_LINK=1. --print-readme prints the kit skeleton filled from kit.json and the entry.
+layer: golden
+source:
+  kind: synthetic
+  from: tools/sync-community.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-community.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

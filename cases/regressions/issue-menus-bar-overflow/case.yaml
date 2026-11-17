@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-menus-bar-overflow
+feature: sdk.editor.frame-overflow
+intent: When a narrow window steps an editor down to Menus, menus the bar cannot hold stay reachable through a fade and a scroll button at the cut edge, as tabs do; Sheet at 1024 px hid Review, View and Automate with no sign they were there.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/frame/EditorFrame.test.tsx, -t, Menus bar wider than the window]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.preview-view/run-after-picture
+feature: sdk.agent.preview-view
+intent: >-
+  `<prefix>_run {preview: true, view}` draws its after-picture with the kit's render command at
+  that view, after the steps (the whole document without one), and answers `preview`; a view
+  member the render command does not take is `invalid-params` before any step runs, so the file is
+  unchanged.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/preview_view.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view, a_runs_preview_is_the_after_picture_of_its_view]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

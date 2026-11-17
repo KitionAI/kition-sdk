@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-agent-design-schema
+feature: sdk.object-model.published
+intent: Register published object models and match the pinned package's schema.
+layer: golden
+source:
+  kind: probe
+  from: packages/script/test/kits.test.ts
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/script/test/kits.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

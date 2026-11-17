@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-20-declared-values
+feature: sdk.agent.premise-guard
+intent: Only command parameters declared as references or names hold matching objects; literal strings, integers, nested values and array elements remain values in both runs and batch commands.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: only_declared_reference_parameters_hold_objects_matrix }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

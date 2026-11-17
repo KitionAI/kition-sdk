@@ -1,0 +1,48 @@
+{
+  "name": "kition-kits",
+  "displayName": "Kition kits",
+  "version": "0.1.0",
+  "description": "Create, edit and check Markdown notes in your project with the Kition Note kit's KHP tools, with no Kition app running. Other Kition kits join as they are published.",
+  "author": {
+    "name": "Kition",
+    "url": "https://kition.ai"
+  },
+  "homepage": "https://kition.ai",
+  "license": "Apache-2.0",
+  "keywords": ["kition", "khp", "kits", "mcp", "markdown", "notes"],
+  "mcpServers": {
+    "kition-kits": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/kits-mcp.sh",
+      "args": ["--workspace", "${CLAUDE_PROJECT_DIR}"],
+      "env": {
+        "KITION_KITS_MCP": "${user_config.kits_mcp}",
+        "KITION_KITS_DIR": "${user_config.kits_dir}",
+        "KITION_KIT_REPOS": "${user_config.kit_repos}",
+        "KITION_KITS_UNIFIED": "${user_config.unified}"
+      }
+    }
+  },
+  "userConfig": {
+    "kits_mcp": {
+      "type": "file",
+      "title": "kition-kits-mcp",
+      "description": "The kition-kits-mcp executable (built from kition-sdk with `cargo build -p kition-kits --bin kition-kits-mcp`). Leave empty to use the one on the PATH, else `npx -y @kition/kits-mcp`, which brings the server and the published kits (once that package is on npm)."
+    },
+    "kits_dir": {
+      "type": "directory",
+      "title": "Installed kits",
+      "description": "A folder with one folder per installed kit, each holding its kit.json and headless executable. Leave empty to use kit repositories, or the kits @kition/kits-mcp brings."
+    },
+    "kit_repos": {
+      "type": "directory",
+      "title": "Kit repositories (development)",
+      "description": "A folder of kit repository checkouts (kition-<kit>/). Each kit built with `cargo build -p kition-<kit>` is served from target/debug/kition-<kit> with its repository's kit.json."
+    },
+    "unified": {
+      "type": "boolean",
+      "title": "One tool set for all kits",
+      "description": "On: 10 kit_<action> tools routed by the file's extension, the same 10 however many kits are installed. Off: 10 <prefix>_<action> tools for each installed kit (note_run, note_check, ...).",
+      "default": true
+    }
+  }
+}

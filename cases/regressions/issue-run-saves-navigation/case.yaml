@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-run-saves-navigation
+feature: sdk.agent.call-context
+intent: >-
+  A headless `<prefix>_run` puts the kit's editor state back before it saves, so a kit that writes
+  some editor state into its file (the video kit its open sequence and tabs, the 3D kit its
+  viewport) saves the person's state and never the run's navigation (its `target` or a step's
+  `at.part`). Before, the run saved first and restored after, and the saved file named the part
+  the run had gone to.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, state_a_run_saves_the_file_with_the_editor_state_put_back]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.call-context/unset-state
+feature: sdk.agent.call-context
+intent: >-
+  A command that reads editor state no call context sets (`mode`, `active`) lists it in
+  `x-khp-reads`, and the commands tool says of it (`dependsOn`, in the one-line and the detailed
+  form) to set it with the kit's own command earlier in the same run; such a run's later steps run
+  in the mode it set, and the server puts the mode back after the call with the rest of the
+  editor state, so the next call runs in the person's mode.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, state_a_mode]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

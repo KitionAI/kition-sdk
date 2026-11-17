@@ -1,0 +1,35 @@
+format: 1
+id: regressions/issue-describe-field-kinds
+feature: sdk.agent.object-model
+intent: >-
+  `<prefix>_query` with `describe` says how each field is written (KHP A16a; KitObjectModel
+  OM1a): the JSON Schema of `describe: "*"` marks read-only fields and types `readOnly`, keeps an
+  enum's values, gives a reference `x-kdm-ref` (the type whose id it holds) and a container
+  `x-kdm-ops` (the operations that change it, never `set`), and the one-line listing of
+  `describe: true` marks the same for every type; an unknown type name is `not-found` listing
+  the types. `<prefix>_batch` refuses a `set` on a read-only field (with where such fields are
+  marked and what changes them), on a text, an enum value it does not take, and a reference to
+  no object (OM2b), each saying why and what to use (A18, A48). Before, a read-only field, a
+  reference and a text all read `{ "type": "string" }`, so agents and the conformance tool
+  picked read-only identifiers, text containers and depth fields to write.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: object_model, filter: describe_and_batch_tell_the_fields_a_batch_cannot_set }
+  - cargo-test: { package: kition-kits, filter: tools::model::tests }
+  - cargo-test: { package: kition-kdm, test: batch, filter: references_name_objects_that_exist }
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/batch.test.ts]
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

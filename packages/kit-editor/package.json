@@ -1,0 +1,52 @@
+{
+  "name": "@kition/kit-editor",
+  "version": "0.1.0",
+  "description": "Build a kit's embedded editor: host connection, document session, engine canvas and tools, and shared components styled by the host's theme (Kit UI protocol).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css",
+    "./workspaceTree": "./src/workspaceTree.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@kition/kdm": "workspace:*",
+    "@kition/kit-engine": "^0.1.0",
+    "@kition/kit-ui-protocol": "workspace:*",
+    "@kition/tessera-ui": "^0.1.0",
+    "@kition/tessera-icons": "^0.1.0",
+    "@kition/tessera-tokens": "^0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/kit-editor"
+  },
+  "types": "./dist/types/src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/src/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./styles.css": "./dist/styles.css",
+      "./workspaceTree": {
+        "types": "./dist/types/src/workspaceTree.d.ts",
+        "import": "./dist/workspaceTree.js"
+      }
+    }
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "prepack": "pnpm run build"
+  }
+}

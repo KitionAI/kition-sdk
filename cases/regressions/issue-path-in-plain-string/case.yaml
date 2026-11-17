@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-path-in-plain-string
+feature: sdk.security.file-parameters
+intent: >-
+  A command an agent is offered cannot name a file in a plain string unnoticed (KHP A28):
+  `kition_kit::testing::check_file_parameters` fails on every free-text string parameter, at any
+  depth, whose name or description says it names a file, a folder, or a URL (`destination`,
+  `outputDir`, "this file"), unless it is typed `file` or reviewed with `"notFile": true`; enums,
+  `file` parameters, commands kept from the agent, and reviewed strings pass. Before, the gate
+  recognised only parameters typed `file`, and film's `file.projectManager { destination }` wrote
+  a project outside the workspace.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, file_parameter_tests]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, schema::paths]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+tags: [security]
+since: "2026-11-16"
+timeout_s: 600

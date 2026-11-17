@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-12-number-schema
+feature: sdk.agent.number-members
+intent: Generated describe JSON Schema retains numeric limits and optional numeric JSON member constraints so agents see the same values that batch accepts.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, described_numeric_limits_reach_json_schema]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-agent-ready-spec-checks
+feature: sdk.testing.agent-ready
+intent: >-
+  The in-process Agent-ready check asks what KHP asks, as khp check does. A preview fails when it
+  is uniform: one colour, or every pixel transparent (A39). A new document fails when it has
+  `error` diagnostics (A41, A21). Before, the check failed a real preview with 2 to 4 colours, and
+  a new document with an `info` code. A21 says `info` is "worth knowing, nothing to fix", and
+  a new document may report such a code without failing the check.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: agent_ready::tests::a_two_colour_preview_and_an_info_on_a_new_document_pass }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.call-context/step-part
+feature: sdk.agent.call-context
+intent: >-
+  A step's `at.part` overrides the run's `target` for that step only, so one run edits objects
+  on two parts, each reached by the ids inspect listed for its part; a failing later step rolls
+  back the steps on the other parts (KHP A46, A53, A54); an `at` that is not `{part?, time?}` is
+  `invalid-params`.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, at_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

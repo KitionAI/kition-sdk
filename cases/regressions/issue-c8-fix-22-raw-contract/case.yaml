@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-22-raw-contract
+feature: sdk.agent.raw-contract
+intent: Raw batches require a declared premise contract and plan mixed prefixes before checking command-equivalent premises.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: place_guard, filter: raw_ }
+  - cargo-test: { package: kition-kits, test: place_guard, filter: raw_, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-c8-fix-20-reread-objects
+feature: sdk.agent.premise-guard
+intent: A reread reports replica-only objects lost outside the root ownership graph as deleted, and stale writes holding them are refused before reaching the kit.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: reread_reports_deleted_replica_only_objects_before_a_stale_write_runs }
+  - cargo-test: { package: kition-kdm, test: changes, filter: batch_inventory_includes_detached_objects_without_writing }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, enumerates detached, --maxWorkers=1, --minWorkers=1] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

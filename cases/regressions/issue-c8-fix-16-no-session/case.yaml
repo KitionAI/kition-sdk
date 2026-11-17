@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-16-no-session
+feature: sdk.agent.batch-values
+intent: The core KitDocument contract builds without session; KDM-only settling and blob source hooks are available only with that feature.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, check, -p, kition-sdk, --lib, --no-default-features] }
+  - exec: { cmd: [cargo, check, -p, kition-sdk, --lib, --features, session] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

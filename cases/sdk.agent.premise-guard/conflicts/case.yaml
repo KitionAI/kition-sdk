@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.premise-guard/conflicts
+feature: sdk.agent.premise-guard
+intent: >-
+  A write that passes `basis` is refused as a whole (`conflict`, retryable, nothing runs) when
+  others deleted its target, relocated it (moved it, shifted its index, or changed which slide a
+  slide number names, with `now`), changed the field a batch replaces or any field of a command's
+  target; a batch replacing another field of the same object runs, and a retry on the refusal's
+  `revision` runs.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/premise_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, conflict_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

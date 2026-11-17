@@ -1,0 +1,24 @@
+format: 1
+id: sdk.host.mcp-call-control/progress-and-cancel
+feature: sdk.host.mcp-call-control
+intent: >-
+  kit.progress reaches only its owning request, mapped to the MCP client's token and
+  monotonically increasing event counts. Stdio accepts cancellation while a document call is
+  queued and continues answering other requests. Kit cancellation uses the existing
+  $/cancelRequest message, clears pending state, and cannot hang on a blocked writer.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kit-host/src/client.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit-host, filter: "control_tests::" }
+  - cargo-test: { package: kition-kits, filter: stdio_reads_cancellation_while_a_document_is_queued }
+  - cargo-test: { package: kition-kits, filter: progress_uses_the_clients_token_and_monotonic_event_counts }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

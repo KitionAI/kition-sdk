@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-script-engine-projections
+feature: sdk.model.projected-objects
+intent: A script on a kit engine in the same process (openKitPackage, portFromEngine) reads and edits a document whose schema declares projected types. The engine's port answers the projected objects through the engine's premiseRead, and the exchange passes them to the batch. Before, every batch on such a schema failed with "this adapter cannot read declared projected objects", so no script could reach a Note document in Node.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/script/test/note-model.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

@@ -1,0 +1,18 @@
+[package]
+name = "kition-kit-server"
+description = "Kition Kit Process Protocol v2 server: transport, framing, roles, the host's file services, and dispatch to an editor backend."
+version.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+kition-kit-process-protocol = { path = "../kition-kit-process-protocol", features = ["tokio"] }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "io-util", "time"] }

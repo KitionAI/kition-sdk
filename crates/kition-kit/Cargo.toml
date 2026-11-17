@@ -1,0 +1,31 @@
+[package]
+name = "kition-kit"
+description = "Kition SDK: make an engine editable inside Kition. Implement KitDocument, export it to WebAssembly with the exact JavaScript interface Kition's in-page editors use, and prove it with check_contract."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+kition-kdm = { path = "../kition-kdm", optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { version = "0.10", optional = true }
+thiserror = { workspace = true, optional = true }
+
+[features]
+# Engine contract 2 (`session`): the document as a KDM replica. Off by default, so contract 1 kits
+# do not build the replication engine.
+session = ["dep:kition-kdm", "dep:sha2", "dep:thiserror"]
+
+[dev-dependencies]
+# The crate's own tests run with the session.
+kition-kit = { path = ".", features = ["session"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"

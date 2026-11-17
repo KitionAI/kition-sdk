@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-reread-ripple-renumbered
+feature: sdk.agent.premise-guard
+intent: >-
+  Clips a ripple edit made in the file moved along their track are moved, not renumbered. Before,
+  two reads of a timeline whose clips are alike but for their start (one-second mattes) compared
+  each clip with the one that had been where it is now, took the shift for tool ids moved between
+  clips, and refused every write naming a later clip as `unknown`. Content is now compared without
+  the fields the schema marks `position`; clips whose numbers were swapped are still renumbered.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, reread, clips_a_ripple_edit_moved]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, places_a_write_by_time_after_a_change_elsewhere_applies]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

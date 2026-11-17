@@ -1,0 +1,28 @@
+format: 1
+id: sdk.agent.premise-guard/real-kit
+feature: sdk.agent.premise-guard
+intent: >-
+  On a deck modelled as the presentation kit models it (per-slide shape numbers in composite tool
+  ids, text in owned bodies of paragraphs, notes whose ids start as their slide's), the guard holds
+  as on a real kit: a file rewritten by another program on another slide lets a write with `basis`
+  run and names the change by the shape's tool id and a path; deleting, inserting before or moving
+  the target conflicts by its tool id with `now`; text changed inside the target conflicts, inside
+  another shape does not; `--guard epoch` refuses and `--guard off` reports; parts and batch
+  commands are premises as declared.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/premise_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, nested_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

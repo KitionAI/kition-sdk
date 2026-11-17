@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-21-editor-history
+feature: sdk.agent.editor-premises
+intent: Live editor blob comparisons use retained and verified basis bytes and refuse unknown after retention eviction.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: content_callbacks_receive_basis_blob_bytes, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

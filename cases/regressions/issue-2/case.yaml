@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-2
+feature: sdk.host.headless-kit
+intent: A host written from the Kit Process Protocol specification alone, with no Kition crate, starts a kit built on kition-headless with KITION_KIT_PROTOCOL=2 and drives it. The ready line and kit.initialize say version 2; the kit reads and writes its document only through the host's files.* on file handles; a save commits with the version it read, and a stale version is file_conflict; an agent may not send origin system. Launched with another version, the kit still prints its ready line with version 2 and refuses kit.initialize with unsupported_protocol.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol_v2]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 300
+since: "2026-11-16"

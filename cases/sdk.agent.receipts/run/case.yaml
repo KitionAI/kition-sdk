@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.receipts/run
+feature: sdk.agent.receipts
+intent: >-
+  A headless `<prefix>_run` (on the file or on a headless draft) answers `changes` for the whole
+  run: the one object it changed with each field before and after, not the objects beside it; a
+  run of many steps lists each object once; a run with no effect an empty change set and the same
+  `revision`; a failed, rolled-back run no `changes`, `revision` or `diagnostics`.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/receipts.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, receipts, run_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

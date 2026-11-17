@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-guard-covered-cap
+feature: sdk.agent.premise-guard
+intent: >-
+  A write by point after others moved 1,000 objects is decided in one `context.covered` request (up
+  to 4,096 objects; 64 before, beyond which every write by point was refused): a move of every node
+  by 0.1 m leaves the node at the point, and the rename applies (1.8 s on the mock, the file read
+  again included).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, covers_a_thousand_objects_moved_are_asked_at_once]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

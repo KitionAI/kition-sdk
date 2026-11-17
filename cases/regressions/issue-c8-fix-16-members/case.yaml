@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-16-members
+feature: sdk.agent.number-members
+intent: Bounded JSON members reject nonnumeric scalar values atomically and permit null only when declared nullable; number-or-array values validate each declared path.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: member_types }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/member-types.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

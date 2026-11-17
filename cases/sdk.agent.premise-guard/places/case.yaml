@@ -1,0 +1,31 @@
+format: 1
+id: sdk.agent.premise-guard/places
+feature: sdk.agent.premise-guard
+intent: >-
+  A step that names what it acts on by a place (a command that reads the time given `at.time`, or
+  a parameter marked `x-khp-role: place`) has, with `basis`, the premise that the objects under
+  the place (`context.under`) are those that were there: after a colleague's ripple insert before
+  it, "select what is at 2.5 s on V1, then disable it" and "cut V1 at 2.5 s" are refused as
+  `relocated`, naming what is under the place now and where the clip that was there went, and
+  nothing is written; a clip deleted there is `deleted`; a change elsewhere (later on the track,
+  on another track, a property) applies; fifty rounds of an unrelated change refuse no write by
+  place or by id; without `basis` the A56 notice refuses once.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/place_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, places_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, answers_what_a_place_names]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

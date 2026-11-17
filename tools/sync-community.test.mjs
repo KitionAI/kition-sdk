@@ -1,0 +1,415 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { afterEach, describe, expect, it } from 'vitest'
+import YAML from 'yaml'
+import { checkDevelopment, checkReadme, entryValues, fill, generate, readmeSkeleton, relink } from './sync-community.mjs'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const tool = path.join(here, 'sync-community.mjs')
+const data = JSON.parse(fs.readFileSync(path.join(here, '..', 'templates', 'community', 'repositories.json'), 'utf8'))
+const MANIFEST = {
+  version: '0.6.0',
+  khp: '1.0',
+  level: 'basic',
+  formats: [{ id: 'film', extensions: ['kfilm'], role: 'edit' }, { id: 'srt', extensions: ['srt'], role: 'view' }],
+  creates: [{ id: 'film', extension: 'kfilm' }],
+  exports: [{ extension: 'mp4' }, { extension: 'mp4' }, { extension: 'webm' }],
+}
+/** The pictures a README names under assets/readme/. */
+const pictures = (readme) => [...new Set(readme.match(/assets\/readme\/[\w.-]+\.png/g) ?? [])]
+/** A kit repository's files as checkReadme reads them: every picture under assets/readme/ is there, 100 KB. */
+const REPO = { size: (file) => (file.startsWith('assets/readme/') ? 100 * 1024 : null) }
+const GENERATED = [
+  '.github/CODE_OF_CONDUCT.md',
+  '.github/CONTRIBUTING.md',
+  '.github/ISSUE_TEMPLATE/bug_report.yml',
+  '.github/ISSUE_TEMPLATE/config.yml',
+  '.github/ISSUE_TEMPLATE/feature_request.yml',
+  '.github/SECURITY.md',
+  '.github/SUPPORT.md',
+  '.github/pull_request_template.md',
+]
+const dirs = []
+
+function tempRepo(files = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-community-'))
+  dirs.push(dir)
+  for (const [file, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
+    fs.writeFileSync(path.join(dir, file), text)
+  }
+  return dir
+}
+
+function sync(dir, entry, ...extra) {
+  const result = spawnSync(process.execPath, [tool, dir, '--entry', entry, ...extra], { encoding: 'utf8' })
+  return { code: result.status, out: result.stdout, err: result.stderr }
+}
+
+function snapshot(dir) {
+  const files = {}
+  for (const file of fs.readdirSync(dir, { recursive: true })) {
+    const full = path.join(dir, file)
+    if (fs.statSync(full).isFile()) files[file.split(path.sep).join('/')] = fs.readFileSync(full, 'utf8')
+  }
+  return files
+}
+
+/** The repository's files, sorted, without the README's pictures (assets/readme/). */
+const written = (dir) => Object.keys(snapshot(dir)).filter((file) => !file.startsWith('assets/readme/')).sort()
+
+/** A kit repository whose README is the skeleton, with its pictures, so only the generated files are missing. */
+function kitRepo(entry = 'kition-film') {
+  const readme = readmeSkeleton(entryValues(entry), MANIFEST)
+  const images = Object.fromEntries(pictures(readme).map((file) => [file, 'PNG']))
+  return tempRepo({ 'README.md': readme, 'kit.json': `${JSON.stringify(MANIFEST)}\n`, ...images })
+}
+
+const kitFindings = (readme, entry = 'kition-film', repo = REPO) => checkReadme(entryValues(entry), readme, MANIFEST, repo)
+
+afterEach(() => {
+  for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
+})
+
+describe('sync-community', () => {
+  it('writes every file, --check then passes, and a second run changes nothing', () => {
+    const dir = kitRepo()
+    const before = sync(dir, 'kition-film', '--check')
+    expect(before.code).toBe(1)
+    expect(before.out).toContain('missing: .github/CONTRIBUTING.md')
+    expect(written(dir)).toEqual(['README.md', 'kit.json'])
+
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    const first = snapshot(dir)
+    expect(written(dir).filter((file) => !['README.md', 'kit.json'].includes(file))).toEqual(GENERATED)
+    expect(first['.github/CONTRIBUTING.md']).toContain('KITION_LINK=1 pnpm install')
+    expect(first['.github/CONTRIBUTING.md']).toContain('cargo xtask ci')
+    // Links in .github/ are relative to .github/.
+    for (const link of ['](../AGENTS.md)', '](../docs/quality.md)', '](../LICENSE)', '](CODE_OF_CONDUCT.md)', '](SECURITY.md)']) {
+      expect(first['.github/CONTRIBUTING.md']).toContain(link)
+    }
+    for (const link of ['](../README.md)', '](SECURITY.md)', '](CONTRIBUTING.md)']) expect(first['.github/SUPPORT.md']).toContain(link)
+    expect(first['.github/SECURITY.md']).toContain('https://github.com/KitionAI/kition-film/security/advisories/new')
+    expect(first['.github/SECURITY.md']).toContain('`support@kition.ai`')
+    expect(first['.github/pull_request_template.md']).toContain('`docs/quality.md`')
+    expect(first['.github/ISSUE_TEMPLATE/bug_report.yml']).toContain('Minimal sample file')
+    expect(first['.github/CODE_OF_CONDUCT.md'].startsWith('# Contributor Covenant Code of Conduct\n')).toBe(true)
+    expect(first['.github/CONTRIBUTING.md'].startsWith('<!-- Generated by kition-sdk tools/sync-community.mjs')).toBe(true)
+
+    const check = sync(dir, 'kition-film', '--check')
+    expect(check.out).toBe('sync-community: up to date\n')
+    expect(check.code).toBe(0)
+    const second = sync(dir, 'kition-film')
+    expect(second.code).toBe(0)
+    expect(second.out).not.toMatch(/^(create|update):/m)
+    expect(snapshot(dir)).toEqual(first)
+  })
+
+  it('--check reports a changed file and writes nothing', () => {
+    const dir = kitRepo()
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    const security = path.join(dir, '.github/SECURITY.md')
+    fs.writeFileSync(security, fs.readFileSync(security, 'utf8').replace('support@kition.ai', 'someone@example.com'))
+    const result = sync(dir, 'kition-film', '--check')
+    expect(result.code).toBe(1)
+    expect(result.out).toBe('differs: .github/SECURITY.md\n')
+    expect(fs.readFileSync(security, 'utf8')).toContain('someone@example.com')
+  })
+
+  it('neither writes nor checks the paths an entry keeps', () => {
+    const own = { '.github/CONTRIBUTING.md': '# Adding to Kition Universe\n', '.github/ISSUE_TEMPLATE/config.yml': 'blank_issues_enabled: true\n' }
+    const readme = readmeSkeleton(entryValues('kition-universe'), null)
+    const dir = tempRepo({ ...own, 'README.md': readme })
+    expect(sync(dir, 'kition-universe').code).toBe(0)
+    const files = snapshot(dir)
+    expect(files['.github/CONTRIBUTING.md']).toBe(own['.github/CONTRIBUTING.md'])
+    expect(files['.github/ISSUE_TEMPLATE/config.yml']).toBe(own['.github/ISSUE_TEMPLATE/config.yml'])
+    expect(files['.github/ISSUE_TEMPLATE/bug_report.yml']).toBeUndefined()
+    expect(files['.github/SUPPORT.md']).toContain('/issues/new/choose')
+    expect(files['.github/SUPPORT.md']).not.toContain('bug_report.yml')
+    expect(sync(dir, 'kition-universe', '--check').code).toBe(0)
+  })
+
+  it('reports a CONTRIBUTING.md left at the old location, and writes nothing until it is moved', () => {
+    const dir = kitRepo()
+    fs.writeFileSync(path.join(dir, 'CONTRIBUTING.md'), '# Old\n')
+    const line = 'old location: CONTRIBUTING.md (move it: mkdir -p .github && git mv CONTRIBUTING.md .github/CONTRIBUTING.md)\n'
+    const check = sync(dir, 'kition-film', '--check')
+    expect(check.code).toBe(1)
+    expect(check.out.startsWith(line)).toBe(true)
+    expect(check.out).toContain('missing: .github/CONTRIBUTING.md')
+    const write = sync(dir, 'kition-film')
+    expect(write.code).toBe(1)
+    expect(write.out).toContain(line)
+    expect(written(dir)).toEqual(['CONTRIBUTING.md', 'README.md', 'kit.json'])
+
+    fs.mkdirSync(path.join(dir, '.github'))
+    fs.renameSync(path.join(dir, 'CONTRIBUTING.md'), path.join(dir, '.github/CONTRIBUTING.md'))
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({ code: 0, out: 'sync-community: up to date\n' })
+    fs.writeFileSync(path.join(dir, 'CONTRIBUTING.md'), '# Old\n')
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({
+      code: 1,
+      out: "old location: CONTRIBUTING.md (.github/CONTRIBUTING.md exists: keep the repository's own text in .github/CONTRIBUTING.md, then git rm CONTRIBUTING.md)\n",
+    })
+  })
+
+  it('refuses a repository without an entry, and conflicting options', () => {
+    const dir = tempRepo()
+    const unknown = spawnSync(process.execPath, [tool, dir], { encoding: 'utf8' })
+    expect(unknown.status).toBe(2)
+    expect(unknown.stderr).toContain('has no entry')
+    expect(sync(dir, 'kition-film', '--check', '--print-readme').code).toBe(2)
+    expect(sync(dir, 'kition-film', '--print-readme').code).toBe(2)
+  })
+
+  it('prints the product-page skeleton filled from kit.json and the entry: the hero, the five H2 sections, the formats', () => {
+    const manifest = JSON.stringify({ ...MANIFEST, version: '0.4.0', level: 'agent-ready' })
+    const dir = tempRepo({ 'kit.json': manifest })
+    const result = sync(dir, 'kition-design', '--print-readme')
+    expect(result.code).toBe(0)
+    const out = result.out
+    expect(out.startsWith('<div align="center">\n\n# Kition Design\n')).toBe(true)
+    expect(out).toContain(`**${data.repositories['kition-design'].description}**`)
+    expect(out).toMatch(/<img src="assets\/readme\/hero\.png" alt="[^"]{20,}" width="100%" \/>/)
+    expect(out.match(/^## .*$/gm)).toEqual(['## What it does', '## Quick start', '## Maturity', '## Build and contribute', '## License'])
+    expect(out).not.toContain('Repository layout')
+    expect(out).toContain('### Why Design\n')
+    expect(out).toContain('| Opens | Creates | Exports |\n| --- | --- | --- |\n| `.kfilm`, `.srt` | `.kfilm` | `.mp4`, `.webm` |\n')
+    expect(out).toContain('Version 0.4.0 · KHP 1.0, conformance level `agent-ready`.')
+    expect(out).toContain('[![KHP 1.0](https://img.shields.io/badge/KHP-1.0-5645d4)](https://github.com/kitharness/khp)')
+    expect(out).toContain('(https://github.com/KitionAI/kition-showcase/tree/main/design)')
+    expect(out).toContain('[CONTRIBUTING.md](.github/CONTRIBUTING.md)')
+    // What to write in each part is said in HTML comments, which GitHub does not show.
+    expect(out.match(/<!--/g)?.length).toBeGreaterThanOrEqual(8)
+    expect(snapshot(dir)).toEqual({ 'kit.json': manifest })
+    // A kit.json without formats, creates or exports gives a dash.
+    const bare = tempRepo({ 'kit.json': JSON.stringify({ version: '0.1.0', khp: '1.0', level: 'basic' }) })
+    expect(sync(bare, 'kition-design', '--print-readme').out).toContain('| — | — | — |')
+  })
+
+  it('checks docs/development.md for the KITION_LINK=1 opt-in when the kit has web/', () => {
+    const dir = kitRepo()
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({ code: 0, out: 'sync-community: up to date\n' })
+    fs.mkdirSync(path.join(dir, 'web'))
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({
+      code: 1,
+      out: 'docs/development.md: missing; it describes building the kit, and the KITION_LINK=1 opt-in of web/\n',
+    })
+    fs.mkdirSync(path.join(dir, 'docs'))
+    fs.writeFileSync(path.join(dir, 'docs/development.md'), '# Development\n\nRun pnpm install in web/.\n')
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({ code: 1, out: 'docs/development.md: does not describe the KITION_LINK=1 opt-in of web/\n' })
+    fs.writeFileSync(path.join(dir, 'docs/development.md'), '# Development\n\nRun `KITION_LINK=1 pnpm install` in web/ to link the checkouts.\n')
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({ code: 0, out: 'sync-community: up to date\n' })
+    expect(checkDevelopment(entryValues('kition-sdk'), null, { web: true })).toEqual([])
+  })
+
+  it('reports a referenced picture that is missing or larger than 400 KB', () => {
+    const dir = kitRepo()
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    fs.rmSync(path.join(dir, 'assets/readme/see-2.png'))
+    fs.writeFileSync(path.join(dir, 'assets/readme/hero.png'), Buffer.alloc(400 * 1024 + 1))
+    const check = sync(dir, 'kition-film', '--check')
+    expect(check.code).toBe(1)
+    expect(check.out).toBe(
+      'README.md: assets/readme/hero.png is 401 KB; a README picture is at most 400 KB (pngquant --quality 70-90)\n' +
+        'README.md: assets/readme/see-2.png is referenced but not in the repository\n',
+    )
+    fs.writeFileSync(path.join(dir, 'assets/readme/hero.png'), Buffer.alloc(400 * 1024))
+    fs.writeFileSync(path.join(dir, 'assets/readme/see-2.png'), 'PNG')
+    expect(sync(dir, 'kition-film', '--check').code).toBe(0)
+  })
+})
+
+describe('README rules', () => {
+  const skeleton = readmeSkeleton(entryValues('kition-film'), MANIFEST)
+  /** The skeleton with only the hero and `count - 1` "See it" pictures (made-* and the rest dropped). */
+  const withPictures = (count) =>
+    skeleton
+      .split('\n')
+      .filter((line) => {
+        const picture = /<img src="assets\/readme\/([\w-]+)\.png/.exec(line)?.[1]
+        return !picture || picture === 'hero' || (/^see-\d$/.test(picture) && Number(picture.slice(4)) < count)
+      })
+      .join('\n')
+
+  it('accepts the skeleton', () => {
+    expect(kitFindings(skeleton)).toEqual([])
+    expect(pictures(skeleton)).toEqual([
+      'assets/readme/hero.png',
+      ...[1, 2, 3, 4].map((n) => `assets/readme/see-${n}.png`),
+      ...[1, 2, 3, 4].map((n) => `assets/readme/made-${n}.png`),
+    ])
+  })
+
+  it('reports a README without the hero picture, or with it as Markdown instead of <img>', () => {
+    const without = skeleton.replace(/^<img src="assets\/readme\/hero\.png".*\n/m, '')
+    expect(kitFindings(without)).toEqual(['README.md: no hero picture: <img src="assets/readme/hero.png" alt="…" width="100%" /> under the introduction'])
+    const markdown = skeleton.replace(/^<img src="assets\/readme\/hero\.png" alt="([^"]*)".*$/m, '![$1](assets/readme/hero.png)')
+    expect(kitFindings(markdown)).toEqual(['README.md: no hero picture: <img src="assets/readme/hero.png" alt="…" width="100%" /> under the introduction'])
+  })
+
+  it('reports fewer than three pictures from assets/readme/', () => {
+    expect(kitFindings(withPictures(3))).toEqual([])
+    expect(kitFindings(withPictures(2))).toEqual(['README.md: 2 pictures from assets/readme/; a kit README has at least 3 (the hero and the "See it" pictures)'])
+    // A picture named twice counts once; one from elsewhere does not count.
+    const doubled = withPictures(2).replace('## Quick start', '<img src="./assets/readme/hero.png" alt="The same hero picture, a second time." />\n<img src="docs/images/flow.png" alt="A diagram kept with the documentation." />\n\n## Quick start')
+    expect(kitFindings(doubled)).toEqual(['README.md: 2 pictures from assets/readme/; a kit README has at least 3 (the hero and the "See it" pictures)'])
+  })
+
+  it('reports a picture whose alt is missing or shorter than 20 characters', () => {
+    const short = skeleton.replace(/(src="assets\/readme\/see-1\.png" )alt="[^"]*"/, '$1alt="Comments"').replace(/(src="assets\/readme\/see-3\.png" )alt="[^"]*" /, '$1')
+    const line = (file) => short.split('\n').findIndex((text) => text.includes(`<img src="assets/readme/${file}"`)) + 1
+    expect(kitFindings(short)).toEqual([
+      `README.md: assets/readme/see-1.png (line ${line('see-1.png')}) has an alt of 8 characters; write a full sentence of at least 20 saying what the picture shows`,
+      `README.md: assets/readme/see-3.png (line ${line('see-3.png')}) has no alt; write a full sentence of at least 20 characters saying what the picture shows`,
+    ])
+  })
+
+  it('reports a "Repository layout" or "Build and test" H2 as belonging in docs/development.md, and any other extra H2', () => {
+    const layout = skeleton.replace('## Build and contribute', '## Repository layout\n\n| Path | Contents |\n| --- | --- |\n| `crates/` | The engine |\n\n## Build and contribute')
+    expect(kitFindings(layout)).toEqual(['README.md: "## Repository layout" belongs in docs/development.md, not the README'])
+    const build = skeleton.replace('## Build and contribute', '## Build and test')
+    expect(kitFindings(build)).toEqual([
+      'README.md: no "## Build and contribute" section',
+      'README.md: "## Build and test" belongs in docs/development.md, not the README',
+    ])
+    const extra = skeleton.replace('## Maturity', '## Formats\n\nText.\n\n## Maturity')
+    expect(kitFindings(extra)).toEqual([
+      'README.md: "## Formats" is not one of the README\'s sections (What it does, Quick start, Maturity, Build and contribute, License); make it an H3 inside one of them',
+    ])
+  })
+
+  it('reports the Licence spelling', () => {
+    const findings = kitFindings(skeleton.replace('## License', '## Licence'))
+    expect(findings).toContain(`README.md: "Licence" spelling on line ${skeleton.split('\n').indexOf('## License') + 1}; write "License"`)
+    expect(findings).toContain('README.md: no "## License" section')
+  })
+
+  it('reports sections out of order, and License not last', () => {
+    const swapped = skeleton
+      .replace('## What it does', '## TEMP')
+      .replace('## Quick start', '## What it does')
+      .replace('## TEMP', '## Quick start')
+    expect(kitFindings(swapped)).toEqual([
+      "README.md: the H2 sections are out of order: Quick start, What it does, Maturity, Build and contribute, License (expected What it does, Quick start, Maturity, Build and contribute, License)",
+    ])
+    const trailing = kitFindings(`${skeleton}\n## Native hosts\n\nText.\n`)
+    expect(trailing).toContain('README.md: "## License" is not the last H2 (the last is "## Native hosts")')
+  })
+
+  it('ignores headings and pictures inside code blocks', () => {
+    const fenced = skeleton.replace('### Embed it in your app\n', '### Embed it in your app\n\n```md\n## not a heading\n<img src="assets/readme/none.png" />\n```\n')
+    expect(kitFindings(fenced)).toEqual([])
+  })
+
+  it('reports a missing link to kition.ai or developer.kition.ai, and dev.kition.ai or kition.one anywhere', () => {
+    const without = skeleton.replace('[Developer docs](https://developer.kition.ai) · ', '')
+    expect(kitFindings(without)).toEqual(['README.md: no link to https://developer.kition.ai'])
+    expect(kitFindings(skeleton.replaceAll('(https://kition.ai)', '(https://example.com)'))).toEqual(['README.md: no link to https://kition.ai'])
+    const old = skeleton.replace('## Quick start\n', '## Quick start\n\nSee https://dev.kition.ai/docs and kition.one.\nOr www.kition.one.\n')
+    const at = old.split('\n').findIndex((line) => line.includes('dev.kition.ai')) + 1
+    expect(kitFindings(old)).toEqual([
+      `README.md: dev.kition.ai on line ${at}; the developer site is https://developer.kition.ai`,
+      `README.md: kition.one on lines ${at}, ${at + 1}; Kition's site is https://kition.ai`,
+    ])
+    const site = entryValues('kitharness.org')
+    expect(checkReadme(site, '# kitharness.org\n\nThe site.\n\n## Build and test\n\nText.\n\n## License\n\nApache-2.0.\n', null)).toEqual([])
+    expect(checkReadme(site, '# kitharness.org\n\nThe site.\n\n## License\n\nApache-2.0.\n', null)).toEqual([
+      'README.md: no "## Build and test" section (the entry gives build commands)',
+    ])
+  })
+
+  it('reports a Maturity line or a KHP badge that disagrees with kit.json', () => {
+    const line = 'Version 0.6.0 · KHP 1.0, conformance level `basic`.'
+    expect(skeleton).toContain(`## Maturity\n\n${line}\n`)
+    expect(kitFindings(skeleton.replace(line, 'Version 0.5.0 · KHP 1.0, conformance level `basic`.'))).toEqual(['README.md: the Maturity section says Version 0.5.0; kit.json says 0.6.0'])
+    expect(kitFindings(skeleton.replace(line, 'Version 0.6.0 · KHP 1.1, conformance level `agent-ready`.'))).toEqual([
+      'README.md: the Maturity section says KHP 1.1; kit.json says 1.0',
+      'README.md: the Maturity section says conformance level agent-ready; kit.json says basic',
+    ])
+    // A longer version is not the version; the words around the facts are the README's own.
+    expect(kitFindings(skeleton.replace(line, 'Version 0.6.0.1, on KHP 1.0.'))).toEqual([
+      'README.md: the Maturity section says Version 0.6.0.1; kit.json says 0.6.0',
+      'README.md: the Maturity section does not state the conformance level `basic` (kit.json\'s level)',
+    ])
+    expect(kitFindings(skeleton.replace(line, 'Version 0.6.0 (`kit.json`); KHP 1.0, conformance level `basic`.'))).toEqual([])
+    expect(kitFindings(skeleton.replace(line, 'A preview.'))).toEqual([
+      'README.md: the Maturity section does not state Version 0.6.0 (kit.json\'s version)',
+      'README.md: the Maturity section does not state KHP 1.0 (kit.json\'s khp)',
+      'README.md: the Maturity section does not state the conformance level `basic` (kit.json\'s level)',
+    ])
+    const badge = skeleton.replace('[![KHP 1.0](https://img.shields.io/badge/KHP-1.0-5645d4)]', '[![KHP 1.2](https://img.shields.io/badge/KHP-1.2-5645d4)]')
+    expect(kitFindings(badge)).toEqual(['README.md: a KHP badge says 1.2; kit.json\'s khp is 1.0'])
+    expect(checkReadme(entryValues('kition-film'), skeleton, null, REPO)).toEqual(['README.md: kit.json is missing, so the Maturity line and the KHP badge cannot be checked'])
+  })
+
+  it('names every line with the Licence spelling, and a wrong title', () => {
+    const twice = skeleton.replace('## What it does\n', '## What it does\n\nLicence one.\nLicence two.\n')
+    const at = twice.split('\n').indexOf('Licence one.') + 1
+    expect(kitFindings(twice)).toEqual([`README.md: "Licence" spelling on lines ${at}, ${at + 1}; write "License"`])
+    expect(kitFindings(skeleton.replace('# Kition Film', '# Film'))).toEqual([
+      'README.md: the H1 is "Film"; it should be "Kition Film"',
+    ])
+  })
+})
+
+describe('repositories.json', () => {
+  it('renders every entry with no placeholder left, valid YAML, and a README skeleton that passes', () => {
+    for (const name of Object.keys(data.repositories)) {
+      const info = entryValues(name)
+      for (const file of generate(info)) {
+        expect(file.text, `${name} ${file.path}`).not.toMatch(/\{\{|\}\}/)
+        expect(file.text, `${name} ${file.path}`).not.toMatch(/licence/i)
+        if (file.path.endsWith('.yml')) {
+          const form = YAML.parse(file.text)
+          if (!file.path.endsWith('config.yml')) {
+            expect(form.body.every((item) => item.type && item.attributes.label), `${name} ${file.path}`).toBe(true)
+          }
+        }
+      }
+      const readme = readmeSkeleton(info, MANIFEST)
+      expect(readme, name).not.toMatch(/\{\{|\}\}/)
+      expect(checkReadme(info, readme, MANIFEST, REPO), name).toEqual([])
+    }
+  })
+
+  it('gives each kit the one-sentence description of the descriptions standard: "Kition <Name>: …, for people and AI agents"', () => {
+    for (const [name, entry] of Object.entries(data.repositories).filter(([, entry]) => entry.profile === 'kit')) {
+      expect(entry.description.startsWith(`${entry.title}: `), name).toBe(true)
+      expect(entry.description.endsWith(', for people and AI agents'), name).toBe(true)
+      expect(entry.description.length, name).toBeLessThanOrEqual(140)
+    }
+  })
+
+  it('refuses unknown fields, unknown keep paths, and a check command that belongs to the quality table', () => {
+    const table = (entry) => ({ ...data, repositories: { 'kition-x': entry } })
+    const kit = { profile: 'kit', title: 'Kition X', github: 'KitionAI/kition-x', description: 'X.' }
+    expect(() => entryValues('kition-x', table(kit))).not.toThrow()
+    expect(() => entryValues('kition-x', table({ ...kit, colour: 'red' }))).toThrow('unknown field colour')
+    expect(() => entryValues('kition-x', table({ ...kit, keep: ['NOTICE'] }))).toThrow('matches no generated file')
+    expect(() => entryValues('kition-x', table({ ...kit, check: 'cargo test' }))).toThrow('templates/quality/repositories.json')
+  })
+})
+
+describe('relink', () => {
+  it('rewrites relative links for a file below the root, and leaves URLs, anchors and root files alone', () => {
+    const text = '[a](AGENTS.md) [b](.github/SECURITY.md) [c](docs/quality.md#names) [d](https://kition.ai) [e](#top) [f](/abs)'
+    expect(relink(text, '.github/CONTRIBUTING.md')).toBe(
+      '[a](../AGENTS.md) [b](SECURITY.md) [c](../docs/quality.md#names) [d](https://kition.ai) [e](#top) [f](/abs)',
+    )
+    expect(relink(text, 'README.md')).toBe(text)
+  })
+})
+
+describe('fill', () => {
+  it('keeps or drops sections, takes the line of a lone tag, and refuses unknown names', () => {
+    expect(fill('a\n{{#on}}\nb\n{{/on}}\n{{^on}}\nc\n{{/on}}\nd {{x}}\n', { on: true, x: 1 }, 't')).toBe('a\nb\nd 1\n')
+    expect(fill('a\n{{#on}}\nb\n{{/on}}\n{{^on}}\nc\n{{/on}}\nd\n', { on: false }, 't')).toBe('a\nc\nd\n')
+    expect(() => fill('{{missing}}', {}, 't')).toThrow('unknown placeholder missing')
+  })
+})

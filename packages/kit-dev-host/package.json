@@ -1,0 +1,42 @@
+{
+  "name": "@kition/kit-dev-host",
+  "version": "0.1.0",
+  "description": "A development host for embedded kit UIs: mounts the editor over the Kit UI protocol with an in-memory workspace, to run and test a kit without Kition.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./check-ui-ids": "./src/checkUiIds.mjs",
+    "./mode-smoke": "./src/modeSmoke.mjs",
+    "./line-row": "./src/lineRow.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@kition/kit-host": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/kit-dev-host"
+  },
+  "types": "./dist/types/src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/src/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./check-ui-ids": { "types": "./dist/types/src/checkUiIds.d.mts", "import": "./dist/checkUiIds.mjs" },
+      "./mode-smoke": { "types": "./dist/types/src/modeSmoke.d.mts", "import": "./dist/modeSmoke.mjs" },
+      "./line-row": { "types": "./dist/types/src/lineRow.d.mts", "import": "./dist/lineRow.mjs" }
+    }
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "prepack": "pnpm run build"
+  }
+}

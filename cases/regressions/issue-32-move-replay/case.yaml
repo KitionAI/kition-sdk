@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-32-move-replay
+feature: sdk.agent.raw-contract
+intent: Receipt replay and generated moves translate final destinations into raw pre-removal gaps, including forward moves to the end, without sampling adjacent noops.
+layer: golden
+source: { kind: synthetic, from: SDK mock-kit regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-env, test: fresh_ids, filter: moves_ }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

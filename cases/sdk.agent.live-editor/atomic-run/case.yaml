@@ -1,0 +1,27 @@
+format: 1
+id: sdk.agent.live-editor/atomic-run
+feature: sdk.agent.live-editor
+intent: >-
+  A `<prefix>_run` whose step fails on a document open in its editor is atomic as on the headless
+  path (KHP A53): the editor undoes the agent's earlier steps in the agent's undo scope, keeping
+  the person's edits, and the tool answers `index`, `rolledBack` and `completed` empty; when the
+  person edited between the agent's steps it says so (`editedMeanwhile`), and when the steps cannot
+  be taken back they stay as `completed` and the message says why. The editor and the server play
+  the same runs (`fixtures/live-runs.json`), so the two sides cannot drift apart.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/fixtures/live-runs.json
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/useKitSession.test.tsx, -t, "a failed ai/run"]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, live_editor, atomic_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

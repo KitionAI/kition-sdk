@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.call-context/on-targets
+feature: sdk.agent.call-context
+intent: >-
+  A run step's `on` (ids as `<prefix>_inspect` lists them) fills the parameter the command
+  declares as its targets (one id or a list, from its schema), and drives a command that acts only
+  on the selection on exactly those objects, leaving the person's selection as it was; `on` with
+  that parameter too, more ids than it takes, or `on` for a command that acts on no object is
+  `invalid-params` that says why, before any step runs.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, on_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

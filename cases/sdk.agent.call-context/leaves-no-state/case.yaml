@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.call-context/leaves-no-state
+feature: sdk.agent.call-context
+intent: >-
+  After a headless `<prefix>_run` with a `target` (it succeeds; it fails on a clean document and
+  is reopened; it fails on a dirty one and is undone) and after `<prefix>_inspect` with a
+  `target`, the kit's current part and selection are what they were before the call: the server
+  saves the kit's editor state (`context.get`) and puts it back (`context.restore`), so no call
+  leaves hidden state behind and nothing says the kit stays on a part.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, state_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,24 @@
+[package]
+name = "kition-headless"
+description = "Serve any Kition SDK KitDocument as a headless kit over the Kit Process Protocol, for Kition's agent and the conformance suite."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+kition-kit = { path = "../kition-kit", features = ["session"] }
+kition-kit-host = { path = "../kition-kit-host" }
+kition-kit-server = { path = "../kition-kit-server" }
+serde_json = { workspace = true }
+png = "0.17"
+# `agent_ready::workspace_only` drives a launched kit through kition-kit-host.
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+[dev-dependencies]
+grid-kit = { path = "../../examples/grid-kit" }

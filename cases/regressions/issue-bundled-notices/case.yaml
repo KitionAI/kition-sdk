@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-bundled-notices
+feature: sdk.packages.public
+intent: A public package whose build bundles third-party code ships dist/THIRD_PARTY_NOTICES with each bundled package's license text; @kition/embed, @kition/script and @kition/kit-editor bundle Loro (MIT).
+layer: golden
+source: { kind: issue, from: Open-source license audit of the npm packages, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [node, tools/pack-public-packages.mjs, embed, script, kit-editor] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

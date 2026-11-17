@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-bundled-notice-files
+feature: sdk.packages.public
+intent: dist/THIRD_PARTY_NOTICES of a public package carries every licence and notice file of each package its bundles contain (LICENSE, LICENSE-*, NOTICE, THIRD_PARTY_NOTICES, at the root or in dist/), not only LICENSE or COPYING, and refuses a bundled package without a licence file.
+layer: golden
+source: { kind: issue, from: "License audit of the npm packages, 2026-11-17 (F4c)", licence: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/bundled-notices.test.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-17"

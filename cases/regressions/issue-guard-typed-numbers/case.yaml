@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-guard-typed-numbers
+feature: sdk.agent.premise-guard
+intent: >-
+  A target parameter that names clips (`x-khp-types: ["Clip"]`) and reads a number naming no clip as
+  the n-th clip: `clip: 2`, where 2 is a shot (another type), is clip 11; a colleague's change of
+  the shot does not refuse it, and after a ripple insert it is refused as `relocated` naming clip
+  11. Before, it was refused as "2 changed" and applied to the wrong clip after the insert (kition-
+  motion `layer: 1`, a comp item's id).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, typed_a_number_naming_an_object_of_another_type_is_a_place]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, marks_nested_object_members_their_types_and_a_name_spelling]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

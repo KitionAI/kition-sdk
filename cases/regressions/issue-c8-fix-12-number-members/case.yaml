@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-c8-fix-12-number-members
+feature: sdk.agent.number-members
+intent: JSON member numeric limits constrain whole-value and path writes, command schemas publish limits, and the environment samples valid member values.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, json_member_limits_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, command_numeric_limits_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, numeric_command_limits_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, json_member_sampling_]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

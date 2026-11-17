@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-17-local
+feature: sdk.agent.premise-guard
+intent: Single-index and local-integer windows apply after unrelated structural edits and refuse edits before the selected member, through the server and saved-file rereads.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: single_index_and_local_integer }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

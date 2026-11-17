@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-c8-fix-19-fresh-ids
+feature: sdk.agent.kit-env
+intent: >-
+  A create's allocated ids bind to replay allocations across later calls and inverse setup.
+  Forward/inverse creation and a three-call create/edit/delete trace all earn reward 1.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, fresh_ids]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-22-batch-planning-cost
+feature: sdk.agent.raw-contract
+intent: Bulk raw writes load contract types together without field contents and finish through the editor without timing out or losing receipt IDs.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: live_editor, filter: raw_contract_types_are_loaded_together }
+  - cargo-test: { package: kition-kits, test: live_editor, filter: unchanged_direct_batches_need_no_prefix_plan }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: identical_assignments_compact, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

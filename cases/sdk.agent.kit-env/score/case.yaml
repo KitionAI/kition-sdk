@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.kit-env/score
+feature: sdk.agent.kit-env
+intent: >-
+  An attempt's reward compares the document's states before and after it with the ground truth:
+  the edit with collateral damage keeps intended 1 and loses preserved, naming the object; the
+  right value on the wrong object scores intended 0; doing nothing scores 0; a new error
+  diagnostic zeroes diagnostics; a file rewritten outside the tools scores as the same edit made
+  through them; texts compare trimmed and normalised unless exact.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-env/tests/score.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, score]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

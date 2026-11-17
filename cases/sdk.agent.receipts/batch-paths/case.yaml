@@ -1,0 +1,27 @@
+format: 1
+id: sdk.agent.receipts/batch-paths
+feature: sdk.agent.receipts
+intent: >-
+  A batch's `set` and `text.set` take `field` as a path from the target to a field of a held object
+  without a tool id, positional (`props.children.1.children.1.value.v`) or in the kit's words
+  (`transform/opacity.value.v`, `effects/blur#2.value.v`), past a json field into its value; the
+  receipt names the change at that path; a path past a list's end, to no field, in words no held
+  object has, or `text.set` into a value is refused as `invalid-op`, with the same message in Rust
+  and TypeScript.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, a_set_takes_a_path_to_a_held_objects_field]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, path]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

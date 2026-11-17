@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-c8-fix-19-empty-places
+feature: sdk.agent.premise-guard
+intent: Object-addressed writes hold empty windows, covered regions and untaken names against creation inside, while creations next to them apply.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, empty_places_hold_absence]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

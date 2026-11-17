@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-resize-keeps-page-top
+feature: sdk.editor.pan-bounds
+intent: >-
+  A view at the start of a document's pages stays there when the window gets shorter or
+  narrower; resizing used to keep the middle still, so the first page jumped under the ribbon.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/rasterViewport.bounds.test.ts, -t, "window"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

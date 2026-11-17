@@ -1,0 +1,33 @@
+format: 1
+id: regressions/issue-kit-launch-environment
+feature: sdk.security.kit-launch-environment
+intent: >-
+  A kit process gets none of the host's folders or environment (Kit Process Protocol section 3, host
+  H14a, KHP §10.6): it starts in a private, empty folder of its own (its current folder, HOME,
+  TMPDIR and XDG folders inside it), with only the variables the launch contract lists and a fixed
+  locale and time zone; the folder goes with the process, and a crashed host's is swept on the next
+  launch. `agent_ready::workspace_only` finds every file a kit leaves there. Before, kits inherited
+  the host's current folder, home, temporary folder and every variable, so an engine's by-path
+  write (an auto-save beside a bare name) landed in the person's folders.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kit-host, --test, launch_environment]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kit-host, --lib, kit_home]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, workspace_only_finds_what_the_kit_wrote_by_path]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+tags: [security]
+since: "2026-11-16"
+timeout_s: 600

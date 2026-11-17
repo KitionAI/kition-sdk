@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.receipts/kit-requests
+feature: sdk.agent.receipts
+intent: >-
+  A kit built with `kition-headless` answers `model.version` and `model.changes` for any document
+  with an object model (through the change exchange or on the session), with no kit code: the
+  change since a version names exactly the field a batch set; after a reload that replaced the
+  document, `changes` is null with `unavailable`, never an empty set; a kit without an object
+  model has neither request.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-headless/src/tests.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, answers_the_version_and_the_changes_since_one]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

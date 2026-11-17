@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-unknown-params
+feature: sdk.testing.unknown-params
+intent: >-
+  A kit can test that every command with a parameter schema refuses a key the schema does not name
+  and says which key, so an agent's misspelled parameter (scene `modifier.add {objects}`) is reported
+  instead of the command running on a guess; a command that accepts it, refuses it without naming
+  it, or panics is listed, and `open` exceptions need a reason.
+layer: unit
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: "testing::unknown_param_tests" }
+expected:
+  - actual: out:exit
+    compare: exit
+since: "2026-11-16"

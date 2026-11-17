@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-guard-numeric-string-ids
+feature: sdk.agent.premise-guard
+intent: >-
+  A numeric string in an integer id parameter (`clip: "3"`, as receipts may print ids) reaches the
+  command as the integer, as `on` does; before, a write with `basis` after a change by others was
+  refused as `invalid-params`, and a kit checking its schema refused it.
+  `testing::check_id_params` reports integer id parameters a kit left unmarked.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, typed_a_numeric_string_for_an_integer_id_is_that_integer]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, integer_ids_must_be_marked]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

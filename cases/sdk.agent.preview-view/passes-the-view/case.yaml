@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.preview-view/passes-the-view
+feature: sdk.agent.preview-view
+intent: >-
+  `<prefix>_inspect {preview: true, target}` on a kit with a render command (`agent.render`)
+  passes the whole `target` to it, with `scale` and `maxSize`: a time draws that frame, a range
+  with `frames` that contact sheet, a sequence that sequence, and the answer's `preview` says what
+  the picture shows (size, scale, sequence, frames and their times, grid), so a model knows which
+  times it is looking at (KHP A24, A39).
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/preview_view.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view, the_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

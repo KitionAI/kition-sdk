@@ -1,0 +1,31 @@
+format: 1
+id: regressions/issue-kit-runtime-folder
+feature: sdk.security.kit-launch-environment
+intent: >-
+  KHP A58: every kit process gets one private runtime folder of its own, outside the workspace,
+  gone with the process. `TMPDIR`, `XDG_RUNTIME_DIR`, `XDG_CACHE_HOME`, `TEMP` and `TMP` all name
+  `<private>/tmp`, so a kit finds the same folder whichever it reads first; a launch whose private
+  folder would lie in the workspace is refused; the host's own `kition-kits` folder in its
+  temporary folder goes with the last private folder in it. Before, `XDG_CACHE_HOME` named
+  `<private>/cache`, a second folder, and the host left `kition-kits` behind in its own
+  `TMPDIR`, which is the private runtime folder its harness gives `kition-kits-mcp`.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kit-host, --test, launch_environment]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kit-host, --lib, kit_home]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+tags: [security]
+since: "2026-11-16"
+timeout_s: 600

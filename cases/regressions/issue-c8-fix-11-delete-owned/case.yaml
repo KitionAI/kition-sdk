@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-c8-fix-11-delete-owned
+feature: sdk.agent.receipts
+intent: Batch deletion cascades through ownership and names deleted descendants in the receipt.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, deletion_cascades]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, deleting_a_reel]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

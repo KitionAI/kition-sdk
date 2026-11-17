@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.receipts/unavailable
+feature: sdk.agent.receipts
+intent: >-
+  A write on a kit without an object model, and one in a file's open editor, answer
+  `changes: null` with `changesUnavailable` saying why, never an empty change set that reads as
+  "nothing changed".
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/receipts.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, receipts, unavailable_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

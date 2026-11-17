@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-invalid-raw-value-first
+feature: sdk.agent.premise-guard
+intent: >-
+  Invalid literal raw values are invalid-value before raw contract admission, with no live write.
+layer: golden
+source:
+  kind: synthetic
+  from: Motion kit guard defect report
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, guard_regressions::invalid_raw_values_precede_contract_admission]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-render-fallback-silent
+feature: sdk.agent.previews
+intent: >-
+  A kit that declares a render command (`agent.render`) previews through it, at the call's
+  `target`, `scale`, and `maxSize`; when that command fails, is not offered, or answers anything
+  but a top-level base64 `png` (Kition Table's `{change, result: {png}}`), `<prefix>_inspect` with
+  `preview: true` fails with `failed` and a message that names the command, says what it answered,
+  and gives the expected shape (KHP A18, A39, A48). It used to answer the kit's screenshot without
+  a word, so neither the model nor the kit's author learned the render path was broken. A kit that
+  declares no render command still previews with its screenshot.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: previews }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

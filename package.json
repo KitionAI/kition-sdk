@@ -1,0 +1,40 @@
+{
+  "name": "kition-sdk",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "pnpm": {
+    "overrides": {
+      "@kition/tessera-ui": "link:../kition-tessera/packages/ui",
+      "@kition/tessera-icons": "link:../kition-tessera/packages/icons",
+      "@kition/tessera-tokens": "link:../kition-tessera/packages/tokens"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p examples/embed-app/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json --strict false",
+    "test": "vitest run",
+    "example:embed": "pnpm --filter @kition/embed --filter @kition/script build && node examples/embed-app/serve.mjs",
+    "test:sdk:example": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-node.mjs",
+    "test:sdk:headless": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-headless.mjs",
+    "test:sdk:room": "pnpm --filter @kition/kdm --filter @kition/script build && node tools/private-skip.mjs examples/sdk-scripts/run-room.mjs",
+    "test:embed:e2e": "pnpm --filter @kition/embed --filter @kition/script build && playwright test -c examples/embed-app/playwright.config.ts",
+    "test:sdk:exit": "pnpm --filter @kition/embed --filter @kition/script build && playwright test -c examples/embed-app/playwright.exit.config.ts",
+    "example:agent": "pnpm --filter @kition/script build && node examples/agent-mcp/run.mjs",
+    "sdk:bundle": "node tools/sdk-bundle.mjs"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@playwright/test": "1.59.1",
+    "@types/node": "22.20.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0",
+    "yaml": "^2.9.1"
+  }
+}

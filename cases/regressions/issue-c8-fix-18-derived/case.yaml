@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-derived
+feature: sdk.agent.on-demand-derived
+intent: Layer-shaped indirect facts compare on their holder even when only another type changes, and on-demand facts evaluate only the one held fact among 32 declaring holders.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: design_shaped_derived_holders_are_independent_and_evaluated_on_demand }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

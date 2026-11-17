@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-reread-ids-in-json
+feature: sdk.agent.premise-guard
+intent: >-
+  A value inside json or a map that names an object with a tool id by its object id (a
+  connector's `look.kind.start`) names it alike in both reads of a file changed by another program:
+  the server asks the kit for the tool id of each string of a minted id's form that names no object
+  of the read, and compares by it. Before, every such object read as changed across any file change,
+  so a write on it was refused as `changed` though nobody touched it: the likely cause of about one
+  write in ten refused on an untouched target on a real 20-slide, 49 MB deck (generated decks
+  without connectors did not show it).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, reread_a_connector, reread_fifty]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-22-creation
+feature: sdk.agent.kit-env
+intent: Creation sampling respects excluded containers, copies immutable content, and supports kit templates and commands with fixture data.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-env, test: generate, filter: declared_creation }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

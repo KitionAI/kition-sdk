@@ -1,0 +1,22 @@
+# Kition's kit tools in DeepSeek Harness (`KitAgent 1.4` D1), without Kition running.
+#
+# Starts `kition-kits-mcp` for one workspace folder and mounts it through DeepSeek Harness's own
+# MCP client; the tools register on ctx.tools as mcp__kition__<kit>_inspect, _commands, and
+# _run, and edit files through each kit's headless executable. Set:
+#   KITION_KITS_MCP        the kition-kits-mcp executable (default: kition-kits-mcp on PATH)
+#   KITION_WORKSPACE       the workspace folder (default: the harness's working directory)
+#   KITION_KIT_<KIT>_BINARY  each installed kit's executable, for example KITION_KIT_NOTE_BINARY
+#
+#   dsh --profile <profile> --patch kition-kits.stdio.cordis.patch.yml
+
+- insert:
+    - id: kition-kits
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: kition
+        transport: stdio
+        command: !!js "process.env.KITION_KITS_MCP ?? 'kition-kits-mcp'"
+        args: !!js "['--workspace', process.env.KITION_WORKSPACE ?? process.cwd()]"
+        # The MCP client starts servers with a scrubbed environment; pass the kit executables on.
+        env: !!js "Object.fromEntries(Object.entries(process.env).filter(([key]) => /^KITION_KIT_[A-Z]+_BINARY$/.test(key)))"
+        toolCallTimeoutMs: 180000

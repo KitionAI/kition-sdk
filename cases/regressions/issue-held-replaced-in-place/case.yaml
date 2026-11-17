@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-held-replaced-in-place
+feature: sdk.agent.receipts
+intent: >-
+  An object without a tool id deleted at a path and another created at the same path under the
+  same holder (a paragraph replaced, a text body made again) is told as one object changed there:
+  only the values that differ, at `<path>.<field>`, and nothing when they are equal; a ref to a
+  held object that reads `shape:1.body` before and after is no edit. Before, a change set told
+  both the deletion and the creation as two edits of one field, and the ref as an edit from a
+  value to the same value. Kition-kdm and @kition/kdm answer the same (`attribution.json`).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, --, a_change_inside_an_object]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

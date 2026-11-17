@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-raw-id-checkpoint
+feature: sdk.agent.premise-guard
+intent: >-
+  An object addressed by its raw id keeps its identity after an outside list deletion; only its held facts conflict.
+layer: golden
+source:
+  kind: synthetic
+  from: Motion kit guard defect report
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, guard_regressions::raw_ids_survive_outside_list_deletions]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

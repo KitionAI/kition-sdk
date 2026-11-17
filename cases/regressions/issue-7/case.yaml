@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-7
+feature: sdk.embed.host-writes
+intent: A page writes through the person's open editor as itself (editor.commands.run with origin system and an optional originLabel, carried by the Kit UI protocol's ai/run), and the kit runs it as the KDM system origin with that label, so it is no undo step in any history; document/changed and the embed's changed event say by system with the label, and the status line says the app edited the document, not the agent. An engine's refusal of a step's parameters answers reason invalid-params with its errors and shows only its text. Before, commands.run took no origin and a host's write read "Edited by the agent".
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/useKitSession.test.tsx, packages/kit-editor/src/engine/kitEngine.origin.test.ts, packages/kit-editor/src/editor.test.tsx, packages/kit-host/src/index.test.ts, packages/embed/test/mount.test.ts, packages/embed/test/agent.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

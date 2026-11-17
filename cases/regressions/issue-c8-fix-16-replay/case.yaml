@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-16-replay
+feature: sdk.agent.kit-env
+intent: Generated creations build owned bodies and paragraphs before referencing them, and moves through an owned composition replay after saving and reopening.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-env, test: generate, filter: owned_body_creations_and_composition_moves_replay }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

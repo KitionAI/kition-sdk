@@ -1,0 +1,29 @@
+format: 1
+id: sdk.agent.receipts/footprint
+feature: sdk.agent.receipts
+intent: >-
+  A shift of many objects is stated once: a ripple delete on a track of 5 or 200 clips answers the
+  deleted clip and one `footprint` entry (`{ parent, field, from, count, shift: { field, by } }`)
+  instead of an entry per clip and the track's list entry; `changes: "all"` lists every clip;
+  another agent's ripple delete reaches `others` the same way, and the guard reads the footprint
+  as if each clip it covers were listed. The Rust function answers the shared fixture
+  `footprint.json`.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/place_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, footprint_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, a_shift_of_many_objects]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

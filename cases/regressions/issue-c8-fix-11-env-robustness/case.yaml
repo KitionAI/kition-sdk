@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-c8-fix-11-env-robustness
+feature: sdk.env.readable-tasks
+intent: Unreadable source files are reported and skipped; instructions respect reverse indexes and word boolean states naturally and deterministically.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, c8_env]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --lib, c8_boolean]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, boolean_field_labels]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

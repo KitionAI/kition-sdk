@@ -1,0 +1,26 @@
+[package]
+name = "kition-convergence"
+description = "The Kition kit platform's convergence suite (L6, docs/platform/kits/levels.md): scripted and fuzzed multi-replica scenarios, native and WebAssembly state parity, and performance budgets, run against any contract 2 kit through a small adapter."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+# Not the workspace lints: `CountingAlloc` (memory per replica) implements `GlobalAlloc`, which
+# needs `unsafe`; it is allowed in that one module only.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+# Only serde_json: the suite talks to a kit through bytes and canonical state JSON, so a kit can
+# use it whatever kition-sdk revision its engine pins.
+[dependencies]
+serde_json = { workspace = true }
+
+[dev-dependencies]
+kition-kit = { path = "../kition-kit", features = ["session"] }

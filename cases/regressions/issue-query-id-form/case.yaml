@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-query-id-form
+feature: sdk.agent.premise-guard
+intent: >-
+  One id form: an integer tool id is a number in `_query`'s objects and a batch's `loaded` as in
+  receipts, and both take it as a number; a position's parent takes the form of its type (a track
+  named `2` stays `"2"`). Before, `_query` and loads printed `"9"` while receipts printed `9`, and
+  any parent of all digits was made a number.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, ids_query_and_loads_name_integer_tool_ids_as_numbers_and_parents_by_their_type]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

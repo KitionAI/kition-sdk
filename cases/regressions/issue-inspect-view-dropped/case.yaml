@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-inspect-view-dropped
+feature: sdk.agent.preview-view
+intent: >-
+  `<prefix>_inspect {preview: true, target: {time: 3}}` on a kit with a render command draws the
+  frame at 3 seconds: the whole `target` reaches the render command. Before, inspect passed
+  `target` on only when it had `path` or `objectId`, so `film_inspect {preview: true, target:
+  {time: 3}}` reached `file.render` as `{scale: 1}` and the agent got another picture without an
+  error.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view, the_view_reaches_the_render_command_intact]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

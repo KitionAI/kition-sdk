@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-kition-table-7
+feature: sdk.kdm.encoding
+intent: >-
+  The same changes encode the same bytes: a JSON object value (a view's filter tree, a field's
+  options) is written to the engine in key order, so two replicas built by the same commands with
+  the same ids have equal snapshots and change logs. Before, the value went through a std HashMap,
+  whose per-process seed changed the order, so a kit's saved file differed between two builds of
+  one sample.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: deterministic }
+expected:
+  - actual: out:exit
+    compare: exit
+since: "2026-11-16"

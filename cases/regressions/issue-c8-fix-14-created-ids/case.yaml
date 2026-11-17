@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-14-created-ids
+feature: sdk.agent.kit-env
+intent: Creation replay compares fresh object ids by a consistent renaming limited to ids allocated in the task receipt, including references to those ids.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-env, test: generate, filter: random_creation_ids }
+  - exec: { cmd: [cargo, test, -p, kition-env, --lib, created_id_equivalence] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

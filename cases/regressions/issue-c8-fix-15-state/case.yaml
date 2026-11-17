@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-15-state
+feature: sdk.agent.premise-guard
+intent: Assert every state matrix cell for another agent and an outside reread, including precise refusal reasons.
+layer: golden
+timeout_s: 60
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: remaining_editor_state_matrix }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

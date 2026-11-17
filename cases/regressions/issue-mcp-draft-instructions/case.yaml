@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-mcp-draft-instructions
+feature: sdk.agent.headless-drafts
+intent: >-
+  The MCP server's instructions name `<kit>_draft_ready` only for the kits that keep drafts
+  (`agent.drafts`, KHP section 8). They told every agent to call it, even for a kit that offers no
+  such tool.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, filter: instructions_name_drafts_only_for_kits_that_keep_them }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

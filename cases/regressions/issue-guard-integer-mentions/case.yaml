@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-guard-integer-mentions
+feature: sdk.agent.premise-guard
+intent: >-
+  A clip named in another parameter by its integer id (`from: 5`) is a premise as a string id is,
+  and one named there in the index spelling (`from: "#2"`) is a place; a number the command reads
+  as an index when it names no clip (`clip: 2`, `x-khp-index-numbers`) is a place too. Before, a
+  number in a parameter was nothing, `"#2"` outside the target parameter was free text, and a
+  number naming no clip was an id naming nothing: all applied over the colleague's change.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, mentions_an_integer_id_or_an_index_in_another_parameter_is_a_premise]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, index_a_number_that_names_no_clip_is_a_place]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

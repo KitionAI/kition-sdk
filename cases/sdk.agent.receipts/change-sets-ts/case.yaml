@@ -1,0 +1,22 @@
+format: 1
+id: sdk.agent.receipts/change-sets-ts
+feature: sdk.agent.receipts
+intent: >-
+  `@kition/kdm` answers the same change sets as the Rust crate for the same fixtures
+  (`fixtures/changes.json`): `diffStates` and `Replica.changesSince` agree on every case, and a
+  version the replica does not hold is `history-missing`.
+layer: golden
+source:
+  kind: synthetic
+  from: packages/kdm/test/changes.test.ts
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

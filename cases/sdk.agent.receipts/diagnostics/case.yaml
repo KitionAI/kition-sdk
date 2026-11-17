@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.receipts/diagnostics
+feature: sdk.agent.receipts
+intent: >-
+  A write answers `diagnostics: { new, resolved }`, the kit's check before the call and after it
+  matched by `code` and `target`: a run that adds a TODO introduces `mock.todo`, one that keeps it
+  neither, a batch that removes it resolves it; `check: false` leaves it out.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/receipts.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, receipts, diagnostics_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

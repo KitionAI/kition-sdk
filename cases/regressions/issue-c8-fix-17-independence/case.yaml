@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-17-independence
+feature: sdk.agent.batch-independence
+intent: Independent raw field writes opt in per type while undeclared types retain the existing protected relocation contract.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: time_dimension_raw_fields_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: conflict_a_shape_moved_ }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

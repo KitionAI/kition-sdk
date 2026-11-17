@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-20-content-blobs
+feature: sdk.agent.historical-blobs
+intent: Direct content and covered-content callbacks distinguish related blob changes from unrelated ones even when occupancy is unchanged, and refuse unknown after byte eviction, with same-server and outside parity.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: content_callbacks_receive_basis_blob_bytes_with_bounded_retention }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

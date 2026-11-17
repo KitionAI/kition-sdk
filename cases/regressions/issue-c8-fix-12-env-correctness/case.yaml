@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-c8-fix-12-env-correctness
+feature: sdk.agent.kit-env
+intent: Every task instruction describes its complete stored effect and creations replay containers without writing derived values.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, incomplete_instruction_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, create_replays_]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

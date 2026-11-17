@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-guard-param-types
+feature: sdk.agent.premise-guard
+intent: >-
+  A step's top-level parameter of a type its command's schema does not allow (a duration given as
+  text) is `invalid-params` before the premise guard. Before, with `basis` after another agent
+  changed the step's target, it was answered as `conflict`, and only the retry learnt that the
+  call could never run.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, invalid_types_come_before_the_guard]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

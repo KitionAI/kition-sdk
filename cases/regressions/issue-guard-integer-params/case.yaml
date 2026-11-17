@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-guard-integer-params
+feature: sdk.agent.premise-guard
+intent: >-
+  A whole number in a parameter is an object's id only where the parameter names objects
+  (`"x-khp-role": "object"`, which kition-headless writes for `KitCommand::objects`, or an index
+  spelling): a vertex index `3` does not hold node 3 (a write applies after node 3 changed), a
+  `parent: 4` does (refused as `changed`). Before, any parameter that took integers held objects.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, integers_a_number_names_an_object_only_in_a_parameter_that_says_so]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, serves_the_editor_context_and_marks_what_commands_act_on]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

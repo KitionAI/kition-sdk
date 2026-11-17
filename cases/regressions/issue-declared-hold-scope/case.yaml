@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-declared-hold-scope
+feature: sdk.agent.premise-guard
+intent: Explicit targets suppress fallback selection reads and distant appends remain independent unless the kit explicitly holds the new object.
+layer: golden
+source: { kind: synthetic, from: Mock record command declarations and list gaps, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: explicit_targets_replace_selection_reads }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: distant_appends_only_conflict }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

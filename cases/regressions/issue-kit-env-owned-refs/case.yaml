@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-kit-env-owned-refs
+feature: sdk.agent.kit-env
+intent: >-
+  An object under a ref declared `owns` (a video kit's tracks and clips in a sequence its project
+  item holds, a motion kit's layers in a comp) is named through the ref's holder, and a tree's
+  nodes have places among their siblings: a clip reads `In track 1 in video tracks on item 2 on
+  bin 1` and resolves back to itself. Before, every such object was `not-describable`.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --lib, an_object_under_an_owned_ref_and_a_tree_is_named_through_its_holder]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

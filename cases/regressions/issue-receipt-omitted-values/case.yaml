@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-receipt-omitted-values
+feature: sdk.agent.receipts
+intent: Receipt schemas accept derived field edits whose unavailable values are omitted rather than null.
+layer: golden
+source: { kind: synthetic, from: Mock private derived receipt, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: receipts, filter: derived_receipt_schema_ }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

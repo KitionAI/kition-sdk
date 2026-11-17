@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.headless-runs/atomic-run
+feature: sdk.agent.headless-runs
+intent: >-
+  A headless `<prefix>_run` whose step fails (the first one or a later one) leaves the file and
+  the session's document as they were before the call, unsaved edits of earlier runs included,
+  and saves nothing; the error gives the failing step's `index`, lists the steps it rolled back
+  (`rolledBack`) and answers `completed` empty; a correct run after it succeeds and is saved (KHP
+  A53). Other projects rely on a failed run never leaving half an edit behind.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/headless_runs.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, headless_runs, atomic_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-22-command-ref-contract
+feature: sdk.agent.raw-contract
+intent: A raw operation on a command-returned reference requires the created type's premise contract before any real write runs.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: raw_contracts_also }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: raw_contracts_also, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

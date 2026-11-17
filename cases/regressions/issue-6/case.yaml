@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-6
+feature: sdk.host.headless-kit
+intent: A document with unsaved edits whose file changed on disk is in conflict, and its state says so (conflict true in document.didChangeState). That happens once on document.didChangeOnDisk, or when a save fails with file_conflict. The edits are kept, never dropped silently, until the host resolves it. document.reload takes the file, saveAs keeps the edits in another file, and a successful save or reload clears it. Through kition-kits serve, documents.changedOnDisk tells the kits and documents.reload resolves. Before, a dirty kit document kept its state silently and the host only learned at the next failed save.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, a_dirty_document_whose_file_changed_is_in_conflict_until_reloaded]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, serve]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 600
+since: "2026-11-16"

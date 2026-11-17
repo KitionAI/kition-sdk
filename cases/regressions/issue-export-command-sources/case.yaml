@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-export-command-sources
+feature: sdk.agent.manifest-exports
+intent: >-
+  tools/check-manifest.mjs warns when a kit's `exports[].command` and `agent.export.command` name
+  different commands for a format, when its formats name several export commands that
+  `agent.export` cannot follow, and when an export command is not one the agent may run
+  (`agent.include`, `agent.exclude`, `agent/commands.json`), citing platform K21. Kition Photo and
+  Kition Motion named one command for the kit's self-test and another for `<prefix>_export`, so
+  the self-test passed on a path the agent never took.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/check-manifest.test.mjs, -t, export commands]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

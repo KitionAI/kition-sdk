@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-host-files-only
+feature: sdk.security.host-files-only
+intent: >-
+  Every document kition-headless serves is told the host owns every file (engine contract E22):
+  `kition_kit::host::hosting().files_only` is set before the engine opens or creates it, and
+  `KitDocument::hosted` is called once right after, so an engine can turn off what reaches the file
+  system by path (auto-saves, caches, folders in settings, process starts, system fonts). Before,
+  an engine could not tell it ran under a host and could write an auto-save into the
+  headless process's current folder.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, hosting_tests]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, a_host_says_it_owns_every_file]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+tags: [security]
+since: "2026-11-16"
+timeout_s: 600

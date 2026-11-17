@@ -1,0 +1,30 @@
+format: 1
+id: regressions/issue-env-public-receipts
+feature: sdk.agent.kit-env
+intent: >-
+  Privacy filtering preserves absent optional receipt members so environment creation,
+  deletion and move tasks exactly match saved-state diffs and replay without resampling,
+  while premise-only facts remain hidden and private journal bases are retained.
+layer: golden
+direction: ai
+source:
+  kind: synthetic
+  from: SDK public CI generate regression after receipt privacy fix
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, privatizing_changes_preserves_public_structure]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - cargo-test: { package: kition-env, test: generate, filter: create_copies_required_json_and_replays_on_the_mock }
+  - cargo-test: { package: kition-env, test: generate, filter: create_replays_container_fields_and_skips_derived_values }
+  - cargo-test: { package: kition-env, test: generate, filter: creation_only_kind_is_sampled_and_replayed_from_the_receipt }
+  - cargo-test: { package: kition-env, test: generate, filter: cascade_group_deletes_are_sampled_with_complete_replayed_receipts }
+  - cargo-test: { package: kition-env, test: generate, filter: tree_children_generate_delete_move_and_create_tasks }
+  - cargo-test: { package: kition-env, test: generate, filter: group_moves_with_consequential_addresses_are_one_replayed_task }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: guard_regressions::outside_receipts_hide_created_changed_and_deleted_private_facts }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.preview-view/undeclared-member
+feature: sdk.agent.preview-view
+intent: >-
+  A view member the kit's render command does not declare in its parameter schema's `target` is
+  `invalid-params`, naming the member and the members the command takes; nothing is drawn and no
+  other picture stands in for it, and inspect without `preview` is not refused for it (KHP A18,
+  A48). The accepted members come from the kit's own schema, so a kit adds one without an SDK
+  change.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/preview_view.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view, a_view_member_the_render_command_does_not_declare_is_invalid_params]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

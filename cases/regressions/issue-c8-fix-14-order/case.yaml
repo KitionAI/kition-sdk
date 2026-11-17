@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-14-order
+feature: sdk.agent.premise-guard
+intent: Ordered premises survive deletions and every structural edit across rereads, for list and tree children, with precise unaffected-place acceptance.
+layer: golden
+timeout_s: 60
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: ordered_place_matrix }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: ordered_gap_edges }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

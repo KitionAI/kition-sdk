@@ -1,0 +1,26 @@
+format: 1
+id: sdk.host.memory-ceiling/enforcement
+feature: sdk.host.memory-ceiling
+intent: >-
+  a resident sample over the configured ceiling stops the worker and yields a typed
+  memory-limit error. Linux inherits the exact mandatory address-space ceiling before exec;
+  macOS stops an allocating process by its resident size. Unsupported platforms refuse the
+  option. Resource flag parsing rejects zero, negatives and arithmetic overflow.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kit-host/src/memory.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit-host, filter: memory_policy_is_exact_and_never_silently_unsupported }
+  - cargo-test: { package: kition-kit-host, filter: linux_memory_setup_is_fail_closed }
+  - cargo-test: { package: kition-kits, filter: resource_flags_reject_zero_negative_and_overflow }
+  - cargo-test: { package: kition-kits, filter: resource_failures_keep_their_types }
+  - cargo-test: { package: kition-kits, test: process_control }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

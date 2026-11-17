@@ -1,0 +1,807 @@
+/*
+ * @kition/kit-editor: the editor shell's own styles (frame, tabs, tool rail, canvas, customize
+ * dialog). The shared components' styles and the theme tokens come from Kition Tessera, imported
+ * first; every color, radius, font, and shadow comes from the Kit UI protocol's theme tokens
+ * (Kition platform docs/platform/reference/ui-protocol.md, section 4), whose defaults are
+ * Kition's, so a kit UI opened on its own looks as it does in Kition.
+ */
+@import '@kition/tessera-ui/styles.css';
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--kit-font-sans);
+  font-size: 13px;
+  color: var(--kit-text);
+  background: var(--kit-surface);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+.kui-app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--kit-surface);
+}
+
+.kui-row {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.kui-muted {
+  color: var(--kit-text-muted);
+}
+
+/* Ribbon */
+
+/*
+ * A flat Office-style ribbon: the tab strip on the muted surface, then the active tab's groups on
+ * one full-width white panel.
+ */
+.kui-ribbon-tabs {
+  display: flex;
+  align-items: flex-end;
+  align-self: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kui-ribbon-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.kui-ribbon-tab {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: var(--kui-tab-underline) solid transparent;
+  background: transparent;
+  color: var(--kit-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kui-ribbon-tab:hover {
+  color: var(--kit-text);
+}
+
+/* The selected tab in the kit's brand (standard U5b), as Word and WPS color "Home". */
+.kui-ribbon-tab[aria-selected='true'] {
+  border-bottom-color: var(--kit-primary);
+  color: var(--kit-primary);
+  font-weight: var(--kui-tab-selected-weight);
+}
+
+/* The document actions, centered in the strip in both shells (ribbon and app bar). */
+.kui-ribbon-end {
+  flex: none;
+  align-self: center;
+  margin-left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kui-ribbon-body {
+  background: var(--kit-surface);
+  border-bottom: 1px solid var(--kit-border);
+}
+
+.kui-ribbon-panel {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 94px;
+  padding: 4px 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.kui-ribbon-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.kui-canvas-region {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--kit-canvas);
+}
+
+/* The document canvas (KitCanvas): the surface fills the region, the overlay sits over it. */
+
+.kui-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.kui-canvas-surface,
+.kui-canvas-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.kui-canvas-surface {
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+
+.kui-canvas-overlay {
+  pointer-events: none;
+}
+
+.kui-render-failure {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--kit-border);
+  border-radius: 12px;
+  background: var(--kit-surface);
+  color: var(--kit-text);
+  overflow-wrap: anywhere;
+}
+
+/* The hidden field that takes typed text, so input methods compose (UI-K6). */
+.kui-text-sink {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  resize: none;
+  overflow: hidden;
+}
+
+/* Editor shell: messages in the document area, generated command tabs. */
+
+.kui-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.kui-alone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--kit-text-muted);
+}
+
+.kui-command-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, var(--kui-ribbon-row));
+  align-items: center;
+  gap: 1px 4px;
+}
+
+/* In Single line's row a menu tab's primary commands sit in the row itself, not in a three-row grid
+   (whose first and last rows the row would cut off). */
+.kui-line-inline .kui-command-grid {
+  display: contents;
+}
+
+/* A form field in a ribbon row (font name, size). */
+.kui-ribbon-field {
+  height: var(--kui-ribbon-row);
+  padding: 0 6px;
+  border: 1px solid var(--kit-border);
+  border-radius: var(--kit-radius-control);
+  background: var(--kit-surface);
+  outline: none;
+}
+
+.kui-ribbon-field:focus {
+  border-color: var(--kit-primary);
+}
+
+/* A gallery of choices in the ribbon (styles, themes). */
+.kui-gallery {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+  height: 60px;
+  overflow: hidden;
+}
+
+.kui-gallery-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 68px;
+  max-width: 92px;
+  padding: 4px 8px;
+  border: 1px solid var(--kit-border);
+  border-radius: var(--kit-radius-control);
+  background: var(--kit-surface);
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.kui-gallery-item:hover {
+  border-color: var(--kit-primary);
+}
+
+.kui-gallery-item[aria-pressed='true'] {
+  border-color: var(--kit-primary);
+  box-shadow: 0 0 0 1px var(--kit-primary);
+}
+
+/* A bar under the ribbon (find and replace). */
+.kui-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--kit-border);
+  background: var(--kit-surface);
+}
+
+.kui-param-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+/* Menus, the options bar, the tool rail. */
+
+/* The bar takes the top bar's free width; more menus than it holds scroll (OverflowStrip). */
+.kui-menu-nav {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.kui-menu-strip {
+  --kui-strip-fade: var(--kit-surface-muted);
+  display: flex;
+  flex: 1;
+}
+
+.kui-menu-strip .kui-ribbon-scroll {
+  height: 28px;
+  margin-top: -14px;
+}
+
+.kui-menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kui-menu-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.kui-menu-bar-item {
+  flex: none;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--kit-radius-control);
+  background: transparent;
+  color: var(--kit-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kui-menu-bar-item:hover,
+.kui-menu-bar-item[aria-expanded='true'] {
+  background: var(--kit-primary-soft);
+}
+
+.kui-submenu-popover {
+  z-index: 51;
+}
+
+.kui-options-strip {
+  flex: none;
+  border-bottom: 1px solid var(--kit-border);
+  background: var(--kit-surface);
+}
+
+.kui-options-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+/* Fields keep their width and scroll with the bar, rather than squeezing (no specificity: a kit's own rule wins). */
+:where(.kui-options-bar > *) {
+  flex: none;
+}
+
+.kui-options-strip .kui-ribbon-scroll {
+  height: 28px;
+  margin-top: -14px;
+}
+
+/* WebKit (the desktop app's WKWebView) ignores scrollbar-width. */
+.kui-options-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tool icons show their duotone accents in the rail and its flyouts (Tessera docs/icon-style.md). */
+.kui-tool-rail,
+.kui-tool-flyout {
+  --tessera-icon-accent-opacity: 0.25;
+}
+
+.kui-tool-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  width: 44px;
+  padding: 8px 0;
+  border-right: 1px solid var(--kit-border);
+  background: var(--kit-surface-muted);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.kui-tool-rail[data-columns='2'] {
+  width: 78px;
+}
+
+/* The rail's one or two columns toggle (Photoshop's chevrons at the toolbar's head). */
+.kui-tool-rail-columns {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 14px;
+  margin-bottom: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--kit-radius-control);
+  background: transparent;
+  color: var(--kit-text-muted);
+  cursor: pointer;
+}
+
+.kui-tool-rail-columns:hover {
+  background: var(--kit-primary-soft);
+  color: var(--kit-text);
+}
+
+.kui-tool-rail[data-columns='2'] .kui-tool-rail-columns {
+  align-self: flex-start;
+  margin-left: 9px;
+}
+
+/* A hairline between sections of the rail (Photoshop's tool groups). */
+.kui-tool-rail-divider {
+  width: 28px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--kit-border);
+}
+
+/* A two-column rail's row: at most two slots, never spanning two sections. */
+.kui-tool-rail-row {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.kui-tool-slot {
+  position: relative;
+  display: inline-flex;
+}
+
+/* A slot with more tools in its flyout: a small mark in its corner. */
+.kui-tool-slot[data-grouped='true']::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  border-left: 4px solid transparent;
+  border-bottom: 4px solid var(--kit-text-muted);
+  pointer-events: none;
+}
+
+.kui-tool-flyout {
+  min-width: 200px;
+}
+
+/* The editor frame (EditorFrame): the top bar in every mode but Focus, the command area of the
+   display mode (Single line's row, Classic's ribbon), the body with its rail and panels. */
+
+.kui-frame-top {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: var(--kui-bar-height);
+  padding: 0 8px;
+  background: var(--kit-surface-muted);
+}
+
+/*
+ * The tab strip takes the bar's free width. A tab shows whole or not at all: those it cannot hold
+ * move under the More tabs button at its end (U8), so no label is cut.
+ */
+.kui-frame-tabs {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kui-frame-tabs .kui-ribbon-tabs {
+  overflow: hidden;
+}
+
+.kui-frame-tabs-more {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  margin: 0 0 1px 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--kit-radius-control);
+  background: transparent;
+  color: var(--kit-text-muted);
+  cursor: pointer;
+}
+
+.kui-frame-tabs-more:hover,
+.kui-frame-tabs-more[aria-expanded='true'] {
+  background: var(--kit-surface);
+  color: var(--kit-text);
+}
+
+/* Menus has no command area under the bar: the bar draws the edge itself. */
+.kui-app[data-mode='menus'] .kui-frame-top {
+  border-bottom: 1px solid var(--kit-border);
+}
+
+.kui-frame-title {
+  flex: none;
+  max-width: 240px;
+  margin-right: 12px;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kui-frame-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.kui-frame-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Single line: one 36 px row of the selected tab's groups. */
+.kui-line {
+  flex: none;
+  border-bottom: 1px solid var(--kit-border);
+  background: var(--kit-surface);
+}
+
+.kui-line-panel {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+/* WebKit (the desktop app's WKWebView) ignores scrollbar-width. */
+.kui-line-panel::-webkit-scrollbar {
+  display: none;
+}
+
+/* The ribbon inside scrolls itself (with scroll buttons), so the panel does not. */
+.kui-drop-ribbon {
+  overflow-x: hidden;
+}
+
+.kui-drop-ribbon .kui-ribbon-panel {
+  padding: 0;
+}
+
+/* The mode button shows a dot while the frame shows a smaller mode than the one chosen. */
+.kui-mode-button {
+  position: relative;
+}
+
+.kui-mode-button[data-stepped]::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kit-primary);
+}
+
+/* Focus: one small card floating over the top of the body. */
+/*
+ * Focus's bar floats at the bottom center, where it covers the least of the content (Focus hides
+ * the status bar, so nothing is under it), faint until the pointer or the keyboard is on it.
+ */
+.kui-focus-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 1px solid var(--kit-border);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-surface);
+  box-shadow: var(--kit-shadow-card);
+  opacity: 0.45;
+  transform: translateX(-50%);
+  transition: opacity 120ms ease;
+}
+
+.kui-focus-bar:is(:hover, :focus-within) {
+  opacity: 1;
+}
+
+.kui-focus-bar[data-fresh] {
+  opacity: 1;
+}
+
+.kui-focus-exit kbd {
+  margin-left: 2px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--kit-text-muted);
+}
+
+.kui-focus-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 2px;
+  padding: 0 8px 0 8px;
+  border-left: 1px solid var(--kit-border);
+  color: var(--kit-text-muted);
+  white-space: nowrap;
+}
+
+/* Touch (a coarse pointer): 44 px targets, a 48 px command row and bar, 40 px menu rows. */
+.kui-app[data-density='touch'] {
+  --kui-bar-height: 48px;
+}
+
+.kui-app[data-density='touch'] :is(.kui-icon-button, .kui-line-more) {
+  min-width: 44px;
+  height: 44px;
+}
+
+.kui-app[data-density='touch'] :is(.kui-ribbon-tab, .kui-menu-bar-item, .kui-button) {
+  height: 44px;
+}
+
+.kui-app[data-density='touch'] .kui-line-panel {
+  height: 48px;
+}
+
+.kui-app[data-density='touch'] .kui-line-panel .kui-ribbon-button {
+  height: 44px;
+}
+
+.kui-app[data-density='touch'] .kui-menu-item {
+  height: 40px;
+}
+
+.kui-app[data-density='touch'] .kui-tool-rail {
+  width: 56px;
+}
+
+.kui-app[data-density='touch'] .kui-tool-rail[data-columns='2'] {
+  width: 100px;
+}
+
+/* Side panel sections */
+
+.kui-panel-section {
+  border-bottom: 1px solid var(--kit-border);
+}
+
+.kui-panel-section-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 8px 0 6px;
+}
+
+.kui-panel-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--kit-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kui-panel-section-chevron {
+  transition: transform 120ms ease;
+}
+
+.kui-panel-section[data-open='true'] .kui-panel-section-chevron {
+  transform: rotate(90deg);
+}
+
+.kui-panel-section-body {
+  padding: 0 0 8px;
+}
+
+.kui-file-changed {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border: 1px solid var(--kit-border, #e5e3df);
+  border-radius: var(--kit-radius-card, 12px);
+  background: var(--kit-surface-muted, #fafaf9);
+  color: var(--kit-text, #1a1a1a);
+  font-size: 13px;
+}
+
+.kui-file-changed > span {
+  flex: 1 1 auto;
+}
+
+.kui-agent-edited {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--kit-primary);
+}
+
+/* The host's own change (a sync feature writing into the document): said plainly, not as the agent. */
+.kui-host-edited {
+  display: inline-flex;
+  align-items: center;
+  color: var(--kit-text-muted, inherit);
+}
+
+/* A read-only document's mark where Undo, Redo, and Save would be. */
+.kui-view-only {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--kit-text-muted, inherit);
+}
+
+.kui-customize-search {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.kui-customize-tree,
+.kui-customize-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 16px;
+}
+
+.kui-customize-tree {
+  max-height: 50vh;
+  overflow: auto;
+  padding-left: 0;
+}
+
+.kui-customize-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.kui-hide-menu-backdrop {
+  background: transparent;
+}
+
+/* A chart's data grid (Chart Design › Edit Data). */
+.kui-chart-data {
+  border-collapse: collapse;
+}
+.kui-chart-data th,
+.kui-chart-data td {
+  border: 1px solid var(--kit-border);
+  padding: 0;
+}
+.kui-chart-data input {
+  width: 96px;
+  border: 0;
+  padding: 4px 6px;
+  font: inherit;
+  background: transparent;
+}
+.kui-chart-data thead input,
+.kui-chart-data tbody th input {
+  font-weight: 600;
+}
+.kui-chart-data input[aria-invalid='true'] {
+  outline: 1px solid var(--kit-danger);
+  outline-offset: -1px;
+}

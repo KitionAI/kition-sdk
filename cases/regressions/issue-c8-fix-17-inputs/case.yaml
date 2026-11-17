@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-17-inputs
+feature: sdk.agent.external-inputs
+intent: Writes consuming external inputs require a fingerprint observed within basis and refuse changed or unavailable inputs even when the document itself has not changed.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: external_inputs_require }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

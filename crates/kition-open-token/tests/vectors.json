@@ -1,0 +1,237 @@
+{
+  "_comment": "Shared answers for kition-open-token (Rust) and @kition/sync/openToken (TypeScript). Signed with the test seed of 32 bytes of 0x07; never a production key.",
+  "keySets": {
+    "test": [
+      {
+        "kid": "test-open-1",
+        "publicKey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "tenant": "example-corp",
+        "iss": "one.test"
+      }
+    ],
+    "other-tenant": [
+      {
+        "kid": "test-open-1",
+        "publicKey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "tenant": "other-corp",
+        "iss": "one.test"
+      }
+    ],
+    "other-issuer": [
+      {
+        "kid": "test-open-1",
+        "publicKey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "tenant": "example-corp",
+        "iss": "one.other"
+      }
+    ],
+    "none": []
+  },
+  "keySetErrors": [
+    {
+      "name": "two keys with one tenant and kid",
+      "keys": [
+        {
+          "kid": "test-open-1",
+          "publicKey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+          "tenant": "example-corp",
+          "iss": "one.test"
+        },
+        {
+          "kid": "test-open-1",
+          "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+          "tenant": "example-corp",
+          "iss": "one.test"
+        }
+      ],
+      "error": "duplicate-key"
+    }
+  ],
+  "docKeys": [
+    {
+      "file": "res:01JB7Z",
+      "generation": 3,
+      "docKey": "kCTEy8amdfV36S0s_-SbbaK6_qIvmz0n"
+    }
+  ],
+  "cases": [
+    {
+      "name": "editor",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "ok": {
+        "sub": "user-42",
+        "name": "Alice (Example)",
+        "tenant": "example-corp",
+        "iss": "one.test",
+        "aud": "kition-server-test",
+        "principal": "t:example-corp:one.test:user-42",
+        "file": "res:01JB7Z",
+        "version": "r7",
+        "docKey": "kCTEy8amdfV36S0s_-SbbaK6_qIvmz0n",
+        "role": "editor",
+        "perms": {
+          "edit": true,
+          "comment": true,
+          "download": true,
+          "share": false,
+          "export": true
+        },
+        "watermark": {
+          "text": "Alice 2026-11-03"
+        },
+        "exp": 1800000300
+      }
+    },
+    {
+      "name": "viewer",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkJvYiIsInBlcm1zIjp7ImNvbW1lbnQiOmZhbHNlLCJkb3dubG9hZCI6ZmFsc2UsImVkaXQiOmZhbHNlLCJleHBvcnQiOmZhbHNlLCJzaGFyZSI6ZmFsc2V9LCJzdWIiOiJ1c2VyLTciLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6bnVsbH0.1ZrzOsM5DV3Hwh2eljXsQSHQdMccSWlJ7XDzQTSoME8kMpBLE4ddZ4DlKzXxrF9E5-Y25WSKldpeUelFS4vVDg",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "ok": {
+        "sub": "user-7",
+        "name": "Bob",
+        "tenant": "example-corp",
+        "iss": "one.test",
+        "aud": "kition-server-test",
+        "principal": "t:example-corp:one.test:user-7",
+        "file": "res:01JB7Z",
+        "version": "r7",
+        "docKey": "kCTEy8amdfV36S0s_-SbbaK6_qIvmz0n",
+        "role": "viewer",
+        "perms": {
+          "edit": false,
+          "comment": false,
+          "download": false,
+          "share": false,
+          "export": false
+        },
+        "watermark": null,
+        "exp": 1800000300
+      }
+    },
+    {
+      "name": "at exp",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000300,
+      "error": "expired"
+    },
+    {
+      "name": "iat too far ahead",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1799999000,
+      "error": "not-yet-valid"
+    },
+    {
+      "name": "another token's signature",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.1ZrzOsM5DV3Hwh2eljXsQSHQdMccSWlJ7XDzQTSoME8kMpBLE4ddZ4DlKzXxrF9E5-Y25WSKldpeUelFS4vVDg",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "signature"
+    },
+    {
+      "name": "non-canonical signature encoding",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCR",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "malformed"
+    },
+    {
+      "name": "key of another tenant",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "other-tenant",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "unknown-key"
+    },
+    {
+      "name": "key of another issuer",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "other-issuer",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "issuer"
+    },
+    {
+      "name": "for another server",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "test",
+      "audience": "kition-server-other",
+      "now": 1800000100,
+      "error": "audience"
+    },
+    {
+      "name": "unknown key",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "none",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "unknown-key"
+    },
+    {
+      "name": "two segments",
+      "token": "ko1.abc",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "malformed"
+    },
+    {
+      "name": "a sync token",
+      "token": "ks1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5Ijoia0NURXk4YW1kZlYzNlMwc18tU2JiYUs2X3FJdm16MG4iLCJleHAiOjE4MDAwMDAzMDAsImZpbGUiOiJyZXM6MDFKQjdaIiwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJvbmUudGVzdCIsImtpZCI6InRlc3Qtb3Blbi0xIiwibmFtZSI6IkFsaWNlIChFeGFtcGxlKSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjp0cnVlLCJlZGl0Ijp0cnVlLCJleHBvcnQiOnRydWUsInNoYXJlIjpmYWxzZX0sInN1YiI6InVzZXItNDIiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInYiOjEsInZlcnNpb24iOiJyNyIsIndhdGVybWFyayI6eyJ0ZXh0IjoiQWxpY2UgMjAyNi0xMS0wMyJ9fQ.EvaTubS8MLyPp9wWSZOgSlrAp28VZ6RAprwupJCrkrw_faOrXuuMUiK6n5wAZyRtnDe7wXNU6Ede16FNcG2rCQ",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "malformed"
+    },
+    {
+      "name": "signed: edit without comment",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5IjoiazEiLCJmaWxlIjoicmVzOjEiLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Im9uZS50ZXN0Iiwia2lkIjoidGVzdC1vcGVuLTEiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInN1YiI6InUxIiwidmVyc2lvbiI6InIxIiwiZXhwIjoxODAwMDAwMzAwLCJuYW1lIjoiQSIsInBlcm1zIjp7ImNvbW1lbnQiOmZhbHNlLCJkb3dubG9hZCI6ZmFsc2UsImVkaXQiOnRydWUsImV4cG9ydCI6ZmFsc2UsInNoYXJlIjpmYWxzZX0sInYiOjEsIndhdGVybWFyayI6bnVsbH0.t-qxvVVrOvvQC8eKqDAcuR4Pfz4EJN3nk2RvTxSDvPfNplNF5Oh6OchVyZh1laUzkBPKxURDUeC6qBaDjiVnCw",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "claims"
+    },
+    {
+      "name": "signed: lifetime over an hour",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5IjoiazEiLCJmaWxlIjoicmVzOjEiLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Im9uZS50ZXN0Iiwia2lkIjoidGVzdC1vcGVuLTEiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInN1YiI6InUxIiwidmVyc2lvbiI6InIxIiwiZXhwIjoxODAwMDAzNjAxLCJuYW1lIjoiQSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjpmYWxzZSwiZWRpdCI6dHJ1ZSwiZXhwb3J0IjpmYWxzZSwic2hhcmUiOmZhbHNlfSwidiI6MSwid2F0ZXJtYXJrIjpudWxsfQ.1DIVg7CXVlf2X_xRmLhm_lsyCt5kZDm59orwmXV1N4fqcDrAZ6Lq7x-0r_bjtT3HZSjxpAJ5oi8ECLH5HOQCCQ",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "expired"
+    },
+    {
+      "name": "signed: a claim twice",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5IjoiazEiLCJmaWxlIjoicmVzOjEiLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Im9uZS50ZXN0Iiwia2lkIjoidGVzdC1vcGVuLTEiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInN1YiI6InUxIiwidmVyc2lvbiI6InIxIiwiZXhwIjoxODAwMDAwMzAwLCJuYW1lIjoiQSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjpmYWxzZSwiZWRpdCI6dHJ1ZSwiZXhwb3J0IjpmYWxzZSwic2hhcmUiOmZhbHNlfSwidiI6MSwid2F0ZXJtYXJrIjpudWxsLCJzdWIiOiJhZG1pbiJ9.M5EJvP97rHXrK2WKZn6p7riBX7F6zs-L1qGobJfJVyNuLp8qNyf5NOnDK38ex1gKOjVfSleOTQ7CvAG0kKlACQ",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "malformed"
+    },
+    {
+      "name": "signed: v 1.0",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5IjoiazEiLCJmaWxlIjoicmVzOjEiLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Im9uZS50ZXN0Iiwia2lkIjoidGVzdC1vcGVuLTEiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInN1YiI6InUxIiwidmVyc2lvbiI6InIxIiwiZXhwIjoxODAwMDAwMzAwLCJuYW1lIjoiQSIsInBlcm1zIjp7ImNvbW1lbnQiOnRydWUsImRvd25sb2FkIjpmYWxzZSwiZWRpdCI6dHJ1ZSwiZXhwb3J0IjpmYWxzZSwic2hhcmUiOmZhbHNlfSwidiI6MS4wLCJ3YXRlcm1hcmsiOm51bGx9.FBIKPUk5mCm63IAh1Jv_ol14oz-CL73oKf4fKotN4Q6XWm5z-3lFu7nMTXsWXqxjODyYoxAvo-nyevUGnatCAg",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "malformed"
+    },
+    {
+      "name": "signed: null name",
+      "token": "ko1.eyJhdWQiOiJraXRpb24tc2VydmVyLXRlc3QiLCJkb2Nfa2V5IjoiazEiLCJmaWxlIjoicmVzOjEiLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Im9uZS50ZXN0Iiwia2lkIjoidGVzdC1vcGVuLTEiLCJ0ZW5hbnQiOiJleGFtcGxlLWNvcnAiLCJ0eXAiOiJraXRpb24tb3BlbiIsInN1YiI6InUxIiwidmVyc2lvbiI6InIxIiwiZXhwIjoxODAwMDAwMzAwLCJuYW1lIjpudWxsLCJwZXJtcyI6eyJjb21tZW50Ijp0cnVlLCJkb3dubG9hZCI6ZmFsc2UsImVkaXQiOnRydWUsImV4cG9ydCI6ZmFsc2UsInNoYXJlIjpmYWxzZX0sInYiOjEsIndhdGVybWFyayI6bnVsbH0.NXRqDDAZ6LXdfWVw2ylDwjVLYD5JzPgJyD7MkqNK6eHx0LN73JEhlAnt1UIbozom_TiezWirvuCHCqyhCAJrCg",
+      "keys": "test",
+      "audience": "kition-server-test",
+      "now": 1800000100,
+      "error": "malformed"
+    }
+  ]
+}

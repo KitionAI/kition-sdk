@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-c8-fix-11-tree-edits
+feature: sdk.agent.kit-env
+intent: Tree deletions agree with receipts and tree children support generated delete, move and create tasks.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, tree_nodes]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, tree_children_generate]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, tools::derived]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

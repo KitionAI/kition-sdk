@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-c8-fix-22-reread-identity
+feature: sdk.agent.premise-guard
+intent: A stale premise names the old tool id after an outside rename, while private derived facts remain precise and private across rereads.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: outside_rename_refuses_on_the_tool_id_the_agent_observed }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: private_facts_stay_precise_after_outside_rereads }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: outside_rename_refuses_on_the_tool_id_the_agent_observed, env: { KITION_TEST_READER: editor } }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: private_facts_stay_precise_after_outside_rereads, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

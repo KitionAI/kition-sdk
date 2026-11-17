@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-32-nested-text-gap
+feature: sdk.agent.premise-guard
+intent: Nested raw text offsets hold their character gap and deleted range so earlier insertions relocate, deleted content changes refuse changed, and unrelated character edits apply.
+layer: golden
+source: { kind: synthetic, from: SDK mock-kit regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: nested_raw_text_offsets_hold_only_the_character_gap_and_range }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

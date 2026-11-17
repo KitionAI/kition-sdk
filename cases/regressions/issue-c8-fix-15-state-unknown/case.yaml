@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-15-state-unknown
+feature: sdk.agent.premise-guard
+intent: Implicit state reads without comparable state history refuse unknown before executing in headless and live editors.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: implicit_editor_reads }
+  - cargo-test: { package: kition-kits, test: live_editor, filter: implicit_live_state_reads }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

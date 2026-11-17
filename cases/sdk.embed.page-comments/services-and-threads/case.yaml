@@ -1,0 +1,23 @@
+format: 1
+id: sdk.embed.page-comments/services-and-threads
+feature: sdk.embed.page-comments
+intent: >-
+  The page's host services reach the kit, a refusal keeps its protocol reason and any other failure
+  answers failed (EM29); the comment threads the page keeps are marked in the kit once it opens and
+  again when the list changes, locate answers through the kit, and a clicked marker reaches the
+  page (EM30).
+layer: golden
+source:
+  kind: synthetic
+  from: packages/embed/test/opening.test.ts
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/opening.test.ts, -t, "EM29|EM30"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

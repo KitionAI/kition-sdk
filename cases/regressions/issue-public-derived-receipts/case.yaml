@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-public-derived-receipts
+feature: sdk.agent.receipts
+intent: Receipts report only public facts proven to change; private and unknown derived comparisons stay in the premise journal.
+layer: golden
+source: { kind: synthetic, from: Mock record kit with unavailable derived facts, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: receipts, filter: derived_receipts_only_report_proven_public_changes }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-receipts-scattered-shifts
+feature: sdk.agent.receipts
+intent: >-
+  At least 4 objects whose every change is the same shifts and that sit in no list run are one
+  footprint entry by their ids, `{ ids, edits: [{ field, by }] }`: 200 mock nodes moved by one
+  offset are one entry (807 bytes), not 200 entries cut at 50 (5.3 KB). Rust and TypeScript answer
+  the shared fixture alike.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, receipts_two_hundred_objects_moved_by_one_offset_are_one_entry]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, a_shift_of_many_objects_is_stated_once]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, footprint]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

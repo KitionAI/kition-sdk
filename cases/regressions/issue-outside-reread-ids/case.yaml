@@ -1,0 +1,33 @@
+format: 1
+id: regressions/issue-outside-reread-ids
+feature: sdk.agent.premise-guard
+intent: >-
+  When another program changes a document's file, `others` and the premise guard tell exactly
+  what it changed: the server compares the document as it last served it (read from the kit
+  before anything makes the kit read the file again, so the file is read again once) with the
+  file as read now, pairing the two reads' objects by tool id, by their place under paired
+  holders and by content, never by the object ids a kit mints on every read. Before, both reads
+  were of the new file and every object without a tool id read as deleted and created: the
+  colleague's edit was never told, `others` was tens of kilobytes, every write to a shape with
+  text was refused as `changed`, and a slide addressed by number after an inserted slide edited
+  another slide. The mock kit's nested decks now mint new object ids on every read and read a
+  clean document again when it is opened after its file changed, as a real kit does.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, reread_, nested_, outside_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, reread]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

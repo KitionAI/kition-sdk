@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-root-window
+feature: sdk.agent.premise-guard
+intent: A Within window alone on the root list refuses reorder, deletion and index shifts while allowing deletion after the window, without any object premise.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: space_guard, filter: root_list_window_alone_is_a_premise }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

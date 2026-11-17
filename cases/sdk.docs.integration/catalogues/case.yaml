@@ -1,0 +1,24 @@
+format: 1
+id: sdk.docs.integration/catalogues
+feature: sdk.docs.integration
+intent: >-
+  Agent integration documentation covers every command in every committed SDK kit catalogue,
+  preserving parameter types and descriptions and reporting unavailable metadata honestly.
+  Outputs have deterministic bytes and working internal links; check mode detects missing,
+  modified and obsolete outputs without writing, and write mode removes obsolete command pages.
+layer: golden
+direction: ai
+source:
+  kind: synthetic
+  from: tools/docs-gen/docs-gen.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/docs-gen/docs-gen.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

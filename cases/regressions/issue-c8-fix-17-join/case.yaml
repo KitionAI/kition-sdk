@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-17-join
+feature: sdk.agent.premise-guard
+intent: Multiple premises on one object join fields, selectors and positions in every ordering within a call and across run steps, with whole-object holds winning.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: repeated_premises_join }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

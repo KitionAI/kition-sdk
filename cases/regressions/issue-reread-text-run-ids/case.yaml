@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-reread-text-run-ids
+feature: sdk.agent.premise-guard
+intent: >-
+  Two reads of a file pair the object ids inside a text's run formatting (a picture fill of the
+  letters): a file read again unchanged tells nothing, the fill's media changed is counted in
+  `unnamed`, the shapes unchanged; the text itself is never rewritten. Before, both shapes appeared
+  in `others` with equal text before and after on every outside change.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, reread, ids_inside_a_texts_run_formatting_are_read_through_the_pairing]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

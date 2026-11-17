@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-ribbon-repeats-undo
+feature: sdk.editor.display-modes
+intent: >-
+  A ribbon generated from a menu tab leaves out Undo and Redo, which the top bar draws, and the
+  menu keeps them. Board's and html's Edit ribbons (and their Single line rows) repeated the top
+  bar's Undo and Redo.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/frame/EditorFrame.test.tsx, -t, "leaves Undo and Redo out of a generated ribbon"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

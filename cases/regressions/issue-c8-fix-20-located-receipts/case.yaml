@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-c8-fix-20-located-receipts
+feature: sdk.agent.located-receipts
+intent: Long-text receipts and outside changes locate edits with bounded spans, and uniform shifts of map-keyed members compact without losing the affected keys.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: receipts_and_others_locate_long_text_edits_with_bounded_bytes }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: map_keyed_overlay_shifts_compact_in_receipts_and_others }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

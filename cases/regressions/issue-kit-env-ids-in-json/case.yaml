@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-kit-env-ids-in-json
+feature: sdk.agent.kit-env
+intent: >-
+  kit-env reads an object with a tool id that a json value or a map names by its object id (a
+  connector's `look.kind.start`, a click action's slide) by its tool id, so a file read again after
+  saving, whose object ids the kit minted anew, does not read as changed there. Before, every
+  edit's receipt differed from the states read again on a real deck with connectors and
+  hyperlinks, so `kit-env generate` on the slide kit's fixture deck `形状.pptx` (11 slides, 188
+  shapes) gave 0 tasks, all resampled as `receipt-differs`; now 20.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, --, ids_inside_json_values]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

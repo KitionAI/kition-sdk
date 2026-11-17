@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-change-attribution
+feature: sdk.agent.receipts
+intent: >-
+  A change of an object without a tool id (a paragraph in a shape's text body) is told as an edit
+  of the nearest object holding it that has one, through list and tree fields and refs the schema
+  marks `owns`, at the path from it (`body.paragraphs.0.text`), with no object id of a held object
+  in the change set; a ref without `owns` (shared media) attributes nothing. Kition-kdm and
+  @kition/kdm answer the same for `fixtures/attribution.json`. Before, a text edit named a paragraph
+  by an object id the agent never saw.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

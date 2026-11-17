@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 590" width="960" height="590" role="img" aria-labelledby="layers-title">
+  <title id="layers-title">Kition's layered architecture: consumers, the kit session, the kit layer, the Kit Data Model, and storage and sync</title>
+  <style>
+    svg { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .bg { fill: #ffffff; }
+    .d-box { fill: #f6f5f4; stroke: #dfdcd9; stroke-width: 1.25; }
+    .d-box-accent { fill: #ecebfb; stroke: #5645d4; stroke-width: 1.5; }
+    .d-title { fill: #1f1f1f; font-size: 16px; font-weight: 600; }
+    .d-sub { fill: #4a4a4a; font-size: 13.5px; }
+    .d-label { fill: #6b6b6b; font-size: 13px; }
+    .d-layer { fill: #6b6b6b; font-size: 14px; font-weight: 600; }
+    .d-accent-text { fill: #3d2fb0; }
+    .d-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+    .d-line { fill: none; stroke: #6b6b6b; stroke-width: 1.5; }
+    .d-arrowhead { fill: #6b6b6b; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #17181c; }
+      .d-box { fill: #23252b; stroke: #3a3d45; }
+      .d-box-accent { fill: #2a2550; stroke: #8b7ff0; }
+      .d-title { fill: #f2f2f2; }
+      .d-sub { fill: #c4c4c4; }
+      .d-label, .d-layer { fill: #9a9a9a; }
+      .d-accent-text { fill: #c3bcff; }
+      .d-line { stroke: #9a9a9a; }
+      .d-arrowhead { fill: #9a9a9a; }
+    }
+  </style>
+  <defs>
+    <marker id="layers-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="d-arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="590"/>
+
+  <!-- Layer names -->
+  <text class="d-layer" x="10" y="57">Consumers</text>
+  <text class="d-layer" x="10" y="170">Session</text>
+  <text class="d-layer" x="10" y="285">Kit</text>
+  <text class="d-layer" x="10" y="405">Data</text>
+  <text class="d-layer" x="10" y="522">Storage</text>
+  <text class="d-layer" x="10" y="540">and sync</text>
+
+  <!-- Consumers -->
+  <g>
+    <rect class="d-box" x="130" y="20" width="192" height="64" rx="8"/>
+    <text class="d-title" x="226" y="47" text-anchor="middle">People</text>
+    <text class="d-sub" x="226" y="68" text-anchor="middle">kit editors</text>
+    <line class="d-line" x1="226" y1="84" x2="226" y2="128" marker-end="url(#layers-arrow)"/>
+    <text class="d-label" x="234" y="111">Kit UI protocol</text>
+  </g>
+  <g>
+    <rect class="d-box" x="336" y="20" width="192" height="64" rx="8"/>
+    <text class="d-title" x="432" y="47" text-anchor="middle">Your product</text>
+    <text class="d-sub" x="432" y="68" text-anchor="middle">web embed</text>
+    <line class="d-line" x1="432" y1="84" x2="432" y2="128" marker-end="url(#layers-arrow)"/>
+    <text class="d-label" x="440" y="111">Embed API</text>
+  </g>
+  <g>
+    <rect class="d-box" x="542" y="20" width="192" height="64" rx="8"/>
+    <text class="d-title" x="638" y="47" text-anchor="middle">Scripts</text>
+    <text class="d-sub" x="638" y="68" text-anchor="middle">object model</text>
+    <line class="d-line" x1="638" y1="84" x2="638" y2="128" marker-end="url(#layers-arrow)"/>
+    <text class="d-label" x="646" y="111">Object model</text>
+  </g>
+  <g>
+    <rect class="d-box" x="748" y="20" width="192" height="64" rx="8"/>
+    <text class="d-title" x="844" y="47" text-anchor="middle">AI agents</text>
+    <text class="d-sub" x="844" y="68" text-anchor="middle">MCP · DSH · ACP</text>
+    <line class="d-line" x1="844" y1="84" x2="844" y2="128" marker-end="url(#layers-arrow)"/>
+    <text class="d-label" x="852" y="111">KHP tools</text>
+  </g>
+
+  <!-- Session -->
+  <rect class="d-box" x="130" y="130" width="810" height="70" rx="8"/>
+  <text class="d-title" x="535" y="159" text-anchor="middle">Kit session</text>
+  <text class="d-sub" x="535" y="182" text-anchor="middle">commands → transactions · object model · events · presence · undo per author · capabilities</text>
+  <line class="d-line" x1="380" y1="200" x2="380" y2="238" marker-end="url(#layers-arrow)"/>
+  <text class="d-label" x="388" y="224">engine contract</text>
+
+  <!-- Kit -->
+  <rect class="d-box" x="130" y="240" width="500" height="80" rx="8"/>
+  <text class="d-title" x="380" y="273" text-anchor="middle">Kit engine (WebAssembly / native)</text>
+  <text class="d-sub" x="380" y="297" text-anchor="middle">domain rules · checks · layout · rendering · AI tools</text>
+  <rect class="d-box" x="660" y="240" width="280" height="80" rx="8"/>
+  <text class="d-title" x="800" y="273" text-anchor="middle">Import and export</text>
+  <text class="d-sub" x="800" y="297" text-anchor="middle">pptx · docx · xlsx · psd · pdf …</text>
+  <line class="d-line" x1="632" y1="280" x2="658" y2="280" marker-start="url(#layers-arrow)" marker-end="url(#layers-arrow)"/>
+  <line class="d-line" x1="380" y1="320" x2="380" y2="358" marker-start="url(#layers-arrow)" marker-end="url(#layers-arrow)"/>
+  <text class="d-label" x="388" y="344">transactions / changes</text>
+  <line class="d-line" x1="800" y1="320" x2="800" y2="358" marker-end="url(#layers-arrow)"/>
+  <text class="d-label" x="808" y="344">imported as objects</text>
+
+  <!-- Data -->
+  <rect class="d-box-accent" x="130" y="360" width="810" height="80" rx="8"/>
+  <text class="d-title d-accent-text" x="535" y="393" text-anchor="middle">Kit Data Model (KDM)</text>
+  <text class="d-sub" x="535" y="418" text-anchor="middle">schema · stable ids · mergeable state · change history · blobs by hash</text>
+
+  <line class="d-line" x1="330" y1="440" x2="330" y2="488" marker-end="url(#layers-arrow)"/>
+  <text class="d-label" x="338" y="468">local store</text>
+  <line class="d-line" x1="740" y1="440" x2="740" y2="488" marker-start="url(#layers-arrow)" marker-end="url(#layers-arrow)"/>
+  <text class="d-label d-mono" x="748" y="468">kition-sync/1</text>
+
+  <!-- Storage and sync -->
+  <rect class="d-box" x="130" y="490" width="400" height="76" rx="8"/>
+  <text class="d-title" x="330" y="522" text-anchor="middle">The host's workspace and store</text>
+  <text class="d-sub" x="330" y="546" text-anchor="middle">single user: one replica per device, no server</text>
+  <rect class="d-box" x="540" y="490" width="400" height="76" rx="8"/>
+  <text class="d-title" x="740" y="522" text-anchor="middle">Sync server (hosted or self-hosted)</text>
+  <text class="d-sub" x="740" y="546" text-anchor="middle">members · permissions · persistence · blobs · compaction</text>
+</svg>

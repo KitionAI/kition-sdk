@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-close-completion
+feature: sdk.agent.close-completion
+intent: A successful closing command completes without describing, restoring, previewing or saving a document that no longer exists.
+layer: golden
+source: { kind: synthetic, from: Mock terminal close, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, test, -p, kition-headless, --lib, a_terminal_close_] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: forced_close_ }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/kitEngine.context.test.ts, packages/kit-editor/src/engine/useKitDocument.test.tsx, packages/kit-editor/src/useKitSession.test.tsx] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

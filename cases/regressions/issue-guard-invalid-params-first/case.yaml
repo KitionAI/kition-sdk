@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-guard-invalid-params-first
+feature: sdk.agent.premise-guard
+intent: >-
+  A step's parameter its command's schema does not take is `invalid-params`, in the kit's words,
+  before the premise guard. Before, since every string a parameter holds that names an object is
+  a premise, a misspelt parameter whose value happened to name an object another agent
+  had changed was answered as `conflict` instead.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, invalid_params_come_before_the_guard]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,30 @@
+format: 1
+id: regressions/issue-batch-command-atomic
+feature: sdk.agent.object-model
+intent: >-
+  An agent's `<prefix>_batch` that runs a `command` among other operations is one change (KHP
+  A16) and a failed one leaves the document as it was (A18), as `<prefix>_run` does (A53): when a
+  later operation fails after the command ran, or the command fails after operations ran, the
+  headless document is opened again from its file and a headless draft from what was stored;
+  where only undo could take the command back (an open editor, unsaved edits) the batch is
+  refused before anything runs with `unsupported`, naming `<prefix>_run` (KitObjectModel OM4a).
+  Before, the command's effect stayed when the batch failed at a later operation.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, object_model, a_failed_batch_with_a_command_changes_nothing]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/agent.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

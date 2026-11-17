@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-c8-fix-16-integer-limits
+feature: sdk.agent.conditional-limits
+intent: Nullable and nested integer constraints and map keys validate atomically; conditional numeric limits use the edited object's live metadata and drive environment sampling.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: integer_paths }
+  - cargo-test: { package: kition-kit, test: model, filter: conditional_limits }
+  - cargo-test: { package: kition-env, test: generate, filter: conditional_member_limits }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/integer-paths.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

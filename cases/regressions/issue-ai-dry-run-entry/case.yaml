@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-ai-dry-run-entry
+feature: sdk.testing.ai-cases
+intent: >-
+  `cargo xtask ai --dry-run` in a kit repository checks every `layer: ai` case. Kits start
+  tools/ai-cases.mjs as `<repo>/../kition-sdk/tools/ai-cases.mjs`; when that path ran through a
+  symbolic link it was not the module's real path, the script's entry check never matched, and the
+  dry run exited 0 having checked nothing. The script now compares real paths; a real run still
+  needs the owner (F-QA-16).
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/ai-cases.test.mjs, -t, checks the cases when started through a path that is not its real one]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

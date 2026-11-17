@@ -1,0 +1,28 @@
+format: 1
+id: sdk.agent.live-editor/receipts
+feature: sdk.agent.live-editor
+intent: >-
+  A `<prefix>_run` or `<prefix>_batch` on a document open in an editor that lists `changes` answers
+  what it changed (`changes`) and the diagnostics it introduced and resolved exactly as headless:
+  the editor answers the replica's version before the write and `@kition/kdm`'s change set since it
+  after (`fixtures/live-receipts.json`), and a version its history does not hold is `changes: null`
+  with why, never an empty change set.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/fixtures/live-receipts.json
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/kitEngine.changes.test.ts]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/useKitSession.test.tsx, -t, "what an agent write changed"]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, live_editor, receipts_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

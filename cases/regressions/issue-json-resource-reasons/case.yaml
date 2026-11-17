@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-json-resource-reasons
+feature: sdk.agent.resource-reasons
+intent: JSON resources retain identity across edits and report deletion, changed index occupants, and outside renames precisely.
+layer: golden
+timeout_s: 60
+source: { kind: synthetic, from: Mock JSON resources, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: json_resource_addresses_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: outside_identity_pairing_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: json_resource_addresses_, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

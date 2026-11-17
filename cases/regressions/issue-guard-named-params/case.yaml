@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-guard-named-params
+feature: sdk.agent.premise-guard
+intent: >-
+  Every object a step names is a premise, not only the ids in the parameter its command declares as
+  `targets`: a shape given as `id` to a command that declares `ids`, a connector's `from` and `to`,
+  a batch `command` operation's other parameters. Each whole string (one level into lists and
+  objects) that names an object of the document at `basis` is checked as a declared target is
+  (deleted, relocated, changed); free text that names none is not. Before, a write that named the
+  shape in `id` deleted a shape a colleague had just changed.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, named_, reread_fifty]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

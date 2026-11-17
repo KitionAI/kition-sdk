@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@kition/embed": ["../../packages/embed/src/index.ts"],
+      "@kition/script": ["../../packages/script/src/index.ts"],
+      "@kition/script/kits/note": ["../../packages/script/kits/note.ts"]
+    }
+  },
+  "include": ["src", "e2e", "playwright.config.ts", "playwright.exit.config.ts", "vite.config.ts"]
+}

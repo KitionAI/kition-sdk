@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.receipts/carries
+feature: sdk.agent.receipts
+intent: >-
+  A parent's move carries its descendants in world space, which no stored field tells: the kit
+  answers it (`model.carried`), asked once per change set, and the parent's change says `carries: {
+  count: 2, what: "world location" }` in the colleague's receipt, in `others` of the agent's next
+  answer, and after the file was changed outside.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, carries_a_parents_move_tells_what_it_carries]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

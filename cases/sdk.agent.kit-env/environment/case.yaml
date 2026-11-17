@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.kit-env/environment
+feature: sdk.agent.kit-env
+intent: >-
+  `reset` gives a fresh workspace with the task's file each time and removes the last one; steps
+  on one episode never touch another's files or the source workspace; `score` equals the
+  standalone scorer; an inverse task starts from the edited file and its ground truth restores
+  the original document's state.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-env/tests/environment.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, environment]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

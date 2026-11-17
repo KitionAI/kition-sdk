@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-session-keys-any-depth
+feature: sdk.host.headless-kit
+intent: >-
+  A headless kit's inspect details (`view.describe`, what `<prefix>_inspect` answers) leave out
+  only the session's bookkeeping at the top level (`canUndo`, `dirty`, `revision`, `path`, …) and
+  the editor state the kit declares (a name wherever it is, a JSON Pointer at that place only), so
+  a document field named `time`, `path`, `selection` or `history` (a keyframe's time, an animated
+  property's path) survives for a kit that does not declare it, and declared editor state is still
+  removed. Before, every key named `time`, `playhead`, `selection`, `path`, `history`, … was
+  removed at any depth, so keyframes lost their `time` and animated properties their `path`.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: inspect_details_keep_document_fields_named_like_editor_state }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

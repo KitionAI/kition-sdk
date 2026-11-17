@@ -1,0 +1,32 @@
+format: 1
+id: sdk.agent.premise-guard/index-places
+feature: sdk.agent.premise-guard
+intent: >-
+  A command's target parameter may declare an index spelling (`x-khp-index: "#"`,
+  `KitCommand::index`): `"#3"` names the third clip of the current track by its place. Such a
+  value is a place: after a colleague's ripple insert before it (in the file, or another agent) a
+  write with `basis` giving `"#3"` is refused as `relocated`, the conflict naming the clip `"#3"`
+  named at `basis` with where it is now and `place.under` what it names now, nothing written;
+  with no change it applies; `on: ["#3"]` is `invalid-params` (`on` takes ids). Before, `"#3"`
+  was read as an id naming nothing, with no premise, and the write reached whatever was third.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, index_a_write_by_index_after_an_insert_is_refused_as_relocated]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, on_refuses_a_declared_index_spelling]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, serves_the_editor_context_and_marks_what_commands_act_on]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

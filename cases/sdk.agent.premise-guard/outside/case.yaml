@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.premise-guard/outside
+feature: sdk.agent.premise-guard
+intent: >-
+  A change made to the file outside the server becomes a journal entry by `outside` with the
+  objects it changed: with `basis`, an unrelated one is reported and the write runs, one that
+  moved or deleted the target conflicts; for a kit without an object model it is `unknown`.
+  Without `basis`, a `_batch` is refused once like a `_run` (A56), and reads do not clear that.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/premise_guard.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, outside_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

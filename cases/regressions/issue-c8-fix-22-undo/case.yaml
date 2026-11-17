@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-22-undo
+feature: sdk.model.undo-footprint
+intent: Scoped undo and redo expose the objects and fields of their next step so stale writes refuse only changes to that footprint.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_scopes }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: scoped_undo_and_redo_hold_the_objects_of_their_next_step }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

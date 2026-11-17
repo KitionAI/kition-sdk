@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-14-readonly-create
+feature: sdk.agent.kit-env
+intent: Creation accepts required immutable registers, while later writes remain read-only; environment sampling and receipt replay retain those creation values.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: batch, filter: creation_only_fields }
+  - cargo-test: { package: kition-env, test: generate, filter: creation_only_kind }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

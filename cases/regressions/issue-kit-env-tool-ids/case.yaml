@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-kit-env-tool-ids
+feature: sdk.agent.kit-env
+intent: >-
+  A kit qualifies as a training environment when the ids its tasks and receipts use survive a
+  reopen: tool ids count, so a kit that mints new object ids for its other objects on every read
+  (a real slide kit) gives tasks; objects without a tool id are skipped and counted (`no-tool-id`),
+  and states read again are compared by pairing their objects, never by object id. Before,
+  `kit-env generate` refused such a kit, since not every object id survived a reopen.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

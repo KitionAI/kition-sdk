@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-22-step-state
+feature: sdk.agent.step-premises
+intent: Every premise read is indexed and observes an isolated model and editor state after the run's preceding steps, so dependent writes cannot escape the guard.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: place_guard, filter: later_steps_ }
+  - cargo-test: { package: kition-kits, test: place_guard, filter: later_steps_, env: { KITION_TEST_READER: editor } }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

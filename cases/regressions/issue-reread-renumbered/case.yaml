@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-reread-renumbered
+feature: sdk.agent.premise-guard
+intent: >-
+  When another program gives objects new tool ids (two shapes on a slide swap their numbers, their
+  content unchanged), the comparison names them in one `renumbered` line instead of telling each
+  text as changed into the other's, a write on them is refused as `unknown` saying to inspect
+  again, and the revision that refusal hands back is the agent's own basis, so a retry cannot
+  write into the other shape before a fresh inspect. Before, the refusal's revision let the retry
+  write into the wrong shape.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, reread, --, renumbered]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, reread_shapes_renumbered]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

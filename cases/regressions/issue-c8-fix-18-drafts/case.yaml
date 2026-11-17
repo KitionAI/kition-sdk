@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-18-drafts
+feature: sdk.agent.headless-drafts
+intent: A first write creates its headless draft before observing context, and failed mixed batches restore that draft while receipts describe successful draft writes.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: object_model, filter: a_failed_batch_with_a_command_changes_nothing }
+  - cargo-test: { package: kition-kits, test: receipts, filter: run_on_a_headless_draft_reports_its_changes_too }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

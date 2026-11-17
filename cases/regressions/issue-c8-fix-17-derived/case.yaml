@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-17-derived
+feature: sdk.agent.premise-guard
+intent: Held derived facts are checked after same-server and outside changes whether their holder was named in the stored change set or only an indirect dependency changed.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: space_guard, filter: derived_holder_named_or_not_matrix }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

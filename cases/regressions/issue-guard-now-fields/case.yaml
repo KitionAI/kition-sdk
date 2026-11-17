@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-guard-now-fields
+feature: sdk.agent.premise-guard
+intent: >-
+  A conflict's `now` keeps the list an object is in (`parent`, `field`, `index`) apart from its
+  position fields: a node's position field `parent` (another node's key) is `now.fields.parent`.
+  Before, it overwrote the list holder `now.parent` with the object's own `parent` field.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, now_a_position_field_named_parent_does_not_hide_the_list]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

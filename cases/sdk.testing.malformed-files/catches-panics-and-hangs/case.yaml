@@ -1,0 +1,19 @@
+format: 1
+id: sdk.testing.malformed-files/catches-panics-and-hangs
+feature: sdk.testing.malformed-files
+intent: >-
+  check_malformed passes a reader that checks every length and names a reader that panics on a
+  damaged file or never returns on an empty one, so a kit's tests catch a file that would take
+  the engine down in the page (kit rule E2).
+layer: unit
+source:
+  kind: synthetic
+  from: crates/kition-kit/src/testing.rs malformed_tests
+  licence: Apache-2.0
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: "testing::malformed_tests" }
+expected:
+  - actual: out:exit
+    compare: exit
+since: "2026-11-16"

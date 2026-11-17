@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-32-raw-move
+feature: sdk.agent.raw-contract
+intent: Raw list moves use the pre-removal destination gap, including the end gap, and apply after unrelated text edits.
+layer: golden
+source: { kind: synthetic, from: SDK mock-kit regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: raw_list_moves_use_pre_removal_destination_gaps }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

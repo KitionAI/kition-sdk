@@ -1,0 +1,23 @@
+[package]
+name = "grid-kit-headless"
+description = "The reference grid kit as a headless kit executable, on kition-headless."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "kit-grid"
+path = "src/main.rs"
+
+[dependencies]
+grid-kit = { path = "../grid-kit" }
+kition-headless = { path = "../../crates/kition-headless" }
+
+[dev-dependencies]
+kition-kit-host = { path = "../../crates/kition-kit-host" }
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["rt", "macros", "time"] }

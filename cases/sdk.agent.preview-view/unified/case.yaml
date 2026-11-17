@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.preview-view/unified
+feature: sdk.agent.preview-view
+intent: >-
+  The unified tools (`kit_inspect`, `kit_run`, `kition-kits-mcp --unified`) document the view
+  members and the run's `view`, pass a preview's view to the kit's render command whole, answer
+  `preview`, and refuse an undeclared member as `<prefix>_inspect` does.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/preview_view_unified.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view_unified]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

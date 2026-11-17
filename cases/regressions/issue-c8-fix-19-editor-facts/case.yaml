@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-19-editor-facts
+feature: sdk.agent.on-demand-derived
+intent: The editor fails closed on unsupported on-demand facts; materialized holder facts refuse relevant edits and allow unrelated edits.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: live_editor, filter: editor_on_demand_facts_fail_closed_and_stored_facts_preserve_independence }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

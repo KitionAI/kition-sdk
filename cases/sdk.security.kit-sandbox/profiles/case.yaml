@@ -1,0 +1,29 @@
+format: 1
+id: sdk.security.kit-sandbox/profiles
+feature: sdk.security.kit-sandbox
+intent: >-
+  host H14, KHP 10.6/A37/A58: what `--sandbox` lets a kit process reach is exactly the
+  platform's own files and its package (read), its private folder and endpoint folder (read and
+  write, Unix sockets only there), and a workspace only when the host gives one; no other file and
+  no network. The macOS profile denies by default and never allows the IP network or any program
+  but the kit's; the Linux Landlock rules write nothing else, and the seccomp list refuses every
+  socket but `AF_UNIX`, and `io_uring`; an unknown architecture or platform gets no rule set, so the
+  launch is refused rather than run unconfined. The wrapper runs the kit's own command line, and a
+  kit started by `kition-kits` reads its manifest's folder and gets no workspace.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kit-host/src/sandbox.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit-host, filter: "sandbox::tests::" }
+  - cargo-test: { package: kition-kit-host, filter: a_sandbox_wrapper_runs_the_kits_own_command_line }
+  - cargo-test: { package: kition-kits, filter: a_sandboxed_kit_reads_the_package_of_its_manifest }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+tags: [security]
+since: "2026-11-16"
+timeout_s: 300

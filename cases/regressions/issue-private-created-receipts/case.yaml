@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-private-created-receipts
+feature: sdk.agent.premise-guard
+intent: >-
+  Outside receipts expose no premise-only field names or values for created, changed or deleted objects.
+layer: golden
+source:
+  kind: synthetic
+  from: Motion kit guard defect report
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, guard_regressions::outside_receipts_hide_created_changed_and_deleted_private_facts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

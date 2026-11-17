@@ -1,0 +1,7 @@
+# Expected results and the rules that define "passing" belong to the owner (see docs/quality.md).
+**/expected/ {{owner}}
+/docs/quality.md {{owner}}
+/AGENTS.md {{owner}}
+/.claude/ {{owner}}
+/.github/ {{owner}}
+/cases/waivers.yaml {{owner}}

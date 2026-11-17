@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-headless-error-code
+feature: sdk.agent.required-params
+intent: >-
+  A kit says why a command did not run by a typed reason (`kition_kit::failure::failure`), which
+  decides the error's code in kition-headless and in the page's engine worker whatever the message
+  says; only a message without one is read by its wording. Before, the code was guessed from words
+  like "unknown command" or "not available" in the message.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, --, a_kits_typed_failure]
+  - exec:
+      cmd: [pnpm, -s, vitest, run, packages/kit-editor/src/engine/refusal.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

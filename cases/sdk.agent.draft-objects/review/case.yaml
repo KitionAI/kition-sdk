@@ -1,0 +1,30 @@
+format: 1
+id: sdk.agent.draft-objects/review
+feature: sdk.agent.draft-objects
+intent: >-
+  Review any declared object model with the receipt vocabulary and ids: created values,
+  changed field before/after values, moved positions and deleted objects. Replica drafts and
+  file drafts whose kits can export their states agree with receipts, including integer ids,
+  named held objects and map leaves. Compare never modifies the file or the draft. Large
+  comparisons cap objects, fields, texts and values and count every omission in truncated.
+  The human CLI returns the same JSON; a kit without an object model keeps its fallback.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, draft_compare]
+  - cargo-test: { package: kition-kits, filter: review_omits_oversized_addresses_and_bounds_created_members }
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/script/test/draft-objects.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

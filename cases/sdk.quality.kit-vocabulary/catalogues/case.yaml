@@ -1,0 +1,23 @@
+format: 1
+id: sdk.quality.kit-vocabulary/catalogues
+feature: sdk.quality.kit-vocabulary
+intent: >-
+  tools/kit-vocabulary.mjs reads every kit's generated command catalogue (packages/script/kits) without
+  starting a kit, counts only top-level parameters through nested types and inline comments, matches
+  description words whole, takes verbs from the last segment of a command id, and exits 0: it measures
+  the vocabulary, it is not a gate.
+layer: golden
+source:
+  kind: synthetic
+  from: tools/kit-vocabulary.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kit-vocabulary.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

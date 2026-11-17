@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-guard-by-id-at-a-time
+feature: sdk.agent.premise-guard
+intent: >-
+  A step that names its source by id and acts at the time it reads (`at.time`) has the place as a
+  premise too: after a colleague put a clip under 2.5 s, the mock's `clip.stamp { clip: 1 }` at 2.5
+  s with `basis` is refused as `relocated` naming the clip put there, nothing written; after a
+  change elsewhere it applies. Before, a step giving its targets took its time as no place and wrote
+  over the clip.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, places_a_step_by_id_at_a_time_is_checked_at_the_time]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

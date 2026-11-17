@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-c8-fix-20-messages
+feature: sdk.agent.premise-guard
+intent: An unknown refusal states the unavailable premise and reports renumbering only when the journal proves renumbering.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: unknown_messages_distinguish_content_basis_from_unproven_identity }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: covered_removed_text_is_deleted_and_shifted_text_is_relocated }
+  - cargo-test: { package: kition-kits, filter: unknown_cause_messages_are_specific }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-12-gap
+feature: sdk.agent.premise-guard
+intent: An empty insertion window holds its gap across independent writes, refusing shifts before it and allowing changes after it.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, insertion_gap_]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-guard-agent-origin
+feature: sdk.agent.premise-guard
+intent: >-
+  The premise guard reads the document on the agent's connection as the agent (a batch with
+  origin `{ kind: agent }`, reads included), as a kit process serving `kition-kit-server` requires,
+  and the mock kit refuses such a read without that origin as a real kit does. The guard used to
+  read without it: the mock accepted that, a real kit refused it, and every change made in the
+  file became `unknown`, so every write with `basis` after one was refused.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, outside_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

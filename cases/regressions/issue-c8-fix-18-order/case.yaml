@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-order
+feature: sdk.agent.relative-order
+intent: Exact indexes, relative order with explicit anchors, and membership windows distinguish unrelated structural edits from changes a structural command depends on, for same-server and outside edits.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: space_guard, filter: held_order_forms_matrix }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

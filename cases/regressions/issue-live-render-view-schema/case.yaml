@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-live-render-view-schema
+feature: sdk.agent.preview-view
+intent: >-
+  On a document open in its editor, a preview's view is checked against the kit's render command
+  as the editor lists it: a member the command's `target` does not declare is `invalid-params`,
+  naming it, and nothing is drawn. Before, the server read the command's schema from `params`
+  while `ai/commands` lists it as `schema` (Kit UI protocol section 2), so in a real editor the view
+  was never checked and a member the kit does not take was accepted and ignored.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, live_editor, render_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-guard-targets-one-or-many
+feature: sdk.agent.premise-guard
+intent: >-
+  A target parameter that takes one id or a list (`oneOf [integer, string, array of integers]`) may
+  be declared as the command's targets: `check_targets` answers a list, `on` fills it as one, and a
+  number given in it is a premise (a hide of a node a colleague renamed is refused as `changed`).
+  Before, `check_targets` refused this shape, so a number there was no premise.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, a_target_parameter_may_take_one_id_or_a_list]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, targets_one_or_many_ids_are_targets]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

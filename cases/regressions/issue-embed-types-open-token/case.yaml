@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-embed-types-open-token
+feature: sdk.collab.file-rooms
+intent: >-
+  The embed package's declarations build: its types name `@kition/sync/openToken` (the managed
+  co-editing options `openKeys`), and that module is emitted into dist/types, so a host such as
+  Kition One can vendor the package that gives each open-token editor its own connection.
+layer: unit
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [node, packages/embed/scripts/build-types.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-16"

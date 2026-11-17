@@ -1,0 +1,28 @@
+[package]
+name = "kition-env"
+description = "A kit as a training and evaluation environment: editing tasks with ground truth generated from a corpus through the kit's object model, rewards that check nothing else changed, and verified traces."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+kition-kdm = { path = "../kition-kdm" }
+kition-kits = { path = "../kition-kits" }
+
+base64 = "0.22"
+hex = "0.4"
+icu_normalizer = "2"
+serde_json = { workspace = true }
+sha2 = "0.10"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[bin]]
+name = "kit-env"
+path = "src/bin/kit-env.rs"

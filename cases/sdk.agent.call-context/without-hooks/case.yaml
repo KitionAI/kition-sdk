@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.call-context/without-hooks
+feature: sdk.agent.call-context
+intent: >-
+  A kit without the editor-state hooks (no `context.*` requests) keeps working with a run's
+  `target` and with `on` for a declared target parameter; `on` for a command that reads the
+  selection is `unsupported`, named, before any step runs, never the command acting on the
+  selection the kit already had.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, nohooks_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

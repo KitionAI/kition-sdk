@@ -1,0 +1,29 @@
+format: 1
+id: sdk.agent.premise-guard/selectors
+feature: sdk.agent.premise-guard
+intent: >-
+  A premise path may name a list item by a member (`body.keys[time=2]`, `body.markers[id=7]`): a
+  write setting the key at 2 s with `basis` is refused as `changed` after a colleague changed that
+  key, also when a second save then inserted a key before it (by another agent, and by another
+  program writing the file), and applies after a key was added before or after it; a key added where
+  the agent saw none refuses it; a marker in a json list named by its id survives a marker added
+  before it and is refused after its rename.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, selector_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, selector]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

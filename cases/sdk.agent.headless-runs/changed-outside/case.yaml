@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.headless-runs/changed-outside
+feature: sdk.agent.headless-runs
+intent: >-
+  After a file the agent edits headless changed outside its calls, the next `<prefix>_inspect`
+  says so in `changedOutside`, once; the next `<prefix>_run` is refused once with a retryable
+  `failed` error and changes nothing, and the run after it proceeds. A file the agent saved
+  through its own run is never reported as changed outside (KHP A56).
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/headless_runs.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, headless_runs, outside_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

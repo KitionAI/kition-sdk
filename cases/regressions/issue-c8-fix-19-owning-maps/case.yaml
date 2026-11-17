@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-c8-fix-19-owning-maps
+feature: sdk.agent.kit-env
+intent: >-
+  Owning-map children are candidates for field, text, creation and deletion tasks.
+  Each task replays through the mock kit with reward 1, including wrapped map references.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --lib, sampling_weights_types_equally_even_with_a_large_map]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, nested_reply_ids]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, owning_maps]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

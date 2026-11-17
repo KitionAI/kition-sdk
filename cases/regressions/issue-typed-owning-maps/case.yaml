@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-typed-owning-maps
+feature: sdk.model.typed-maps
+intent: Typed owning maps accept declared object references, refuse incompatible values atomically, and preserve untyped maps.
+layer: golden
+source: { kind: synthetic, from: Synthetic cell map, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: member_types, filter: typed_owning_maps_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: typed_owning_maps_ }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/member-types.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

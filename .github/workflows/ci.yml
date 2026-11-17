@@ -1,0 +1,53 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    # Unoptimized test threads recurse deeper than the default 2 MiB stack; the kits' executables
+    # set their own worker stacks (kition_kits::runtime), and their tests remove this variable.
+    env:
+      RUST_MIN_STACK: "8388608"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      # Host tests launch the mock kit's executable.
+      - run: cargo build -p kition-kit-mock
+      - run: cargo test
+      # A kit without its own wasm-bindgen must build: the export macro brings it.
+      - run: cargo build -p grid-kit --target wasm32-unknown-unknown
+      # The KDM runs inside kits' WebAssembly engines in the browser.
+      - run: cargo build -p kition-kdm --target wasm32-unknown-unknown
+      - run: cargo clippy -p kition-kit --features session --target wasm32-unknown-unknown -- -D warnings
+      # The whole kit-author path: build the example with wasm-pack and check it from JavaScript.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      # The TypeScript side: @kition/kdm and the host packages.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - name: Check out Kition Tessera beside the SDK
+        run: |
+          git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
+          cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      # Pinned: "latest" sometimes resolves to an old release that cannot read workspace manifests.
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.13.1
+      - run: wasm-pack build examples/grid-kit --target web --release --no-typescript --out-dir ../../target/grid-kit-pkg
+      - run: >-
+          node tools/check-sdk.mjs --dir target/grid-kit-pkg --module grid_kit --class GridDocument
+          --name fixture.grid --fixture examples/grid-kit/fixture.grid
+          --edit '{"command":"grid.set","params":{"x":2,"y":3,"grey":7}}'
+      - run: node tools/check-manifest.mjs examples/grid-kit/kit.json --module target/grid-kit-pkg

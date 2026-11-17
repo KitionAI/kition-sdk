@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-kit-env-integer-ids
+feature: sdk.agent.kit-env
+intent: >-
+  A kit whose tool ids are integers (the mock's clips) gives tasks: a batch's receipt names them
+  as numbers, a change set computed from two reads of the file as text, and kit-env compares them
+  in one form (every id as text), so no edit is discarded as `receipt-differs`.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, a_kit_with_integer_tool_ids_gives_tasks]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

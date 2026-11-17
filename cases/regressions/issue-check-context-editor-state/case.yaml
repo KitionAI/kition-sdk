@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-check-context-editor-state
+feature: sdk.agent.call-context
+intent: >-
+  `testing::check_context` passes a context that really moves the editor (another part, another
+  selection) on a kit whose `inspect()` reports that editor state, and names each broken rule: a
+  hook that moves the revision or dirty state, enters the undo history, changes the document's
+  content (inspect without the kit's declared editor state), or a restore that does not bring
+  `editor_state()` back. Before, it required `inspect()` to be identical, so real kits could run it
+  only with contexts that move nothing.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: context_tests }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

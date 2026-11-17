@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-15-region
+feature: sdk.agent.region-content
+intent: Content changes inside a declared region refuse while changes elsewhere in the same blob permit a write; unavailable comparisons refuse unknown.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: region_content }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

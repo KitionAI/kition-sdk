@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-khp-platform-citations
+feature: sdk.docs.protocol-names
+intent: >-
+  "KHP" cites only the Kit Harness Protocol's own rules (A and K ids that exist in the KHP
+  spec) and its version 1.x; the old Kit Standard's rules, now the Kition kit platform's, are cited
+  as the platform's ("engine contract E15", "KitModel rule M23", "kit editors U8b", "`KitAgent
+  1.4` D1"). No tracked text outside CHANGELOG.md and cases says "KHP 2.0", "KHP 6.1", "KHP E15",
+  "KHP U8a", "KHP D1", "KHP KitAgent", a retired or platform id as KHP's ("KHP A20", "KHP K9"),
+  or introduces a platform page as KHP, including across a line break.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/protocol-names.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

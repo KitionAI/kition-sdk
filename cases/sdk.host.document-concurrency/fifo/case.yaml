@@ -1,0 +1,22 @@
+format: 1
+id: sdk.host.document-concurrency/fifo
+feature: sdk.host.document-concurrency
+intent: >-
+  complete calls to a document enter in arrival order. Cancelling a queued call cannot
+  let its successor overtake the active call. A hung document never blocks another document
+  of the same kit, even when both processes assign their document the same wire id.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/src/control.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, filter: documents_are_fifo_independent_and_cancelled_waiters_do_not_overtake }
+  - cargo-test: { package: kition-kits, test: process_control }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

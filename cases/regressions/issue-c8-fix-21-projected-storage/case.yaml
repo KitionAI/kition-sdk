@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-21-projected-storage
+feature: sdk.model.projected-objects
+intent: Projected types cannot be stored by local transactions, snapshot loads or imported remote changes.
+layer: unit
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: projections, filter: projected_types_cannot_enter }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

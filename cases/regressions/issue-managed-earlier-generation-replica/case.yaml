@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-managed-earlier-generation-replica
+feature: sdk.collab.saves
+intent: >-
+  In a managed room, the embed serves the kit no replica stored with an earlier version of the
+  file. After a write outside the room (an upload: the file's next co-editing generation), a kit
+  that merges the file into its stored replica (note, sheet) opened the earlier generation's
+  document, whose id names the earlier room; it could never seed the new generation's room, and
+  every Save waited for a room it never joined.
+layer: unit
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/handlers.test.ts, -t, earlier version of the file]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-16"

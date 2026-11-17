@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-rejoin-role
+feature: sdk.collab.file-rooms
+intent: >-
+  A role that changes while the connection is down (a host revoked the open token and the new one
+  is read-only, as Kition One does when a space is archived) reaches the editor when the sync
+  client re-joins after reconnecting: the client reports it to `onAccess` like a `room/access`
+  notice, and the embed records it and opens the kit again read-only, instead of keeping `editor`.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/sync/test/client.test.ts, packages/embed/test/collab.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

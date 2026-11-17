@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.call-context/declared-parts
+feature: sdk.agent.call-context
+intent: >-
+  A kit that declares its part nouns in its manifest (`agent.parts`, a video kit's `sequence`)
+  takes exactly those members as a run's `target` and a step's `at.part`, each passed to its
+  `context.set` unchanged, and refuses any other member as `invalid-params` naming the ones it
+  takes; a kit that declares none keeps `slide`, `page`, `slideId` and `pageId`.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, parts_a_kit]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

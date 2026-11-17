@@ -1,0 +1,22 @@
+format: 1
+id: sdk.agent.receipts/footprint-ts
+feature: sdk.agent.receipts
+intent: >-
+  `@kition/kdm`'s `withFootprint` answers the same as the Rust `footprint::with_footprint` for the
+  shared fixture `footprint.json`: a run of shifted objects stated once, a short run kept, string
+  ticks shifted by a string, a list's entry that says no more left out.
+layer: golden
+source:
+  kind: synthetic
+  from: packages/kdm/test/changes.test.ts
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, footprint]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

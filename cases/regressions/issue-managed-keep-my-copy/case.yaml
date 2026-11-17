@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-managed-keep-my-copy
+feature: sdk.collab.saves
+intent: >-
+  After another writer changed the file outside a managed room (a new co-editing generation), a
+  person who chooses "keep my copy" saves it: the copy becomes the file's content and the editor
+  opens the next generation's room live, where the next edit saves. Without that choice the save
+  is a conflict and writes nothing. Before, the kept copy could never be saved and stayed only in
+  the earlier room.
+layer: unit
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/managed.test.ts, -t, keep my copy]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-16"

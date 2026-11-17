@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-unknown-params-generic
+feature: sdk.host.unknown-params
+intent: >-
+  kition-headless refuses, for every kit, a top-level parameter the command's published schema
+  does not name, before the kit sees the call, with the `invalid_params` refusal and the words of
+  `kition_kit::schema::refuse_unknown` (the key, the parameter it resembles, the ones the command
+  takes), so a kit that also calls it answers the same; a misspelt required key is named, not
+  reported missing. A command that says its top level is open (`KitCommand::open_params`,
+  published as `additionalProperties: true`) takes any key, and nested objects follow their
+  schema's `additionalProperties` (engine contract E7a). Before, each of the 16 kits had to
+  remember to call `refuse_unknown` itself, and one that forgot ran the command without the
+  misspelt parameter.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, an_unknown_top_level_key_is_refused_for_every_kit]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

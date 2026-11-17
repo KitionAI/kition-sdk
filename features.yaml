@@ -1,0 +1,1669 @@
+format: 1
+kit: sdk
+updated: "2026-11-16"
+golden_budget_s: 600
+features:
+  - id: sdk.agent.close-completion
+    title: Closing commands complete without querying the closed document
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-headless/src/lib.rs, crates/kition-kits/src/manager.rs, crates/kition-kits/src/tools.rs, crates/kition-kits/src/tools/guard.rs, crates/kition-kits/tests/support/nested_list_regressions.rs, packages/kit-editor/src/engine/kitEngine.worker.ts]
+    cases: [regressions/issue-close-completion, regressions/issue-editor-close-completion, regressions/issue-29-terminal-plan]
+    since: "2026-11-16"
+  - id: sdk.model.typed-maps
+    title: Owning maps optionally constrain their values to an object type
+    direction: [function, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-kdm/src/schema.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/batch.rs, packages/kdm/src/schema.ts, packages/kdm/src/tx.ts, packages/kdm/src/batch.ts]
+    cases: [regressions/issue-typed-owning-maps]
+    since: "2026-11-16"
+  - id: sdk.agent.literal-paths
+    title: Literal JSON pointer premises address selector-shaped keys
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-kits/src/tools/selector.rs, crates/kition-kits/src/tools/guard.rs]
+    cases: [regressions/issue-literal-paths]
+    since: "2026-11-16"
+  - id: sdk.agent.resource-reasons
+    title: JSON resource addresses report identity-aware conflict reasons
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-kits/src/tools/selector.rs, crates/kition-kits/src/tools/guard.rs]
+    cases: [regressions/issue-json-resource-reasons, regressions/issue-32-indexed-priority]
+    since: "2026-11-16"
+  - id: sdk.agent.reread-session
+    title: Outside rereads retain editor state and reconcile undo history
+    direction: [collab, data-safety]
+    priority: P0
+    status: has
+    paths: [crates/kition-headless/src/**, crates/kition-kit/src/lib.rs, crates/kition-kit-mock/src/**, packages/kit-engine/src/**]
+    cases: [regressions/issue-reread-session, regressions/issue-reread-active-mode]
+    since: "2026-11-16"
+  - id: sdk.distribution.published-kits
+    title: Public kit artifacts come only from the explicit publication allowlist
+    direction: [platform]
+    priority: P1
+    status: has
+    paths: [published-kits.json, tools/published-kits.mjs, tools/published-kits.test.mjs, tools/claude-plugin-skills.mjs, tools/sync-kit-fixtures.mjs, packages/script/kits/**, packages/script/scripts/sync-kits.mjs, packages/embed/src/schemas.ts, sdk.json]
+    cases: [regressions/issue-published-kit-boundary]
+    since: "2026-11-16"
+  - id: sdk.packages.public
+    title: Public npm packages ship built modules and declarations with portable dependencies
+    direction: [platform, function]
+    priority: P1
+    status: has
+    paths: [packages/*/package.json, packages/kdm/src/schema.ts, packages/script/vite.config.ts, packages/extensions/src/runtime/document.ts, tools/build-package.mjs, tools/bundled-notices.mjs, tools/bundled-notices.test.mjs, tools/pack-public-packages.mjs, tools/smoke-public-packages.mjs, tools/public-packages.test.mjs, tools/check-public-package-imports.mjs, tools/package-imports.test.mjs, package.json]
+    cases: [regressions/issue-npm-package-output, regressions/issue-consumer-schema-spread, regressions/issue-public-package-imports, regressions/issue-bundled-notices, regressions/issue-bundled-notice-files, sdk.packages.public/packed-worker]
+    since: "2026-11-16"
+  - id: sdk.model.projected-containment
+    title: Projected objects nest through lists trees and owning refs
+    direction: [function, collab]
+    priority: P1
+    status: has
+    paths: [crates/kition-kdm/src/projection.rs, packages/kdm/src/projection.ts]
+    cases: [regressions/issue-c8-fix-22-projected-containment]
+    since: "2026-11-16"
+  - id: sdk.agent.raw-contract
+    title: Raw batches declare command-equivalent premises and plan every prefix
+    direction: [function, collab]
+    priority: P0
+    status: has
+    paths: [crates/kition-kits/src/tools/**, crates/kition-kdm/src/schema.rs, packages/kdm/src/schema.ts, crates/kition-kdm/src/comment.rs, packages/kdm/src/comment.ts, crates/kition-kit-mock/src/comments.rs]
+    cases: [regressions/issue-c8-fix-22-raw-contract, regressions/issue-c8-fix-22-raw-readonly, regressions/issue-c8-fix-22-editor-batch-receipts, regressions/issue-c8-fix-22-command-ref-contract, regressions/issue-c8-fix-22-batch-planning-cost, regressions/issue-c8-fix-22-native-plan-ops, regressions/issue-comment-batch-contract, regressions/issue-32-raw-move, regressions/issue-32-move-replay]
+    since: "2026-11-16"
+  - id: sdk.model.undo-footprint
+    title: Each scoped undo and redo step exposes its original objects and fields for command premises
+    direction: [function, collab]
+    priority: P0
+    status: has
+    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/tx.ts, crates/kition-kit/src/session/mod.rs]
+    cases: [regressions/issue-c8-fix-22-undo, regressions/issue-c8-fix-22-undo-repair, regressions/issue-c8-fix-22-undo-prefix]
+    since: "2026-11-16"
+  - id: sdk.model.projected-objects
+    title: Kit-computed objects participate in the object model without replica storage
+    direction: [function, collab, ai]
+    priority: P1
+    status: has
+    paths: [crates/kition-kdm/src/**, packages/kdm/src/**, crates/kition-kit/src/session/model.rs, packages/kit-editor/src/engine/kitModelRunner.ts, packages/kit-engine/src/session.ts, packages/script/src/exchange.ts, packages/script/src/sources.ts, crates/kition-kits/src/tools/**, crates/kition-kit-mock/src/projected.rs, crates/kition-env/src/**]
+    cases: [regressions/issue-c8-fix-21-projections, regressions/issue-c8-fix-21-projection-adapters, regressions/issue-c8-fix-21-projected-model, regressions/issue-c8-fix-21-projected-receipts, regressions/issue-c8-fix-21-projected-storage, regressions/issue-c8-fix-21-projected-env, regressions/issue-c8-fix-21-projected-human, regressions/issue-c8-fix-21-projected-placement, regressions/issue-script-engine-projections]
+    since: "2026-11-16"
+  - id: sdk.agent.editor-premises
+    title: Live editor kit callbacks participate in per-call premises
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools/guard.rs
+      - crates/kition-kit/src/premise.rs
+      - packages/kit-editor/src/engine/**
+      - packages/kit-engine/src/**
+      - packages/kit-host/src/**
+      - packages/kit-ui-protocol/src/index.ts
+    cases: [regressions/issue-c8-fix-21-editor-premises, regressions/issue-c8-fix-21-editor-unavailable, regressions/issue-c8-fix-21-editor-ts-context, regressions/issue-c8-fix-21-editor-inspect, regressions/issue-c8-fix-21-editor-history, regressions/issue-c8-fix-21-editor-carries, regressions/issue-c8-fix-22-editor-receipts]
+    since: "2026-11-16"
+  - id: sdk.env.single-object
+    title: Root field tasks and bounded context-located edits inside long text
+    direction: [ai, function]
+    priority: P1
+    status: has
+    paths: [crates/kition-env/src/**, crates/kition-env/tests/single_object.rs]
+    cases: [regressions/issue-c8-fix-20-single-object]
+    since: "2026-11-16"
+  - id: sdk.agent.located-receipts
+    title: Bounded long-text edit locations and exact map-member shift footprints
+    direction: [collab, function]
+    priority: P1
+    status: has
+    paths: [crates/kition-kdm/src/diff.rs, crates/kition-kdm/src/footprint.rs, packages/kdm/src/diff.ts, packages/kdm/src/footprint.ts, crates/kition-kits/src/tools/receipts.rs]
+    cases: [regressions/issue-c8-fix-20-located-receipts, regressions/issue-c8-fix-20-span-history]
+    since: "2026-11-16"
+  - id: sdk.agent.replica-reread
+    title: Rereads enumerate detached replica objects and let kits carry their identities across file reloads
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-kdm/src/batch.rs, packages/kdm/src/batch.ts, crates/kition-kit/src/lib.rs, crates/kition-headless/src/lib.rs, crates/kition-kits/src/tools/guard.rs]
+    cases: [regressions/issue-c8-fix-20-reread-carry]
+    since: "2026-11-16"
+  - id: sdk.env.move-consequences
+    title: Group moves and declared consequential address fields form one replayed task
+    direction: [ai, function]
+    priority: P1
+    status: has
+    paths: [crates/kition-env/src/**, crates/kition-kdm/src/schema.rs, packages/kdm/src/schema.ts]
+    cases: [regressions/issue-c8-fix-18-move-task]
+    since: "2026-11-16"
+  - id: sdk.agent.scoped-address
+    title: Kits resolve scoped positional strings through per-call windows
+    direction: [collab]
+    priority: P1
+    status: has
+    paths: [crates/kition-kit-mock/src/matrix.rs, crates/kition-kits/src/tools/guard.rs]
+    cases: [regressions/issue-c8-fix-18-address]
+    since: "2026-11-16"
+  - id: sdk.agent.on-demand-derived
+    title: Private derived facts can compare only pending holds against bounded basis snapshots
+    direction: [collab, performance]
+    priority: P1
+    status: has
+    paths: [crates/kition-kits/src/tools/derived.rs, crates/kition-kdm/src/schema.rs, packages/kdm/src/schema.ts]
+    cases: [regressions/issue-c8-fix-18-derived, regressions/issue-c8-fix-19-editor-facts, regressions/issue-c8-fix-20-content-demand]
+    since: "2026-11-16"
+  - id: sdk.agent.text-history
+    title: Guard callbacks receive bounded full basis text and formatting independently of public excerpts
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-kdm/src/diff.rs, packages/kdm/src/diff.ts, crates/kition-kits/src/tools/guard.rs]
+    cases: [regressions/issue-c8-fix-18-text-history, regressions/issue-c8-fix-20-content-basis, regressions/issue-c8-fix-20-content-marks]
+    since: "2026-11-16"
+  - id: sdk.agent.covered-content
+    title: Covered places can compare content independently of occupancy
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths: [crates/kition-kit/src/lib.rs, crates/kition-kits/src/tools/guard.rs]
+    cases: [regressions/issue-c8-fix-18-covered, regressions/issue-c8-fix-21-covered-gone, regressions/issue-historical-matches]
+    since: "2026-11-16"
+  - id: sdk.agent.relative-order
+    title: Structural commands can hold order among explicit objects and anchors independently of exact indexes
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kits/src/tools/guard.rs
+    cases:
+      - regressions/issue-c8-fix-18-order
+    since: "2026-11-16"
+  - id: sdk.agent.batch-independence
+    title: Types can declare raw field writes independent of placement
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kits/src/tools/guard.rs
+      - packages/kdm/src/schema.ts
+    cases:
+      - regressions/issue-c8-fix-17-independence
+    since: "2026-11-16"
+  - id: sdk.agent.text-members
+    title: Declared JSON text members drive environment tasks and identical assignments compact losslessly
+    direction: [function, ai]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-env/src/generate.rs
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/src/footprint.rs
+      - packages/kdm/src/schema.ts
+      - packages/kdm/src/footprint.ts
+    cases:
+      - regressions/issue-c8-fix-17-env
+    since: "2026-11-16"
+  - id: sdk.agent.external-inputs
+    title: Guarded writes compare observed fingerprints of external byte sources
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kits/src/tools/inputs.rs
+      - crates/kition-headless/src/lib.rs
+    cases:
+      - regressions/issue-c8-fix-17-inputs
+    since: "2026-11-16"
+  - id: sdk.agent.identity-confidence
+    title: Kits may refuse unprovable identity continuity after outside rereads
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-kits/src/tools/guard.rs
+    cases:
+      - regressions/issue-c8-fix-17-identity
+    since: "2026-11-16"
+  - id: sdk.agent.private-derived
+    title: Premise-only derived facts guard writes without public changes
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kits/src/tools/derived.rs
+      - packages/kdm/src/schema.ts
+    cases:
+      - regressions/issue-c8-fix-17-private
+    since: "2026-11-16"
+  - id: sdk.agent.conditional-limits
+    title: Per-object numeric limits validate live metadata and drive environment sampling
+    direction: [function, ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/src/batch.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kit/src/session/model.rs
+      - crates/kition-env/src/generate.rs
+      - packages/kdm/src/schema.ts
+    cases:
+      - regressions/issue-c8-fix-16-integer-limits
+    since: "2026-11-16"
+  - id: sdk.agent.region-content
+    title: Kit-defined content regions compare independently of whole blob replacements
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools/guard.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-kit-mock/src/raster.rs
+    cases:
+      - regressions/issue-null-content-region
+      - regressions/issue-c8-fix-15-region
+    since: "2026-11-16"
+  - id: sdk.agent.historical-blobs
+    title: Guard callbacks can read verified basis blob bytes across reloads within bounded byte and journal retention
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools/history.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-kit-process-protocol/src/types.rs
+      - crates/kition-kit-mock/src/raster.rs
+    cases:
+      - regressions/issue-c8-fix-15-history
+      - regressions/issue-c8-fix-16-history
+      - regressions/issue-c8-fix-20-content-blobs
+    since: "2026-11-16"
+  - id: sdk.agent.tree-cascade
+    title: Trees may opt into atomic descendant-first batch deletion
+    direction: [function, ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/src/batch.rs
+      - packages/kdm/src/schema.ts
+      - packages/kdm/src/batch.ts
+      - crates/kition-env/src/generate.rs
+    cases:
+      - regressions/issue-c8-fix-15-cascade
+    since: "2026-11-16"
+  - id: sdk.agent.number-members
+    title: Numeric bounds for JSON members and command parameters are enforced and sampled
+    direction: [function, ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/src/batch.rs
+      - crates/kition-kit/src/schema.rs
+      - crates/kition-env/src/generate.rs
+      - crates/kition-kits/src/tools/model.rs
+      - packages/kdm/src/schema.ts
+      - packages/kdm/src/batch.ts
+    cases:
+      - regressions/issue-c8-fix-12-number-members
+      - regressions/issue-c8-fix-15-members
+      - regressions/issue-c8-fix-16-members
+      - regressions/issue-c8-fix-12-number-schema
+    since: "2026-11-16"
+  - id: sdk.agent.draft-objects
+    title: Bounded draft review for every declared object model uses the generic receipt vocabulary, ids and before/after values
+    direction: [ai, collab, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kits/src/tools/receipts.rs
+      - crates/kition-kits/tests/draft_compare.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-kit-mock/src/main.rs
+      - packages/script/src/drafts.ts
+      - packages/script/src/node.ts
+      - packages/script/test/draft-objects.test.ts
+      - docs/sdk/agent.md
+      - docs/platform/sets/agent.md
+      - docs/platform/kits/implementations.md
+    cases:
+      - sdk.agent.draft-objects/review
+      - regressions/issue-mock-replica-save
+    since: "2026-11-16"
+  - id: sdk.host.call-deadline
+    title: Every managed kit request has a bounded deadline and a typed timeout
+    direction: [robustness, platform]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kits/src/control.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/tools/errors.rs
+      - crates/kition-kits/src/serve.rs
+      - crates/kition-kit-host/src/client.rs
+      - crates/kition-kits/tests/process_control.rs
+      - crates/kition-kits/src/bin/kition-kits-mcp.rs
+      - crates/kition-kits/src/bin/kition-kits.rs
+      - crates/kition-kits/src/definitions.rs
+      - schemas/kits-service.schema.json
+      - docs/sdk/process-control.md
+    cases:
+      - sdk.host.call-deadline/policy
+    since: "2026-11-16"
+  - id: sdk.host.idle-reclaim
+    title: Idle document workers save file and draft state before stopping and restart on use
+    direction: [robustness, data-safety, platform]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kits/src/control.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kits/tests/process_control.rs
+    cases:
+      - sdk.host.idle-reclaim/save-before-stop
+    since: "2026-11-16"
+  - id: sdk.host.document-concurrency
+    title: Complete calls are FIFO per document and documents have independent process workers
+    direction: [robustness, platform]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kits/src/control.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/serve.rs
+      - crates/kition-kits/src/mcp.rs
+      - crates/kition-kits/tests/process_control.rs
+    cases:
+      - sdk.host.document-concurrency/fifo
+    since: "2026-11-16"
+  - id: sdk.host.memory-ceiling
+    title: Optional process memory ceilings are enforced on Linux and macOS and refused elsewhere
+    direction: [robustness, security, platform]
+    priority: P0
+    status: partial
+    gap: Windows has no resident reader here; Linux address-space allocation failures can still be ordinary kit failures when the resident monitor did not stop the process
+    paths:
+      - crates/kition-kit-host/src/memory.rs
+      - crates/kition-kit-host/src/process.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/control.rs
+      - crates/kition-kits/tests/process_control.rs
+    cases:
+      - sdk.host.memory-ceiling/enforcement
+    since: "2026-11-16"
+  - id: sdk.host.mcp-call-control
+    title: MCP stdio forwards correlated kit progress and accepts cancellation while calls run
+    direction: [ai, robustness, platform]
+    priority: P0
+    status: partial
+    gap: KitBackend cannot cooperatively interrupt an executing call; the host cancels and stops the worker. Live editor bridge and external HTTP adapters need their own control integration
+    paths:
+      - crates/kition-kit-host/src/client.rs
+      - crates/kition-kits/src/mcp.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/tools/errors.rs
+    cases:
+      - regressions/issue-framed-json-tests
+      - sdk.host.mcp-call-control/progress-and-cancel
+    since: "2026-11-16"
+  - id: sdk.distribution.container
+    title: One non-root container serves all kits over stdio MCP from one workspace volume, with a private ephemeral runtime folder
+    direction: [platform, ai, security]
+    priority: P1
+    status: partial
+    paths:
+      - tools/container/**
+      - docs/platform/index.md
+    cases:
+      - sdk.distribution.container/context
+    since: "2026-11-16"
+  - id: sdk.distribution.kits-mcp
+    title: "@kition/kits-mcp starts kition-kits-mcp for this platform from npm, with the published kits, passing stdio, exit status and signals through"
+    direction: [platform, ai]
+    priority: P1
+    status: partial
+    gap: The package and its platform packages are built by the manual publish workflow and are not on npm yet; win32-x64 and darwin-x64 builds are untested
+    paths:
+      - packages/kits-mcp/**
+      - .github/workflows/publish-npm.yml
+      - plugins/claude-code/kition-kits/scripts/kits-mcp.sh
+      - docs/sdk/agent.md
+    cases:
+      - sdk.distribution.kits-mcp/launcher
+      - regressions/issue-launcher-sigterm
+    since: "2026-11-16"
+  - id: sdk.docs.integration
+    title: Deterministic agent integration reference from every kit command catalogue, with read-only stale-output checking
+    direction: [ai, platform]
+    priority: P1
+    status: has
+    paths:
+      - tools/docs-gen/build.mjs
+      - tools/docs-gen/docs-gen.test.mjs
+      - tools/docs-gen/README.md
+      - docs/sdk/integration-reference.md
+      - packages/script/kits/*.ts
+    cases:
+      - sdk.docs.integration/catalogues
+      - regressions/issue-docs-inline-comments
+    since: "2026-11-16"
+  - id: sdk.env.readable-tasks
+    title: Environment generation skips unreadable inputs and words ordinal and boolean references in the kit's terms
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-env/src/generate.rs
+      - crates/kition-env/src/instruction.rs
+      - crates/kition-env/src/snapshot.rs
+    cases:
+      - regressions/issue-c8-fix-11-env-robustness
+    since: "2026-11-16"
+  - id: sdk.agent.batch-values
+    title: Batch values obey numeric limits and settle to file precision in their transaction
+    direction: [function, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kit/src/session/model.rs
+      - crates/kition-env/src/generate.rs
+      - packages/kdm/src/schema.ts
+    cases:
+      - regressions/issue-c8-fix-11-number-values
+      - regressions/issue-c8-fix-12-batch-cache
+      - regressions/issue-c8-fix-16-no-session
+    since: "2026-11-16"
+  - id: sdk.editor.pan-bounds
+    title: Document editors constrain scrolling to their page bounds
+    direction: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/rasterViewport.ts
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/engine/rasterViewport.bounds.test.ts
+    cases:
+      - regressions/issue-document-pan-bounds
+      - regressions/issue-resize-keeps-page-top
+    since: "2026-11-16"
+  - id: sdk.editor.frame-overflow
+    title: The editor frame's tabs show whole or move under More tabs; the Menus bar scrolls to cut menus with a fade and a button
+    direction: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/frame/EditorFrame.tsx
+      - packages/kit-editor/src/styles.css
+      - packages/kit-editor/src/frame/EditorFrame.test.tsx
+    cases:
+      - regressions/issue-menus-bar-overflow
+      - regressions/issue-menu-label-truncation
+      - regressions/issue-tab-strip-observer-churn
+    since: "2026-11-16"
+  - id: sdk.editor.display-modes
+    title: The editor frame's display modes (Menus, Single line, Classic, Focus); Focus names its way out and Escape cancels in the kit first; Classic's ribbon gives way before the frame steps down; Single line is never one button
+    direction: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/frame/FocusBar.tsx
+      - packages/kit-editor/src/frame/EditorFrame.tsx
+      - packages/kit-editor/src/frame/MenuRibbon.tsx
+      - packages/kit-editor/src/frame/ModeButton.tsx
+      - packages/kit-editor/src/frame/useFrameLayout.ts
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/styles.css
+      - packages/kit-editor/src/frame/EditorFrame.test.tsx
+      - packages/kit-dev-host/src/modeSmoke.mjs
+      - packages/kit-dev-host/src/lineRow.mjs
+      - packages/kit-editor/src/engine/engineTools.ts
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+    cases:
+      - regressions/issue-classic-steps-down
+      - regressions/issue-collapsed-group-no-icon
+      - regressions/issue-escape-keeps-held-gesture
+      - regressions/issue-focus-escape-kit-first
+      - regressions/issue-focus-exit-hidden
+      - regressions/issue-line-command-grid
+      - regressions/issue-line-row-one-button
+      - regressions/issue-no-tabs-mode-button
+      - regressions/issue-ribbon-repeats-undo
+      - regressions/issue-text-tool-takes-every-escape
+    since: "2026-11-16"
+  - id: sdk.editor.typing-focus
+    title: While a tool takes text, typed keys reach the document; pressing a toolbar button does not take keyboard focus
+    direction: [function, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - packages/kit-editor/src/TextSink.tsx
+      - packages/kit-editor/src/TextSink.test.tsx
+    cases:
+      - regressions/issue-toolbar-focus-space
+    since: "2026-11-16"
+  - id: sdk.editor.held-keys
+    title: A key pressed while the engine answers a gesture waits for that answer and then acts on what the gesture left (Delete right after a marquee deletes the selection)
+    direction: [function, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/engineTools.ts
+      - packages/kit-editor/src/engine/engineTools.gesture.test.tsx
+    cases:
+      - regressions/issue-held-delete-after-marquee
+      - regressions/issue-table-cell-backspace
+    since: "2026-11-16"
+  - id: sdk.editor.file-follow
+    title: An editor follows its file changed on disk without losing edits still being sent to the engine
+    direction: [function, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/engine/useKitDocument.test.tsx
+    cases:
+      - regressions/issue-checkfile-inflight
+    since: "2026-11-16"
+  - id: sdk.agent.step-premises
+    title: Run premises use the isolated state produced by preceding steps
+    direction: [function, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kits/src/tools/guard.rs
+      - crates/kition-headless/src/lib.rs
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
+    cases:
+      - regressions/issue-c8-fix-22-step-state
+      - regressions/issue-c8-fix-22-plan-advance
+      - regressions/issue-replica-replacement
+      - regressions/issue-replacement-plan-ids
+    since: "2026-11-16"
+  - id: sdk.agent.editing-guides
+    title: Agent plugin editing skills match their kit's current guide
+    direction: [ai]
+    priority: P1
+    status: has
+    paths:
+      - plugins/claude-code/kition-kits/skills/note-editing/SKILL.md
+      - tools/claude-plugin-skills.mjs
+      - tools/claude-plugin.test.mjs
+    cases:
+      - regressions/issue-agent-cube-guide
+    since: "2026-11-16"
+  - id: sdk.agent.headless-drafts
+    title: An agent's headless drafts through kition-kits-mcp, which only the person reviews, merges or discards
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kits/src/mcp.rs
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/tests/drafts.rs
+      - packages/script/src/drafts.ts
+    cases:
+      - regressions/issue-draft-replica-error
+      - regressions/issue-c8-fix-18-drafts
+      - regressions/issue-drafts-undeclared-kit
+      - regressions/issue-mcp-draft-instructions
+    since: "2026-11-16"
+  - id: sdk.agent.object-model
+    title: The object-model tools say how each field is written and refuse what a batch cannot set
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools/model.rs
+      - crates/kition-kits/tests/object_model.rs
+      - crates/kition-kdm/src/batch.rs
+      - packages/kdm/src/batch.ts
+      - crates/kition-kdm/tests/fixtures/refs.json
+      - docs/platform/sets/object-model.md
+      - packages/embed/src/agent.ts
+    cases:
+      - regressions/issue-29-nested-text
+      - regressions/issue-batch-command-atomic
+      - regressions/issue-describe-field-kinds
+    since: "2026-11-16"
+  - id: sdk.agent.tool-ids
+    title: A kit's KDM schema names the field holding each type's tool id, and the object model answers and takes that id (one id space)
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/tool_ids.rs
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/src/batch.rs
+      - crates/kition-kdm/src/diff.rs
+      - crates/kition-kdm/tests/tool_ids.rs
+      - crates/kition-kdm/tests/fixtures/tool-ids.json
+      - packages/kdm/src/toolIds.ts
+      - packages/kdm/src/schema.ts
+      - packages/kdm/src/batch.ts
+      - packages/kdm/src/diff.ts
+      - packages/kdm/test/tool-ids.test.ts
+      - crates/kition-kits/src/tools/model.rs
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kits/tests/object_model.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-kdm/src/testing.rs
+      - docs/platform/sets/object-model.md
+      - docs/platform/data-model.md
+    cases:
+      - regressions/issue-one-id-space
+      - regressions/issue-one-id-space-tools
+      - regressions/issue-c8-fix-19-reference-replies
+    since: "2026-11-16"
+  - id: sdk.agent.previews
+    title: An inspect preview is drawn at the call's target, scale and size, by the kit's declared render command or its screenshot; what neither can draw fails the preview instead of a silent whole-document image
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/tests/previews.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-kit-process-protocol/src/types.rs
+      - crates/kition-kit-server/src/server.rs
+      - docs/platform/kits/manifest.md
+    cases:
+      - regressions/issue-inspect-preview-params
+      - regressions/issue-render-fallback-silent
+    since: "2026-11-16"
+  - id: sdk.agent.preview-view
+    title: A preview is a function of the document and the view the call gives (a time, a range of frames, a part); the kit's render command gets the whole view, refuses a member it does not declare, and its answer says what the picture shows
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/tools/schemas.rs
+      - crates/kition-kits/tests/preview_view.rs
+      - crates/kition-kits/tests/preview_view_unified.rs
+      - crates/kition-kits/tests/live_editor.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-kit-mock/kit.json
+      - schemas/mcp-tools.schema.json
+      - docs/platform/kits/manifest.md
+      - docs/sdk/agent.md
+    cases:
+      - regressions/issue-inspect-view-dropped
+      - regressions/issue-live-render-view-schema
+      - sdk.agent.preview-view/leaves-the-editor
+      - sdk.agent.preview-view/passes-the-view
+      - sdk.agent.preview-view/run-after-picture
+      - sdk.agent.preview-view/undeclared-member
+      - sdk.agent.preview-view/unified
+      - sdk.agent.preview-view/without-render
+    since: "2026-11-16"
+  - id: sdk.agent.headless-runs
+    title: A headless run is atomic, acts on its target part whatever part was current, and is refused once after the file changed outside the agent's calls
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/tools/outside.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/tests/headless_runs.rs
+      - crates/kition-kit-mock/src/kit.rs
+    cases:
+      - regressions/issue-outside-change-stale-document
+      - sdk.agent.headless-runs/atomic-run
+      - sdk.agent.headless-runs/changed-outside
+      - sdk.agent.headless-runs/run-target
+    since: "2026-11-16"
+  - id: sdk.agent.call-context
+    title: Every run step says what it acts on (`on`) and where (`at`, the run's `target`); the server sets the kit's editor state for the call and puts it back, so no call leaves hidden state behind
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/tools/context.rs
+      - crates/kition-kits/src/tools/derived.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/tests/call_context.rs
+      - crates/kition-kits/src/definitions.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-kit-server/src/server.rs
+      - crates/kition-kit-server/src/backend.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kit/src/schema.rs
+      - crates/kition-kit/src/testing.rs
+      - docs/platform/reference/kit-process-protocol.md
+      - docs/platform/reference/contract.md
+    cases:
+      - regressions/issue-check-context-editor-state
+      - regressions/issue-declared-part-noun
+      - regressions/issue-inspect-part-id
+      - regressions/issue-run-saves-navigation
+      - regressions/issue-targets-either-id
+      - sdk.agent.call-context/declared-parts
+      - sdk.agent.call-context/leaves-no-state
+      - sdk.agent.call-context/live-editor
+      - sdk.agent.call-context/on-rule
+      - sdk.agent.call-context/on-targets
+      - sdk.agent.call-context/step-part
+      - sdk.agent.call-context/unset-state
+      - sdk.agent.call-context/without-hooks
+    since: "2026-11-16"
+  - id: sdk.agent.receipts
+    title: Every accepted write (`<prefix>_run`, `<prefix>_batch`) answers with a change set the SDK computes from the document's model (created, changed with before and after, moved, deleted; tool ids), a revision, and the diagnostics it introduced and resolved; drafts compare uses the same change set
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/diff.rs
+      - crates/kition-kdm/src/replica.rs
+      - crates/kition-kdm/tests/changes.rs
+      - crates/kition-kdm/tests/fixtures/changes.json
+      - crates/kition-kdm/tests/fixtures/attribution.json
+      - crates/kition-kdm/tests/fixtures/map-ownership.json
+      - crates/kition-kdm/tests/fixtures/usable-ids.json
+      - crates/kition-kdm/tests/fixtures/footprint.json
+      - crates/kition-kdm/tests/fixtures/batch-paths.json
+      - crates/kition-kdm/tests/fixtures/words-schema.json
+      - crates/kition-kdm/tests/fixtures/leaf-edits.json
+      - crates/kition-kdm/tests/fixtures/path-names.json
+      - crates/kition-kdm/src/footprint.rs
+      - packages/kdm/src/footprint.ts
+      - crates/kition-kdm/src/schema.rs
+      - packages/kdm/src/schema.ts
+      - crates/kition-kdm/src/tool_ids.rs
+      - packages/kdm/src/toolIds.ts
+      - packages/kdm/src/diff.ts
+      - packages/kdm/src/replica.ts
+      - packages/kdm/test/changes.test.ts
+      - crates/kition-kit/src/session/model.rs
+      - crates/kition-headless/src/lib.rs
+      - docs/platform/reference/kit-process-protocol.md
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/tools/receipts.rs
+      - crates/kition-kits/src/tools/carried.rs
+      - crates/kition-kits/src/tools/model.rs
+      - crates/kition-kits/src/tools/schemas.rs
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kits/tests/receipts.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - schemas/mcp-tools.schema.json
+      - docs/sdk/agent.md
+      - docs/platform/sets/agent.md
+    cases:
+      - regressions/issue-receipt-omitted-values
+      - regressions/issue-public-derived-receipts
+      - regressions/issue-c8-fix-11-carried-fields
+      - regressions/issue-c8-fix-11-blob-basis
+      - regressions/issue-c8-fix-11-delete-owned
+      - regressions/issue-change-attribution
+      - regressions/issue-held-replaced-in-place
+      - regressions/issue-map-ownership
+      - regressions/issue-receipts-scattered-shifts
+      - sdk.agent.receipts/carries
+      - sdk.agent.receipts/batch-paths
+      - sdk.agent.receipts/batch
+      - sdk.agent.receipts/change-sets
+      - sdk.agent.receipts/change-sets-ts
+      - sdk.agent.receipts/derived-shifts
+      - sdk.agent.receipts/diagnostics
+      - sdk.agent.receipts/drafts-compare
+      - sdk.agent.receipts/footprint
+      - sdk.agent.receipts/footprint-ts
+      - sdk.agent.receipts/leaf-edits
+      - sdk.agent.receipts/leaf-edits-ts
+      - sdk.agent.receipts/path-names
+      - sdk.agent.receipts/held-objects
+      - sdk.agent.receipts/kit-requests
+      - sdk.agent.receipts/run
+      - sdk.agent.receipts/unavailable
+    since: "2026-11-16"
+  - id: sdk.agent.structural-consequences
+    title: Structural environment tasks declare dependent fields scoped to their container instance
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-env/**
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/src/batch.rs
+      - packages/kdm/src/schema.ts
+      - packages/kdm/src/batch.ts
+      - crates/kition-kit-mock/src/structure.rs
+    cases:
+      - regressions/issue-c8-fix-19-structural
+    since: "2026-11-16"
+  - id: sdk.agent.kit-env
+    title: Any kit with an object model is a training and evaluation environment with no code of its own (kition-env, `kit-env`), giving seeded editing tasks with the receipt as ground truth and instructions that name objects as a person would, rewards that check nothing else changed from the states however the attempt was made, oracle traces kept only at reward 1, and reset, step and score
+    direction: [ai, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-env/**
+      - crates/kition-kdm/src/reread.rs
+      - crates/kition-kit-mock/src/deck.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - docs/sdk/env.md
+    cases:
+      - regressions/issue-c8-fix-11-tree-edits
+      - regressions/issue-c8-fix-11-env-robustness
+      - regressions/issue-kit-env-ids-in-json
+      - regressions/issue-kit-env-integer-ids
+      - regressions/issue-kit-env-owned-refs
+      - regressions/issue-kit-env-quoting
+      - regressions/issue-kit-env-tool-ids
+      - sdk.agent.kit-env/cli
+      - sdk.agent.kit-env/environment
+      - sdk.agent.kit-env/generate
+      - regressions/issue-c8-fix-16-replay
+      - regressions/issue-c8-fix-12-env-correctness
+      - regressions/issue-c8-fix-13-create-json
+      - regressions/issue-c8-fix-14-readonly-create
+      - regressions/issue-c8-fix-22-creation
+      - regressions/issue-c8-fix-14-created-ids
+      - regressions/issue-c8-fix-15-maps
+      - regressions/issue-c8-fix-19-owning-maps
+      - regressions/issue-c8-fix-19-fresh-ids
+      - sdk.agent.kit-env/mock-deck
+      - sdk.agent.kit-env/score
+      - sdk.agent.kit-env/traces
+      - sdk.agent.kit-env/held-fields
+      - regressions/issue-env-public-receipts
+    since: "2026-11-16"
+  - id: sdk.agent.named-json
+    title: Selector premises with declared stable member identities distinguish named JSON resources being renamed, deleted, reassigned or changed
+    direction: [ai, collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools/guard.rs
+      - crates/kition-kits/src/tools/selector.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kit-mock/src/stack.rs
+      - crates/kition-kits/tests/tree_guard.rs
+      - docs/platform/kits/call-context.md
+      - docs/sdk/agent.md
+      - docs/sdk/env.md
+    cases:
+      - regressions/issue-c8-fix-13-json-names
+    since: "2026-11-16"
+  - id: sdk.agent.premise-guard
+    title: Every answer on a document names its revision; a call with `basis` is told what others (agents, edits to the file) changed since, and a write whose targets, part or replaced fields they deleted, relocated or changed is refused as `conflict`, while changes to other objects never refuse
+    direction: [ai, collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/tools/journal.rs
+      - crates/kition-kits/src/tools/guard.rs
+      - crates/kition-kits/src/tools/selector.rs
+      - crates/kition-kit-mock/src/reels.rs
+      - crates/kition-kits/src/tools/outside.rs
+      - crates/kition-kits/src/tools/receipts.rs
+      - crates/kition-kits/src/tools/model.rs
+      - crates/kition-kits/src/tools/errors.rs
+      - crates/kition-kits/src/tools/schemas.rs
+      - crates/kition-kits/src/mcp.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/bin/kition-kits-mcp.rs
+      - crates/kition-kits/tests/premise_guard.rs
+      - crates/kition-kits/tests/place_guard.rs
+      - crates/kition-kit-mock/src/tracks.rs
+      - crates/kition-kit-mock/src/space.rs
+      - crates/kition-kits/tests/space_guard.rs
+      - crates/kition-kits/src/tools/context.rs
+      - crates/kition-kdm/src/batch.rs
+      - packages/kdm/src/batch.ts
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-kit-server/src/backend.rs
+      - crates/kition-kit-server/src/server.rs
+      - docs/platform/reference/kit-process-protocol.md
+      - docs/platform/kits/call-context.md
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kit-mock/src/deck.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-kdm/src/diff.rs
+      - crates/kition-kdm/src/reread.rs
+      - crates/kition-kdm/tests/reread.rs
+      - packages/kdm/src/diff.ts
+      - schemas/mcp-tools.schema.json
+      - docs/sdk/agent.md
+      - docs/platform/sets/agent.md
+      - docs/platform/data-model.md
+      - crates/kition-kits/src/tools/derived.rs
+      - crates/kition-kits/tests/support/guard_regressions.rs
+      - crates/kition-kit-mock/src/matrix.rs
+      - crates/kition-kit-mock/src/order.rs
+    cases:
+      - regressions/issue-30
+      - regressions/issue-32-owned-register
+      - regressions/issue-32-nested-text-gap
+      - regressions/issue-31-stable-member
+      - regressions/issue-31-selector-siblings
+      - regressions/issue-31-content-basis
+      - regressions/issue-31-typescript-history
+      - regressions/issue-29-nested-windows
+      - regressions/issue-private-coverage
+      - regressions/issue-c8-fix-22-reread-identity
+      - regressions/issue-c8-fix-22-text-marks
+      - regressions/issue-c8-fix-20-reread-objects
+      - regressions/issue-c8-fix-20-declared-values
+      - regressions/issue-c8-fix-20-messages
+      - regressions/issue-c8-fix-17-join
+      - regressions/issue-c8-fix-18-root-window
+      - regressions/issue-c8-fix-19-empty-places
+      - regressions/issue-c8-fix-19-cell-window
+      - regressions/issue-c8-fix-17-derived
+      - regressions/issue-c8-fix-17-local
+      - regressions/issue-c8-fix-17-time
+      - regressions/issue-c8-fix-14-order
+      - regressions/issue-c8-fix-15-premises
+      - regressions/issue-c8-fix-15-names
+      - regressions/issue-c8-fix-15-selectors
+      - regressions/issue-c8-fix-15-space
+      - regressions/issue-c8-fix-15-state
+      - regressions/issue-c8-fix-15-state-unknown
+      - regressions/issue-c8-fix-15-modes
+      - regressions/issue-c8-fix-11-name-params
+      - regressions/issue-guard-agent-origin
+      - regressions/issue-guard-batch-command-targets
+      - regressions/issue-guard-invalid-params-first
+      - regressions/issue-reread-ripple-renumbered
+      - regressions/issue-load-id-field
+      - regressions/issue-guard-part-own-changes
+      - regressions/issue-query-id-form
+      - regressions/issue-guard-param-types
+      - regressions/issue-guard-held-changes
+      - regressions/issue-guard-large-document
+      - regressions/issue-guard-named-params
+      - regressions/issue-guard-part-type
+      - regressions/issue-guard-place-content
+      - regressions/issue-guard-place-neighbours
+      - regressions/issue-guard-integer-mentions
+      - regressions/issue-guard-position-leaf
+      - regressions/issue-guard-now-fields
+      - regressions/issue-guard-targets-one-or-many
+      - regressions/issue-guard-integer-params
+      - regressions/issue-guard-id-forms
+      - regressions/issue-guard-by-id-at-a-time
+      - regressions/issue-guard-held-path
+      - regressions/issue-guard-typed-numbers
+      - regressions/issue-guard-numeric-string-ids
+      - regressions/issue-guard-target-names
+      - regressions/issue-reread-name-swap
+      - regressions/issue-guard-words-map-key
+      - regressions/issue-guard-covers-carrier
+      - regressions/issue-guard-covered-cap
+      - regressions/issue-reread-text-run-ids
+      - regressions/issue-others-parts-first
+      - regressions/issue-outside-reread-ids
+      - regressions/issue-reread-constant-root
+      - regressions/issue-reread-ids-in-json
+      - regressions/issue-receipt-usable-ids
+      - regressions/issue-reread-renumbered
+      - sdk.agent.premise-guard/call-premises
+      - regressions/issue-declared-hold-scope
+      - regressions/issue-c8-fix-16-batch-places
+      - regressions/issue-c8-fix-16-windows
+      - regressions/issue-c8-fix-12-gap
+      - regressions/issue-c8-fix-12-name-union
+      - regressions/issue-c8-fix-13-position
+      - regressions/issue-c8-fix-13-child-first
+      - sdk.agent.premise-guard/conflicts
+      - sdk.agent.premise-guard/covers
+      - sdk.agent.premise-guard/derived
+      - sdk.agent.premise-guard/index-places
+      - sdk.agent.premise-guard/options
+      - sdk.agent.premise-guard/outside
+      - sdk.agent.premise-guard/places
+      - sdk.agent.premise-guard/position
+      - sdk.agent.premise-guard/precision
+      - sdk.agent.premise-guard/principals
+      - sdk.agent.premise-guard/real-kit
+      - sdk.agent.premise-guard/selectors
+      - regressions/issue-raw-id-checkpoint
+      - regressions/issue-private-created-receipts
+      - regressions/issue-invalid-step-on-first
+      - regressions/issue-invalid-raw-value-first
+    since: "2026-11-16"
+  - id: sdk.agent.live-editor
+    title: A document open in its editor gets the headless path's agent guarantees through the Kit AI bridge, without moving the person's selection, part or playhead
+    direction: [ai, collab, data-safety]
+    priority: P1
+    status: partial
+    gap: Desktop hosts must forward the editor's new bridge members before the editor's answers reach the server
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/bridge.rs
+      - crates/kition-kits/tests/live_editor.rs
+      - crates/kition-kits/tests/fixtures/live-runs.json
+      - packages/kit-editor/src/useKitSession.ts
+      - packages/kit-editor/src/engine/kitEngine.ts
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
+      - crates/kition-kits/tests/fixtures/live-context.json
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kit/tests/editor_state_web.rs
+      - packages/kit-editor/src/engine/kitModule.ts
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-ui-protocol/src/index.ts
+      - docs/platform/reference/ui-protocol.md
+      - docs/platform/reference/contract.md
+      - docs/platform/kits/call-context.md
+      - docs/platform/sets/agent.md
+      - crates/kition-kits/src/tools/receipts.rs
+      - crates/kition-kits/src/tools/model.rs
+      - crates/kition-kits/tests/fixtures/live-receipts.json
+      - packages/kit-editor/src/engine/kitModelRunner.ts
+      - packages/kit-host/src/index.ts
+      - docs/sdk/agent.md
+      - crates/kition-kits/src/tools/journal.rs
+      - crates/kition-kits/src/tools/guard.rs
+    cases:
+      - sdk.agent.live-editor/atomic-run
+      - sdk.agent.live-editor/call-context
+      - sdk.agent.live-editor/premise-guard
+      - sdk.agent.live-editor/receipts
+    since: "2026-11-16"
+  - id: sdk.agent.required-params
+    title: A kit that opts in publishes as required the parameters its notation leaves without a default and not optional; the gate refuses a call missing one with invalid-params naming it and where a value comes from; testing proves the opt-in both ways
+    direction: [ai, function]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/schema.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-kit/src/testing.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-headless/src/tests.rs
+      - crates/kition-kit/src/failure.rs
+      - packages/kit-editor/src/engine/refusal.ts
+      - docs/platform/kits/engine.md
+    cases:
+      - regressions/issue-headless-error-code
+      - sdk.agent.required-params/check-required
+      - sdk.agent.required-params/gate
+      - sdk.agent.required-params/opt-in
+    since: "2026-11-16"
+  - id: sdk.agent.manifest-exports
+    title: An export entry needs no command (agent.export.command writes every format); the manifest check warns when an exports[].command disagrees or an export command is not agent-facing
+    direction: [ai]
+    priority: P1
+    status: has
+    paths:
+      - tools/check-manifest.mjs
+      - tools/check-manifest.test.mjs
+      - schemas/kit.schema.json
+      - docs/platform/kits/manifest.md
+    cases:
+      - regressions/issue-export-command-optional
+      - regressions/issue-export-command-sources
+    since: "2026-11-16"
+  - id: sdk.agent.manifest-links
+    title: The manifest check accepts agent.links as a boolean only and, when it is true, needs the links-outside conformance fixture beside kit.json (KHP K21)
+    direction: [ai, security]
+    priority: P1
+    status: has
+    paths:
+      - tools/check-manifest.mjs
+      - tools/check-manifest.test.mjs
+      - schemas/kit.schema.json
+      - docs/platform/kits/manifest.md
+    cases:
+      - sdk.agent.manifest-links/links-outside-fixture
+    since: "2026-11-16"
+  - id: sdk.object-model.published
+    title: Published object models are registered for scripts and agent tools
+    direction: [ai, function]
+    priority: P1
+    status: has
+    paths:
+      - packages/script/kits/note.ts
+      - packages/script/kits/index.ts
+      - packages/script/scripts/sync-kits.mjs
+      - packages/script/test/kits.test.ts
+    cases:
+      - regressions/issue-agent-design-schema
+    since: "2026-11-16"
+  - id: sdk.kdm.encoding
+    title: The Kit Data Model encodes the same changes as the same bytes
+    direction: [data-safety, collab]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/value.rs
+      - crates/kition-kdm/tests/deterministic.rs
+      - crates/kition-kdm/src/ids.rs
+      - crates/kition-kdm/tests/reproducible_ids.rs
+    cases:
+      - regressions/issue-kition-table-7
+      - regressions/issue-reproducible-ids
+    since: "2026-11-16"
+  - id: sdk.kdm.values
+    title: The Kit Data Model refuses a value it cannot hold and says which values it takes
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kdm/src/schema.rs
+      - crates/kition-kdm/tests/schema.rs
+      - packages/kdm/src/schema.ts
+      - packages/kdm/test/schema.test.ts
+    cases:
+      - regressions/issue-enum-values-message
+    since: "2026-11-16"
+  - id: sdk.collab.open-tokens
+    title: Host-signed open tokens grant one person one file version, verified offline
+    direction: [collab, security]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-open-token/**
+      - packages/sync/src/openToken.ts
+      - packages/sync/test/openToken.test.ts
+    cases:
+      - sdk.collab.open-tokens/shared-vectors
+    since: "2026-11-16"
+  - id: sdk.collab.file-rooms
+    title: Managed co-editing keeps one room per file generation, seeded once, per-file connections
+    direction: [collab, security]
+    priority: P1
+    status: has
+    paths:
+      - packages/sync/src/client.ts
+      - packages/sync/src/protocol.ts
+      - packages/sync/test/helpers.ts
+      - packages/sync/test/openRooms.test.ts
+      - packages/embed/src/collab.ts
+      - packages/embed/src/syncClients.ts
+      - packages/embed/src/mount.ts
+      - packages/embed/test/managed.test.ts
+      - packages/embed/tsconfig.build.json
+      - crates/kition-sync-protocol/src/messages.rs
+    cases:
+      - regressions/issue-embed-types-open-token
+      - regressions/issue-rejoin-role
+      - sdk.collab.file-rooms/embed-managed
+      - sdk.collab.file-rooms/reference-server
+    since: "2026-11-16"
+  - id: sdk.collab.saves
+    title: Co-edited rooms save through one state machine, one version per save with its authors
+    direction: [collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - packages/sync/src/saveMachine.ts
+      - packages/sync/src/saveRun.ts
+      - packages/embed/src/handlers.ts
+      - crates/kition-sync-protocol/src/save.rs
+      - crates/kition-sync-protocol/tests/save-transitions.json
+      - crates/kition-open-token/src/receipt.rs
+      - packages/embed/src/mount.ts
+      - packages/embed/src/collab.ts
+    cases:
+      - regressions/issue-coeditor-save-banner
+      - regressions/issue-managed-save-before-join
+      - sdk.collab.saves/state-machine
+    since: "2026-11-16"
+  - id: sdk.ui.host-services
+    title: Kits ask the host for files, people, sharing and comment anchors (Kit UI host services)
+    direction: [function, security]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-ui-protocol/src/index.ts
+      - packages/kit-host/src/index.ts
+      - packages/kit-editor/src/host.ts
+    cases:
+      - sdk.ui.host-services/handshake-origin
+      - sdk.ui.host-services/permissions
+    since: "2026-11-16"
+  - id: sdk.ui.fetch-image
+    title: Kits keep a pasted picture given by its web address through the host, which downloads public addresses only (Kit UI protocol 2.8, section 7l)
+    direction: [function, security]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-ui-protocol/src/index.ts
+      - packages/kit-host/src/index.ts
+    cases:
+      - sdk.ui.fetch-image/checked
+    since: "2026-11-16"
+  - id: sdk.embed.url
+    title: Single-user URL embedding through the embed server
+    direction: [function, security]
+    priority: P1
+    status: has
+    paths:
+      - packages/embed-server/**
+      - examples/url-embed/**
+      - packages/embed/src/mount.ts
+    cases:
+      - sdk.embed.url/service
+    since: "2026-11-16"
+  - id: sdk.testing.unknown-params
+    title: Kits can test that commands refuse unknown parameters
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/testing.rs
+    cases:
+      - regressions/issue-unknown-params
+    since: "2026-11-16"
+  - id: sdk.testing.ai-cases
+    title: Kits check their layer ai cases with a dry run that calls no model; only the owner starts a real run (F-QA-16)
+    direction: [ai, function]
+    priority: P1
+    status: has
+    paths:
+      - tools/ai-cases.mjs
+      - tools/ai/**
+      - tools/ai-cases.test.mjs
+    cases:
+      - regressions/issue-ai-dry-run-entry
+    since: "2026-11-16"
+  - id: sdk.testing.agent-ready
+    title: Kits run the KHP Agent-ready phases in-process (kition_headless::agent_ready::check), which list every failure and ask what KHP asks
+    direction: [ai, function]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-headless/src/agent_ready.rs
+      - crates/kition-headless/src/agent_ready/tests.rs
+    cases:
+      - regressions/issue-agent-ready-all-failures
+      - regressions/issue-agent-ready-spec-checks
+      - regressions/issue-agent-ready-export-command
+      - regressions/issue-ci-binary-layout
+    since: "2026-11-16"
+  - id: sdk.quality.sync
+    title: The quality rules, gate and Stop hook are generated into every repository from templates, with each repository's check command kept in one table
+    direction: [platform]
+    priority: P1
+    status: has
+    paths:
+      - tools/sync-quality.mjs
+      - tools/sync-quality.test.mjs
+      - templates/quality/**
+    cases:
+      - regressions/issue-quality-gate-command
+      - sdk.quality.sync/old-locations
+    since: "2026-11-16"
+  - id: sdk.quality.kit-matrix
+    title: The kit matrix settles every kit against the kit requirements table, reading each kit's files where the layout standard puts them
+    direction: [platform]
+    priority: P1
+    status: has
+    paths:
+      - tools/kit-matrix.mjs
+      - tools/kit-matrix.test.mjs
+    cases:
+      - regressions/issue-kit-matrix-layout
+    since: "2026-11-16"
+  - id: sdk.community.sync
+    title: The community files (contributing guide, code of conduct, security and support policies, issue and pull request templates) are generated into every repository from templates and per-repository data, and each README is checked against its rules (a kit's README is a product page with pictures)
+    direction: [platform]
+    priority: P1
+    status: has
+    paths:
+      - tools/sync-community.mjs
+      - tools/sync-community.test.mjs
+      - templates/community/**
+    cases:
+      - sdk.community.sync/generate-and-check
+    since: "2026-11-16"
+  - id: sdk.readme.shots
+    title: Kits take their README pictures with one shared runner that opens a sample in the kit's development host, writes assets/readme/<name>.png at device scale 2, retakes only the named shots, and flags pictures over 400 KB
+    direction: [platform]
+    priority: P2
+    status: has
+    paths:
+      - tools/readme-shots/**
+    cases:
+      - sdk.readme.shots/select-and-size
+    since: "2026-11-16"
+  - id: sdk.testing.kit-fixtures
+    title: kition-kits tests read the kits' committed manifests, copied byte for byte and checked for drift
+    direction: [platform]
+    priority: P1
+    status: has
+    paths:
+      - tools/sync-kit-fixtures.mjs
+      - tools/sync-kit-fixtures.test.mjs
+      - crates/kition-kits/tests/fixtures/kits/**
+    cases:
+      - regressions/issue-kit-fixtures-stale
+    since: "2026-11-16"
+  - id: sdk.docs.protocol-names
+    title: KHP names only the Kit Harness Protocol; the Kit Process Protocol is always written in full, and platform rules are cited as the platform's
+    direction: [platform]
+    priority: P2
+    status: has
+    paths:
+      - tools/protocol-names.test.mjs
+      - docs/platform/reference/kit-process-protocol.md
+    cases:
+      - regressions/issue-khp-host-protocol-name
+      - regressions/issue-khp-platform-citations
+    since: "2026-11-16"
+  - id: sdk.testing.malformed-files
+    title: Kits can test that damaged files are refused without a panic or a hang
+    direction: [robustness, security]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kit/src/testing.rs
+    cases:
+      - sdk.testing.malformed-files/catches-panics-and-hangs
+    since: "2026-11-16"
+  - id: sdk.bundle.kits
+    title: The SDK bundle holds the kits a host embeds, Table and Note included, by their current names
+    direction: [function]
+    priority: P1
+    status: has
+    paths:
+      - sdk.json
+      - tools/sdk-bundle.mjs
+      - tools/sdk-json.test.mjs
+      - tools/bundle-docs.mjs
+      - tools/bundle-docs.test.mjs
+    cases:
+      - regressions/issue-sdk-json-retired-kit
+      - sdk.bundle.kits/surface
+      - regressions/issue-1
+    since: "2026-11-16"
+  - id: sdk.agent.kit-discovery
+    title: kition-kits-mcp and kition-kits serve know which kit each executable given is, or refuse to start
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/definitions.rs
+      - crates/kition-kits/src/bin/kition-kits-mcp.rs
+      - crates/kition-kits/src/bin/kition-kits.rs
+      - crates/kition-kits/tests/kit_identity.rs
+    cases:
+      - regressions/issue-kit-binary-identity
+    since: "2026-11-16"
+  - id: sdk.agent.version-lock-step
+    title: A kit executable of another version than its manifest is refused at start, with what to do
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/tests/version_lock.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - docs/platform/kits/host.md
+    cases:
+      - regressions/issue-kit-version-lock-step
+    since: "2026-11-16"
+  - id: sdk.embed.open
+    title: An embedded editor opens linked files and web addresses through the page (KitEmbed EM25)
+    direction: [function, security]
+    priority: P1
+    status: partial
+    paths:
+      - packages/embed/src/handlers.ts
+      - packages/embed/src/types.ts
+      - packages/embed/test/opening.test.ts
+    cases:
+      - sdk.embed.open/links-and-addresses
+    since: "2026-11-16"
+  - id: sdk.embed.shortcuts
+    title: An embedded editor forwards the page's shortcuts to it (KitEmbed EM28)
+    direction: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/embed/src/mount.ts
+      - packages/embed/src/types.ts
+      - packages/embed/test/opening.test.ts
+    cases:
+      - sdk.embed.shortcuts/forwarded
+    since: "2026-11-16"
+  - id: sdk.embed.page-comments
+    title: An embedded editor serves the page's services and marks the comment threads the page keeps (KitEmbed EM29, EM30)
+    direction: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/embed/src/mount.ts
+      - packages/embed/src/types.ts
+      - packages/embed/test/opening.test.ts
+    cases:
+      - sdk.embed.page-comments/services-and-threads
+    since: "2026-11-16"
+  - id: sdk.embed.host-writes
+    title: A page writes through the person's open editor as itself (origin system), no undo step, and the editor says the app made the change (KitEmbed EM31, Kit UI protocol 2.7)
+    direction: [function, security]
+    priority: P1
+    status: has
+    paths:
+      - packages/embed/src/mount.ts
+      - packages/embed/src/types.ts
+      - packages/kit-host/src/index.ts
+      - packages/kit-ui-protocol/src/index.ts
+      - packages/kit-editor/src/useKitSession.ts
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/engine/kitEngine.ts
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
+      - packages/kit-editor/src/engine/refusal.ts
+    cases:
+      - regressions/issue-7
+    since: "2026-11-16"
+  - id: sdk.host.document-text
+    title: Kits answer document.text with their words in reading order within a limit, so hosts index words outside the object model (KitText 1.0)
+    direction: [function, ai]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/text.rs
+      - crates/kition-kit/src/testing.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-kit-server/src/server.rs
+      - crates/kition-kit-process-protocol/src/types.rs
+      - schemas/kit.schema.json
+      - schemas/kit-process-protocol.schema.json
+      - docs/platform/sets/text.md
+    cases:
+      - sdk.host.document-text/pages-within-a-limit
+    since: "2026-11-16"
+  - id: sdk.host.kits-service
+    title: A host in any language uses the kits through `kition-kits serve`, by workspace path, with JSON lines on standard input and output
+    direction: [function, robustness, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/serve.rs
+      - crates/kition-kits/src/bin/kition-kits.rs
+      - crates/kition-kits/src/bin/kition-kits-mcp.rs
+      - crates/kition-kits/src/lib.rs
+      - crates/kition-kits/tests/serve.rs
+      - crates/kition-kits/tests/mcp_stdio.rs
+      - crates/kition-kits/tests/hosts.rs
+      - crates/kition-kits/tests/bundle_launch.rs
+      - crates/kition-kits/src/definitions.rs
+      - schemas/kits-service.schema.json
+      - docs/sdk/hosts.md
+      - examples/hosts/**
+      - packages/script/src/headless.ts
+      - packages/script/test/headless.test.ts
+    cases:
+      - sdk.host.kits-service/mock-kit
+      - sdk.host.kits-service/languages
+      - sdk.host.kits-service/node-client
+      - regressions/issue-4
+      - regressions/issue-serve-default-stack
+      - regressions/issue-mcp-default-stack
+    since: "2026-11-16"
+  - id: sdk.host.lent-files
+    title: Engines read the files a document refers to through the host, and tell a missing file (file_not_found) from a refused one
+    direction: [function, security]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/host.rs
+      - crates/kition-kit-host/src/files.rs
+      - crates/kition-kit-host/src/kit_files.rs
+      - crates/kition-kit-process-protocol/src/error.rs
+      - crates/kition-headless/src/lib.rs
+      - packages/kit-editor/src/engine/lentFiles.ts
+      - docs/platform/sets/files.md
+    cases:
+      - regressions/issue-file-not-found
+      - sdk.host.lent-files/engine-exists
+    since: "2026-11-16"
+  - id: sdk.host.unknown-params
+    title: A headless kit refuses a top-level parameter its command's schema does not name, unless the command says its top level is open
+    direction: [ai, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-headless/src/tests.rs
+      - crates/kition-kit/src/schema.rs
+      - crates/kition-kit/src/lib.rs
+      - docs/platform/kits/engine.md
+    cases:
+      - regressions/issue-unknown-params-generic
+    since: "2026-11-16"
+  - id: sdk.security.agent-command-gate
+    title: Every way an agent runs a command passes the gate commands.execute applies, and a kit's own dispatchers ask it before each step
+    direction: [ai, security]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kit/src/dispatch.rs
+      - crates/kition-kit/src/session/model.rs
+      - crates/kition-kit/src/testing/nested.rs
+      - crates/kition-kit/tests/nested_dispatch.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-headless/src/gate_tests.rs
+      - crates/kition-kit-server/src/server.rs
+      - crates/kition-kit-server/src/backend.rs
+      - examples/grid-kit-headless/tests/protocol_v2.rs
+      - docs/platform/kits/engine.md
+    cases:
+      - regressions/issue-agent-command-gate
+    since: "2026-11-16"
+  - id: sdk.security.file-parameters
+    title: A lint fails on agent-facing commands that take a path in a plain string, until the kit types it file or reviews it
+    direction: [ai, security]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/schema/paths.rs
+      - crates/kition-kit/src/schema.rs
+      - crates/kition-kit/src/testing.rs
+      - crates/kition-kit/examples/file-params-report.rs
+      - crates/kition-headless/src/lib.rs
+      - docs/platform/kits/engine.md
+    cases:
+      - regressions/issue-path-in-plain-string
+    since: "2026-11-16"
+  - id: sdk.security.kit-launch-environment
+    title: A kit process starts in a private folder with an allowlisted environment, and a one-line check finds any file it leaves there
+    direction: [platform, security]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kit-host/src/kit_home.rs
+      - crates/kition-kit-host/src/process.rs
+      - crates/kition-kit-host/tests/launch_environment.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - crates/kition-headless/src/agent_ready/workspace_only.rs
+      - docs/platform/reference/kit-process-protocol.md
+      - docs/platform/kits/host.md
+      - crates/kition-kits/src/manager.rs
+    cases:
+      - regressions/issue-kit-launch-environment
+      - regressions/issue-kit-runtime-folder
+    since: "2026-11-16"
+  - id: sdk.security.kit-sandbox
+    title: With --sandbox a kit process runs under the platform's sandbox, reaching its package, its private folder and no network
+    direction: [platform, security]
+    priority: P1
+    status: partial
+    paths:
+      - crates/kition-kit-host/src/sandbox.rs
+      - crates/kition-kit-host/src/process.rs
+      - crates/kition-kit-host/Cargo.toml
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kits/src/definitions.rs
+      - crates/kition-kits/src/bin/kition-kits-mcp.rs
+      - crates/kition-kits/src/bin/kition-kits.rs
+      - docs/platform/reference/kit-process-protocol.md
+      - docs/platform/kits/host.md
+    gap: Opt-in and macOS and Linux only (Windows refuses); the profiles are checked as rule sets, not yet by running a kit under them
+    cases:
+      - sdk.security.kit-sandbox/profiles
+    since: "2026-11-16"
+  - id: sdk.security.host-files-only
+    title: Every document a headless host serves is told the host owns every file, so its engine reaches nothing by path
+    direction: [platform, security]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/host.rs
+      - crates/kition-kit/src/lib.rs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-headless/src/hosting_tests.rs
+      - docs/platform/kits/engine.md
+    cases:
+      - regressions/issue-host-files-only
+    since: "2026-11-16"
+  - id: sdk.host.headless-kit
+    title: One host crate launches a kit headless, initializes it as the host in one call, and serves it a workspace's files by handle (Kit Process Protocol 2)
+    direction: [function, robustness]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit-host/src/**
+      - crates/kition-kit-server/src/**
+      - crates/kition-kit-process-protocol/src/**
+      - crates/kition-headless/src/**
+      - examples/grid-kit-headless/tests/client.rs
+      - examples/grid-kit-headless/tests/protocol_v2.rs
+      - crates/kition-kit/src/lib.rs
+      - schemas/kit-process-protocol.schema.json
+    cases:
+      - sdk.host.headless-kit/grid
+      - regressions/issue-2
+      - regressions/issue-3
+      - regressions/issue-5
+      - regressions/issue-6
+      - regressions/issue-8
+      - regressions/issue-kit-home-race
+      - regressions/issue-screenshot-scale
+      - regressions/issue-session-keys-any-depth
+    since: "2026-11-16"
+  - id: sdk.quality.kit-vocabulary
+    title: A read-only report measures how consistently the kits name and describe their commands (parameters, target and time spellings, id types, verb families), read from the SDK's generated catalogues
+    direction: [ai, platform]
+    priority: P2
+    status: has
+    paths:
+      - tools/kit-vocabulary.mjs
+      - tools/kit-vocabulary.test.mjs
+    cases:
+      - sdk.quality.kit-vocabulary/catalogues
+    since: "2026-11-16"

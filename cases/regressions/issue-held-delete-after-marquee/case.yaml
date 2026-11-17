@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-held-delete-after-marquee
+feature: sdk.editor.held-keys
+intent: Delete pressed while the engine still answers a marquee's release waits for that answer and then reaches the Delete shortcut, so the marquee's selection is deleted. The held key was given back before React rendered the release's answer, so the tool still looked mid-gesture, took Delete as the finished gesture's key and deleted nothing (Kition's vector H4 interaction test failed 8 runs in 10).
+layer: golden
+source:
+  kind: probe
+  from: kition e2e/interaction/vector.spec.ts:84 (select all, delete, and undo), traced with a keydown probe in the kit frame
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/engineTools.gesture.test.tsx, -t, a held Delete given back once a marquee is released]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

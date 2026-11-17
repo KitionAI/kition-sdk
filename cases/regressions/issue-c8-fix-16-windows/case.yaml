@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-16-windows
+feature: sdk.agent.premise-guard
+intent: Ordinal and ordering-field windows refuse inserts, removals and moves into or out of held lists, including transient historical membership changes, and allow changes outside the window.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: list_windows_hold_membership }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

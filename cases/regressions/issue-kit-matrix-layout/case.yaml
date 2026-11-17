@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-kit-matrix-layout
+feature: sdk.quality.kit-matrix
+intent: >-
+  tools/kit-matrix.mjs reads a kit's attribution at docs/attribution.md (K4) and its parity document
+  at docs/parity/target-app-parity.md (Q4), where the layout standard moved them, beside docs/gaps.md
+  and docs/roadmap.md. A root ATTRIBUTION.md or ATTRIBUTION.toml, docs/target-app-parity.md, or a
+  root GAPS.md or ROADMAP.md no longer counts. Before the fix every one of the 16 migrated kits
+  failed K4 ("missing ATTRIBUTION") and Q4 ("missing docs/target-app-parity.md").
+layer: golden
+source:
+  kind: synthetic
+  from: tools/kit-matrix.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kit-matrix.test.mjs, -t, where the layout standard puts them]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

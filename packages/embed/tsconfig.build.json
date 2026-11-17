@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist/types",
+    "rootDir": "..",
+    "types": [],
+    "paths": {
+      "@kition/kdm": [
+        "../kdm/src/index.ts"
+      ],
+      "@kition/kit-host": [
+        "../kit-host/src/index.ts"
+      ],
+      "@kition/kit-ui-protocol": [
+        "../kit-ui-protocol/src/index.ts"
+      ],
+      "@kition/sync": [
+        "../sync/src/index.ts"
+      ],
+      "@kition/sync/replicaVersions": [
+        "../sync/src/replicaVersions.ts"
+      ],
+      "@kition/sync/openToken": [
+        "../sync/src/openToken.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

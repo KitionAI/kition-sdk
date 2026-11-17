@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-guard-place-content
+feature: sdk.agent.premise-guard
+intent: >-
+  The objects a place names are targets, not only an identity: a cut at 2.5 s after a colleague
+  changed the clip under it (its opacity) is refused as `changed` on that clip with the place, and
+  `clip.trim` on `"#3"` after a colleague changed clip 3 is refused as `changed`, nothing written.
+  Before, a place's premise was which objects were under it and where, and both applied over the
+  colleague's change.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, premises_a_cut_after_the_clip_under_it_changed_is_refused_as_changed]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, index_a_write_by_index_after_its_clip_changed_is_refused_as_changed]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

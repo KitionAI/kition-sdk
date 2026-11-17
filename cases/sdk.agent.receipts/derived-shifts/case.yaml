@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.receipts/derived-shifts
+feature: sdk.agent.receipts
+intent: >-
+  Receipts and `others` say a derived shift once: five edits of one leaf of a held list by one
+  amount (`effects.N.amount`, +1) are one edit `{ field: "effects.*.amount", count, shift: { by }
+  }`; the indexes a deletion shifted in a list are one `footprint` entry `{ parent, field, from,
+  count, shift: { index } }`; an object others created is told in `others` by id, type, `at`, its
+  fields' names and its naming and position values, every value only with `changes: "all"`.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, receipts_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.receipts/held-objects
+feature: sdk.agent.receipts
+intent: >-
+  On a deck modelled as a real slide kit models it (the mock's nested decks: shapes numbered per
+  slide with tool ids `shape:<slideId>/<n>`, their text in an owned body of paragraphs without tool
+  ids), the receipt of a text edit names the shape by its tool id with the path to the text and its
+  text before and after (excerpted when long); a paragraph added or taken away is the shape's edit
+  at the item's path; no object id of a body or paragraph appears.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/receipts.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, receipts, run_a_text_edit_names_the_shape_holding_the_text]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

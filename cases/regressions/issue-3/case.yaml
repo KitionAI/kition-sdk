@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-3
+feature: sdk.host.headless-kit
+intent: A command call whose parameters break the command's schema is refused with invalid_params, and data.errors lists every wrong parameter, each as { path, message, expected }, where path is a JSON Pointer into the params (/fields/1/type). data.detail repeats the first message. Before, kits sent only a free-text detail, so a host could not tell which parameter failed.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, --lib, invalid_params_lists_every_wrong_parameter_in_data_errors]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --lib, param_errors_lists_every_wrong_parameter_with_its_path]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 600
+since: "2026-11-16"

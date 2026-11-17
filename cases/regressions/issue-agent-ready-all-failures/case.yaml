@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-agent-ready-all-failures
+feature: sdk.testing.agent-ready
+intent: >-
+  kition_headless::agent_ready::check reports every failure it can find. A missing or broken
+  package file is listed, and every later phase whose own files are there still runs; a phase that
+  cannot run says what it needs. Before, the first package error ended the check, so callers
+  saw only "conformance/golden/tolerance.json is missing" and none of the failures
+  after it.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: agent_ready::tests::later_phases_run_after_package_errors }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

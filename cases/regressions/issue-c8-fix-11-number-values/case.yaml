@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-c8-fix-11-number-values
+feature: sdk.agent.batch-values
+intent: Numeric bounds and steps constrain writes and sampling; batch settling records the stored value in one transaction.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, numeric_limits]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, generate, numeric_sampling]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless, batch_settling]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, tree_guard, batch_settles]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

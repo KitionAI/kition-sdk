@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-guard-part-type
+feature: sdk.agent.premise-guard
+intent: >-
+  The guard finds a numbered part's list from the type whose tool id carries the part's noun (the
+  root's list of that type), never from the first changed object whose id starts like a part's: a
+  note deleted on another slide (`slide:9/note:1`) refuses no write to slide 1. A part addressed by
+  number conflicts by its tool id, with its number now; a kit's declared nouns name parts by id.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, nested_parts_are_found_by_type]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

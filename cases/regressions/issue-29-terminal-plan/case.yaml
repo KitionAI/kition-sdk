@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-29-terminal-plan
+feature: sdk.agent.close-completion
+intent: >-
+  Guarded runs stop planning after a successful terminal close and report later steps not run; failed closes remain nonterminal.
+layer: golden
+source: { kind: synthetic, from: Mock SDK regression, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: guarded_close_ }
+  - exec: { cmd: [cargo, test, -p, kition-headless, --lib, terminal_premise_] }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/kitEngine.worker.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

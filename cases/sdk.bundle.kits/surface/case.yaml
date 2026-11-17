@@ -1,0 +1,19 @@
+format: 1
+id: sdk.bundle.kits/surface
+feature: sdk.bundle.kits
+intent: sdk.json lists the published kits a bundle holds by their current names, and the guides state the same kits and version.
+layer: golden
+source:
+  kind: synthetic
+  from: tools/sdk-json.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sdk-json.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

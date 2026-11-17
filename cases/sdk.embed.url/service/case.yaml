@@ -1,0 +1,20 @@
+format: 1
+id: sdk.embed.url/service
+feature: sdk.embed.url
+intent: The embed server opens the editor only for a valid open token addressed to it, gives the page a session bound to the token's file and permissions, keeps view-only sessions from writing, and reads and writes only through callbacks the integrator can verify, conditionally on the version.
+layer: golden
+source:
+  kind: synthetic
+  from: packages/embed-server/test/service.test.ts
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed-server/test/service.test.ts, examples/url-embed/integrator.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+tags: [security]
+since: "2026-11-16"
+timeout_s: 60

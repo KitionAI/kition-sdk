@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-c8-fix-19-structural
+feature: sdk.agent.structural-consequences
+intent: >-
+  A declared create, delete, move or rename is one task with scoped dependent fields.
+  Replay performs only the primary edit and unrelated effects remain incomplete.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --lib, structural_consequences]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, structural]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

@@ -1,0 +1,23 @@
+format: 1
+id: sdk.agent.call-context/live-editor
+feature: sdk.agent.call-context
+intent: >-
+  A run on a document open in an editor that does not list the capability `context` and gives
+  `target`, a step's `on` or a step's `at` is `unsupported`, naming the member, and never reaches
+  the editor: that editor's run takes no call context, and nothing is accepted and ignored; a run
+  without them still runs in the editor. (An editor that lists it: `sdk.agent.live-editor/call-context`.)
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/call_context.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, call_context, live_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

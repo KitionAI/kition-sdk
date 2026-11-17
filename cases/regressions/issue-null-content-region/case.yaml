@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-null-content-region
+feature: sdk.agent.region-content
+intent: An explicit null content region reaches native and editor callbacks while an absent region remains invalid.
+layer: golden
+source: { kind: synthetic, from: Mock notes content callback, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit-server, filter: content_context_preserves_null_values_for_the_kit_callback }
+  - cargo-test: { package: kition-kit, test: premise, filter: content_ask_preserves_an_explicit_null_region }
+  - cargo-test: { package: kition-headless, filter: null_content_region_reaches_the_mock_kit_callback }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

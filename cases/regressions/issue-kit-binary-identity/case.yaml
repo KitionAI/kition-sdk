@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-kit-binary-identity
+feature: sdk.agent.kit-discovery
+intent: >-
+  A kit executable given to kition-kits-mcp or kition-kits serve (`--kit`, `KITION_KIT_<KIT>_BINARY`)
+  whose file name no kit.json names is asked which kit it is (`kit.initialize`) and takes that
+  kit's manifest; one that is missing, cannot be asked, reports a kit no manifest declares, or is
+  another kit than its variable names stops the program with exit status 2 and an error naming
+  the path, what was expected, and the kits known (KHP A48). Before, a build copied as
+  `kition-pdf-before` registered no tools and said nothing.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: kit_identity }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

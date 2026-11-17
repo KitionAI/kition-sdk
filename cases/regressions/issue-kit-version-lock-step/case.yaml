@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-kit-version-lock-step
+feature: sdk.agent.version-lock-step
+intent: >-
+  A kit executable whose `kit.initialize` reports another kit version than the manifest of the
+  package it serves is refused when it starts (host rule H11, Kit Process Protocol section 4): the
+  error names the executable, the version it reports, the manifest's version, and what to do
+  (rebuild it at the manifest's version, or install the matching package), and the agent's tool
+  call on that kit answers `unavailable` naming the kit (KHP A18, spec/agent.md section 8). One
+  of the manifest's version starts. Before, only the kit id was checked, and stale kit builds
+  older than their kit.json served their old behaviour silently.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, version_lock]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

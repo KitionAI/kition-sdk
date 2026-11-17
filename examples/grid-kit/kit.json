@@ -1,0 +1,61 @@
+{
+  "$schema": "https://github.com/KitionAI/kition-sdk/schemas/kit.schema.json",
+  "khp": "1.0",
+  "id": "example.grid",
+  "name": "Grid",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "engine": {
+    "module": "grid_kit",
+    "class": "GridDocument",
+    "contract": 1,
+    "crate": "grid-kit"
+  },
+  "formats": [
+    {
+      "id": "grid",
+      "extensions": [
+        "grid"
+      ],
+      "role": "edit"
+    }
+  ],
+  "creates": [
+    {
+      "id": "grid",
+      "extension": "grid",
+      "baseName": "Untitled grid",
+      "size": {
+        "width": 8,
+        "height": 6
+      }
+    }
+  ],
+  "capabilities": [
+    "engine-tools"
+  ],
+  "extras": {
+    "greyAt": {
+      "params": [
+        "x: u32",
+        "y: u32"
+      ],
+      "returns": "u32",
+      "description": "The grey level at a pixel."
+    }
+  },
+  "ui": {
+    "menus": [
+      "Edit"
+    ],
+    "layout": "canvas"
+  },
+  "agent": {
+    "prefix": "grid",
+    "tools": "document"
+  },
+  "headless": {
+    "executable": "kit-grid",
+    "protocol": "kition-kit/2"
+  }
+}

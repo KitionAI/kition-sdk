@@ -1,0 +1,30 @@
+format: 1
+id: sdk.agent.receipts/path-names
+feature: sdk.agent.receipts
+intent: >-
+  A type that declares `pathName` names its objects in paths as the kit's commands do: an edit
+  inside a held object gives `named` beside its positional `field` (`blur.amount` beside
+  `effects.0.amount`; `transform/opacity.value.v` beside `props.children.1.children.1.value.v`),
+  `#<n>` for an unsafe name and `<name>#<n>` for a repeated one, in receipts and in `others` for a
+  change made in the file; Rust and TypeScript answer alike (shared fixture `path-names.json`).
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, an_edit_inside_named_objects_says_where_in_the_kits_words]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, named objects]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, paths_a_change_inside_a_clip_is_named_in_the_kits_words]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

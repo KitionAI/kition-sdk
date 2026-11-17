@@ -1,0 +1,19 @@
+format: 1
+id: sdk.host.kits-service/node-client
+feature: sdk.host.kits-service
+intent: "@kition/script/node is a client of `kition-kits serve`. KitsService starts it on a workspace, and openHeadless opens or creates a file in it. Through HeadlessDocument a script runs the kit's object model, runs commands as user, agent or system, and saves or saves as. Object-model failures are BatchError and other failures are KitProtocolError with the service's reason; a refused save is file_conflict and is also a conflict event. A service that exits before it answers is reported as such."
+layer: golden
+source:
+  kind: synthetic
+  from: packages/script/test/headless.test.ts
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/script/test/headless.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-16"

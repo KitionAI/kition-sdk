@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.receipts/change-sets
+feature: sdk.agent.receipts
+intent: >-
+  A change set says what an edit created (with its values and where it was put), changed (each
+  field before and after; texts longer than 80 characters as excerpts with their lengths, blobs as
+  sizes), moved (in its list or tree, or to another parent) and deleted, each list ordered by id;
+  the receipt read from the objects the edit touched (`Replica::changes_since`) equals the
+  comparison of the whole states (`diff_states`) for every case of `fixtures/changes.json`, and
+  names objects by their tool ids.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kdm/tests/changes.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

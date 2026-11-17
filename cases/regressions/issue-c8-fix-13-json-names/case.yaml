@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-c8-fix-13-json-names
+feature: sdk.agent.named-json
+intent: A stable identity hint on a selector premise distinguishes a JSON resource's rename, deletion, reassignment and content changes across agent edits and saved rereads without conflicting on siblings.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-sdk, --test, premise]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, named_json_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, tree_guard, named_json_]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

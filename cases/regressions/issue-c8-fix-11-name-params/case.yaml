@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-c8-fix-11-name-params
+feature: sdk.agent.premise-guard
+intent: Names are guarded by declared parameter type, including non-target names and deleted objects.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, names_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, tools::context]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

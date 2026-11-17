@@ -1,0 +1,28 @@
+format: 1
+id: sdk.agent.receipts/leaf-edits
+feature: sdk.agent.receipts
+intent: >-
+  A change of a `map` field that owns no objects is told per changed key (`attrs.stretch: 100 →
+  200`), and a `json` value, or a key's value, down to its changed leaves when that is at most 16
+  edits and fewer bytes than the value whole, else whole (shared fixture `leaf-edits.json`), in
+  receipts and in `others` (a change made in the file); the guard refuses a batch setting the same
+  key of a map others changed, not one setting another key.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, a_map_or_json_change_is_told_where_it_changed]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, maps_a_change_of_one_key_is_told_at_the_key_and_conflicts_only_with_it]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

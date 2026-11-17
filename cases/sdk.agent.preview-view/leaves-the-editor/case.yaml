@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.preview-view/leaves-the-editor
+feature: sdk.agent.preview-view
+intent: >-
+  Inspecting a view sends the kit nowhere: after `<prefix>_inspect {preview: true, target: {sequence,
+  time}}` the kit's playhead and open sequence are what the person left them, and the picture is
+  the view asked for, never the playhead's frame (KHP A55).
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/preview_view.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view, inspect_with_a_view_leaves_the_playhead_and_the_open_sequence]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,18 @@
+[package]
+name = "grid-kit"
+description = "The smallest complete kit on the Kition SDK."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+kition-kit = { path = "../../crates/kition-kit" }
+serde_json = { workspace = true }

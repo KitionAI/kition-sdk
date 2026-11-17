@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-tab-strip-observer-churn
+feature: sdk.editor.frame-overflow
+intent: >-
+  The editor frame's tab strip keeps one ResizeObserver for its life. It made a new one on every
+  render (its tabs are a new array each render), so a render during a resize delivery (film's
+  Program monitor publishing guides from KitCanvas's resize callback) observed the strip again
+  and WebKit reported "ResizeObserver loop completed with undelivered notifications".
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/frame/EditorFrame.test.tsx, -t, "one observer across renders"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

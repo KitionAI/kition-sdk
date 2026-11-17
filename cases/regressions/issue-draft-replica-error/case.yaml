@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-draft-replica-error
+feature: sdk.agent.headless-drafts
+intent: >-
+  A headless draft whose kit's replica does not fork keeps a copy of the file and says why: the
+  kit's error is in `drafts list` (`replicaError`) and in the comparison's `diffUnavailable`. The
+  error was dropped, so Slide's drafts were copies of the file with nothing saying so, although its
+  kit lists `model.open` (it refused it).
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: drafts, filter: a_file_draft_says_why_it_is_not_a_replica }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

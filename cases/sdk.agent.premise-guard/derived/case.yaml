@@ -1,0 +1,33 @@
+format: 1
+id: sdk.agent.premise-guard/derived
+feature: sdk.agent.premise-guard
+intent: >-
+  Derived values: a type's declared `derived` values are described alike by Rust and TypeScript; a
+  subdivide's receipt tells `~topology` (before, after) and a vertex move's `~bounds`; a write by
+  face index (premise `~topology`) applies after a colleague's vertex move and is refused as
+  `changed` after a subdivide, in the file and between agents; a pick at the edge of a node whose
+  mesh a colleague shrank away from it, or which a colleague deleted, is refused from the bounds
+  the journal kept.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, describe_names_derived_values_and_bad_ones_are_refused]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/batch.test.ts, -t, derived]
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, derived_]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, a_changed_derived_value_is_told]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

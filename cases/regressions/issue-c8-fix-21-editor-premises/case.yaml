@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-21-editor-premises
+feature: sdk.agent.editor-premises
+intent: The live editor evaluates kit call premises, allowing unrelated changes and refusing relevant changes before running a write.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: live_editor, filter: editor_uses_the_kits_narrowed_call_premises }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

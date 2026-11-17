@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-c8-fix-20-reread-carry
+feature: sdk.agent.replica-reread
+intent: A kit can keep, re-anchor or drop each replica-only object across rereads; all headless reread routes invoke the hook before replacing the session and keep the previous session if it fails.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: reread_carry_hook_keeps_reanchors_or_drops_replica_only_objects }
+  - cargo-test: { package: kition-headless, filter: reread_hook_runs_for_reload_notification_and_reopen_and_failure_keeps_the_session }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

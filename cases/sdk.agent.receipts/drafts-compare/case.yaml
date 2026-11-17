@@ -1,0 +1,22 @@
+format: 1
+id: sdk.agent.receipts/drafts-compare
+feature: sdk.agent.receipts
+intent: >-
+  A draft's comparison is the same change set a write answers: what it answered before (created,
+  changed and deleted objects by their tool ids with the fields concerned, and the full `texts`),
+  plus each changed field's value before and after (`edits`) and `moved`.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/src/drafts.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, a_comparison_names_objects_by_their_tool_ids]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,17 @@
+format: 1
+id: regressions/issue-c8-fix-21-projected-human
+feature: sdk.model.projected-objects
+intent: Unsaved human editor changes of projected objects participate in the same conflict journal as stored edits.
+layer: unit
+direction: collab
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test:
+      package: kition-kits
+      test: projected_objects
+      filter: unsaved_human_projection
+      env: { KITION_TEST_READER: editor }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

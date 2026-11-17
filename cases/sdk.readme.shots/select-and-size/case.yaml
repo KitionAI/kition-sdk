@@ -1,0 +1,24 @@
+format: 1
+id: sdk.readme.shots/select-and-size
+feature: sdk.readme.shots
+intent: >-
+  tools/readme-shots/shots.mjs takes every shot, or only the ones the command line names (an
+  unknown or malformed name is an error that lists the shots), reports each picture's size and
+  flags one over 400 KB (not one at exactly 400 KB), opens the development host in English at
+  1440 x 900, and finds Playwright and Vite in the kit's web/ node_modules only: never kition-sdk's
+  own, not even through NODE_PATH. No browser is launched.
+layer: golden
+source:
+  kind: synthetic
+  from: tools/readme-shots/shots.test.mjs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/readme-shots/shots.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

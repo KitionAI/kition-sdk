@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-covered
+feature: sdk.agent.covered-content
+intent: Covered content can report changed at an unchanged place, while text insertion before a held range relocates and insertion after it applies.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: covered_text_content_distinguishes_change_from_relocation }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

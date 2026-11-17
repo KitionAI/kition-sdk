@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-managed-seed-writes-file
+feature: sdk.collab.saves
+intent: >-
+  Seeding a managed room never writes the file: a kit that rewrites what it opened (Doc, Sheet)
+  made a new version over the file as it was (an upload, say) that nobody had edited, before the
+  room existed. The room is seeded from the file as it is, and only the replica is kept.
+layer: unit
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/managed.test.ts, -t, without writing the file]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-16"

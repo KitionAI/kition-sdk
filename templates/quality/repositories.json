@@ -1,0 +1,10 @@
+{
+  "$comment": "Each repository's check command (sync-quality.mjs --command), by its directory name, where it is not the default `cargo xtask ci`. sync-quality.mjs takes it from here when --command is not given and refuses a --command that disagrees, so a sync never puts back an old command: change it here.",
+  "commands": {
+    "khp": "! grep -rIlE '/(Users|home)/[a-z]' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist .",
+    "kition": "pnpm -s typecheck && pnpm -s lint",
+    "kition-html": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace",
+    "kition-sdk": "pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings",
+    "kition-table": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace"
+  }
+}

@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-comment-batch-contract
+feature: sdk.agent.raw-contract
+intent: Shared comment types permit raw writes with the same object and field guards as comment commands, including deleted reply targets and unrelated thread changes.
+layer: golden
+source: { kind: issue, from: Shared comment batch contract, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: shared_comment_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: shared_comment_, env: { KITION_TEST_READER: editor } }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/comment.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

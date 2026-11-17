@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-guard-held-path
+feature: sdk.agent.premise-guard
+intent: >-
+  An object with a tool id that a target holds through an owned ref is held at its path under the
+  target (`body.shots.0`), not at the ref's field: the mock reel's marker premise (`body.markers.0`)
+  survives a colleague's change of a shot the reel holds and is refused as `changed` after a rename
+  of that marker. Before, the shot read as held at `body`, which overlapped every premise under it.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, held_a_marker_premise_survives_a_change_of_a_held_object]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

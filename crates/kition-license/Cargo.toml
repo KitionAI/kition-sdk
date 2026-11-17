@@ -1,0 +1,27 @@
+[package]
+name = "kition-license"
+description = "KITION1 licences of Kition One and Kition Server: Ed25519-signed, verified offline against compiled-in public keys."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+# Compiles in the test signing keys and accepts `env: "test"` licences. Development, CI and
+# staging builds only: a release binary holds no test key.
+test-licences = []
+
+[dependencies]
+base64 = { version = "0.22", default-features = false, features = ["alloc"] }
+ed25519-dalek = { version = "2.2", default-features = false }
+serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+# This crate's own tests sign and verify test licences.
+kition-license = { path = ".", features = ["test-licences"] }

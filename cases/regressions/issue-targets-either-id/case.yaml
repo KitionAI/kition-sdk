@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-targets-either-id
+feature: sdk.agent.call-context
+intent: >-
+  A command's `targets` may name an id parameter of either kind: a string, an integer, a `oneOf`
+  of those (what the SDK's own notation converter writes for `{id}` or a name-or-id), or a list of
+  any of them; a parameter that is not an id (an object, a boolean, free JSON) stays refused.
+  Before, `check_targets` refused the converter's own `oneOf` id, so the presentation kit could
+  declare `targets` on one command of 255 and the 3D kit's `object`/`objects` on none.
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: a_target_parameter_may_be_an_id_of_either_kind }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 120

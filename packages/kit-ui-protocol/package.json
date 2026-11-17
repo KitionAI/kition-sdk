@@ -1,0 +1,33 @@
+{
+  "name": "@kition/kit-ui-protocol",
+  "version": "0.1.0",
+  "description": "The Kit UI protocol (kition-kit-ui/1): message types and JSON-RPC over a MessagePort, for hosts and embedded kit UIs.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/kit-ui-protocol"
+  },
+  "types": "./dist/types/src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/src/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "prepack": "pnpm run build"
+  }
+}

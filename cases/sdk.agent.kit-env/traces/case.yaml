@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.kit-env/traces
+feature: sdk.agent.kit-env
+intent: >-
+  The oracle replays every generated task's ground truth through the agent-facing tools
+  (inspect, batch, check) to reward 1, and with `find` reads the object model until every id it
+  names was answered first; traces are JSON lines with images replaced by their hashes, and only
+  traces with reward 1 are emitted.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-env/tests/traces.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-env, --test, traces]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-line-command-grid
+feature: sdk.editor.display-modes
+intent: >-
+  A menu tab's primary commands sit in Single line's row itself: the generated ribbon's three-row
+  command grid is laid out as the row there, so no primary button is drawn above or below the 36 px
+  row and cut off. Note's Format row showed only Italic and Highlight; Bold, Strike, and Code were
+  drawn outside the row, and the mode smoke counted them as shown.
+layer: golden
+source:
+  kind: probe
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/frame/EditorFrame.test.tsx, -t, "command grid out as one row"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

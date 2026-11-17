@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-30
+feature: sdk.agent.premise-guard
+intent: >-
+  An outside edit of one member of a register conflicts with writes holding that
+  member or the whole register, while a write holding a different member applies.
+  Raw object ids retain the same member precision as schema-aware receipts.
+layer: golden
+source:
+  kind: synthetic
+  from: Photo kit outside-reread regression between SDK 5c1253a and 8453617
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, guard_regressions::outside_register_changes_conflict_only_with_held_members]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

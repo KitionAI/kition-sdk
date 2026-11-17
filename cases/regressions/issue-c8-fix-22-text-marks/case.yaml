@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-c8-fix-22-text-marks
+feature: sdk.agent.premise-guard
+intent: Inline objects held only by text marks retain their identity across rereads, and bounded content history includes formatting.
+layer: golden
+source: { kind: issue, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: reread, filter: inline_objects_held_only_by_marks_compare_by_paired_identity }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: real_text_marks_retain_inline_identity_and_formatting_history }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: real_text_marks_retain_inline_identity_and_formatting_history, env: { KITION_TEST_READER: editor } }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-31-selector-siblings
+feature: sdk.agent.premise-guard
+intent: A name selector follows an unchanged member through deletions of either sibling while a rename still refuses relocated and an edit still refuses changed.
+layer: golden
+source: { kind: synthetic, from: SDK mock-kit regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: named_member_survives_outside_sibling_deletions }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"
+timeout_s: 60

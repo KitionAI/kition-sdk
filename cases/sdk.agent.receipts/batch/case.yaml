@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.receipts/batch
+feature: sdk.agent.receipts
+intent: >-
+  A headless `<prefix>_batch` answers what it created (values, where), changed (before and
+  after), moved and deleted, by the ids the batch and `<prefix>_query` answer (tool ids where the
+  kit declares them); at most 50 objects with `truncated` counting the rest, every one with
+  `changes: "all"`, none with `changes: false`; another `changes` is `invalid-params` and
+  runs nothing.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/receipts.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, receipts, batch_]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

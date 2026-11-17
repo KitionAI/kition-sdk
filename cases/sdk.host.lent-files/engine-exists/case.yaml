@@ -1,0 +1,23 @@
+format: 1
+id: sdk.host.lent-files/engine-exists
+feature: sdk.host.lent-files
+intent: >-
+  An engine served by kition-headless asks `kition_kit::host::exists(path)` for a file its document
+  refers to and gets `true` when the file is there, `false` when the host answers `file_not_found`,
+  and the host's refusal for a path outside the workspace or in the host's own data, the same
+  whether that file exists or not. A link check reports a missing file only on `false`, without
+  matching any message text.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-headless/src/tests.rs
+  licence: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: tests::an_engine_tells_a_missing_lent_file_from_a_refused_one }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 60

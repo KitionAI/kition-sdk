@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-c8-fix-17-private
+feature: sdk.agent.private-derived
+intent: Premise-only derived facts still refuse stale writes but never add public changes or receipt and others entries; ordinary derived facts remain visible.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: space_guard, filter: premise_only_derived_facts }
+  - cargo-test: { package: kition-env, test: generate, filter: premise_only_facts }
+  - exec: { cmd: [pnpm, -s, exec, vitest, run, packages/kdm/test/schema.test.ts, -t, retains premise-only] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

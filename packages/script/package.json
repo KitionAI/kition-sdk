@@ -1,0 +1,58 @@
+{
+  "name": "@kition/script",
+  "version": "0.1.0",
+  "description": "The Kition object model for scripts and extensions: typed proxies, load and sync() batching, commands, and change events over any contract 2 kit, in a page or in Node.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts",
+    "./proxy": "./src/proxy.ts",
+    "./kits": "./kits/index.ts",
+    "./kits/note": "./kits/note.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs",
+    "generate": "node scripts/generate-kit.mjs",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "@kition/kdm": "workspace:*",
+    "@kition/sync": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/script"
+  },
+  "types": "./dist/types/src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/src/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./node": {
+        "types": "./dist/types/src/node.d.ts",
+        "import": "./dist/node.js"
+      },
+      "./proxy": {
+        "types": "./dist/types/src/proxy.d.ts",
+        "import": "./dist/proxy.js"
+      },
+      "./kits": {
+        "types": "./dist/types/kits/index.d.ts",
+        "import": "./dist/kits/index.js"
+      },
+      "./kits/note": {
+        "types": "./dist/types/kits/note.d.ts",
+        "import": "./dist/kits/note.js"
+      }
+    }
+  },
+  "main": "./dist/index.js"
+}

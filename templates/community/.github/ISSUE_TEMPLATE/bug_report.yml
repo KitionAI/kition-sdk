@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in {{title}} that does not behave as documented.
+labels: [bug]
+body:
+{{#kit}}
+  - type: input
+    id: version
+    attributes:
+      label: Kit version or commit
+      description: The `version` in `kit.json`, or a commit hash.
+    validations:
+      required: true
+  - type: input
+    id: format
+    attributes:
+      label: File format
+      description: The file's extension, and the application that made the file if it was not Kition.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Where it runs
+      placeholder: The editor in Chrome 142 on macOS 15, or the headless executable
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal sample file
+      description: Attach the smallest file that shows the problem (zip it if GitHub refuses the extension). Remove anything private first, and attach only files you may share.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: What you did, in order, with the sample file; for an agent, the commands it ran.
+    validations:
+      required: true
+{{/kit}}
+{{^kit}}
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 0.1.0, or a commit hash
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Operating system, and the browser or toolchain version
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: The smallest steps or code that show the problem, and what you did.
+    validations:
+      required: true
+{{/kit}}
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+      description: What you expected, and what happened instead. Add a screenshot for visual problems.
+    validations:
+      required: true

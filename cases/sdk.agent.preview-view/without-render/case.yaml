@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.preview-view/without-render
+feature: sdk.agent.preview-view
+intent: >-
+  A kit without a render command keeps its screenshot preview: a view its screenshot cannot draw
+  (`target: {time}`) stays `unsupported`, and a run's `view` is `unsupported` before any step
+  runs, while a run's plain preview is still the whole document.
+layer: golden
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/preview_view.rs
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, preview_view, a_kit_without_a_render_command_keeps_its_screenshot]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

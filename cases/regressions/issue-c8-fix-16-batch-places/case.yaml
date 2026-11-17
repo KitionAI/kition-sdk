@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-c8-fix-16-batch-places
+feature: sdk.agent.premise-guard
+intent: Positional model batches hold list gaps and source windows through nested owning lists and refs and tree siblings, refusing relocated positions and permitting unrelated later edits.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: ordered_batch_matrix }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

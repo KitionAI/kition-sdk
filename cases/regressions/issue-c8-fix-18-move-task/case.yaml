@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-c8-fix-18-move-task
+feature: sdk.env.move-consequences
+intent: A cross-container group move and declared address changes on its children form one move task, retaining complete truth and replaying both forward and inverse tasks to the same state.
+layer: golden
+source: { kind: synthetic, from: SDK regression suite, licence: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-env, test: generate, filter: group_moves_with_consequential_addresses_are_one_replayed_task }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

@@ -1,0 +1,35 @@
+format: 1
+id: sdk.agent.premise-guard/call-premises
+feature: sdk.agent.premise-guard
+intent: >-
+  The guard asks the kit what each step of a write with `basis` needs (`context.under`, every
+  step, by id too) and reads `premises`: `clip.effect` on clip 1's glow applies after a colleague
+  changed clip 1's blur and after a ripple insert before it (the kit states the glow and no
+  position) and is refused as `changed` after its glow changed; a cut at 2.5 s applies after the
+  clip under it was trimmed at its end (the kit states `positions: ["start"]`) and is refused as
+  `relocated` after its start moved; a step giving its target and a place (`clip.paste`) is
+  checked at the place; a step reading a time an earlier step of the run set is refused after a
+  change by others.
+layer: golden
+source:
+  kind: synthetic
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, premises_a_write_by_id_needs_only_what_the_kit_says]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, premises_a_cut_after_a_trim_that_keeps_the_clip_under_it_applies]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, places_a_step_by_id_with_a_place_is_checked_at_the_place]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, place_guard, time_a_step_reading_a_time_an_earlier_step_set_is_refused_after_a_change]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 900

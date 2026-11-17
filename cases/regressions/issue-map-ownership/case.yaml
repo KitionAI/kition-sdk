@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-map-ownership
+feature: sdk.agent.receipts
+intent: >-
+  A map field declared `owns` holds the objects its values name (a table's cells, each naming the
+  cell's text body, directly or as a member of an object value), so a change of a cell's text is
+  told as an edit of the shape holding the table at `table.cells.<key>[.<member>].…`, and the
+  guard and the comparison of two reads of a file follow it. Before, only list, tree and ref
+  fields could own, so table-cell text was attributed to no holder. Kition-kdm and @kition/kdm
+  answer the same (`map-ownership.json`).
+layer: golden
+source:
+  kind: issue
+  from: SDK regression suite
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, --, a_map_that_owns]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-16"
+timeout_s: 600

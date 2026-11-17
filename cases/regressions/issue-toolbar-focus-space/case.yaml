@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-toolbar-focus-space
+feature: sdk.editor.typing-focus
+intent: While the person types into a kit (the text sink has focus), pressing a toolbar or quick-access button leaves keyboard focus in the sink, so a Space typed right after is text. The button used to keep focus for a frame, and Kition's doc H4 interaction case recorded the Space pressing Undo a second time instead of typing.
+layer: golden
+source:
+  kind: issue
+  from: Kition end-to-end tests, interaction/doc.spec.ts:112 (doc H4)
+  licence: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/TextSink.test.tsx, -t, toolbar button is pressed while typing]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-16"

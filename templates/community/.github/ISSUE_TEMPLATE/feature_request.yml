@@ -1,0 +1,30 @@
+name: Request
+description: A missing feature in {{title}}, or a change to an existing one.
+labels: [enhancement]
+body:
+{{#kit}}
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Editing feature
+        - File format (open, save, export)
+        - Agent command
+        - Documentation
+        - Other
+    validations:
+      required: true
+{{/kit}}
+  - type: textarea
+    id: need
+    attributes:
+      label: What are you working on, and what is missing?
+      description: What you want to do, and what you do today instead.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: {{#kit}}How it would work. For a file format feature, name the application whose behavior to match.{{/kit}}{{^kit}}How it would work, or how you would use it.{{/kit}}
