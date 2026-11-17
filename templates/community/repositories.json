@@ -98,14 +98,13 @@
       "title": "Kition Note",
       "github": "KitionAI/kition-note",
       "description": "Kition Note: a Markdown editor that never rewrites your file, for people and AI agents",
-      "fonts": true,
       "build": [
         "cargo xtask corpus                     # fetch the public round-trip corpus that some tests read",
         "cargo test --workspace",
         "cargo build --release -p kition-note",
         "cd web && pnpm install && pnpm engine && pnpm test:flow"
       ],
-      "notes": "[docs/development.md](docs/development.md) covers the requirements, the fonts, the engine, the editor, and the tests."
+      "notes": "`pnpm engine` copies fonts from the folder `KITION_FONTS_DIR` names; `scripts/fetch-fonts.sh <folder>`\ndownloads them there from their upstream sources and checks each file's SHA-256.\n\n[docs/development.md](docs/development.md) covers the requirements, the fonts, the engine, the editor, and the tests."
     },
     "kition-pdf": {
       "profile": "kit",
