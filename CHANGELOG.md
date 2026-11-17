@@ -2,6 +2,24 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
+## 0.2.0
+
+- **Releases you download**: each SDK version is the GitHub Release `sdk-v<version>`, made by
+  `.github/workflows/release.yml` (which replaces `publish-npm.yml`): the SDK bundle for macOS
+  (arm64, x64), Linux (arm64, x64) and Windows (x64), each with `kition-kits`, `kition-kits-mcp`
+  and the published kits' headless executables in `bin/<platform>/`; the release manifest
+  `kition-sdk-<version>.json` (every executable's SHA-256 and the kit version it answers, each kit's
+  package, tag and commit); every schema as its own asset; `SHA256SUMS`; and build provenance
+  attestations (`docs/sdk/distribution.md`). No Rust is needed to use a kit headless.
+- `@kition/kits-mcp` and its platform packages are on npm, from the same build.
+- **Published kits**: Table joins Note (`published-kits.json`, `sdk.json`): `kit.table` 0.4.0 and
+  `kit.note` 0.3.0, each built from its `package-v<version>` tag.
+- Every kit executable a bundle carries answers `kit.initialize` with its package's kit id and
+  version before it is shipped (`tools/kit-handshake.mjs`); `tools/sdk-bundle.mjs` downloads kit
+  packages from their public release URLs instead of with `gh`.
+- Published versions are immutable: a release, a tag or an npm version is never replaced or
+  reused; a correction is a new version.
+
 ## 0.1.0
 
 First public release.

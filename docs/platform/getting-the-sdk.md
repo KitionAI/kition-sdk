@@ -66,13 +66,14 @@ mkdir -p public/kits && tar -xzf kits/kition-note-<v>.tgz -C public/kits   # →
 
 ## 4. The kits
 
-The kits in SDK 0.1.0 (its `sdk.json`), with the file types they open
+The kits in SDK 0.2.0 (its `sdk.json`), with the file types they open
 (`formats` in each kit's `kit.json`) and what their editors and agents offer.
 A bundle's `manifest.json` names the version of each kit it holds.
 
 | Kit | Opens | Drafts (A12) and object-model tools (A16) | Checks (A21) |
 | --- | --- | --- | --- |
 | `kit.note` | `.md`, `.markdown` | yes | yes |
+| `kit.table` | `.ktable` | yes | yes |
 
 - An editor of a kit on the Kit Data Model lists the Kit UI capabilities
   `model`, `draft`, `draft-model`, and `check`.

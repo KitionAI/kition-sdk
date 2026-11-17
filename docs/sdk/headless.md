@@ -1,9 +1,11 @@
 # Headless: kits without a page
 
 Every kit has a native executable, `kition-<kit>` (for example `kition-note`), that opens, edits,
-renders, and saves its documents with no window. The bundle carries the ones built for its
-platform in `bin/<platform>/`; they can also be built from each kit's repository
-(`cargo build -p kition-<kit>`).
+renders, and saves its documents with no window. The SDK release carries them for macOS (arm64,
+x64), Linux (arm64, x64) and Windows (x64), each in its platform's bundle under `bin/<platform>/`
+with `kition-kits` and `kition-kits-mcp`, and names every file's SHA-256 and the kit version it
+answers ([distribution.md](distribution.md)). They can also be built from each kit's repository
+(`cargo build --release -p kition-<kit>`).
 
 They speak the [Kit Process Protocol](../platform/reference/kit-process-protocol.md), version 2, on the
 `headless` surface (a private socket or named pipe, a fresh token per launch): the kit never sees

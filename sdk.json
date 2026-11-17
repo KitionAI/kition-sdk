@@ -1,8 +1,8 @@
 {
   "$comment": "The Kition SDK's one version and what its bundle holds (tools/sdk-bundle.mjs, docs/sdk/README.md). Bump the version and add a CHANGELOG.md entry together.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": ["@kition/embed", "@kition/script", "@kition/sync", "@kition/kdm", "@kition/embed-server"],
-  "kits": ["note"],
+  "kits": ["note", "table"],
   "binaries": {
     "service": { "name": "kition-kits", "env": "KITION_KITS", "version": 1 },
     "mcp": { "name": "kition-kits-mcp", "env": "KITION_KITS_MCP", "npm": "@kition/kits-mcp" },

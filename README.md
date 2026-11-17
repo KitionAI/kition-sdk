@@ -82,12 +82,17 @@ Markdown notes, Obsidian-flavoured, that keep the file byte for byte. Published:
 [Kition Note](https://github.com/KitionAI/kition-note), whose Releases carry the self-contained
 editor package (`kition-note-<version>.tgz`, unpacks to `note-ui/`).
 
-### Table: coming soon
+The headless executables of the published kits, with `kition-kits` and `kition-kits-mcp`, are in
+each [SDK release](https://github.com/KitionAI/kition-sdk/releases) for macOS, Linux and Windows,
+with their SHA-256 sums ([distribution](docs/sdk/distribution.md)).
+
+### Table: available now
 
 <img src="assets/readme/kit-table.png" alt="The Table editor embedded in a page: a launch tracker with tasks, status labels, owners, due dates and a shipped checkbox." width="100%" />
 
 Tables with typed fields, views (grid, kanban, gallery, calendar), filters, sorts, groups and
-dashboards. Not published yet.
+dashboards. Published: [Kition Table](https://github.com/KitionAI/kition-table), whose Releases
+carry the self-contained editor package (`kition-table-<version>.tgz`, unpacks to `table-ui/`).
 
 ## Build your own kit
 
@@ -132,13 +137,13 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.1.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
+The packages are version 0.2.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
 
 | Package | What |
 | --- | --- |
 | [`@kition/embed`](packages/embed) | Embed kit editors in any web page, over your storage and identity |
 | [`@kition/embed-server`](packages/embed-server) | Serve single-user kit editor pages for embedding by URL |
-| [`@kition/kits-mcp`](packages/kits-mcp) | `kition-kits-mcp` and the published kits from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` (not on npm yet) |
+| [`@kition/kits-mcp`](packages/kits-mcp) | `kition-kits-mcp` and the published kits from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` |
 | [`@kition/script`](packages/script) | The object model for scripts and extensions, in browsers and Node |
 | [`@kition/extensions`](packages/extensions) | The extension host: manifests, sandboxed workers, declared permissions |
 | [`@kition/sync`](packages/sync) | Client for the open sync protocol `kition-sync/1` |

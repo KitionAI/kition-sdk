@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Package | `@kition/embed` 0.1.0, in the Kition SDK 0.1.0 ([getting the SDK](../getting-the-sdk.md)) |
+| Package | `@kition/embed` 0.2.0, in the Kition SDK 0.2.0 ([getting the SDK](../getting-the-sdk.md)) |
 | Capability set | [`KitEmbed 1.3`](../sets/embed.md), with EM25's opening (1.5), EM28 (1.6), EM29 and EM30 (1.7), and EM31 (1.8); every member a minor version added is optional, so an older page works unchanged |
 | Protocols | [Kit UI protocol](ui-protocol.md) `kition-kit-ui/2` to the kit; [sync protocol](sync-protocol.md) `kition-sync/1` to a collaboration server |
 | License | Apache-2.0 |
@@ -347,7 +347,7 @@ as `error` events after.
 | `FRAME_SANDBOX` | `allow-scripts allow-same-origin allow-forms allow-downloads allow-popups` |
 | `FRAME_ALLOW` | `clipboard-read; clipboard-write; fullscreen` |
 | `ROOMS_KEY` | `kition.embed.rooms.v1` |
-| `EMBED_VERSION` | `0.1.0`, as hosts and sync servers are told it |
+| `EMBED_VERSION` | `0.2.0`, as hosts and sync servers are told it |
 | `EMBED_CAPABILITY_SETS` | `['KitModel 1.0', 'KitObjectModel 1.0', 'KitEmbed 1.3']`, sent to the kit as `capabilitySets`, with `KitCollab 1.0` when co-editing (what the kit relies on from its host; the server's own sets, `KitCollab 1.3` on Kition Server, come in `sync/hello`) |
 
 ### Drafts and agents (`KitEmbed 1.3`)

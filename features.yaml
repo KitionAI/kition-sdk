@@ -438,13 +438,28 @@ features:
     gap: The package and its platform packages are built by the manual publish workflow and are not on npm yet; win32-x64 and darwin-x64 builds are untested
     paths:
       - packages/kits-mcp/**
-      - .github/workflows/publish-npm.yml
+      - .github/workflows/release.yml
       - plugins/claude-code/kition-kits/scripts/kits-mcp.sh
       - docs/sdk/agent.md
     cases:
       - sdk.distribution.kits-mcp/launcher
       - regressions/issue-launcher-sigterm
     since: "2026-11-16"
+  - id: sdk.distribution.release
+    title: Each SDK version is a GitHub Release with a bundle per platform holding every executable, a manifest naming each file's SHA-256 and the kit version each kit executable answers, the schemas, and SHA-256 sums
+    dimension: [platform]
+    priority: P1
+    status: has
+    paths:
+      - .github/workflows/release.yml
+      - tools/sdk-release.mjs
+      - tools/sdk-release.test.mjs
+      - tools/kit-handshake.mjs
+      - tools/sdk-bundle.mjs
+      - docs/sdk/distribution.md
+    cases:
+      - sdk.distribution.release/manifest
+    since: "2026-11-17"
   - id: sdk.docs.integration
     title: Deterministic agent integration reference from every kit command catalogue, with read-only stale-output checking
     dimension: [ai, platform]

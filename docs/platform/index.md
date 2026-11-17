@@ -112,7 +112,7 @@ set, never for a product version.
 
 A web application embeds Kition's Sheet and Slide kits
 ([getting the SDK](getting-the-sdk.md)). Those two kits are not published yet; the published Note
-kit works the same way:
+and Table kits work the same way:
 
 1. The page mounts two editors with `@kition/embed` and its own storage
    (`KitEmbed 1.5`): `Q3.xlsx`, and `Q3 review.pptx`, a slide its storage

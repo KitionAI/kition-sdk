@@ -1,7 +1,7 @@
 # @kition/embed-server
 
 The embed server, for URL embedding: your page frames a URL your server minted, and the
-server shows a Kition kit editor there (the Note kit today; other kits are not published yet), reading and
+server shows a Kition kit editor there (the Note and Table kits today; other kits are not published yet), reading and
 writing the file through HMAC-signed HTTP callbacks to your server. It keeps no document.
 Single-user; for co-editing see `@kition/embed`. An ES module with type declarations, for Node 20.6
 or later, and a `kition-embed-server` command.

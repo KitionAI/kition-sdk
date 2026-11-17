@@ -1,6 +1,6 @@
 # @kition/embed
 
-Kition's kit editors in any web page (the Note kit is published; other kits are not published yet).
+Kition's kit editors in any web page (the Note and Table kits are published; other kits are not published yet).
 `KitionEmbed.mount` shows a kit's editor in an iframe, reads and saves the document through your
 own storage, and, with `collaboration`, co-edits it with others through a `kition-sync/1` server.
 Framework-free; Loro's WebAssembly is inlined, so no bundler setup is needed.

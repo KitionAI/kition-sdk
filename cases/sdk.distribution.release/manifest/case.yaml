@@ -1,0 +1,25 @@
+format: 1
+id: sdk.distribution.release/manifest
+feature: sdk.distribution.release
+intent: >-
+  The release manifest names each platform bundle with its SHA-256 and versioned URL, every
+  executable in it, each kit's package and the tag and commit its executable was built from, and
+  each schema as its own asset; SHA256SUMS covers every asset; bundles of another version or
+  commit, from a checkout with changes, or with a kit executable that answers another version
+  than its package are refused; only kit executables are checked with kit.initialize.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/sdk-release.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sdk-release.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-17"
+timeout_s: 60

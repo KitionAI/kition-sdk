@@ -1,6 +1,6 @@
 {
   "name": "@kition/script",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The Kition object model for scripts and extensions: typed proxies, load and sync() batching, commands, and change events over any contract 2 kit, in a page or in Node.",
   "license": "Apache-2.0",
   "type": "module",
@@ -9,7 +9,8 @@
     "./node": "./src/node.ts",
     "./proxy": "./src/proxy.ts",
     "./kits": "./kits/index.ts",
-    "./kits/note": "./kits/note.ts"
+    "./kits/note": "./kits/note.ts",
+    "./kits/table": "./kits/table.ts"
   },
   "files": [
     "dist"
@@ -51,6 +52,10 @@
       "./kits/note": {
         "types": "./dist/types/kits/note.d.ts",
         "import": "./dist/kits/note.js"
+      },
+      "./kits/table": {
+        "types": "./dist/types/kits/table.d.ts",
+        "import": "./dist/kits/table.js"
       }
     }
   },

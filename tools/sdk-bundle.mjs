@@ -1,35 +1,43 @@
 #!/usr/bin/env node
-// Assembles the Kition SDK bundle a customer receives (from a private registry or a Kition
-// Console download): the npm packages as tarballs, the kit packages pinned in Kition's
-// kits/kits.lock.json (each with its kit.json beside it, for `kition-kits serve --kits-dir`), the
-// executables built on this machine (`kition-kits`, `kition-kits-mcp`, each kit's), the SDK guide,
-// the platform documents and schemas it links to (the Kit Process Protocol among them), the examples
-// it links to, and the Kit Harness Protocol (KHP, a KHP specification checkout), with a
-// manifest and SHA-256 sums. Every relative link in the bundle's documents must resolve inside the
-// bundle, and every kit executable must speak the SDK's Kit Process Protocol, or no bundle is made.
-// Local only: it publishes nothing.
+// Assembles the Kition SDK bundle for one platform, as the release workflow publishes it
+// (.github/workflows/release.yml, docs/sdk/distribution.md): the npm packages as tarballs, the kit
+// packages pinned in Kition's kits/kits.lock.json (each with its kit.json beside it, for
+// `kition-kits serve --kits-dir`), the executables (`kition-kits`, `kition-kits-mcp`, each kit's)
+// in bin/<platform>/, the SDK guide, the platform documents and schemas it links to (the Kit
+// Process Protocol among them), the examples it links to, and the Kit Harness Protocol (KHP, a KHP
+// specification checkout), with a manifest and SHA-256 sums. Every relative link in the bundle's
+// documents must resolve inside the bundle, and every kit executable must answer `kit.initialize`
+// with the SDK's Kit Process Protocol and its package's kit id and version
+// (tools/kit-handshake.mjs), or no bundle is made. It publishes nothing.
 //
 //   node tools/sdk-bundle.mjs [--out <dir>] [--lock <kits.lock.json>] [--kits slide,sheet]
-//                             [--kit-assets <dir>] [--standard <dir>] [--no-kits] [--no-build] [--archive]
+//                             [--kit-assets <dir>] [--standard <dir>] [--no-kits] [--no-build]
+//                             [--bin <dir> --platform <platform>] [--archive]
 //
-// --out          the bundle folder (default $HOME/.cache/kition-sdk-bundle/<version>)
+// --out          the bundle folder (default $HOME/.cache/kition-sdk-bundle/kition-sdk-<version>[-<platform>])
 // --lock         Kition's kit lock (default KITION_KITS_LOCK, else ../kition/kits/kits.lock.json)
 // --kits         which kits (default sdk.json `kits`)
-// --kit-assets   a folder holding the pinned kit tarballs already; else `gh release download`
+// --kit-assets   a folder holding the pinned kit tarballs already; else they are downloaded from
+//                the kits' public release URLs
 // --standard     a supplied KHP checkout (or KIT_STANDARD_DIR); its spec/
 //                and CHANGES.md become the bundle's docs/khp/
 // --no-kits      leave the kit packages out (a packages-and-docs bundle)
 // --no-build     use the packages' existing dist/
-// --archive      also write kition-sdk-<version>.tar.gz (and .sha256) next to the folder
+// --bin          executables built and checked on another machine for --platform: the folder
+//                holds them and the handshakes.json that `kit-handshake.mjs --record` wrote there
+// --platform     the platform of --bin (`darwin-arm64`, `linux-x64`, `win32-x64`, ...)
+// --archive      also write <folder>.tar.gz (and .sha256) next to the folder
 //
-// Executables are taken when present: KITION_KITS, KITION_KITS_MCP and KITION_KIT_<KIT>_BINARY.
-import { spawn, spawnSync } from 'node:child_process'
+// Without --bin, executables built on this machine are taken when present: KITION_KITS,
+// KITION_KITS_MCP and KITION_KIT_<KIT>_BINARY.
+import { spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { brokenLinks, shippedFiles } from './bundle-docs.mjs'
+import { handshake, readHandshakes, sdkProtocol } from './kit-handshake.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sdk = JSON.parse(fs.readFileSync(path.join(root, 'sdk.json'), 'utf8'))
@@ -51,12 +59,29 @@ function options(argv) {
     else if (arg === '--no-kits') out.withKits = false
     else if (arg === '--no-build') out.build = false
     else if (arg === '--archive') out.archive = true
+    else if (arg === '--bin') out.bin = path.resolve(value())
+    else if (arg === '--platform') out.platform = value()
     else throw new Error(`unknown argument ${arg}`)
   }
-  out.out ??= path.join(os.homedir(), '.cache', 'kition-sdk-bundle', sdk.version)
+  if (Boolean(out.bin) !== Boolean(out.platform)) throw new Error('--bin and --platform go together')
+  out.platform ??= `${process.platform}-${process.arch}`
+  const name = `kition-sdk-${sdk.version}${out.bin || hostExecutables().length ? `-${out.platform}` : ''}`
+  out.out ??= path.join(os.homedir(), '.cache', 'kition-sdk-bundle', name)
   out.lock ??= path.resolve(process.env.KITION_KITS_LOCK || path.join(root, '..', 'kition', 'kits', 'kits.lock.json'))
   out.standard ??= path.resolve(process.env.KIT_STANDARD_DIR || path.join(root, '..', 'khp'))
   return out
+}
+
+/** The executables this machine's environment names (KITION_KITS, KITION_KITS_MCP, KITION_KIT_<KIT>_BINARY). */
+function hostExecutables() {
+  const named = [sdk.binaries.service.env, sdk.binaries.mcp.env, ...sdk.kits.map((kit) => `KITION_KIT_${kit.toUpperCase()}_BINARY`)]
+  return named.map((variable) => process.env[variable]).filter((file) => file && fs.existsSync(file))
+}
+
+/** The commit of a git checkout, or null. */
+function gitCommit(dir) {
+  const result = spawnSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : null
 }
 
 function run(command, args, cwd = root) {
@@ -130,10 +155,17 @@ function packPackage(name, packageDir, npmDir, scratch) {
   return { version: manifest.version, target }
 }
 
-function fetchKit(kit, pinned, kitsDir, kitAssets) {
+/** The public download address of a pinned kit package. */
+const packageUrl = (pinned) => `https://github.com/${pinned.repository}/releases/download/${pinned.tag}/${pinned.asset}`
+
+async function fetchKit(kit, pinned, kitsDir, kitAssets) {
   const target = path.join(kitsDir, pinned.asset)
   if (kitAssets) fs.copyFileSync(path.join(kitAssets, pinned.asset), target)
-  else run('gh', ['release', 'download', pinned.tag, '--repo', pinned.repository, '--pattern', pinned.asset, '--dir', kitsDir, '--clobber'])
+  else {
+    const response = await fetch(packageUrl(pinned))
+    if (!response.ok) throw new Error(`${packageUrl(pinned)}: HTTP ${response.status}`)
+    fs.writeFileSync(target, Buffer.from(await response.arrayBuffer()))
+  }
   const size = fs.statSync(target).size
   const sum = sha256(target)
   if (size !== pinned.size || sum !== pinned.sha256) {
@@ -164,51 +196,6 @@ function copyDocs(bundle, standardDir) {
   return copied
 }
 
-/** The Kit Process Protocol version this SDK's kits speak (kition-kit-process-protocol's PROTOCOL_VERSION). */
-function sdkProtocol() {
-  const source = fs.readFileSync(path.join(root, 'crates', 'kition-kit-process-protocol', 'src', 'lib.rs'), 'utf8')
-  const version = source.match(/pub const PROTOCOL_VERSION: u32 = (\d+);/)
-  if (!version) throw new Error('kition-kit-process-protocol states no PROTOCOL_VERSION')
-  return Number(version[1])
-}
-
-/**
- * Starts a kit executable as a host would (protocol section 3) and answers the version its ready
- * line announces: what the bundle says it speaks is what it was seen to speak.
- */
-function readyProtocol(executable, protocol) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-'))
-  fs.chmodSync(dir, 0o700)
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, ['--kition-kit'], {
-      env: { ...process.env, KITION_KIT_PROTOCOL: String(protocol), KITION_KIT_ENDPOINT: path.join(dir, 'kit.sock'), KITION_KIT_TOKEN: crypto.randomBytes(32).toString('hex'), KITION_KIT_SURFACE: 'headless' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    let output = ''
-    let errors = ''
-    const done = (outcome) => {
-      clearTimeout(timer)
-      child.kill()
-      fs.rmSync(dir, { recursive: true, force: true })
-      outcome instanceof Error ? reject(outcome) : resolve(outcome)
-    }
-    const timer = setTimeout(() => done(new Error(`${path.basename(executable)} wrote no ready line within 10 s`)), 10_000)
-    child.stderr.on('data', (chunk) => (errors += chunk))
-    child.stdout.on('data', (chunk) => {
-      output += chunk
-      const line = output.split('\n')[0]
-      if (output.includes('\n')) {
-        try {
-          done(JSON.parse(line).protocolVersion)
-        } catch {
-          done(new Error(`${path.basename(executable)}: not a ready line: ${line}`))
-        }
-      }
-    })
-    child.on('exit', (code) => done(new Error(`${path.basename(executable)} exited (${code}) before its ready line: ${errors.trim()}`)))
-  })
-}
-
 /** The kit.json inside a kit package (`<kit>-ui/kit.json`), unpacked to `kits/<kit>/kit.json`. */
 function unpackManifest(tarball, kit, kitsDir) {
   const entry = run('tar', ['-tzf', tarball]).split('\n').find((name) => /^[^/]+\/kit\.json$/.test(name))
@@ -222,7 +209,7 @@ function unpackManifest(tarball, kit, kitsDir) {
 const opts = options(process.argv.slice(2))
 const bundle = opts.out
 fs.rmSync(bundle, { recursive: true, force: true })
-const dirs = { npm: path.join(bundle, 'npm'), kits: path.join(bundle, 'kits'), bin: path.join(bundle, 'bin', `${process.platform}-${process.arch}`) }
+const dirs = { npm: path.join(bundle, 'npm'), kits: path.join(bundle, 'kits'), bin: path.join(bundle, 'bin', opts.platform) }
 for (const dir of Object.values(dirs)) fs.mkdirSync(dir, { recursive: true })
 const scratch = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'kition-sdk-pack-'))
 
@@ -236,7 +223,8 @@ try {
     version: sdk.version,
     created: new Date().toISOString(),
     source: { commit: run('git', ['rev-parse', 'HEAD']).trim(), clean: run('git', ['status', '--porcelain', '--untracked-files=no']).trim() === '' },
-    platform: `${process.platform}-${process.arch}`,
+    platform: opts.platform,
+    standard: { commit: gitCommit(opts.standard) },
     packages: [],
     kits: [],
     binaries: [],
@@ -256,16 +244,20 @@ try {
     for (const kit of opts.kits) {
       const pinned = lock[kit]
       if (!pinned) throw new Error(`the lock pins no ${kit}`)
-      const file = fetchKit(kit, pinned, dirs.kits, opts.kitAssets)
+      const file = await fetchKit(kit, pinned, dirs.kits, opts.kitAssets)
       const kitJson = unpackManifest(file, kit, dirs.kits)
-      const protocol = JSON.parse(fs.readFileSync(kitJson, 'utf8')).headless?.protocol ?? null
+      const declared = JSON.parse(fs.readFileSync(kitJson, 'utf8'))
+      if (declared.version !== pinned.version) throw new Error(`${pinned.asset}: its kit.json says ${declared.version}; the lock pins ${pinned.version}`)
+      const protocol = declared.headless?.protocol ?? null
       manifest.kits.push({
         kit,
+        id: declared.id,
         version: pinned.version,
         repository: pinned.repository,
         tag: pinned.tag,
         commit: pinned.commit,
         sdkCommit: pinned.sdkCommit,
+        url: packageUrl(pinned),
         protocol,
         manifest: path.relative(bundle, kitJson).split(path.sep).join('/'),
         ...entry(bundle, file),
@@ -273,28 +265,44 @@ try {
     }
   }
 
-  // What each executable speaks: a kit the Kit Process Protocol (its ready line, seen here), the
+  // What each executable speaks: a kit the Kit Process Protocol, with its package's id and
+  // version (seen here, or on its own platform by `kit-handshake.mjs --record` for --bin), the
   // service the Kits Service API to its host and the Kit Process Protocol to the kits.
   const protocol = sdkProtocol()
+  const exe = opts.platform.startsWith('win32') ? '.exe' : ''
+  const from = (name, variable) => (opts.bin ? path.join(opts.bin, `${name}${exe}`) : process.env[variable])
+  const recorded = opts.bin ? readHandshakes(opts.bin) : null
   const executables = [
-    { name: sdk.binaries.service.name, from: process.env[sdk.binaries.service.env], speaks: { service: `kits-service/${sdk.binaries.service.version}`, protocol: `kition-kit/${protocol}` } },
-    { name: sdk.binaries.mcp.name, from: process.env[sdk.binaries.mcp.env], speaks: { protocol: `kition-kit/${protocol}` } },
-    ...opts.kits.map((kit) => ({ name: `kition-${kit}`, from: process.env[`KITION_KIT_${kit.toUpperCase()}_BINARY`], kit })),
+    { name: sdk.binaries.service.name, from: from(sdk.binaries.service.name, sdk.binaries.service.env), speaks: { service: `kits-service/${sdk.binaries.service.version}`, protocol: `kition-kit/${protocol}` } },
+    { name: sdk.binaries.mcp.name, from: from(sdk.binaries.mcp.name, sdk.binaries.mcp.env), speaks: { protocol: `kition-kit/${protocol}` } },
+    ...opts.kits.map((kit) => ({ name: `kition-${kit}`, from: from(`kition-${kit}`, `KITION_KIT_${kit.toUpperCase()}_BINARY`), kit })),
   ]
-  for (const { name, from, speaks, kit } of executables) {
-    if (!from || !fs.existsSync(from)) continue
-    const target = path.join(dirs.bin, `${name}${process.platform === 'win32' ? '.exe' : ''}`)
-    fs.copyFileSync(from, target)
+  for (const { name, from: source, speaks, kit } of executables) {
+    if (!source || !fs.existsSync(source)) {
+      if (opts.bin) throw new Error(`${opts.bin} has no ${name}${exe}`)
+      continue
+    }
+    const target = path.join(dirs.bin, `${name}${exe}`)
+    fs.copyFileSync(source, target)
     fs.chmodSync(target, 0o755)
     let said = speaks
+    let kitVersion
     if (kit) {
-      const version = await readyProtocol(target, protocol)
-      if (version !== protocol) throw new Error(`${name} speaks Kit Process Protocol ${version}; this SDK's hosts speak ${protocol}: build it on this kition-sdk`)
-      said = { protocol: `kition-kit/${version}` }
+      const seen = recorded ? recorded[`${name}${exe}`] : { sha256: sha256(target), ...(await handshake(target, protocol)) }
+      if (!seen) throw new Error(`${opts.bin}/handshakes.json has no ${name}${exe}`)
+      if (seen.sha256 !== sha256(target)) throw new Error(`${name}${exe} is not the file its handshake was recorded for`)
+      if (seen.protocolVersion !== protocol) throw new Error(`${name} speaks Kit Process Protocol ${seen.protocolVersion}; this SDK's hosts speak ${protocol}: build it on this kition-sdk`)
+      said = { protocol: `kition-kit/${seen.protocolVersion}` }
       const pinned = manifest.kits.find((entry) => entry.kit === kit)
-      if (pinned && pinned.protocol !== said.protocol) throw new Error(`${name} speaks ${said.protocol}, but its package's kit.json says ${pinned.protocol}`)
+      if (pinned) {
+        if (pinned.protocol !== said.protocol) throw new Error(`${name} speaks ${said.protocol}, but its package's kit.json says ${pinned.protocol}`)
+        if (seen.kit?.id !== pinned.id || seen.kit?.version !== pinned.version) {
+          throw new Error(`${name} answers kit.initialize as ${seen.kit?.id} ${seen.kit?.version}; its package is ${pinned.id} ${pinned.version}`)
+        }
+      }
+      kitVersion = seen.kit.version
     }
-    manifest.binaries.push({ name, ...said, ...entry(bundle, target) })
+    manifest.binaries.push({ name, ...(kit ? { kit, kitVersion } : {}), ...said, ...entry(bundle, target) })
   }
 
   for (const file of copyDocs(bundle, opts.standard)) manifest.docs.push(path.relative(bundle, file).split(path.sep).join('/'))
@@ -312,7 +320,7 @@ try {
 
   console.log(`kition-sdk ${sdk.version}: ${manifest.packages.length} packages, ${manifest.kits.length} kits, ${manifest.binaries.length} executables, ${manifest.docs.length} documents in ${bundle}`)
   if (opts.archive) {
-    const archive = path.join(path.dirname(bundle), `kition-sdk-${sdk.version}.tar.gz`)
+    const archive = path.join(path.dirname(bundle), `${path.basename(bundle)}.tar.gz`)
     run('tar', ['-czf', archive, '-C', path.dirname(bundle), path.basename(bundle)])
     fs.writeFileSync(`${archive}.sha256`, `${sha256(archive)}  ${path.basename(archive)}\n`)
     console.log(`archive: ${archive}`)

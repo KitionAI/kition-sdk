@@ -5,13 +5,10 @@ Codex, or your own MCP client. The agent creates, inspects, edits and checks fil
 workspace folder through each kit's headless executable. No Kition app has to run, nothing is
 compiled on your machine, and no licence key is needed.
 
-The published kit is **Note**, for Markdown (`.md`, `.markdown`). Other Kition kits are not
-published yet.
-
-> **Status:** this package is not on npm yet. Until it is, build the server from
-> [kition-sdk](https://github.com/KitionAI/kition-sdk) (`cargo build --release -p kition-kits --bin
-> kition-kits-mcp`) and use the installed-binary form in
-> [docs/sdk/agent.md](https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/agent.md#connect-your-agent).
+The published kits are **Note**, for Markdown (`.md`, `.markdown`), and **Table**, for tables
+(`.ktable`). Other Kition kits are not published yet. The same executables, without npm, are in
+each [SDK release](https://github.com/KitionAI/kition-sdk/releases) with their SHA-256 sums
+([docs/sdk/distribution.md](https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/distribution.md)).
 
 ## Run
 

@@ -9,6 +9,7 @@ type Descriptor = { schema: object }
 
 const GENERATED: Record<string, () => Promise<Descriptor>> = {
   'kit.note': async () => (await import('../../script/kits/note')).noteKit,
+  'kit.table': async () => (await import('../../script/kits/table')).tableKit,
 }
 
 /** The schema a kit package ships at `url`, or `undefined` when it ships none or it cannot be read. */

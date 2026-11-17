@@ -1,8 +1,8 @@
 # kition-kits: the Kition kits in Claude Code
 
 A Claude Code plugin that lets Claude create, inspect, edit and check files in your project with
-published Kition kits through their Kit Harness Protocol (KHP) tools. The published kit is
-Note, for Markdown documents. No Kition app needs to run: the
+published Kition kits through their Kit Harness Protocol (KHP) tools. The published kits are
+Note, for Markdown documents, and Table, for `.ktable` tables. No Kition app needs to run: the
 plugin starts kition-sdk's `kition-kits-mcp`, which drives each kit's headless executable on the
 files in your project folder.
 
@@ -32,8 +32,10 @@ claude plugin install kition-kits@kition
 
 The plugin needs the server. It uses, in this order: the plugin's `kition-kits-mcp` option;
 `kition-kits-mcp` on the `PATH`; otherwise `npx -y @kition/kits-mcp`, the npm package that brings
-the server and the published kits for your platform (Node.js needed). That package is not on npm
-yet. Until it is, build the server:
+the server and the published kits for your platform (Node.js needed). Without Node.js, take
+`bin/<platform>/kition-kits-mcp` from the bundle of an
+[SDK release](https://github.com/KitionAI/kition-sdk/releases) and its `kits/` as the installed
+kits, or build the server:
 
 ```sh
 cargo build -p kition-kits --bin kition-kits-mcp   # then set the option to target/debug/kition-kits-mcp

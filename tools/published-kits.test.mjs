@@ -9,7 +9,7 @@ const read = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')
 describe('published kit boundary', () => {
   it('ships copied kit artifacts only for explicitly published kits', () => {
     const published = read('published-kits.json')
-    expect(published).toEqual(['note'])
+    expect(published).toEqual(['note', 'table'])
     const entries = (dir, suffix) => fs.readdirSync(path.join(root, dir))
       .filter((name) => name.endsWith(suffix)).map((name) => name.slice(0, -suffix.length)).sort()
     expect(entries('plugins/claude-code/kition-kits/skills', '-editing')).toEqual(published)

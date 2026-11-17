@@ -11,7 +11,8 @@ test('all public package source imports have declarations', () => {
 
 test('editor declares the engine as a runtime dependency', () => {
   const manifest = JSON.parse(readFileSync(new URL('../packages/kit-editor/package.json', import.meta.url), 'utf8'))
-  assert.equal(manifest.dependencies['@kition/kit-engine'], '^0.1.0')
+  const sdk = JSON.parse(readFileSync(new URL('../sdk.json', import.meta.url), 'utf8'))
+  assert.equal(manifest.dependencies['@kition/kit-engine'], `^${sdk.version}`)
   assert.equal(manifest.devDependencies?.['@kition/kit-engine'], undefined)
 })
 

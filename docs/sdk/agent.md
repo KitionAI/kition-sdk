@@ -4,21 +4,21 @@
 Cursor, Codex, DeepSeek Harness, your own agent) the kits' tools on one workspace folder. The
 agent creates, inspects, edits and checks files there through each kit's headless executable. No
 Kition app has to run, and the server is free on any machine with no licence key. The published
-kit is Note, for Markdown.
+kits are Note, for Markdown, and Table, for `.ktable` tables.
 
 ## Connect your agent
 
 Pick one way to get the server:
 
-- **npm** (once `@kition/kits-mcp` is on npm; it is not published yet): `npx -y @kition/kits-mcp
-  --workspace <folder>` downloads and starts `kition-kits-mcp` for your platform (macOS arm64 and
+- **npm**: `npx -y @kition/kits-mcp --workspace <folder>` downloads and starts `kition-kits-mcp` for your platform (macOS arm64 and
   x64, Linux arm64 and x64 with glibc, Windows x64), with the published kits. Node.js 20 or later.
   `npm install -g @kition/kits-mcp` installs it as the command `kition-kits-mcp`.
-- **Installed binary**: build it from kition-sdk with `cargo build --release -p kition-kits --bin
-  kition-kits-mcp` (`target/release/kition-kits-mcp`), or take `bin/<platform>/kition-kits-mcp`
-  from an [SDK bundle](distribution.md). It then needs the kits: give `--kits-dir <folder>` (one
-  folder per kit, holding its `kit.json` and its `kition-<kit>` executable, such as the bundle's
-  `kits/`) or `--kit <kition-note>`; see [The server](#the-server).
+- **Installed binary**: take `bin/<platform>/kition-kits-mcp` from the SDK release's bundle for
+  your platform ([distribution.md](distribution.md)), or build it from kition-sdk with
+  `cargo build --release -p kition-kits --bin kition-kits-mcp`. It then needs the kits: give
+  `--kits-dir <folder>` (the bundle's `kits/`, whose executables are in `bin/<platform>/`, or one
+  folder per kit holding its `kit.json` and its `kition-<kit>` executable) or
+  `--kit <kition-note>`; see [The server](#the-server).
 
 `--workspace` is the only folder the server reads or writes. A relative path is resolved against
 the folder the client starts the server in. Replace `<folder>` with an absolute path where the

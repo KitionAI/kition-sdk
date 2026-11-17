@@ -1,6 +1,6 @@
 {
   "name": "@kition/convergence",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The Kition kit platform's convergence suite for TypeScript engines: the scenarios of kition-convergence, run against a contract 2 kit through a small adapter, with the same report.",
   "license": "Apache-2.0",
   "type": "module",
