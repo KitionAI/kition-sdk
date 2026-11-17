@@ -6,11 +6,11 @@ intent: >-
   root's list of that type), never from the first changed object whose id starts like a part's: a
   note deleted on another slide (`slide:9/note:1`) refuses no write to slide 1. A part addressed by
   number conflicts by its tool id, with its number now; a kit's declared nouns name parts by id.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

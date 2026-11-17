@@ -7,11 +7,11 @@ intent: >-
   }`; the indexes a deletion shifted in a list are one `footprint` entry `{ parent, field, from,
   count, shift: { index } }`; an object others created is told in `others` by id, type, `at`, its
   fields' names and its naming and position values, every value only with `changes: "all"`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

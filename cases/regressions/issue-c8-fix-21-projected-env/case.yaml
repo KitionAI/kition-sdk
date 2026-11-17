@@ -3,8 +3,8 @@ id: regressions/issue-c8-fix-21-projected-env
 feature: sdk.model.projected-objects
 intent: The environment samples five projected edit kinds through declared commands and verifies complete saved-state rewards of one.
 layer: unit
-direction: ai
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+dimension: ai
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-env, test: projected_objects }

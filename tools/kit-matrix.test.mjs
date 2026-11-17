@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { aiCasesCell, buildMatrix, renderMarkdown } from './kit-matrix.mjs'
+import { buildMatrix, evalCasesCell, renderMarkdown } from './kit-matrix.mjs'
 
 const tool = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'kit-matrix.mjs')
 const dirs = []
@@ -400,22 +400,22 @@ requirements:
     expect(cell(matrix, 'N2', 'design')).toEqual({ state: 'pass' })
   })
 
-  it('reads the latest owner run of the ai cases for AX13, and never starts one', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-matrix-ai-'))
+  it('reads the latest maintainer run of the eval cases for AX13, and never starts one', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-matrix-eval-'))
     dirs.push(dir)
-    const files = new Map([['cases/sheet.agent.act/total/case.yaml', 'format: 1\nlayer: ai\n']])
+    const files = new Map([['cases/sheet.agent.act/total/case.yaml', 'format: 1\nlayer: eval\n']])
     const source = { dir, find: (re) => [...files.keys()].filter((f) => re.test(f)), text: (f) => files.get(f) ?? null }
-    expect(aiCasesCell(source)).toMatchObject({ state: 'unchecked' })
+    expect(evalCasesCell(source)).toMatchObject({ state: 'unchecked' })
     const report = (name, adapter, done, collateral) => {
-      fs.mkdirSync(path.join(dir, 'target', 'ai', '2026-10-30', name), { recursive: true })
+      fs.mkdirSync(path.join(dir, 'target', 'eval', '2026-10-30', name), { recursive: true })
       const summary = { cases: [{ case: 'sheet.agent.act/total', model: 'claude-sonnet-5', runs: 3, done, collateral }] }
-      fs.writeFileSync(path.join(dir, 'target', 'ai', '2026-10-30', name, 'report.json'), JSON.stringify({ date: '2026-10-30', adapter, summary }))
+      fs.writeFileSync(path.join(dir, 'target', 'eval', '2026-10-30', name, 'report.json'), JSON.stringify({ date: '2026-10-30', adapter, summary }))
     }
     report('fake-1', 'fake', 3, 0)
-    expect(aiCasesCell(source)).toMatchObject({ state: 'unchecked' })
+    expect(evalCasesCell(source)).toMatchObject({ state: 'unchecked' })
     report('claude-code-2', 'claude-code', 2, 0)
-    expect(aiCasesCell(source)).toMatchObject({ state: 'fail', value: '2/3 done, 0 collateral (2026-10-30)' })
-    expect(aiCasesCell({ ...source, find: () => [] })).toMatchObject({ state: 'fail' })
+    expect(evalCasesCell(source)).toMatchObject({ state: 'fail', value: '2/3 done, 0 collateral (2026-10-30)' })
+    expect(evalCasesCell({ ...source, find: () => [] })).toMatchObject({ state: 'fail' })
   })
 })
 

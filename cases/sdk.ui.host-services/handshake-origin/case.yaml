@@ -2,12 +2,12 @@ format: 1
 id: sdk.ui.host-services/handshake-origin
 feature: sdk.ui.host-services
 intent: The host hands its Kit UI channel only to the kit frame's own window and only from the kit's origin; a ready message from another window or another origin gets no port, so a page cannot take over a kit's host services.
-layer: golden
-direction: security
+layer: gate
+dimension: security
 source:
   kind: synthetic
   from: packages/kit-host/src/index.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

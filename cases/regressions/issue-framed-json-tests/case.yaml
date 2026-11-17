@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-framed-json-tests
 feature: sdk.host.mcp-call-control
 intent: The host cancellation tests parse framed JSON before inspecting request and notification members, so required workspace checks compile.
-layer: golden
-source: { kind: synthetic, from: Host framing cancellation tests, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Host framing cancellation tests, license: owned }
 input: []
 steps:
   - exec: { cmd: [cargo, test, -p, kition-kit-host, --lib] }

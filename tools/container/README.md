@@ -6,7 +6,7 @@ kit selection in `sdk.json`. The binary has no HTTP listener mode: its CLI
 ends in `mcp::serve_stdio`. Kition's application HTTP endpoint is a separate
 service and is not provided by this image. No port is exposed.
 
-From the SDK repository root, after the owner has built each sibling kit's
+From the SDK repository root, after a maintainer has built each sibling kit's
 headless executable for the chosen Linux target:
 
 ```sh

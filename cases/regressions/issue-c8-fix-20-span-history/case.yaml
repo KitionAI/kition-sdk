@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-20-span-history
 feature: sdk.agent.located-receipts
 intent: Adding located text metadata preserves private deleted-object values used to describe owned objects at their holder paths in TypeScript receipts.
-layer: golden
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts] }

@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-22-editor-receipts
 feature: sdk.agent.editor-premises
 intent: Editor run and batch receipts read carried consequences only when the editor advertises premise callbacks, preserving change receipts for editors with changes alone.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: live_editor, filter: receipts_a_run_and_a_batch_in_the_editor_answer_what_they_changed_as_headless }

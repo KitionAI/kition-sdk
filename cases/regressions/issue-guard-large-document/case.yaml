@@ -7,11 +7,11 @@ intent: >-
   unknown, so every write with `basis` after any outside change was refused as `unknown`. Now every document is walked, and the journal's
   object budget drops old entries first and never the newest, so the revision handed out before the
   latest change stays usable however large that change is.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

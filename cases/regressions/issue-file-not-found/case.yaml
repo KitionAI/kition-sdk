@@ -8,11 +8,11 @@ intent: >-
   check gets the same `file_not_allowed` refusal, byte for byte, whether its target exists or not,
   and a grant checks the extension before it looks for the file (KHP A29; KitFiles FA8; host
   contract H3, LR2). Before, a missing file got the refusal, so missing-link diagnostics never fired.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit-host, filter: kit_files::tests::file_not_found }

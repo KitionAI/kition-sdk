@@ -5,11 +5,11 @@ intent: >-
   The objects a batch's `command` operation acts on (its command's declared `targets`) are
   premises of the batch, on any field: another author's change to one refuses the batch as
   `changed`, a change elsewhere does not. Before, a batch's command operations had no premises.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

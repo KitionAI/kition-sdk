@@ -8,11 +8,11 @@ intent: >-
   objects) that names an object of the document at `basis` is checked as a declared target is
   (deleted, relocated, changed); free text that names none is not. Before, a write that named the
   shape in `id` deleted a shape a colleague had just changed.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

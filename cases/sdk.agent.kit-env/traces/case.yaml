@@ -6,11 +6,11 @@ intent: >-
   (inspect, batch, check) to reward 1, and with `find` reads the object model until every id it
   names was answered first; traces are JSON lines with images replaced by their hashes, and only
   traces with reward 1 are emitted.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-env/tests/traces.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

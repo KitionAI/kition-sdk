@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-coeditor-save-banner
 feature: sdk.collab.saves
 intent: A co-editor's save of a state this editor's document already holds raises no "file changed on disk" banner, while the edits stay unsaved; a conflict raised for that version clears (document/held).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: note co-editing work (spurious banner after a co-editor saves)
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

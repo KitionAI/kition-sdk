@@ -7,11 +7,11 @@ intent: >-
   and the host's refusal for a path outside the workspace or in the host's own data, the same
   whether that file exists or not. A link check reports a missing file only on `false`, without
   matching any message text.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-headless/src/tests.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: tests::an_engine_tells_a_missing_lent_file_from_a_refused_one }

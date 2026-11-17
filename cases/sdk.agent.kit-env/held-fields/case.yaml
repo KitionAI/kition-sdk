@@ -7,11 +7,11 @@ intent: >-
   "body.paragraphs.0.text" }`); the instruction names it through its holder (`the text of the 1st
   paragraph of …`) and the oracle's solution replays it. A schema's `label`, `display` and `sample:
   false` are described alike by Rust and TypeScript.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

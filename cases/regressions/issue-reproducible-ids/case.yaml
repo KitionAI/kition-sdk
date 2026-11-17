@@ -2,16 +2,16 @@ format: 1
 id: regressions/issue-reproducible-ids
 feature: sdk.kdm.encoding
 intent: >-
-  In a reproducible build (SOURCE_DATE_EPOCH set, as showcase samples and golden cases are built)
+  In a reproducible build (SOURCE_DATE_EPOCH set, as showcase samples and gate cases are built)
   new document ids, actors and object ids are counted from the epoch, so a document created by the
   same steps saves the same bytes; without the epoch they stay random. Before, every object a
   transaction created took a UUID v7 of the clock and randomness, so a kit's saved file (layout's
   story paragraphs, for one) differed on every build of a sample.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: reproducible_ids }

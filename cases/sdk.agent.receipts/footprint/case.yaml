@@ -8,11 +8,11 @@ intent: >-
   another agent's ripple delete reaches `others` the same way, and the guard reads the footprint
   as if each clip it covers were listed. The Rust function answers the shared fixture
   `footprint.json`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/place_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

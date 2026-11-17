@@ -1,4 +1,4 @@
-// Judging an ai case from what the runner read (`out:<name>`), never with a model: values at
+// Judging an eval case from what the runner read (`out:<name>`), never with a model: values at
 // paths, the state before and after with the paths the task may touch ignored (collateral), the
 // kit's check, and a file's text.
 

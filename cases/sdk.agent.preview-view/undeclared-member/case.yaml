@@ -7,11 +7,11 @@ intent: >-
   other picture stands in for it, and inspect without `preview` is not refused for it (KHP A18,
   A48). The accepted members come from the kit's own schema, so a kit adds one without an SDK
   change.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/preview_view.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

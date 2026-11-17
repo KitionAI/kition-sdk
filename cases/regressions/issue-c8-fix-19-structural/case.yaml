@@ -4,11 +4,11 @@ feature: sdk.agent.structural-consequences
 intent: >-
   A declared create, delete, move or rename is one task with scoped dependent fields.
   Replay performs only the primary edit and unrelated effects remain incomplete.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -4,13 +4,13 @@ feature: sdk.editor.display-modes
 intent: >-
   Focus shows its way out: the Focus bar's Exit button is named "Exit focus" with its key (Esc),
   and the bar shows in full for a few seconds on entering Focus before it fades. In Kition the
-  note kit's Focus showed only a faint, unlabelled icon at the bottom, and the owner found no way
+  note kit's Focus showed only a faint, unlabelled icon at the bottom, and a maintainer found no way
   out.
-layer: golden
+layer: gate
 source:
   kind: probe
-  from: owner report (a 1 MB note in Focus, "no way to exit")
-  licence: owned
+  from: maintainer report (a 1 MB note in Focus, "no way to exit")
+  license: owned
 input: []
 steps:
   - exec:

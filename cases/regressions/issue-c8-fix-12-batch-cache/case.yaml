@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-12-batch-cache
 feature: sdk.agent.batch-values
 intent: Both direct and exchange model batches notify a kit to refresh its external cache after creation and deletion.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

@@ -7,11 +7,11 @@ intent: >-
   and saves nothing; the error gives the failing step's `index`, lists the steps it rolled back
   (`rolledBack`) and answers `completed` empty; a correct run after it succeeds and is saved (KHP
   A53). Other projects rely on a failed run never leaving half an edit behind.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/headless_runs.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

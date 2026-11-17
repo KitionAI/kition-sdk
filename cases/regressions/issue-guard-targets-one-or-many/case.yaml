@@ -6,11 +6,11 @@ intent: >-
   be declared as the command's targets: `check_targets` answers a list, `on` fills it as one, and a
   number given in it is a premise (a hide of a node a colleague renamed is refused as `changed`).
   Before, `check_targets` refused this shape, so a number there was no premise.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-editor-close-completion
 feature: sdk.agent.close-completion
 intent: Terminal close in the live editor and its draft skips all following model, version, receipt and preview reads.
-layer: golden
-source: { kind: synthetic, from: Scripted editor terminal close, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Scripted editor terminal close, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: live_editor, filter: terminal_close_ }

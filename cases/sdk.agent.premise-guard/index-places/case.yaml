@@ -9,11 +9,11 @@ intent: >-
   named at `basis` with where it is now and `place.under` what it names now, nothing written;
   with no change it applies; `on: ["#3"]` is `invalid-params` (`on` takes ids). Before, `"#3"`
   was read as an id naming nothing, with no premise, and the write reached whatever was third.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

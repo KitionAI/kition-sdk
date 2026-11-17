@@ -6,11 +6,11 @@ intent: >-
   names what they changed and who (`others`, `by`); the agent's own earlier writes never refuse
   it, even ones that moved objects. Under `--guard epoch` the same write is refused, under
   `--guard off` nothing is.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/premise_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

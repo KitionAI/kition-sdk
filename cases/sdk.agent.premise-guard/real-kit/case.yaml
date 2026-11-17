@@ -9,11 +9,11 @@ intent: >-
   the target conflicts by its tool id with `now`; text changed inside the target conflicts, inside
   another shape does not; `--guard epoch` refuses and `--guard off` reports; parts and batch
   commands are premises as declared.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/premise_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

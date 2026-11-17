@@ -166,7 +166,7 @@ pub struct PublicKey {
 }
 
 /// The production signing keys (every one `env: Prod`). A key is added here before Console signs
-/// with it and stays until every licence it signed is past grace. Empty until the owner
+/// with it and stays until every licence it signed is past grace. Empty until a maintainer
 /// generates the key pair (docs/platform/licence-format.md, section 5); the private half never
 /// enters a repository.
 pub const PROD_KEYS: &[PublicKey] = &[];

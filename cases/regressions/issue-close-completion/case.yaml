@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-close-completion
 feature: sdk.agent.close-completion
 intent: A successful closing command completes without describing, restoring, previewing or saving a document that no longer exists.
-layer: golden
-source: { kind: synthetic, from: Mock terminal close, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Mock terminal close, license: owned }
 input: []
 steps:
   - exec: { cmd: [cargo, test, -p, kition-headless, --lib, a_terminal_close_] }

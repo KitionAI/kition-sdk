@@ -6,11 +6,11 @@ intent: >-
   on two parts, each reached by the ids inspect listed for its part; a failing later step rolls
   back the steps on the other parts (KHP A46, A53, A54); an `at` that is not `{part?, time?}` is
   `invalid-params`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/call_context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

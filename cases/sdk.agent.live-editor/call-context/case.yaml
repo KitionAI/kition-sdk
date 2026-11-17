@@ -7,11 +7,11 @@ intent: >-
   context, and the editor runs every agent step in an editor state of the agent's own, in one turn
   of its engine, so the person's selection, part and playhead never move; an engine without one
   refuses a step with a context before any runs, never ignores it.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/fixtures/live-context.json
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

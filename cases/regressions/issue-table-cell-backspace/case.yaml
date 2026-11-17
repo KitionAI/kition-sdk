@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-table-cell-backspace
 feature: sdk.editor.held-keys
 intent: Keys held while the engine answers reach it in the order they were typed. A held Backspace was given back to the page and its tool key appended behind the text typed after it, so in a Note table cell "Ship", four Backspaces and "Launch" saved "ShipLa" (or "Saunch"), corrupting what the person typed.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: kition-note web/tests/flow.mjs ("a table cell edit changes exactly one line"), traced with a key-by-key probe of the engine's text
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

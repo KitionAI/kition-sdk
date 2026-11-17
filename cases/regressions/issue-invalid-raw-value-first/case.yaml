@@ -3,11 +3,11 @@ id: regressions/issue-invalid-raw-value-first
 feature: sdk.agent.premise-guard
 intent: >-
   Invalid literal raw values are invalid-value before raw contract admission, with no live write.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: Motion kit guard defect report
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -3,11 +3,11 @@ id: regressions/issue-text-tool-takes-every-escape
 feature: sdk.editor.display-modes
 intent: >-
   A tool taking text takes Escape only while the kit says it has something to cancel (useEngineTools escapable). Doc's and sheet's text tools took every Escape, so Escape could never leave Focus, and each kit wrapped the editor's key handler itself.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

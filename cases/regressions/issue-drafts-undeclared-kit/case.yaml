@@ -8,11 +8,11 @@ intent: >-
   edits the file itself; reads still run; `drafts list` shows no draft, and the server's
   instructions name the kit. Before, the edit went to a draft that no tool could hand to the
   person and the agent was told to call a draft tool the server does not offer.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

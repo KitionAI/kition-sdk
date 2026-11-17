@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-15-members
 feature: sdk.agent.number-members
 intent: Nested and array JSON member limits reject invalid numbers atomically and allow heterogeneous values.
-layer: golden
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: nested_members }

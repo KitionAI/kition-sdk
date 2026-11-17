@@ -7,11 +7,11 @@ intent: >-
   right value on the wrong object scores intended 0; doing nothing scores 0; a new error
   diagnostic zeroes diagnostics; a file rewritten outside the tools scores as the same edit made
   through them; texts compare trimmed and normalised unless exact.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-env/tests/score.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

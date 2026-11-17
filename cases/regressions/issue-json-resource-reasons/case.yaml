@@ -2,9 +2,9 @@ format: 1
 id: regressions/issue-json-resource-reasons
 feature: sdk.agent.resource-reasons
 intent: JSON resources retain identity across edits and report deletion, changed index occupants, and outside renames precisely.
-layer: golden
+layer: gate
 timeout_s: 60
-source: { kind: synthetic, from: Mock JSON resources, licence: owned }
+source: { kind: synthetic, from: Mock JSON resources, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: premise_guard, filter: json_resource_addresses_ }

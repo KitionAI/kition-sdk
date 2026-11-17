@@ -2,9 +2,9 @@ format: 1
 id: regressions/issue-ci-binary-layout
 feature: sdk.testing.agent-ready
 intent: Workspace test helpers find the mock kit from both Cargo executable layouts and choose the nearest binary, so CI exercises tests that launch a kit.
-layer: golden
-direction: platform
-source: { kind: synthetic, from: Public CI Cargo test executable layout, licence: owned }
+layer: gate
+dimension: platform
+source: { kind: synthetic, from: Public CI Cargo test executable layout, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-env, test: binary_layout }

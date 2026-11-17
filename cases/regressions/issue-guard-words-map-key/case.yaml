@@ -6,11 +6,11 @@ intent: >-
   object's own map (`attrs.stretch`), which no word of the kit's names; a change inside its property
   tree that the change set gives no words for still touches it. Before, a rotation
   write by `"#6"` was refused as `changed` after any time stretch of the layer.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

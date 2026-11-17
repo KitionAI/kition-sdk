@@ -2,12 +2,12 @@ format: 1
 id: sdk.ui.host-services/permissions
 feature: sdk.ui.host-services
 intent: Kits reach host services and host-stored comment anchors only through the Kit UI protocol, only for services the host lists and the document's permissions allow, with checked, plain-text parameters.
-layer: golden
-direction: function
+layer: gate
+dimension: function
 source:
   kind: synthetic
   from: packages/kit-host/src/index.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

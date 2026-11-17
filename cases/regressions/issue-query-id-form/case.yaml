@@ -6,11 +6,11 @@ intent: >-
   receipts, and both take it as a number; a position's parent takes the form of its type (a track
   named `2` stays `"2"`). Before, `_query` and loads printed `"9"` while receipts printed `9`, and
   any parent of all digits was made a number.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -6,11 +6,11 @@ intent: >-
   `interface`); `others` is capped as receipts are; `--require-basis` refuses writes without
   `basis` saying where a revision comes from; a `basis` older than the journal's bound (entries
   or objects) is `unknown`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/premise_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

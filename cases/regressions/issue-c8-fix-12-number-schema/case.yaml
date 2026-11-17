@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-12-number-schema
 feature: sdk.agent.number-members
 intent: Generated describe JSON Schema retains numeric limits and optional numeric JSON member constraints so agents see the same values that batch accepts.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

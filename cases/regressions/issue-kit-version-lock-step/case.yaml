@@ -9,11 +9,11 @@ intent: >-
   call on that kit answers `unavailable` naming the kit (KHP A18, spec/agent.md section 8). One
   of the manifest's version starts. Before, only the kit id was checked, and stale kit builds
   older than their kit.json served their old behaviour silently.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -6,11 +6,11 @@ intent: >-
   (its json `location` changes at `location.0`), a rename by id (position-independent) applies and
   a move by id is refused as `relocated` with the whole location now, in the file and between
   agents. Before, a path with a `.` was read as content: the move was `changed`, the rename refused.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

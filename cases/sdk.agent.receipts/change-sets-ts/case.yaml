@@ -5,11 +5,11 @@ intent: >-
   `@kition/kdm` answers the same change sets as the Rust crate for the same fixtures
   (`fixtures/changes.json`): `diffStates` and `Replica.changesSince` agree on every case, and a
   version the replica does not hold is `history-missing`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: packages/kdm/test/changes.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

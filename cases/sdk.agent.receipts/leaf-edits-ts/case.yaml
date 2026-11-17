@@ -4,11 +4,11 @@ feature: sdk.agent.receipts
 intent: >-
   `@kition/kdm`'s receipts (`changesSince`, `withLeafEdits`) tell a map or json change where it
   changed exactly as the Rust crate does for the shared fixture `leaf-edits.json`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: packages/kdm/test/changes.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

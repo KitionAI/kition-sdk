@@ -6,11 +6,11 @@ intent: >-
   `target`, a step's `on` or a step's `at` is `unsupported`, naming the member, and never reaches
   the editor: that editor's run takes no call context, and nothing is accepted and ignored; a run
   without them still runs in the editor. (An editor that lists it: `sdk.agent.live-editor/call-context`.)
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/call_context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

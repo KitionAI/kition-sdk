@@ -8,11 +8,11 @@ intent: >-
   named held objects and map leaves. Compare never modifies the file or the draft. Large
   comparisons cap objects, fields, texts and values and count every omission in truncated.
   The human CLI returns the same JSON; a kit without an object model keeps its fallback.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

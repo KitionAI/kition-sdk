@@ -6,11 +6,11 @@ intent: >-
   on one episode never touch another's files or the source workspace; `score` equals the
   standalone scorer; an inverse task starts from the edited file and its ground truth restores
   the original document's state.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-env/tests/environment.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

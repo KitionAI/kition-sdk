@@ -6,12 +6,12 @@ intent: >-
   preserving parameter types and descriptions and reporting unavailable metadata honestly.
   Outputs have deterministic bytes and working internal links; check mode detects missing,
   modified and obsolete outputs without writing, and write mode removes obsolete command pages.
-layer: golden
-direction: ai
+layer: gate
+dimension: ai
 source:
   kind: synthetic
   from: tools/docs-gen/docs-gen.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

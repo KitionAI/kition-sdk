@@ -8,11 +8,11 @@ intent: >-
   program writing the file), and applies after a key was added before or after it; a key added where
   the agent saw none refuses it; a marker in a json list named by its id survives a marker added
   before it and is refused after its rename.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

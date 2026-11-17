@@ -7,11 +7,11 @@ intent: >-
   `target` on only when it had `path` or `objectId`, so `film_inspect {preview: true, target:
   {time: 3}}` reached `file.render` as `{scale: 1}` and the agent got another picture without an
   error.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

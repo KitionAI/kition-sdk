@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-17-time
 feature: sdk.agent.premise-guard
 intent: Historical JSON time windows hold removed endpoints and replaced intervals, while literal batch strings do not introduce reference premises.
-layer: golden
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: premise_guard, filter: time_dimension_ }

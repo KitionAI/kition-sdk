@@ -9,11 +9,11 @@ intent: >-
   `file` parameters, commands kept from the agent, and reviewed strings pass. Before, the gate
   recognised only parameters typed `file`, and film's `file.projectManager { destination }` wrote
   a project outside the workspace.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

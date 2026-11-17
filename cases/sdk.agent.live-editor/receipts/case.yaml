@@ -7,11 +7,11 @@ intent: >-
   the editor answers the replica's version before the write and `@kition/kdm`'s change set since it
   after (`fixtures/live-receipts.json`), and a version its history does not hold is `changes: null`
   with why, never an empty change set.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/fixtures/live-receipts.json
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

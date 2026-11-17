@@ -3,11 +3,11 @@ id: regressions/issue-line-row-one-button
 feature: sdk.editor.display-modes
 intent: >-
   A menu tab whose kit names no primary rows shows its first rows in Single line's row, and an editor without a default tab opens on its first tab that is not File. Note, board, html, design, and scene showed one drop-down button (File or Edit) as the whole row.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

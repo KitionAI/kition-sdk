@@ -10,7 +10,7 @@ layer: unit
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit, filter: "testing::unknown_param_tests" }

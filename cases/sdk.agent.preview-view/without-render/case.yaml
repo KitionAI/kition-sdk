@@ -5,11 +5,11 @@ intent: >-
   A kit without a render command keeps its screenshot preview: a view its screenshot cannot draw
   (`target: {time}`) stays `unsupported`, and a run's `view` is `unsupported` before any step
   runs, while a run's plain preview is still the whole document.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/preview_view.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

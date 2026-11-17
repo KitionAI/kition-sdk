@@ -7,11 +7,11 @@ intent: >-
   another agent's, and the other's undo takes back only its own; `serverInfo.version` matches the
   `interface` inspect answers; a file open in its editor answers `guardUnavailable` for a
   `basis`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/premise_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

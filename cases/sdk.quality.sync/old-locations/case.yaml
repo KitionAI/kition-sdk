@@ -7,11 +7,11 @@ intent: >-
   or kit-waivers.yaml left at the repository root is a finding that names the git mv to run: --verify
   exits 1, and a write run writes nothing and exits 1 until the files are moved, so a migrated
   repository can be told from one that is not and no repository's own text is left behind.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/sync-quality.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

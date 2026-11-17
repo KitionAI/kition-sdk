@@ -6,11 +6,11 @@ intent: >-
   monotonically increasing event counts. Stdio accepts cancellation while a document call is
   queued and continues answering other requests. Kit cancellation uses the existing
   $/cancelRequest message, clears pending state, and cannot hang on a blocked writer.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kit-host/src/client.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit-host, filter: "control_tests::" }

@@ -7,11 +7,11 @@ intent: >-
   call; the same id with another part as the target reaches that part's object or fails with the
   id named, never the object of the part that was current (KHP A46, A54). The mock kit's slides
   number objects per slide, so every slide has an `s1`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/headless_runs.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

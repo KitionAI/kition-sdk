@@ -3,11 +3,11 @@ id: regressions/issue-focus-escape-kit-first
 feature: sdk.editor.display-modes
 intent: >-
   In Focus, Escape goes to the kit first (a text tool, a gesture, a selection to cancel), and only an Escape nothing took leaves Focus. The frame took every Escape first, so in Focus no tool, gesture, or selection could be cancelled by key (KitPointer 4.1 to 4.4).
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

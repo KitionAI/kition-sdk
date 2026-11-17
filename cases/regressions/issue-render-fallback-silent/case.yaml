@@ -9,11 +9,11 @@ intent: >-
   and gives the expected shape (KHP A18, A39, A48). It used to answer the kit's screenshot without
   a word, so neither the model nor the kit's author learned the render path was broken. A kit that
   declares no render command still previews with its screenshot.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: previews }

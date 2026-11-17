@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-agent-cube-guide
 feature: sdk.agent.editing-guides
 intent: Published editing skills stay synchronized with their kits' canonical agent guides.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: tools/claude-plugin.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

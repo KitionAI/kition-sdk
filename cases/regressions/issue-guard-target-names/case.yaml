@@ -7,11 +7,11 @@ intent: >-
   another node (naming both), and applies after a rename of another node. Before, the first failed
   at the kit and the second moved the other node. Ids at members marked deeper in a
   parameter (`rules[].target`) are premises.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

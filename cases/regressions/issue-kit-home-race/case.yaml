@@ -9,11 +9,11 @@ intent: >-
   remove that launch's new folder as an orphan, so kits started at once failed about one run in
   three with "could not create the kit's private folder", and the call-context tests had to start
   their kits one at a time; they start at once again.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

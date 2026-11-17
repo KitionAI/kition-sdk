@@ -6,11 +6,11 @@ intent: >-
   decides the error's code in kition-headless and in the page's engine worker whatever the message
   says; only a message without one is read by its wording. Before, the code was guessed from words
   like "unknown command" or "not available" in the message.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

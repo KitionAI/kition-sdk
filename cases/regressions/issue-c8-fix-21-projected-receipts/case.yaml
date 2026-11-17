@@ -3,8 +3,8 @@ id: regressions/issue-c8-fix-21-projected-receipts
 feature: sdk.model.projected-objects
 intent: Projected edits appear in receipts and guard stale writes by identity, name and position for server and outside writers.
 layer: unit
-direction: collab
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+dimension: collab
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: projected_objects }

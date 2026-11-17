@@ -5,11 +5,11 @@ intent: >-
   `kit-env generate`, `stats`, `trace` and `score` work end to end on a workspace with the kit
   found from a kits folder, by its id or its extension alike; wrong usage exits 2 with what is
   wrong.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-env/tests/cli.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

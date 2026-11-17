@@ -3,8 +3,8 @@ id: regressions/issue-29-nested-text
 feature: sdk.agent.object-model
 intent: >-
   All raw text operations follow owned ref, list and map field paths consistently, retain Unicode character indexes, and enforce ownership and read-only boundaries.
-layer: golden
-source: { kind: synthetic, from: Mock SDK regression, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Mock SDK regression, license: owned }
 input: [input/model.json]
 steps:
   - cargo-test: { package: kition-kdm, test: nested_text }

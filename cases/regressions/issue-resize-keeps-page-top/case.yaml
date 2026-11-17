@@ -4,11 +4,11 @@ feature: sdk.editor.pan-bounds
 intent: >-
   A view at the start of a document's pages stays there when the window gets shorter or
   narrower; resizing used to keep the middle still, so the first page jumped under the ribbon.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

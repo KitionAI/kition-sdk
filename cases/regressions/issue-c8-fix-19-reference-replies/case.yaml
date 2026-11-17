@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-c8-fix-19-reference-replies
 feature: sdk.agent.tool-ids
 intent: Owning maps and nested JSON in agent replies use tool ids, preserving literal text.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -11,11 +11,11 @@ intent: >-
   `(object ids)`, `x-kdm-id`), and a draft's comparison names objects by them. Before, these tools
   answered KDM object ids (UUIDs) while the kit's inspect, commands and diagnostics used its
   numbers, and a not-found told the agent its numbers were "command ids, not object-model ids".
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

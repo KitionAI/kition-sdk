@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-replica-replacement
 feature: sdk.agent.step-premises
 intent: Exchanges follow a replacement document without merging its history with the old document or applying stale edits.
-layer: golden
-source: { kind: synthetic, from: Mock board document and editor port, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Mock board document and editor port, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kit, test: model, filter: exchange_follows_a_replacement_document, features: [session] }

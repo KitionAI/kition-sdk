@@ -5,11 +5,11 @@ intent: >-
   An outside edit of one member of a register conflicts with writes holding that
   member or the whole register, while a write holding a different member applies.
   Raw object ids retain the same member precision as schema-aware receipts.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: Photo kit outside-reread regression between SDK 5c1253a and 8453617
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

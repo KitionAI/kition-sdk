@@ -324,9 +324,9 @@ export const CHECKS = {
     }
     return missing ? fail(`${missing} strings without zh-CN`) : pass()
   },
-  // The latest owner-run AI report is checked against the configured requirements.
+  // The latest maintainer-run eval report is checked against the configured requirements.
   // The matrix only reads reports; it never starts a run (F-QA-16).
-  'agent.ai-cases': (source) => aiCasesCell(source),
+  'agent.ai-cases': (source) => evalCasesCell(source),
   'release.version-changelog': (source) => {
     const problems = []
     if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(source.manifest.version ?? '')) problems.push(`version ${source.manifest.version ?? 'none'}`)
@@ -335,11 +335,11 @@ export const CHECKS = {
   },
 }
 
-/** The AX13 cell: `layer: ai` cases exist, and the newest report under `target/ai/` meets the bar. */
-export function aiCasesCell(source, { minimum = 0.85, model = 'claude-sonnet-5' } = {}) {
-  const cases = source.find(/(^|\/)cases\/.+\/case\.yaml$/).filter((file) => /^layer:\s*ai\s*$/m.test(source.text(file) ?? ''))
-  if (!cases.length) return fail('no layer: ai cases')
-  const root = path.join(source.dir, 'target', 'ai')
+/** The AX13 cell: `layer: eval` cases exist, and the newest report under `target/eval/` meets the bar. */
+export function evalCasesCell(source, { minimum = 0.85, model = 'claude-sonnet-5' } = {}) {
+  const cases = source.find(/(^|\/)cases\/.+\/case\.yaml$/).filter((file) => /^layer:\s*eval\s*$/m.test(source.text(file) ?? ''))
+  if (!cases.length) return fail('no layer: eval cases')
+  const root = path.join(source.dir, 'target', 'eval')
   const reports = fs.existsSync(root)
     ? fs.readdirSync(root).flatMap((date) => {
         const dir = path.join(root, date)
@@ -347,7 +347,7 @@ export function aiCasesCell(source, { minimum = 0.85, model = 'claude-sonnet-5' 
       })
     : []
   const real = reports.map((file) => ({ file, report: JSON.parse(fs.readFileSync(file, 'utf8')) })).filter(({ report }) => report.adapter !== 'fake')
-  if (!real.length) return unchecked(`${cases.length} ai cases; no owner run yet (cargo xtask ai)`)
+  if (!real.length) return unchecked(`${cases.length} eval cases; no maintainer run yet (cargo xtask eval)`)
   real.sort((a, b) => fs.statSync(a.file).mtimeMs - fs.statSync(b.file).mtimeMs)
   const { report } = real.at(-1)
   const lines = report.summary.cases.filter((c) => c.model === model)

@@ -12,11 +12,11 @@ intent: >-
   text was refused as `changed`, and a slide addressed by number after an inserted slide edited
   another slide. The mock kit's nested decks now mint new object ids on every read and read a
   clean document again when it is opened after its file changed, as a real kit does.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

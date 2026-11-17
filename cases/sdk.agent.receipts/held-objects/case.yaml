@@ -7,11 +7,11 @@ intent: >-
   ids), the receipt of a text edit names the shape by its tool id with the path to the text and its
   text before and after (excerpted when long); a paragraph added or taken away is the shape's edit
   at the item's path; no object id of a body or paragraph appears.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/receipts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -7,11 +7,11 @@ intent: >-
   flags one over 400 KB (not one at exactly 400 KB), opens the development host in English at
   1440 x 900, and finds Playwright and Vite in the kit's web/ node_modules only: never kition-sdk's
   own, not even through NODE_PATH. No browser is launched.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/readme-shots/shots.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

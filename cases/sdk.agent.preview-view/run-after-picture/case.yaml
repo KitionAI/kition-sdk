@@ -6,11 +6,11 @@ intent: >-
   that view, after the steps (the whole document without one), and answers `preview`; a view
   member the render command does not take is `invalid-params` before any step runs, so the file is
   unchanged.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/preview_view.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

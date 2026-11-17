@@ -2,11 +2,11 @@ format: 1
 id: sdk.collab.file-rooms/embed-managed
 feature: sdk.collab.file-rooms
 intent: Embedded editors with open tokens seed one room per file race-free, keep an editor and a viewer of different files apart in one page, recover the room from the host's checkpoint, and open a viewer's file live once an editor made its room.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: packages/embed/test/managed.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

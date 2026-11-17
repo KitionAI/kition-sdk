@@ -6,11 +6,11 @@ intent: >-
   committed kit.json byte for byte: tools/sync-kit-fixtures.mjs copies them from the kit
   repositories' HEAD, never a working tree, and its --check fails on any difference (and passes
   where no kit repository is checked out). Manifest snapshots must track the source manifests so tests use current declarations.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

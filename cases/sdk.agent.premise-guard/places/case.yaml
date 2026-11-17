@@ -10,11 +10,11 @@ intent: >-
   nothing is written; a clip deleted there is `deleted`; a change elsewhere (later on the track,
   on another track, a property) applies; fifty rounds of an unrelated change refuse no write by
   place or by id; without `basis` the A56 notice refuses once.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/place_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

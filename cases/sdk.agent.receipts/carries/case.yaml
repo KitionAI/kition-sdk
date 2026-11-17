@@ -6,11 +6,11 @@ intent: >-
   answers it (`model.carried`), asked once per change set, and the parent's change says `carries: {
   count: 2, what: "world location" }` in the colleague's receipt, in `others` of the agent's next
   answer, and after the file was changed outside.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

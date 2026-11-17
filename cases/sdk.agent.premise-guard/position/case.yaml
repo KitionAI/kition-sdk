@@ -8,11 +8,11 @@ intent: >-
   now; a `start` changed alone (a field the schema marks `position`) is a move, not a change of
   content. Integer tool ids are numbers in receipts, `others` and conflicts, and `on` takes `3`
   or `"3"`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/place_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

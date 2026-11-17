@@ -6,11 +6,11 @@ intent: >-
   memory-limit error. Linux inherits the exact mandatory address-space ceiling before exec;
   macOS stops an allocating process by its resident size. Unsupported platforms refuse the
   option. Resource flag parsing rejects zero, negatives and arithmetic overflow.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kit-host/src/memory.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit-host, filter: memory_policy_is_exact_and_never_silently_unsupported }

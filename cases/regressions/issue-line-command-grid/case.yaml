@@ -6,11 +6,11 @@ intent: >-
   command grid is laid out as the row there, so no primary button is drawn above or below the 36 px
   row and cut off. Note's Format row showed only Italic and Highlight; Bold, Strike, and Code were
   drawn outside the row, and the mode smoke counted them as shown.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

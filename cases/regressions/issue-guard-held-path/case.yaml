@@ -6,11 +6,11 @@ intent: >-
   target (`body.shots.0`), not at the ref's field: the mock reel's marker premise (`body.markers.0`)
   survives a colleague's change of a shot the reel holds and is refused as `changed` after a rename
   of that marker. Before, the shot read as held at `body`, which overlapped every premise under it.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

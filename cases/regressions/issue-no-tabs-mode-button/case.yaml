@@ -3,11 +3,11 @@ id: regressions/issue-no-tabs-mode-button
 feature: sdk.editor.display-modes
 intent: >-
   An editor without tabs offers only Focus from its mode button, as Menus, Single line, and Classic draw the same there. Table's mode menu offered three modes that all looked alike.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -8,11 +8,11 @@ intent: >-
   held object that reads `shape:1.body` before and after is no edit. Before, a change set told
   both the deletion and the creation as two edits of one field, and the ref as an edit from a
   value to the same value. Kition-kdm and @kition/kdm answer the same (`attribution.json`).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

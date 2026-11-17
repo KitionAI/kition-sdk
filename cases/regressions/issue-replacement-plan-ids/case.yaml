@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-replacement-plan-ids
 feature: sdk.agent.step-premises
 intent: Replacement plans retain public tool IDs in cumulative changes and discard the previous document's script undo history.
-layer: golden
-source: { kind: synthetic, from: Mock named board replacement, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Mock named board replacement, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: premise_plan_replacement_preserves_public_tool_ids }

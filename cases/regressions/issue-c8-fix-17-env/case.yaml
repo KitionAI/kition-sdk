@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-17-env
 feature: sdk.agent.text-members
 intent: A declared JSON text member drives replace-text sampling and text wording, while identical assignments compact without losing any addressed ids.
-layer: golden
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-env, test: generate, filter: declared_json_text_members }

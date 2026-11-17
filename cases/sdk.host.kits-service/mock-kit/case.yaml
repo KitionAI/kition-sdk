@@ -2,11 +2,11 @@ format: 1
 id: sdk.host.kits-service/mock-kit
 feature: sdk.host.kits-service
 intent: A host starts `kition-kits serve` on a workspace and a kits folder and speaks JSON lines to it. It opens a file by path, edits it as the system, and saves it; the file holds the edit. A save after someone else changed the file is file_conflict, and their change stays. Paths outside the workspace or hidden are file_not_allowed, and a new document never replaces a file. Every answer and error matches schemas/kits-service.schema.json, every method the schema lists is served, and closing standard input ends the service and its kits.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/serve.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

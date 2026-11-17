@@ -9,11 +9,11 @@ intent: >-
   so a write on it was refused as `changed` though nobody touched it: the likely cause of about one
   write in ten refused on an untouched target on a real 20-slide, 49 MB deck (generated decks
   without connectors did not show it).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

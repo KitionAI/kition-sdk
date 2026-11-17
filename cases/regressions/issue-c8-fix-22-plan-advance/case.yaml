@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-22-plan-advance
 feature: sdk.agent.step-premises
 intent: Successive premise steps advance one isolated scratch document, retaining cumulative changes and batch references without replaying earlier commands.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: premise_plans_advance }

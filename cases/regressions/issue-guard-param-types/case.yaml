@@ -6,11 +6,11 @@ intent: >-
   text) is `invalid-params` before the premise guard. Before, with `basis` after another agent
   changed the step's target, it was answered as `conflict`, and only the retry learnt that the
   call could never run.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

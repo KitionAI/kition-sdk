@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-1
 feature: sdk.bundle.kits
 intent: The documents an SDK bundle carries let a holder implement a host in any language from the bundle alone. They include the Kit Process Protocol, the host and engine contracts, the capability sets, the schemas and the examples the guide links to, and every relative link in them names a file the bundle has.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -8,11 +8,11 @@ intent: >-
   `exports[].command`. Before, kit.schema.json required it, so every kit filled a field nothing
   read, and Kition Photo and Kition Motion filled it with another command than the one agents run.
   A kit that still names a disagreeing one is warned.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-public-package-imports
 feature: sdk.packages.public
 intent: Public package imports have manifest declarations, and the editor installs its engine as a runtime dependency at the SDK version range.
-layer: golden
-source: { kind: issue, from: Public package dependency audit, licence: owned }
+layer: gate
+source: { kind: issue, from: Public package dependency audit, license: owned }
 input: []
 steps:
   - exec: { cmd: [pnpm, exec, vitest, run, tools/package-imports.test.mjs] }

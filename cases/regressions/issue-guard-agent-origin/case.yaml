@@ -7,11 +7,11 @@ intent: >-
   and the mock kit refuses such a read without that origin as a real kit does. The guard used to
   read without it: the mock accepted that, a real kit refused it, and every change made in the
   file became `unknown`, so every write with `basis` after one was refused.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -7,11 +7,11 @@ intent: >-
   named after the first extension of the format the kit edits as khp check names it. A kit whose
   documents link other files is then caught before khp check fails its phase 11 for the missing
   fixture, and a kit that says so is never refused for the field.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/check-manifest.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

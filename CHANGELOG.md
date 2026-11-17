@@ -58,3 +58,7 @@ First public release.
 - Docs: `docs/sdk/agent.md` opens with copy-paste setup for Claude Code, Claude Desktop, Cursor
   and Codex. Capability set labels match the set texts (`KitEmbed 1.8`, `KitAgent 1.4`,
   `KitModel 1.1`). Sync tokens are requested from `https://kition.ai/api/sdk/sync-tokens`.
+- Quality vocabulary: cases run in the layers `unit`, `gate` (`cargo xtask gate`, budget
+  `gate_budget_s`, output in `target/gate/`), `corpus` and `eval` (`cargo xtask eval`, run by
+  `tools/eval-cases.mjs`, reports in `target/eval/`); features and cases name their `dimension`;
+  a case's `source` names its `license`; only a maintainer approves expected-result changes.

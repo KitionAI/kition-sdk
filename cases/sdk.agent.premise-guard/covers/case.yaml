@@ -9,11 +9,11 @@ intent: >-
   delete or a reparent of another node away from the point it applies, and fifty rounds of
   unrelated moves refuse no write by point or by id. kition-headless answers `context.covered` and
   `model.derived` with the editor put back and no edit.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

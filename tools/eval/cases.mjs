@@ -1,5 +1,5 @@
-// The `layer: ai` cases of a repository (docs/quality.md, case format 1): finding, reading and checking
-// them. A case says what the agent is asked (`task`), what the runner reads before and after
+// The `layer: eval` cases of a repository (docs/quality.md, case format 1): finding, reading and
+// checking them. A case says what the agent is asked (`task`), what the runner reads before and after
 // (`inspect`, `query`, `check`, `file`), and what must then hold (`expected`); `solution` is the
 // tool calls that do the task correctly, which the `fake` adapter and `--dry-run` replay.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -10,7 +10,7 @@ export const COMPARES = ['values', 'kdm-json', 'diagnostics', 'text']
 export const STEPS = ['inspect', 'query', 'check', 'file', 'run', 'task']
 const READS = ['inspect', 'query', 'check', 'file']
 
-/** Every `case.yaml` under `<repo>/cases`, parsed, with the `layer: ai` ones kept. */
+/** Every `case.yaml` under `<repo>/cases`, parsed, with the `layer: eval` ones kept. */
 export function findCases(repo) {
   const root = join(repo, 'cases')
   if (!existsSync(root)) return []
@@ -21,7 +21,7 @@ export function findCases(repo) {
       if (statSync(path).isDirectory()) walk(path)
       else if (name === 'case.yaml') {
         const doc = parse(readFileSync(path, 'utf8'))
-        if (doc?.layer === 'ai') found.push({ ...doc, dir: join(path, '..'), file: relative(repo, path) })
+        if (doc?.layer === 'eval') found.push({ ...doc, dir: join(path, '..'), file: relative(repo, path) })
       }
     }
   }
@@ -29,7 +29,7 @@ export function findCases(repo) {
   return found
 }
 
-/** The feature ids `features.yaml` lists, and the direction of each. */
+/** The feature ids `features.yaml` lists, and the dimension of each. */
 export function readFeatures(repo) {
   const path = join(repo, 'features.yaml')
   if (!existsSync(path)) return new Map()
@@ -58,7 +58,7 @@ export function problems(testCase, { features = new Map(), repo } = {}) {
   if (!testCase.id || !testCase.feature || !testCase.intent) say('id, feature and intent are required')
   if (repo && testCase.dir && testCase.id && relative(join(repo, 'cases'), testCase.dir) !== testCase.id) say(`id must equal its folder (${relative(join(repo, 'cases'), testCase.dir)})`)
   if (features.size && !features.has(testCase.feature)) say(`feature ${testCase.feature} is not in features.yaml`)
-  if (features.has(testCase.feature) && !(features.get(testCase.feature).direction ?? []).includes('ai')) say(`feature ${testCase.feature} has no ai direction`)
+  if (features.has(testCase.feature) && !(features.get(testCase.feature).dimension ?? []).includes('ai')) say(`feature ${testCase.feature} has no ai dimension`)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(testCase.since ?? ''))) say('since must be a quoted YYYY-MM-DD date')
   if (!testCase.source?.kind) say('source.kind is required')
   for (const input of testCase.input ?? []) {
@@ -88,7 +88,7 @@ export function problems(testCase, { features = new Map(), repo } = {}) {
       else named.add(value.as)
     }
   }
-  if (tasks !== 1) say('an ai case has exactly one task step')
+  if (tasks !== 1) say('an eval case has exactly one task step')
   if (!Array.isArray(testCase.expected) || !testCase.expected.length) say('expected needs at least one entry')
   for (const expectation of testCase.expected ?? []) {
     if (!COMPARES.includes(expectation.compare)) say(`unknown compare ${expectation.compare}`)

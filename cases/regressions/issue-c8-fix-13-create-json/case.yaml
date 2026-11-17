@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-13-create-json
 feature: sdk.agent.kit-env
 intent: Creation copies required JSON values such as a node kind from an existing same-type object and verifies the resulting task through the mock kit and saved reread.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

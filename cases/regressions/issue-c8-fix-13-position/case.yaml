@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-13-position
 feature: sdk.agent.premise-guard
 intent: A nested position premise matches ancestor and descendant changes on path segments and refuses stale child moves after a parent transform changes.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

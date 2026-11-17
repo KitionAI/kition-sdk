@@ -7,11 +7,11 @@ intent: >-
   naming it, and nothing is drawn. Before, the server read the command's schema from `params`
   while `ai/commands` lists it as `schema` (Kit UI protocol section 2), so in a real editor the view
   was never checked and a member the kit does not take was accepted and ignored.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

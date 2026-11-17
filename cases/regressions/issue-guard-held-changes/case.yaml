@@ -9,11 +9,11 @@ intent: >-
   `owns`) and matches changes by the holder and path change sets give, a batch naming a paragraph
   by its object id included. Before, the comparison of a changed file followed list fields only,
   so text inside shapes was invisible, and the check matched ids exactly.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

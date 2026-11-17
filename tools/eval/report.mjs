@@ -87,9 +87,9 @@ export function markdown(report) {
   )
   const t = report.summary.total
   return [
-    `# AI cases ${report.date} (${report.adapter})`,
+    `# Eval cases ${report.date} (${report.adapter})`,
     '',
-    `Started by the owner (F-QA-16). ${t.runs} runs; done ${t.done} ${pct(t.success_rate)}${interval(t.success_95)}; collateral ${t.collateral}; refused ${t.refused}; invalid ${t.invalid}; cost ${t.cost_usd === null ? 'unknown' : `$${t.cost_usd.toFixed(2)}`}.`,
+    `Started by a maintainer (F-QA-16). ${t.runs} runs; done ${t.done} ${pct(t.success_rate)}${interval(t.success_95)}; collateral ${t.collateral}; refused ${t.refused}; invalid ${t.invalid}; cost ${t.cost_usd === null ? 'unknown' : `$${t.cost_usd.toFixed(2)}`}.`,
     '',
     '| Case | Model | Done (95%) | Collateral | Calls/task | Tool errors | Tokens in / out | Cost |',
     '|---|---|---|---|---|---|---|---|',

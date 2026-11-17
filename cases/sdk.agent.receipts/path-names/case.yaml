@@ -7,11 +7,11 @@ intent: >-
   `effects.0.amount`; `transform/opacity.value.v` beside `props.children.1.children.1.value.v`),
   `#<n>` for an unsafe name and `<name>#<n>` for a repeated one, in receipts and in `others` for a
   change made in the file; Rust and TypeScript answer alike (shared fixture `path-names.json`).
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

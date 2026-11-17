@@ -10,11 +10,11 @@ intent: >-
   socket but `AF_UNIX`, and `io_uring`; an unknown architecture or platform gets no rule set, so the
   launch is refused rather than run unconfined. The wrapper runs the kit's own command line, and a
   kit started by `kition-kits` reads its manifest's folder and gets no workspace.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kit-host/src/sandbox.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit-host, filter: "sandbox::tests::" }

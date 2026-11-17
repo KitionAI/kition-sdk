@@ -7,11 +7,11 @@ intent: >-
   the same ids have equal snapshots and change logs. Before, the value went through a std HashMap,
   whose per-process seed changed the order, so a kit's saved file differed between two builds of
   one sample.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: deterministic }

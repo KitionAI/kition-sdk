@@ -4,16 +4,16 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { anthropicApi, thinkingFor } from './ai/adapters.mjs'
-import { findCases, problems, readFeatures, taskOf } from './ai/cases.mjs'
-import { decide, insideAgent } from './ai/guard.mjs'
-import { at, judge, judgeOne, without } from './ai/judge.mjs'
-import { cost, markdown, summarize, wilson } from './ai/report.mjs'
-import { parseArgs, select } from './ai-cases.mjs'
+import { anthropicApi, thinkingFor } from './eval/adapters.mjs'
+import { findCases, problems, readFeatures, taskOf } from './eval/cases.mjs'
+import { decide, insideAgent } from './eval/guard.mjs'
+import { at, judge, judgeOne, without } from './eval/judge.mjs'
+import { cost, markdown, summarize, wilson } from './eval/report.mjs'
+import { parseArgs, select } from './eval-cases.mjs'
 
 const repo = () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-cases-test-'))
-  writeFileSync(join(dir, 'features.yaml'), 'format: 1\nkit: sheet\nfeatures:\n  - id: sheet.agent.act\n    direction: [ai]\n  - id: sheet.cells\n    direction: [function]\n')
+  const dir = mkdtempSync(join(tmpdir(), 'eval-cases-test-'))
+  writeFileSync(join(dir, 'features.yaml'), 'format: 1\nkit: sheet\nfeatures:\n  - id: sheet.agent.act\n    dimension: [ai]\n  - id: sheet.cells\n    dimension: [function]\n')
   const caseDir = join(dir, 'cases', 'sheet.agent.act', 'total')
   mkdirSync(join(caseDir, 'input'), { recursive: true })
   writeFileSync(join(caseDir, 'input', 'sales.xlsx'), 'x')
@@ -24,8 +24,8 @@ const repo = () => {
       'id: sheet.agent.act/total',
       'feature: sheet.agent.act',
       'intent: Adds a total.',
-      'layer: ai',
-      'source: { kind: synthetic, from: test, licence: owned }',
+      'layer: eval',
+      'source: { kind: synthetic, from: test, license: owned }',
       'input: [input/sales.xlsx]',
       'steps:',
       '  - inspect: { path: sales.xlsx, as: before }',
@@ -39,14 +39,14 @@ const repo = () => {
       'since: "2026-10-30"',
     ].join('\n'),
   )
-  const golden = join(dir, 'cases', 'sheet.cells', 'basic')
-  mkdirSync(golden, { recursive: true })
-  writeFileSync(join(golden, 'case.yaml'), 'format: 1\nid: sheet.cells/basic\nlayer: golden\n')
+  const gate = join(dir, 'cases', 'sheet.cells', 'basic')
+  mkdirSync(gate, { recursive: true })
+  writeFileSync(join(gate, 'case.yaml'), 'format: 1\nid: sheet.cells/basic\nlayer: gate\n')
   return dir
 }
 
-describe('ai cases', () => {
-  it('finds only layer: ai cases and reads their task', () => {
+describe('eval cases', () => {
+  it('finds only layer: eval cases and reads their task', () => {
     const dir = repo()
     const cases = findCases(dir)
     expect(cases.map((c) => c.id)).toEqual(['sheet.agent.act/total'])
@@ -59,7 +59,7 @@ describe('ai cases', () => {
     const [testCase] = findCases(dir)
     const broken = { ...testCase, feature: 'sheet.cells', expected: [{ actual: 'out:nowhere', compare: 'pixels' }], solution: [] }
     const found = problems(broken, { features: readFeatures(dir), repo: dir }).join('\n')
-    expect(found).toContain('no ai direction')
+    expect(found).toContain('no ai dimension')
     expect(found).toContain('unknown compare pixels')
     expect(found).toContain('out:nowhere, which no step names')
     expect(found).toContain('solution')
@@ -74,21 +74,21 @@ describe('ai cases', () => {
     expect(saving).toContain('out:state, which no step names')
   })
 
-  // regressions/issue-ai-dry-run-entry: kits' `cargo xtask ai --dry-run` starts this script as
-  // `<repo>/../kition-sdk/tools/ai-cases.mjs`; through a symbolic link (macOS /tmp, a linked
+  // regressions/issue-ai-dry-run-entry: kits' `cargo xtask eval --dry-run` starts this script as
+  // `<repo>/../kition-sdk/tools/eval-cases.mjs`; through a symbolic link (macOS /tmp, a linked
   // checkout) that path is not the module's real one, and the dry run exited 0 having run nothing.
   it('checks the cases when started through a path that is not its real one', () => {
     const dir = repo()
     const caseFile = join(dir, 'cases', 'sheet.agent.act', 'total', 'case.yaml')
     writeFileSync(caseFile, readFileSync(caseFile, 'utf8').replace('feature: sheet.agent.act', 'feature: sheet.cells'))
-    const link = join(mkdtempSync(join(tmpdir(), 'ai-cases-link-')), 'tools')
+    const link = join(mkdtempSync(join(tmpdir(), 'eval-cases-link-')), 'tools')
     symlinkSync(dirname(fileURLToPath(import.meta.url)), link)
-    const script = `${link}/../tools/ai-cases.mjs`
+    const script = `${link}/../tools/eval-cases.mjs`
     // `--dry-run` only: it calls no model. `--mcp` names no server, and none is needed: the case's
     // problem is found before a workspace is made.
     const run = spawnSync(process.execPath, [script, '--repo', dir, '--dry-run', '--mcp', join(dir, 'no-server')], { encoding: 'utf8', timeout: 60_000 })
     expect(run.stdout).toContain('FAIL sheet.agent.act/total')
-    expect(run.stdout).toContain('no ai direction')
+    expect(run.stdout).toContain('no ai dimension')
     expect(run.status).toBe(1)
   })
 

@@ -3,8 +3,8 @@ id: regressions/issue-29-terminal-plan
 feature: sdk.agent.close-completion
 intent: >-
   Guarded runs stop planning after a successful terminal close and report later steps not run; failed closes remain nonterminal.
-layer: golden
-source: { kind: synthetic, from: Mock SDK regression, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Mock SDK regression, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: premise_guard, filter: guarded_close_ }

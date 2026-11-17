@@ -8,11 +8,11 @@ intent: >-
   another kit than its variable names stops the program with exit status 2 and an error naming
   the path, what was expected, and the kits known (KHP A48). Before, a build copied as
   `kition-pdf-before` registered no tools and said nothing.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: kit_identity }

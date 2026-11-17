@@ -7,11 +7,11 @@ intent: >-
   and `@kition/kdm` in the same words (KHP A48: an error names the values themselves when there
   are few). Before, both answered "expects a enum value", so an agent writing Kition Photo's
   `Image.depth`, `Image.mode` or `Layer.blend` could not tell what to send.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: schema, filter: refusal }

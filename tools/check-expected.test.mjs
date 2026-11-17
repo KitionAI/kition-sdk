@@ -52,7 +52,7 @@ const CASE = `format: 1
 id: doc.review.comments/basic
 feature: doc.review.comments
 intent: Comments survive a round trip.
-layer: golden
+layer: gate
 input: [input/basic.docx]
 steps:
   - open: input/basic.docx
@@ -133,20 +133,20 @@ describe('check-expected', () => {
     expect(report.total).toBe(0)
   })
 
-  it('reports guarded case.yaml fields, a move out of golden, and a deleted case', () => {
+  it('reports guarded case.yaml fields, a move out of the gate layer, and a deleted case', () => {
     const { dir, commit } = repo({
       'cases/doc.review.comments/basic/case.yaml': CASE,
       'cases/doc.review.comments/other/case.yaml': CASE.replace('/basic', '/other'),
     })
     commit({
-      'cases/doc.review.comments/basic/case.yaml': CASE.replace('tolerance: exact', 'tolerance: render').replace('layer: golden', 'layer: corpus'),
+      'cases/doc.review.comments/basic/case.yaml': CASE.replace('tolerance: exact', 'tolerance: render').replace('layer: gate', 'layer: corpus'),
       'cases/doc.review.comments/other/case.yaml': null,
     })
     const { code, report } = run(dir)
     expect(code).toBe(1)
     expect(report.findings['expected-changed'].map((finding) => finding.reason)).toEqual([
       'case field "tolerance" changed',
-      'case moved out of the golden layer to "corpus"',
+      'case moved out of the gate layer to "corpus"',
     ])
     expect(report.findings['expected-deleted']).toEqual([{ path: 'cases/doc.review.comments/other/case.yaml', reason: 'case deleted' }])
   })

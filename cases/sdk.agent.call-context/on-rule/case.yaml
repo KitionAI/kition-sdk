@@ -7,11 +7,11 @@ intent: >-
   id parameter that is not the declared `targets` goes as given; else it is refused. Giving both
   `on` and the declared `targets` parameter is `invalid-params`, even with the same ids, and no
   other parameter conflicts with `on`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/src/tools/context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, filter: on_fills_the_targets_else_the_selection_and_conflicts_only_with_the_targets_parameter }

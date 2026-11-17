@@ -6,11 +6,11 @@ intent: >-
   (a large box) still holding the point, applies: what the place names is unchanged. After a move of
   20 m that carries it away it is refused, naming the parent. Before, the parent was refused as
   having carried what was there away even when coverage was unchanged.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

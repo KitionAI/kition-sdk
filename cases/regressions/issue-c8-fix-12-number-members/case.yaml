@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-12-number-members
 feature: sdk.agent.number-members
 intent: JSON member numeric limits constrain whole-value and path writes, command schemas publish limits, and the environment samples valid member values.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

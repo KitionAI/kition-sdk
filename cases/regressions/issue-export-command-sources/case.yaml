@@ -8,11 +8,11 @@ intent: >-
   (`agent.include`, `agent.exclude`, `agent/commands.json`), citing platform K21. Kition Photo and
   Kition Motion named one command for the kit's self-test and another for `<prefix>_export`, so
   the self-test passed on a path the agent never took.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

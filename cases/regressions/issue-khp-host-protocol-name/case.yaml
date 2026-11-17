@@ -8,11 +8,11 @@ intent: >-
   "KHP v<n>", "KHP §<n>" or "KHP section <n>": Kit Process Protocol sections read "Kit Process Protocol
   section <n>", and a KHP section names its spec file. Before, doc comments in kition-headless
   and kition-kits cited "KHP section 5" for the Kit Process Protocol's documents and files.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

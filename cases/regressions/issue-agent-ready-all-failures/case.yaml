@@ -7,11 +7,11 @@ intent: >-
   cannot run says what it needs. Before, the first package error ended the check, so callers
   saw only "conformance/golden/tolerance.json is missing" and none of the failures
   after it.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: agent_ready::tests::later_phases_run_after_package_errors }

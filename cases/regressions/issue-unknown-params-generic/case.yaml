@@ -11,11 +11,11 @@ intent: >-
   schema's `additionalProperties` (engine contract E7a). Before, each of the 16 kits had to
   remember to call `refuse_unknown` itself, and one that forgot ran the command without the
   misspelt parameter.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

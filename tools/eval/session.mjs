@@ -1,4 +1,4 @@
-// One run of an ai case: a fresh workspace with the case's inputs, the kits' MCP server
+// One run of an eval case: a fresh workspace with the case's inputs, the kits' MCP server
 // (`kition-kits-mcp`) on it, the steps before the task, the adapter doing the task through the
 // same server command, then the steps after it on a new server, so they read what the agent left on
 // disk.
@@ -27,7 +27,7 @@ export function serverCommand(where, workspace, kits) {
 
 /** A workspace holding a copy of each input (by its file name); `replace` swaps files in by name. */
 export function makeWorkspace(testCase, repo, replace = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'kition-ai-'))
+  const dir = mkdtempSync(join(tmpdir(), 'kition-eval-'))
   for (const input of testCase.input ?? []) {
     const source = input.startsWith('repo:') ? join(repo, input.slice(5)) : join(testCase.dir, input)
     copyFileSync(source, join(dir, workspaceName(input)))

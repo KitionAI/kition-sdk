@@ -9,11 +9,11 @@ intent: >-
   edit the kit refuses or that brings a new error diagnostic is resampled with its reason
   counted; a kit whose object ids do not survive reopening the file is refused at once, saying
   why.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-env/tests/generate.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

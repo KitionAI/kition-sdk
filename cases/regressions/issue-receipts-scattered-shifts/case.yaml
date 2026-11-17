@@ -6,11 +6,11 @@ intent: >-
   footprint entry by their ids, `{ ids, edits: [{ field, by }] }`: 200 mock nodes moved by one
   offset are one entry (807 bytes), not 200 entries cut at 50 (5.3 KB). Rust and TypeScript answer
   the shared fixture alike.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

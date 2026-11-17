@@ -7,11 +7,11 @@ intent: >-
   s with `basis` is refused as `relocated` naming the clip put there, nothing written; after a
   change elsewhere it applies. Before, a step giving its targets took its time as no place and wrote
   over the clip.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

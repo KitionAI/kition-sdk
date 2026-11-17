@@ -6,11 +6,11 @@ intent: >-
   render (its tabs are a new array each render), so a render during a resize delivery (film's
   Program monitor publishing guides from KitCanvas's resize callback) observed the strip again
   and WebKit reported "ResizeObserver loop completed with undelivered notifications".
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

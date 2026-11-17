@@ -6,11 +6,11 @@ intent: >-
   takes exactly those members as a run's `target` and a step's `at.part`, each passed to its
   `context.set` unchanged, and refuses any other member as `invalid-params` naming the ones it
   takes; a kit that declares none keeps `slide`, `page`, `slideId` and `pageId`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/call_context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

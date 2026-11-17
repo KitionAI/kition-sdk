@@ -8,11 +8,11 @@ intent: >-
   between agents; changes inside the part that are not its own (a clip's opacity, a ripple insert
   on it) and another part's change do not. Before, the part was checked for deletion only, and
   the write overwrote the colleague's change.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

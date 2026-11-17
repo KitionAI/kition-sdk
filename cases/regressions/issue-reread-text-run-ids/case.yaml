@@ -6,11 +6,11 @@ intent: >-
   letters): a file read again unchanged tells nothing, the fill's media changed is counted in
   `unnamed`, the shapes unchanged; the text itself is never rewritten. Before, both shapes appeared
   in `others` with equal text before and after on every outside change.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

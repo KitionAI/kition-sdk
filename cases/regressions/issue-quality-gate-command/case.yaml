@@ -6,11 +6,11 @@ intent: >-
   by the repository's directory name and refuses a --command that disagrees, so a sync never puts
   back an old gate. the protocol documentation gate skips the git-ignored node_modules and dist folders; before, the command lived only in whatever --command the person running
   the sync typed, and the next sync could revert the fix in AGENTS.md, docs/quality.md and the Stop hook.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

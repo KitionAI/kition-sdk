@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-21-projection-adapters
 feature: sdk.model.projected-objects
 intent: Rust session and exchange adapters and the TypeScript engine expose computed objects and command-backed edits without serializing them.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kit, test: model, filter: both_model_adapters_read_and_edit_computed_objects_without_storing_them }

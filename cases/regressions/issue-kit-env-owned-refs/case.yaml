@@ -6,11 +6,11 @@ intent: >-
   item holds, a motion kit's layers in a comp) is named through the ref's holder, and a tree's
   nodes have places among their siblings: a clip reads `In track 1 in video tracks on item 2 on
   bin 1` and resolves back to itself. Before, every such object was `not-describable`.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

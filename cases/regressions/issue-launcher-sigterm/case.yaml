@@ -4,9 +4,9 @@ feature: sdk.distribution.kits-mcp
 intent: >-
   A client's SIGTERM reaches the stand-in server once after its handler is ready; the handler
   runs and the launcher exits with the server's exit code rather than a signal.
-layer: golden
-direction: platform
-source: { kind: issue, from: Public Ubuntu CI launcher SIGTERM failure, licence: owned }
+layer: gate
+dimension: platform
+source: { kind: issue, from: Public Ubuntu CI launcher SIGTERM failure, license: owned }
 input: []
 steps:
   - exec:

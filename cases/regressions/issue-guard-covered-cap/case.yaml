@@ -6,11 +6,11 @@ intent: >-
   to 4,096 objects; 64 before, beyond which every write by point was refused): a move of every node
   by 0.1 m leaves the node at the point, and the rename applies (1.8 s on the mock, the file read
   again included).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

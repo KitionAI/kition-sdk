@@ -56,8 +56,8 @@ what the group changed."
 
 - It replaces documented and tested behaviour: the "splits the group" cases
   in `packages/kdm/test/replica.test.ts` and in `crates/kition-kdm` become
-  "keeps one step". Changing an existing test's expected result needs the
-  owner's approval (AGENTS.md).
+  "keeps one step". Changing an existing test's expected result needs a
+  maintainer's approval (AGENTS.md).
 - It needs both KDM implementations changed together (TypeScript and Rust)
   and the convergence suite re-run, since undo is replicated as changes.
 - Point 5 touches kit-editor's text input, which other sessions are editing.

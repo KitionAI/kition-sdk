@@ -5,11 +5,11 @@ intent: >-
   A ribbon generated from a menu tab leaves out Undo and Redo, which the top bar draws, and the
   menu keeps them. Board's and html's Edit ribbons (and their Single line rows) repeated the top
   bar's Undo and Redo.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

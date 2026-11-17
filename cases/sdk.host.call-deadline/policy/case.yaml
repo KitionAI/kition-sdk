@@ -4,11 +4,11 @@ feature: sdk.host.call-deadline
 intent: >-
   every host-managed request has a deadline, including document operations;
   shorter handshake deadlines stay shorter and a zero deadline is refused.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/src/control.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, filter: every_method_has_a_deadline }

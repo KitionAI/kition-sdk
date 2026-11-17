@@ -8,11 +8,11 @@ intent: >-
   person edited between the agent's steps it says so (`editedMeanwhile`), and when the steps cannot
   be taken back they stay as `completed` and the message says why. The editor and the server play
   the same runs (`fixtures/live-runs.json`), so the two sides cannot drift apart.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/fixtures/live-runs.json
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

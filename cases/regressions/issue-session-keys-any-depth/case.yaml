@@ -9,11 +9,11 @@ intent: >-
   property's path) survives for a kit that does not declare it, and declared editor state is still
   removed. Before, every key named `time`, `playhead`, `selection`, `path`, `history`, … was
   removed at any depth, so keyframes lost their `time` and animated properties their `path`.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: inspect_details_keep_document_fields_named_like_editor_state }

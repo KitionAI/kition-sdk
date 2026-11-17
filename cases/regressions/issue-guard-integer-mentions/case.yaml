@@ -7,11 +7,11 @@ intent: >-
   as an index when it names no clip (`clip: 2`, `x-khp-index-numbers`) is a place too. Before, a
   number in a parameter was nothing, `"#2"` outside the target parameter was free text, and a
   number naming no clip was an id naming nothing: all applied over the colleague's change.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

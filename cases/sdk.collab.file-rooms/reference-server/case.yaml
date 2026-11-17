@@ -2,12 +2,12 @@ format: 1
 id: sdk.collab.file-rooms/reference-server
 feature: sdk.collab.file-rooms
 intent: The reference sync server keeps exactly one room per file generation, lets one editor seed it, keeps each open token to its own file's room at its own role, and keeps bound rooms and pre-room blobs away from other connections (RM1 to RM7).
-layer: golden
-direction: collab
+layer: gate
+dimension: collab
 source:
   kind: synthetic
   from: packages/sync/test/openRooms.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

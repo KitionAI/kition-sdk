@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-document-pan-bounds
 feature: sdk.editor.pan-bounds
 intent: Editors can constrain scrolling to document bounds across zoom, resize and page removal while free canvases retain unrestricted panning.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: packages/kit-editor/src/engine/rasterViewport.bounds.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

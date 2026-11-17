@@ -83,7 +83,7 @@ fn round_trip() {
 
 #[test]
 fn the_compiled_keys_know_no_test_seed() {
-    // PROD_KEYS and TEST_KEYS are empty until the owner makes the pairs: nothing verifies yet.
+    // PROD_KEYS and TEST_KEYS are empty until a maintainer makes the pairs: nothing verifies yet.
     assert_eq!(verify_pinned(&sign(&one(33), &PROD_SEED), Product::One).unwrap_err(), Error::UnknownKey);
 }
 

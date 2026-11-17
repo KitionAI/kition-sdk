@@ -6,11 +6,11 @@ intent: >-
   `target` and with `on` for a declared target parameter; `on` for a command that reads the
   selection is `unsupported`, named, before any step runs, never the command acting on the
   selection the kit already had.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/call_context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

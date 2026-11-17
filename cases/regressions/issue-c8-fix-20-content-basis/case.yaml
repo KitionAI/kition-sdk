@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-20-content-basis
 feature: sdk.agent.text-history
 intent: Direct content and covered-place callbacks receive complete basis text for short and long fields within retention bounds, and refuse unknown beyond them, for related and unrelated changes through the server and outside rereads.
-layer: golden
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec: { cmd: [cargo, build, -p, kition-kit-mock] }

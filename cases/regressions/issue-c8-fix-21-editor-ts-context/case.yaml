@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-21-editor-ts-context
 feature: sdk.agent.editor-premises
 intent: TypeScript kits can expose editor state hooks for isolated premise callbacks without writing stored state, and missing hooks remain unavailable.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-engine/test/session.test.ts, -t, forwards editor state hooks] }

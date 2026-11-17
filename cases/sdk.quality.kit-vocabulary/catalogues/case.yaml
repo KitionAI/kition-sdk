@@ -6,11 +6,11 @@ intent: >-
   starting a kit, counts only top-level parameters through nested types and inline comments, matches
   description words whole, takes verbs from the last segment of a command id, and exits 0: it measures
   the vocabulary, it is not a gate.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/kit-vocabulary.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

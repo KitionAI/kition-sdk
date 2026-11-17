@@ -6,11 +6,11 @@ intent: >-
   only for text content (a `text` field, or one named `text` or `content`), "named", "titled",
   "labelled" or "captioned" for the field of that name. Before, a slide shape's `name` was quoted as
   what it says (`the shape that says "TextBox 1"`), though it shows no such text.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

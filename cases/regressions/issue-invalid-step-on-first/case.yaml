@@ -3,11 +3,11 @@ id: regressions/issue-invalid-step-on-first
 feature: sdk.agent.premise-guard
 intent: >-
   Invalid step targeting is invalid-params before premise conflicts, with no live write.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: Motion kit guard defect report
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

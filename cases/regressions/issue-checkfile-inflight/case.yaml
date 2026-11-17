@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-checkfile-inflight
 feature: sdk.editor.file-follow
 intent: When the file changes on disk while an edit is still on its way to the engine, the editor waits for that edit and raises a conflict instead of reloading the file and throwing the edit away. Kition's html H5 interaction case lost a typed paragraph this way.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: Kition end-to-end tests, interaction/helpers-a.ts:267 (html host matrix H5)
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,12 +2,12 @@ format: 1
 id: sdk.ui.fetch-image/checked
 feature: sdk.ui.fetch-image
 intent: A kit gets a pasted picture's bytes from its web address only through host/fetchImage, offered only for a document it may edit; the host library refuses every scheme but https and http before the host's handler runs, and an answer that is not a picture after it, with reasons the kit can tell apart.
-layer: golden
-direction: security
+layer: gate
+dimension: security
 source:
   kind: synthetic
   from: packages/kit-host/src/index.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

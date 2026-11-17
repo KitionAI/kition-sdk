@@ -7,11 +7,11 @@ intent: >-
   edits and fewer bytes than the value whole, else whole (shared fixture `leaf-edits.json`), in
   receipts and in `others` (a change made in the file); the guard refuses a batch setting the same
   key of a map others changed, not one setting another key.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

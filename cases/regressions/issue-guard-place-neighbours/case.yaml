@@ -7,11 +7,11 @@ intent: >-
   another agent, does not refuse a cut at 2.5 s: the guard replays which clips covered the place
   from the times the change sets carry, and `others` never shows the deleted clips' `$was`.
   Before, an object next to the window refused it.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -7,11 +7,11 @@ intent: >-
   kit declares them); at most 50 objects with `truncated` counting the rest, every one with
   `changes: "all"`, none with `changes: false`; another `changes` is `invalid-params` and
   runs nothing.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/receipts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

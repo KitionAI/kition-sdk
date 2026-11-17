@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-21-projections
 feature: sdk.model.projected-objects
 intent: Kit-computed objects are schema-declared, readable and diffable without being stored; writes route only through declared kit commands.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: projections }

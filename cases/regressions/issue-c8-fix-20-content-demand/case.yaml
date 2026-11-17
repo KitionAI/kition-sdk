@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-20-content-demand
 feature: sdk.agent.on-demand-derived
 intent: On-demand callbacks receive complete short and long stored text checkpoints for related and unrelated changes, and journal eviction refuses unknown, with same-server and outside parity.
-layer: golden
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec: { cmd: [cargo, build, -p, kition-kit-mock] }

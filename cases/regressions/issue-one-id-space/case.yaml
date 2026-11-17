@@ -11,11 +11,11 @@ intent: >-
   the kit gave them; a type without the key keeps object ids. Before, query and batch answered and
   took only KDM object ids (UUIDs, fresh on every import of a file) while inspect,
   commands and diagnostics used the kit's numbers, and edits landed on the wrong object (A46).
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: tool_ids }

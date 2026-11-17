@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-menu-label-truncation
 feature: sdk.editor.frame-overflow
 intent: A tab in the editor frame's top bar shows whole or not at all; tabs the bar cannot hold move under a More tabs button, and the selected tab always shows. Note at 1024 px in Kition showed "Ins" cut in half beside a scroll arrow.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,9 +2,9 @@ format: 1
 id: regressions/issue-c8-fix-16-history
 feature: sdk.agent.historical-blobs
 intent: Verified blob history crosses 1 MiB chunks, rejects corrupt bytes, survives document close and worker restart within the manager, and refuses unknown after manager restart.
-layer: golden
+layer: gate
 timeout_s: 60
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: premise_guard, filter: historical_blob }

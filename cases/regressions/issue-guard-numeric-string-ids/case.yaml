@@ -6,11 +6,11 @@ intent: >-
   command as the integer, as `on` does; before, a write with `basis` after a change by others was
   refused as `invalid-params`, and a kit checking its schema refused it.
   `testing::check_id_params` reports integer id parameters a kit left unmarked.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-docs-inline-comments
 feature: sdk.docs.integration
 intent: Generated command references retain inline parameter comments, including comments nested in parameter types.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/docs-gen/docs-gen.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

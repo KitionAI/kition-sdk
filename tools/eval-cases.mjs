@@ -1,26 +1,27 @@
 #!/usr/bin/env node
-// The runner of `layer: ai` cases (docs/quality.md; decision F-QA-16): real models editing kit files
-// through the kits' MCP server, judged from the files they leave. Only the owner starts it: never
-// a hook, golden, the pre-finish check, a schedule, CI, or an agent on its own (tools/ai/guard.mjs).
+// The runner of `layer: eval` cases (docs/quality.md; decision F-QA-16): real models editing kit
+// files through the kits' MCP server, judged from the files they leave. Only a maintainer starts it:
+// never a hook, the gate, the pre-finish check, a schedule, CI, or an agent on its own
+// (tools/eval/guard.mjs).
 //
-//   node tools/ai-cases.mjs --repo <repo> [--kit k] [--feature f] [--case id] [--model m]...
+//   node tools/eval-cases.mjs --repo <repo> [--kit k] [--feature f] [--case id] [--model m]...
 //        [--repeat 3] [--adapter claude-code|anthropic-api|codex|fake] [--effort high]
 //        [--dry-run] [--list] [--yes] [--keep] [--out <dir>]
 //
-// Kit repositories run it as `cargo xtask ai …`, Kition as `pnpm ai …`. `--dry-run` calls no
+// Kit repositories run it as `cargo xtask eval …`, Kition as `pnpm eval …`. `--dry-run` calls no
 // model: each case must parse, open its inputs, fail on the input state and pass after its
-// `solution`. Reports go to `<repo>/target/ai/<date>/<adapter>-<time>/` (report.json, report.md,
+// `solution`. Reports go to `<repo>/target/eval/<date>/<adapter>-<time>/` (report.json, report.md,
 // and transcripts/, which stays out of Git).
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { connect } from '../examples/agent-mcp/mcp-client.mjs'
-import { ADAPTERS, DEFAULT_MODEL, MODELS, runAdapter } from './ai/adapters.mjs'
-import { findCases, kitOf, problems, readFeatures, taskOf, workspaceName } from './ai/cases.mjs'
-import { confirm, decide } from './ai/guard.mjs'
-import { judge } from './ai/judge.mjs'
-import { cost, markdown, PRICES, summarize } from './ai/report.mjs'
-import { cleanup, locate, makeWorkspace, runSteps, serverCommand, split } from './ai/session.mjs'
+import { ADAPTERS, DEFAULT_MODEL, MODELS, runAdapter } from './eval/adapters.mjs'
+import { findCases, kitOf, problems, readFeatures, taskOf, workspaceName } from './eval/cases.mjs'
+import { confirm, decide } from './eval/guard.mjs'
+import { judge } from './eval/judge.mjs'
+import { cost, markdown, PRICES, summarize } from './eval/report.mjs'
+import { cleanup, locate, makeWorkspace, runSteps, serverCommand, split } from './eval/session.mjs'
 
 const sdk = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -144,7 +145,7 @@ export async function main(argv = process.argv.slice(2)) {
     return 0
   }
   if (!cases.length) {
-    console.error('no layer: ai cases match')
+    console.error('no layer: eval cases match')
     return 1
   }
   if (options.dryRun) {
@@ -173,7 +174,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
   }
   const date = new Date().toISOString().slice(0, 10)
-  const out = resolve(options.out ?? join(options.repo, 'target', 'ai', date, `${options.adapter}-${new Date().toISOString().slice(11, 19).replaceAll(':', '')}`))
+  const out = resolve(options.out ?? join(options.repo, 'target', 'eval', date, `${options.adapter}-${new Date().toISOString().slice(11, 19).replaceAll(':', '')}`))
   mkdirSync(join(out, 'transcripts'), { recursive: true })
   const runs = []
   for (const testCase of cases) {
@@ -196,10 +197,10 @@ export async function main(argv = process.argv.slice(2)) {
 
 /**
  * Whether the module at `moduleUrl` is the script node was started with (`script`, its
- * `process.argv[1]`), compared as real paths: kits' `cargo xtask ai` starts it as
- * `<repo>/../kition-sdk/tools/ai-cases.mjs`, which may pass through symbolic links (or hold
- * characters a URL escapes) while the module's URL is its real path. Only the owner's run of the
- * script reaches `main`, and `main`'s guard still decides whether any model is called.
+ * `process.argv[1]`), compared as real paths: kits' `cargo xtask eval` starts it as
+ * `<repo>/../kition-sdk/tools/eval-cases.mjs`, which may pass through symbolic links (or hold
+ * characters a URL escapes) while the module's URL is its real path. Only a maintainer's run of
+ * the script reaches `main`, and `main`'s guard still decides whether any model is called.
  */
 export function startedAsScript(moduleUrl, script) {
   if (!script) return false

@@ -5,11 +5,11 @@ intent: >-
   Inspecting a view sends the kit nowhere: after `<prefix>_inspect {preview: true, target: {sequence,
   time}}` the kit's playhead and open sequence are what the person left them, and the picture is
   the view asked for, never the playhead's frame (KHP A55).
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/preview_view.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

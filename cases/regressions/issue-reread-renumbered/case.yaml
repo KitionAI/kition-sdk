@@ -8,11 +8,11 @@ intent: >-
   again, and the revision that refusal hands back is the agent's own basis, so a retry cannot
   write into the other shape before a fresh inspect. Before, the refusal's revision let the retry
   write into the wrong shape.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

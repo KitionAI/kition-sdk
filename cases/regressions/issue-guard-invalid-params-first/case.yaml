@@ -6,11 +6,11 @@ intent: >-
   before the premise guard. Before, since every string a parameter holds that names an object is
   a premise, a misspelt parameter whose value happened to name an object another agent
   had changed was answered as `conflict` instead.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

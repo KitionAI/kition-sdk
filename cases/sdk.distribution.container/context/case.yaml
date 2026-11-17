@@ -5,13 +5,13 @@ intent: >-
   The container context includes every canonical kit's manifest and prebuilt Linux executable,
   keeps runtime asset paths, excludes unrelated SDK files and build caches, and refuses missing
   kits, wrong architectures, replaced identities and symlinked assets. This does not certify
-  an image build or a real kit session; those require the owner's Linux smoke test.
-layer: golden
-direction: platform
+  an image build or a real kit session; those require a maintainer's Linux smoke test.
+layer: gate
+dimension: platform
 source:
   kind: synthetic
   from: tools/container/assemble-context.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

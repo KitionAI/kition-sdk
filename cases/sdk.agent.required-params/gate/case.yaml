@@ -6,11 +6,11 @@ intent: >-
   `commands.list` publishes, and the gate refuses a call that leaves one out as `invalid-params`,
   one error per missing parameter naming it and where a value comes from, before the engine runs;
   a call with only the required parameters runs.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-headless/src/tests.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: an_opted_in_command_publishes_its_required_parameters_and_the_gate_refuses_a_missing_one }

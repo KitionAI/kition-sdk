@@ -7,11 +7,11 @@ intent: >-
   several alternative keys or forms), marks none required by default, and marks exactly those
   required for a command that opts in (`KitCommand::notation_required`); a missing one is refused
   naming it, what it takes and where a valid value comes from.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kit/src/schema.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit, filter: the_notation_required_parameters }

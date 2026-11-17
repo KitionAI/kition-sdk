@@ -6,11 +6,11 @@ intent: >-
   run: the one object it changed with each field before and after, not the objects beside it; a
   run of many steps lists each object once; a run with no effect an empty change set and the same
   `revision`; a failed, rolled-back run no `changes`, `revision` or `diagnostics`.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/receipts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

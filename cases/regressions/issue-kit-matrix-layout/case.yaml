@@ -7,11 +7,11 @@ intent: >-
   and docs/roadmap.md. A root ATTRIBUTION.md or ATTRIBUTION.toml, docs/target-app-parity.md, or a
   root GAPS.md or ROADMAP.md no longer counts. Before the fix every one of the 16 migrated kits
   failed K4 ("missing ATTRIBUTION") and Q4 ("missing docs/target-app-parity.md").
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/kit-matrix.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

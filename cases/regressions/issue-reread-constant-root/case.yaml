@@ -9,11 +9,11 @@ intent: >-
   kit `others` was 30-40 KB of unchanged objects after any file change, nothing was counted in
   `unnamed`, writes on slides and pictures were refused as `changed`, a package saved again
   unchanged was told as a change, and a table cell's edit listed every cell under old and new keys.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

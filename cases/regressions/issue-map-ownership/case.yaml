@@ -8,11 +8,11 @@ intent: >-
   guard and the comparison of two reads of a file follow it. Before, only list, tree and ref
   fields could own, so table-cell text was attributed to no holder. Kition-kdm and @kition/kdm
   answer the same (`map-ownership.json`).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -5,11 +5,11 @@ intent: >-
   `<prefix>_inspect {target: {sheet: 3}}` passes the sheet's integer id to the kit's reader, as a
   string id is passed: a part noun's value is the part's id wherever a target names a part. Before,
   an integer was dropped and the active sheet's content was shown instead, silently.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

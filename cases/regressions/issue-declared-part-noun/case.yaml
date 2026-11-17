@@ -7,11 +7,11 @@ intent: >-
   part conflicts (which find the part's type without a `page:` tool id prefix); only a kit that
   declares no nouns takes `slide` and `page` as numbers from 1. Before, a declared `page: 0` was
   refused as "counted from 1" and an inspect went to the page numbered by it.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

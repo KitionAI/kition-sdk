@@ -2,11 +2,11 @@ format: 1
 id: sdk.bundle.kits/surface
 feature: sdk.bundle.kits
 intent: sdk.json lists the published kits a bundle holds by their current names, and the guides state the same kits and version.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/sdk-json.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

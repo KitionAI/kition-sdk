@@ -7,11 +7,11 @@ intent: >-
   (a real slide kit) gives tasks; objects without a tool id are skipped and counted (`no-tool-id`),
   and states read again are compared by pairing their objects, never by object id. Before,
   `kit-env generate` refused such a kit, since not every object id survived a reopen.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

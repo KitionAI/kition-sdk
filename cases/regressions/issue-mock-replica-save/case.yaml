@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-mock-replica-save
 feature: sdk.agent.draft-objects
 intent: The synthetic kit serializes a replica draft for merging while preserving stale-file refusal and the person's review workflow.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/drafts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test:

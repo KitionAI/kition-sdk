@@ -3,11 +3,11 @@ id: regressions/issue-private-created-receipts
 feature: sdk.agent.premise-guard
 intent: >-
   Outside receipts expose no premise-only field names or values for created, changed or deleted objects.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: Motion kit guard defect report
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

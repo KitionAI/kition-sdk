@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-21-editor-inspect
 feature: sdk.agent.editor-premises
 intent: A live editor inspection honours the requested part while restoring the person's part and selection.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/kitEngine.context.test.ts, -t, inspects a requested part] }

@@ -4,11 +4,11 @@ feature: sdk.agent.kit-env
 intent: >-
   Owning-map children are candidates for field, text, creation and deletion tasks.
   Each task replays through the mock kit with reward 1, including wrapped map references.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

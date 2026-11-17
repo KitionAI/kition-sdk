@@ -7,11 +7,11 @@ intent: >-
   form) to set it with the kit's own command earlier in the same run; such a run's later steps run
   in the mode it set, and the server puts the mode back after the call with the rest of the
   editor state, so the next call runs in the person's mode.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/call_context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -8,11 +8,11 @@ intent: >-
   the receipt read from the objects the edit touched (`Replica::changes_since`) equals the
   comparison of the whole states (`diff_states`) for every case of `fixtures/changes.json`, and
   names objects by their tool ids.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kdm/tests/changes.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

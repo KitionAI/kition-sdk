@@ -5,11 +5,11 @@ intent: >-
   A write answers `diagnostics: { new, resolved }`, the kit's check before the call and after it
   matched by `code` and `target`: a run that adds a TODO introduces `mock.todo`, one that keeps it
   neither, a batch that removes it resolves it; `check: false` leaves it out.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/receipts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

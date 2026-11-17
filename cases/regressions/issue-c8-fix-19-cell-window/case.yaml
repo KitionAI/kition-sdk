@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-c8-fix-19-cell-window
 feature: sdk.agent.premise-guard
 intent: Covers and within both hold when a cell's covered value stays fixed but its independent row window changes; other-sheet edits apply.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

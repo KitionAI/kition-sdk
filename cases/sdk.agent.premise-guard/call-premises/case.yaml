@@ -10,11 +10,11 @@ intent: >-
   `relocated` after its start moved; a step giving its target and a place (`clip.paste`) is
   checked at the place; a step reading a time an earlier step of the run set is refused after a
   change by others.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

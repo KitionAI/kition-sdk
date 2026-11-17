@@ -12,11 +12,11 @@ intent: >-
   no object (OM2b), each saying why and what to use (A18, A48). Before, a read-only field, a
   reference and a text all read `{ "type": "string" }`, so agents and the conformance tool
   picked read-only identifiers, text containers and depth fields to write.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: object_model, filter: describe_and_batch_tell_the_fields_a_batch_cannot_set }

@@ -5,11 +5,11 @@ intent: >-
   When `others` names more objects than its cap, parts created, deleted or moved come first, then
   the objects the pending write names, then the rest, and `truncated` counts what each list left
   out: a slide another program duplicated is always named. Before, the cap cut the new slide.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

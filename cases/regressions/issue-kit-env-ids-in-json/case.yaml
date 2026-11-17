@@ -8,11 +8,11 @@ intent: >-
   edit's receipt differed from the states read again on a real deck with connectors and
   hyperlinks, so `kit-env generate` on the slide kit's fixture deck `形状.pptx` (11 slides, 188
   shapes) gave 0 tasks, all resampled as `receipt-differs`; now 20.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

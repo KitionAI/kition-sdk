@@ -7,11 +7,11 @@ intent: >-
   with `frames` that contact sheet, a sequence that sequence, and the answer's `preview` says what
   the picture shows (size, scale, sequence, frames and their times, grid), so a model knows which
   times it is looking at (KHP A24, A39).
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/preview_view.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

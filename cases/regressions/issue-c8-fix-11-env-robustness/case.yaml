@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-11-env-robustness
 feature: sdk.env.readable-tasks
 intent: Unreadable source files are reported and skipped; instructions respect reverse indexes and word boolean states naturally and deterministically.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

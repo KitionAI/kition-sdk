@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-sdk-json-retired-kit
 feature: sdk.bundle.kits
 intent: sdk.json named the retired kit "word", so the default sdk-bundle run stopped with "the lock pins no word"; every kit it lists is a current Kition kit.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: tools/sdk-json.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

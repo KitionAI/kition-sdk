@@ -127,10 +127,10 @@ Deleting a licence does not help: no licence and an expired one are the same sta
 
 - Console signs with one Ed25519 key pair per environment at a time, each named by `kid`
   (`prod-…`, `test-…`). The private keys are secrets: in Console's secret configuration or on
-  the owner's machine, never in Git.
+  a maintainer's machine, never in Git.
 - The public keys are compiled into the verifier, by `kid` with their `env`: `kition1::PROD_KEYS`
   always, `kition1::TEST_KEYS` only with the `test-licences` feature, so a release binary holds no
-  test key. Both are empty until the owner generates the production and test key pairs.
+  test key. Both are empty until a maintainer generates the production and test key pairs.
 - Rotating: make a new pair with a new `kid`, compile its public key into a release, then switch
   Console to it. Keep the old public key until every licence it signed is past grace, then remove
   it in a later release. There is no revocation list (it would need a network); a leaked licence

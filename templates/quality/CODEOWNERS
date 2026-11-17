@@ -1,4 +1,4 @@
-# Expected results and the rules that define "passing" belong to the owner (see docs/quality.md).
+# Expected results and the rules that define "passing" belong to the maintainers (see docs/quality.md).
 **/expected/ {{owner}}
 /docs/quality.md {{owner}}
 /AGENTS.md {{owner}}

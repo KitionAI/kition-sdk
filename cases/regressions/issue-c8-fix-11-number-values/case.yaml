@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-11-number-values
 feature: sdk.agent.batch-values
 intent: Numeric bounds and steps constrain writes and sampling; batch settling records the stored value in one transaction.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

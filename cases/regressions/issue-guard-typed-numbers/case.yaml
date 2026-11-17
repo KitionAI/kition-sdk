@@ -7,11 +7,11 @@ intent: >-
   the shot does not refuse it, and after a ripple insert it is refused as `relocated` naming clip
   11. Before, it was refused as "2 changed" and applied to the wrong clip after the insert (kition-
   motion `layer: 1`, a comp item's id).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

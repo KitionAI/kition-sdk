@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-12-gap
 feature: sdk.agent.premise-guard
 intent: An empty insertion window holds its gap across independent writes, refusing shifts before it and allowing changes after it.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

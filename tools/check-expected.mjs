@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Lists the changes in a range of commits that only the owner may approve: changed expected
+// Lists the changes in a range of commits that only a maintainer may approve: changed expected
 // results and weakened tests (docs/quality.md, "Expected results are protected"). Reviewers
-// and CI run it on every candidate; anything it lists goes to the owner.
+// and CI run it on every candidate; anything it lists goes to the maintainers.
 //
 //   node tools/check-expected.mjs [--repo <dir>] [--json] [<base>..<head> | <base>]
 //
@@ -12,7 +12,7 @@
 //   expected-added    a new file under an expected-results path
 //   expected-changed  a changed or renamed expected result; in an existing case.yaml a change
 //                     to expected, tolerance, reference, input or steps, or a move out of the
-//                     golden layer; in features.yaml a lowered priority or a removed
+//                     gate layer; in features.yaml a lowered priority or a removed
 //                     protected glob
 //   expected-deleted  a deleted expected result, a deleted case, or a feature with cases
 //                     removed from features.yaml
@@ -268,8 +268,8 @@ function check(repo, base, head) {
       for (const field of GUARDED_CASE_FIELDS) {
         if ((old.get(field) ?? '') !== (now.get(field) ?? '')) add('expected-changed', to, `case field "${field}" changed`)
       }
-      if (unquote(old.get('layer') ?? '') === 'golden' && unquote(now.get('layer') ?? '') !== 'golden') {
-        add('expected-changed', to, `case moved out of the golden layer to "${unquote(now.get('layer') ?? '')}"`)
+      if (unquote(old.get('layer') ?? '') === 'gate' && unquote(now.get('layer') ?? '') !== 'gate') {
+        add('expected-changed', to, `case moved out of the gate layer to "${unquote(now.get('layer') ?? '')}"`)
       }
     }
 
@@ -336,7 +336,7 @@ function main() {
     console.log(
       total === 0
         ? 'check-expected: no expected-result changes and no weakened tests'
-        : `check-expected: ${total} finding(s); only the owner approves these changes`,
+        : `check-expected: ${total} finding(s); only a maintainer approves these changes`,
     )
   }
   process.exit(total === 0 ? 0 : 1)

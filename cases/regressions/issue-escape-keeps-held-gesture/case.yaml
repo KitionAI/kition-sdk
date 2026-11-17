@@ -3,11 +3,11 @@ id: regressions/issue-escape-keeps-held-gesture
 feature: sdk.editor.display-modes
 intent: >-
   Escape while a gesture is held on a kit canvas drops it, so the release commits nothing, and that Escape is the gesture's alone (KitPointer 4.1, 4.3). Photo wrapped every tool to do this itself; other canvas kits committed the drag on release.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

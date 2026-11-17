@@ -6,11 +6,11 @@ intent: >-
   is read-only, as Kition One does when a space is archived) reaches the editor when the sync
   client re-joins after reconnecting: the client reports it to `onAccess` like a `room/access`
   notice, and the embed records it and opens the kit again read-only, instead of keeping `editor`.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

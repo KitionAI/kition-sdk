@@ -7,11 +7,11 @@ intent: >-
   slide number names, with `now`), changed the field a batch replaces or any field of a command's
   target; a batch replacing another field of the same object runs, and a retry on the refusal's
   `revision` runs.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/premise_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -7,11 +7,11 @@ intent: >-
   Unicode scalar values with truncated set, and unchanged documents; a kit without the capability
   has no such method; check_text names a kit that changes the document, ignores the limit, never
   says truncated, or puts a part outside its text (KitText 1.0 T1 to T6).
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kit/src/text.rs, crates/kition-kit/src/testing.rs text_tests, crates/kition-headless/src/tests.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-reread-active-mode
 feature: sdk.agent.reread-session
 intent: An outside rewrite preserves the resolving active target and editor mode together, and a deleted active target refuses with a reason.
-layer: golden
-source: { kind: synthetic, from: Synthetic stateful deck, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Synthetic stateful deck, license: owned }
 input: []
 steps:
   - exec: { cmd: [cargo, test, -p, kition-headless, --lib, outside_reread_keeps_active_] }

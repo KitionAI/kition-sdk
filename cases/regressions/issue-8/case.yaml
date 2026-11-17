@@ -2,11 +2,11 @@ format: 1
 id: regressions/issue-8
 feature: sdk.host.headless-kit
 intent: A kit whose host connection closes without kit.shutdown closes its documents unsaved and exits within 5 seconds, as after kit.shutdown. This covers a host that crashed, was force-quit or was killed, which can send nothing first. An agent connection closing does not end the kit.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -2,11 +2,11 @@ format: 1
 id: sdk.host.headless-kit/grid
 feature: sdk.host.headless-kit
 intent: kition-kit-host's HeadlessKit launches the reference grid kit, initializes as the host, serves requests with Kit Process Protocol reasons, reports a killed kit as fatal and a missing binary as a launch error, and starts under a memory limit.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: examples/grid-kit-headless/tests/client.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

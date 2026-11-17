@@ -2,9 +2,9 @@ format: 1
 id: regressions/issue-historical-matches
 feature: sdk.agent.covered-content
 intent: Existing coverage callbacks retain parameter-selected recipients and historical subset or byte matches while unrelated changes apply.
-layer: golden
+layer: gate
 timeout_s: 60
-source: { kind: synthetic, from: Mock conditional recipients, licence: owned }
+source: { kind: synthetic, from: Mock conditional recipients, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: changes, filter: deleted_json_basis_ }

@@ -4,11 +4,11 @@ feature: sdk.agent.kit-env
 intent: >-
   A create's allocated ids bind to replay allocations across later calls and inverse setup.
   Forward/inverse creation and a three-call create/edit/delete trace all earn reward 1.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

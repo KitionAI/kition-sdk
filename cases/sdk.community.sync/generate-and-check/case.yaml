@@ -13,11 +13,11 @@ intent: >-
   assets/readme/, a short alt, a missing or oversized picture, a Maturity line or KHP badge that
   differs from kit.json), or a kit with web/ whose docs/development.md does not describe
   KITION_LINK=1. --print-readme prints the kit skeleton filled from kit.json and the entry.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: tools/sync-community.test.mjs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

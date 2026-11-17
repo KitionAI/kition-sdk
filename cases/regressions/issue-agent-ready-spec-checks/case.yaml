@@ -7,11 +7,11 @@ intent: >-
   `error` diagnostics (A41, A21). Before, the check failed a real preview with 2 to 4 colours, and
   a new document with an `info` code. A21 says `info` is "worth knowing, nothing to fix", and
   a new document may report such a code without failing the check.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: agent_ready::tests::a_two_colour_preview_and_an_info_on_a_new_document_pass }

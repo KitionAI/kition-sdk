@@ -8,11 +8,11 @@ intent: >-
   kit.schema.json; KHP K5 gives an export entry no command). A kit with `exports` and no
   `agent.export` fails, and the failure names what is missing. Before, the check ran
   `exports[].command`, failing kits whose agent export path worked.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-headless, filter: agent_ready::tests::exports_run_through_the_agent_export_command_and_answer_a_file }

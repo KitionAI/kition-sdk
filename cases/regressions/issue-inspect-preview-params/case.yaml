@@ -8,11 +8,11 @@ intent: >-
   `scale` or `target` the kit refuses fails the call with `unsupported`, naming the scale the kit
   draws at most or the target and the call to make instead (KHP A18, A24, A39, A48), never the
   whole document at scale 1. The screenshot request must preserve the caller's view and dimensions.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: previews, filter: the_screenshot_preview_takes_the_call_s_scale_and_max_size_and_refuses_what_it_cannot_draw }

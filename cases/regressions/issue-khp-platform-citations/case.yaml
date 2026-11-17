@@ -8,11 +8,11 @@ intent: >-
   1.4` D1"). No tracked text outside CHANGELOG.md and cases says "KHP 2.0", "KHP 6.1", "KHP E15",
   "KHP U8a", "KHP D1", "KHP KitAgent", a retired or platform id as KHP's ("KHP A20", "KHP K9"),
   or introduces a platform page as KHP, including across a line break.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

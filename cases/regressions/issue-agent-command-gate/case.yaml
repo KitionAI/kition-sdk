@@ -11,11 +11,11 @@ intent: >-
   an agent's connection runs nothing as the person. Before, a batch's command operation went
   straight to the kit's `execute_as` (a workspace audit wrote outside the workspace
   this way with film, vector and layout).
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

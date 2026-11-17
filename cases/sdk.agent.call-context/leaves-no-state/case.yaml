@@ -7,11 +7,11 @@ intent: >-
   `target`, the kit's current part and selection are what they were before the call: the server
   saves the kit's editor state (`context.get`) and puts it back (`context.restore`), so no call
   leaves hidden state behind and nothing says the kit stays on a part.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/call_context.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

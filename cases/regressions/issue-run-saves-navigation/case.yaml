@@ -7,11 +7,11 @@ intent: >-
   viewport) saves the person's state and never the run's navigation (its `target` or a step's
   `at.part`). Before, the run saved first and restored after, and the saved file named the part
   the run had gone to.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -7,11 +7,11 @@ intent: >-
   nothing, and report a shape without text as an error diagnostic (`mock.empty-shape`, aimed at
   the shape) that goes when it has text again: the refusal and the new error the generator
   resamples on.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-env/tests/mock_deck.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

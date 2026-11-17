@@ -7,11 +7,11 @@ intent: >-
   named `id` (a motion kit's items and layers, the mock's clips) had no tool ids in the guard's two
   reads of a changed file: every change made in the file was counted in `others.unnamed`, a
   colleague's change of the target was overwritten and its deletion was no `conflict`.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

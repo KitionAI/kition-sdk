@@ -9,11 +9,11 @@ intent: >-
   where only undo could take the command back (an open editor, unsaved edits) the batch is
   refused before anything runs with `unsupported`, naming `<prefix>_run` (KitObjectModel OM4a).
   Before, the command's effect stayed when the batch failed at a later operation.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

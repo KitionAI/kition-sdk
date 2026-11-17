@@ -5,12 +5,12 @@ intent: >-
   Privacy filtering preserves absent optional receipt members so environment creation,
   deletion and move tasks exactly match saved-state diffs and replay without resampling,
   while premise-only facts remain hidden and private journal bases are retained.
-layer: golden
-direction: ai
+layer: gate
+dimension: ai
 source:
   kind: synthetic
   from: SDK public CI generate regression after receipt privacy fix
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

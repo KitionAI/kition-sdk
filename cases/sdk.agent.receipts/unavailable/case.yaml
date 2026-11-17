@@ -5,11 +5,11 @@ intent: >-
   A write on a kit without an object model, and one in a file's open editor, answer
   `changes: null` with `changesUnavailable` saying why, never an empty change set that reads as
   "nothing changed".
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/receipts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

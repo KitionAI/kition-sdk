@@ -5,11 +5,11 @@ intent: >-
   A kit whose tool ids are integers (the mock's clips) gives tasks: a batch's receipt names them
   as numbers, a change set computed from two reads of the file as text, and kit-env compares them
   in one form (every id as text), so no edit is discarded as `receipt-differs`.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

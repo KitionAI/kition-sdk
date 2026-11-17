@@ -5,11 +5,11 @@ intent: >-
   The unified tools (`kit_inspect`, `kit_run`, `kition-kits-mcp --unified`) document the view
   members and the run's `view`, pass a preview's view to the kit's render command whole, answer
   `preview`, and refuse an undeclared member as `<prefix>_inspect` does.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/preview_view_unified.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

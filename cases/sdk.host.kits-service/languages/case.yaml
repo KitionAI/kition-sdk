@@ -2,11 +2,11 @@ format: 1
 id: sdk.host.kits-service/languages
 feature: sdk.host.kits-service
 intent: The host examples in Python, Node and Go, each using only its language's standard library, open a workspace file through `kition-kits serve`, edit it as the system, and save it, and the file holds the edit. A language whose runtime is not installed is skipped and the run says so.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/hosts.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

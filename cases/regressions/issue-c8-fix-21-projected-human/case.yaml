@@ -3,8 +3,8 @@ id: regressions/issue-c8-fix-21-projected-human
 feature: sdk.model.projected-objects
 intent: Unsaved human editor changes of projected objects participate in the same conflict journal as stored edits.
 layer: unit
-direction: collab
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+dimension: collab
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test:

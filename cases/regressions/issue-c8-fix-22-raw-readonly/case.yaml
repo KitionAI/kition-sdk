@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-22-raw-readonly
 feature: sdk.agent.raw-contract
 intent: Immutable projected fields retain the model's read-only refusal before checking writable-operation premise mappings.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: projected_objects, filter: projected_receipts_name_changes_and_never_store_computed_objects }

@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-consumer-schema-spread
 feature: sdk.packages.public
 intent: A consumer typechecks the KDM public source with strict checking enabled or disabled, including projected operation parameter mappings.
-layer: golden
-source: { kind: issue, from: Note editor consumer typecheck, licence: owned }
+layer: gate
+source: { kind: issue, from: Note editor consumer typecheck, license: owned }
 input: []
 steps:
   - exec: { cmd: [pnpm, exec, tsc, --noEmit, -p, cases/regressions/issue-consumer-schema-spread/tsconfig.json] }

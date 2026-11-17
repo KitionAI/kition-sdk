@@ -2,8 +2,8 @@ format: 1
 id: sdk.packages.public/packed-worker
 feature: sdk.packages.public
 intent: A consumer bundles the packed editor and engine, starts the editor worker, loads its object model and saves a document without missing worker chunks.
-layer: golden
-source: { kind: synthetic, from: Packed package consumer, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Packed package consumer, license: owned }
 input: []
 steps:
   - exec: { cmd: [node, tools/pack-public-packages.mjs, kdm, kit-ui-protocol, kit-engine, kit-editor] }

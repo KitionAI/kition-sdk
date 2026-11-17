@@ -7,11 +7,11 @@ intent: >-
   and a command that fails with only its required parameters (it needs one the notation marks
   optional) are each named, as are a panic, an opted-in command without a call, a call that does
   not give exactly the required parameters, and a call for a command that is not opted in.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kit/src/testing.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit, filter: required_tests }

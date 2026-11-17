@@ -9,7 +9,7 @@ layer: unit
 source:
   kind: synthetic
   from: crates/kition-kit/src/testing.rs malformed_tests
-  licence: Apache-2.0
+  license: Apache-2.0
 input: []
 steps:
   - cargo-test: { package: kition-kit, filter: "testing::malformed_tests" }

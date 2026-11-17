@@ -7,11 +7,11 @@ intent: >-
   keys exchanged with the nodes whole (names, locations and places) are a renumbering; two objects
   alike but for one field whose values are exchanged read as two changes (the safe reading of an
   ambiguous exchange).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

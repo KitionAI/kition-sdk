@@ -1,11 +1,11 @@
 format: 1
 kit: sdk
-updated: "2026-11-16"
-golden_budget_s: 600
+updated: "2026-11-17"
+gate_budget_s: 600
 features:
   - id: sdk.agent.close-completion
     title: Closing commands complete without querying the closed document
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-headless/src/lib.rs, crates/kition-kits/src/manager.rs, crates/kition-kits/src/tools.rs, crates/kition-kits/src/tools/guard.rs, crates/kition-kits/tests/support/nested_list_regressions.rs, packages/kit-editor/src/engine/kitEngine.worker.ts]
@@ -13,7 +13,7 @@ features:
     since: "2026-11-16"
   - id: sdk.model.typed-maps
     title: Owning maps optionally constrain their values to an object type
-    direction: [function, data-safety]
+    dimension: [function, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-kdm/src/schema.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/batch.rs, packages/kdm/src/schema.ts, packages/kdm/src/tx.ts, packages/kdm/src/batch.ts]
@@ -21,7 +21,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.literal-paths
     title: Literal JSON pointer premises address selector-shaped keys
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-kits/src/tools/selector.rs, crates/kition-kits/src/tools/guard.rs]
@@ -29,7 +29,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.resource-reasons
     title: JSON resource addresses report identity-aware conflict reasons
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-kits/src/tools/selector.rs, crates/kition-kits/src/tools/guard.rs]
@@ -37,7 +37,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.reread-session
     title: Outside rereads retain editor state and reconcile undo history
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P0
     status: has
     paths: [crates/kition-headless/src/**, crates/kition-kit/src/lib.rs, crates/kition-kit-mock/src/**, packages/kit-engine/src/**]
@@ -45,7 +45,7 @@ features:
     since: "2026-11-16"
   - id: sdk.distribution.published-kits
     title: Public kit artifacts come only from the explicit publication allowlist
-    direction: [platform]
+    dimension: [platform]
     priority: P1
     status: has
     paths: [published-kits.json, tools/published-kits.mjs, tools/published-kits.test.mjs, tools/claude-plugin-skills.mjs, tools/sync-kit-fixtures.mjs, packages/script/kits/**, packages/script/scripts/sync-kits.mjs, packages/embed/src/schemas.ts, sdk.json]
@@ -53,7 +53,7 @@ features:
     since: "2026-11-16"
   - id: sdk.packages.public
     title: Public npm packages ship built modules and declarations with portable dependencies
-    direction: [platform, function]
+    dimension: [platform, function]
     priority: P1
     status: has
     paths: [packages/*/package.json, packages/kdm/src/schema.ts, packages/script/vite.config.ts, packages/extensions/src/runtime/document.ts, tools/build-package.mjs, tools/bundled-notices.mjs, tools/bundled-notices.test.mjs, tools/pack-public-packages.mjs, tools/smoke-public-packages.mjs, tools/public-packages.test.mjs, tools/check-public-package-imports.mjs, tools/package-imports.test.mjs, package.json]
@@ -61,7 +61,7 @@ features:
     since: "2026-11-16"
   - id: sdk.model.projected-containment
     title: Projected objects nest through lists trees and owning refs
-    direction: [function, collab]
+    dimension: [function, collab]
     priority: P1
     status: has
     paths: [crates/kition-kdm/src/projection.rs, packages/kdm/src/projection.ts]
@@ -69,7 +69,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.raw-contract
     title: Raw batches declare command-equivalent premises and plan every prefix
-    direction: [function, collab]
+    dimension: [function, collab]
     priority: P0
     status: has
     paths: [crates/kition-kits/src/tools/**, crates/kition-kdm/src/schema.rs, packages/kdm/src/schema.ts, crates/kition-kdm/src/comment.rs, packages/kdm/src/comment.ts, crates/kition-kit-mock/src/comments.rs]
@@ -77,7 +77,7 @@ features:
     since: "2026-11-16"
   - id: sdk.model.undo-footprint
     title: Each scoped undo and redo step exposes its original objects and fields for command premises
-    direction: [function, collab]
+    dimension: [function, collab]
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/tx.ts, crates/kition-kit/src/session/mod.rs]
@@ -85,7 +85,7 @@ features:
     since: "2026-11-16"
   - id: sdk.model.projected-objects
     title: Kit-computed objects participate in the object model without replica storage
-    direction: [function, collab, ai]
+    dimension: [function, collab, ai]
     priority: P1
     status: has
     paths: [crates/kition-kdm/src/**, packages/kdm/src/**, crates/kition-kit/src/session/model.rs, packages/kit-editor/src/engine/kitModelRunner.ts, packages/kit-engine/src/session.ts, packages/script/src/exchange.ts, packages/script/src/sources.ts, crates/kition-kits/src/tools/**, crates/kition-kit-mock/src/projected.rs, crates/kition-env/src/**]
@@ -93,7 +93,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.editor-premises
     title: Live editor kit callbacks participate in per-call premises
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -107,7 +107,7 @@ features:
     since: "2026-11-16"
   - id: sdk.env.single-object
     title: Root field tasks and bounded context-located edits inside long text
-    direction: [ai, function]
+    dimension: [ai, function]
     priority: P1
     status: has
     paths: [crates/kition-env/src/**, crates/kition-env/tests/single_object.rs]
@@ -115,7 +115,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.located-receipts
     title: Bounded long-text edit locations and exact map-member shift footprints
-    direction: [collab, function]
+    dimension: [collab, function]
     priority: P1
     status: has
     paths: [crates/kition-kdm/src/diff.rs, crates/kition-kdm/src/footprint.rs, packages/kdm/src/diff.ts, packages/kdm/src/footprint.ts, crates/kition-kits/src/tools/receipts.rs]
@@ -123,7 +123,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.replica-reread
     title: Rereads enumerate detached replica objects and let kits carry their identities across file reloads
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-kdm/src/batch.rs, packages/kdm/src/batch.ts, crates/kition-kit/src/lib.rs, crates/kition-headless/src/lib.rs, crates/kition-kits/src/tools/guard.rs]
@@ -131,7 +131,7 @@ features:
     since: "2026-11-16"
   - id: sdk.env.move-consequences
     title: Group moves and declared consequential address fields form one replayed task
-    direction: [ai, function]
+    dimension: [ai, function]
     priority: P1
     status: has
     paths: [crates/kition-env/src/**, crates/kition-kdm/src/schema.rs, packages/kdm/src/schema.ts]
@@ -139,7 +139,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.scoped-address
     title: Kits resolve scoped positional strings through per-call windows
-    direction: [collab]
+    dimension: [collab]
     priority: P1
     status: has
     paths: [crates/kition-kit-mock/src/matrix.rs, crates/kition-kits/src/tools/guard.rs]
@@ -147,7 +147,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.on-demand-derived
     title: Private derived facts can compare only pending holds against bounded basis snapshots
-    direction: [collab, performance]
+    dimension: [collab, performance]
     priority: P1
     status: has
     paths: [crates/kition-kits/src/tools/derived.rs, crates/kition-kdm/src/schema.rs, packages/kdm/src/schema.ts]
@@ -155,7 +155,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.text-history
     title: Guard callbacks receive bounded full basis text and formatting independently of public excerpts
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-kdm/src/diff.rs, packages/kdm/src/diff.ts, crates/kition-kits/src/tools/guard.rs]
@@ -163,7 +163,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.covered-content
     title: Covered places can compare content independently of occupancy
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths: [crates/kition-kit/src/lib.rs, crates/kition-kits/src/tools/guard.rs]
@@ -171,7 +171,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.relative-order
     title: Structural commands can hold order among explicit objects and anchors independently of exact indexes
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -182,7 +182,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.batch-independence
     title: Types can declare raw field writes independent of placement
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -194,7 +194,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.text-members
     title: Declared JSON text members drive environment tasks and identical assignments compact losslessly
-    direction: [function, ai]
+    dimension: [function, ai]
     priority: P1
     status: has
     paths:
@@ -208,7 +208,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.external-inputs
     title: Guarded writes compare observed fingerprints of external byte sources
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -220,7 +220,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.identity-confidence
     title: Kits may refuse unprovable identity continuity after outside rereads
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -232,7 +232,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.private-derived
     title: Premise-only derived facts guard writes without public changes
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -244,7 +244,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.conditional-limits
     title: Per-object numeric limits validate live metadata and drive environment sampling
-    direction: [function, ai, data-safety]
+    dimension: [function, ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -259,7 +259,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.region-content
     title: Kit-defined content regions compare independently of whole blob replacements
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -273,7 +273,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.historical-blobs
     title: Guard callbacks can read verified basis blob bytes across reloads within bounded byte and journal retention
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -289,7 +289,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.tree-cascade
     title: Trees may opt into atomic descendant-first batch deletion
-    direction: [function, ai, data-safety]
+    dimension: [function, ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -303,7 +303,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.number-members
     title: Numeric bounds for JSON members and command parameters are enforced and sampled
-    direction: [function, ai, data-safety]
+    dimension: [function, ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -322,7 +322,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.draft-objects
     title: Bounded draft review for every declared object model uses the generic receipt vocabulary, ids and before/after values
-    direction: [ai, collab, data-safety]
+    dimension: [ai, collab, data-safety]
     priority: P0
     status: has
     paths:
@@ -343,7 +343,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.call-deadline
     title: Every managed kit request has a bounded deadline and a typed timeout
-    direction: [robustness, platform]
+    dimension: [robustness, platform]
     priority: P0
     status: has
     paths:
@@ -363,7 +363,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.idle-reclaim
     title: Idle document workers save file and draft state before stopping and restart on use
-    direction: [robustness, data-safety, platform]
+    dimension: [robustness, data-safety, platform]
     priority: P0
     status: has
     paths:
@@ -376,7 +376,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.document-concurrency
     title: Complete calls are FIFO per document and documents have independent process workers
-    direction: [robustness, platform]
+    dimension: [robustness, platform]
     priority: P0
     status: has
     paths:
@@ -391,7 +391,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.memory-ceiling
     title: Optional process memory ceilings are enforced on Linux and macOS and refused elsewhere
-    direction: [robustness, security, platform]
+    dimension: [robustness, security, platform]
     priority: P0
     status: partial
     gap: Windows has no resident reader here; Linux address-space allocation failures can still be ordinary kit failures when the resident monitor did not stop the process
@@ -406,7 +406,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.mcp-call-control
     title: MCP stdio forwards correlated kit progress and accepts cancellation while calls run
-    direction: [ai, robustness, platform]
+    dimension: [ai, robustness, platform]
     priority: P0
     status: partial
     gap: KitBackend cannot cooperatively interrupt an executing call; the host cancels and stops the worker. Live editor bridge and external HTTP adapters need their own control integration
@@ -421,7 +421,7 @@ features:
     since: "2026-11-16"
   - id: sdk.distribution.container
     title: One non-root container serves all kits over stdio MCP from one workspace volume, with a private ephemeral runtime folder
-    direction: [platform, ai, security]
+    dimension: [platform, ai, security]
     priority: P1
     status: partial
     paths:
@@ -432,7 +432,7 @@ features:
     since: "2026-11-16"
   - id: sdk.distribution.kits-mcp
     title: "@kition/kits-mcp starts kition-kits-mcp for this platform from npm, with the published kits, passing stdio, exit status and signals through"
-    direction: [platform, ai]
+    dimension: [platform, ai]
     priority: P1
     status: partial
     gap: The package and its platform packages are built by the manual publish workflow and are not on npm yet; win32-x64 and darwin-x64 builds are untested
@@ -447,7 +447,7 @@ features:
     since: "2026-11-16"
   - id: sdk.docs.integration
     title: Deterministic agent integration reference from every kit command catalogue, with read-only stale-output checking
-    direction: [ai, platform]
+    dimension: [ai, platform]
     priority: P1
     status: has
     paths:
@@ -462,7 +462,7 @@ features:
     since: "2026-11-16"
   - id: sdk.env.readable-tasks
     title: Environment generation skips unreadable inputs and words ordinal and boolean references in the kit's terms
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -474,7 +474,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.batch-values
     title: Batch values obey numeric limits and settle to file precision in their transaction
-    direction: [function, data-safety]
+    dimension: [function, data-safety]
     priority: P1
     status: has
     paths:
@@ -489,7 +489,7 @@ features:
     since: "2026-11-16"
   - id: sdk.editor.pan-bounds
     title: Document editors constrain scrolling to their page bounds
-    direction: [function]
+    dimension: [function]
     priority: P1
     status: has
     paths:
@@ -503,7 +503,7 @@ features:
     since: "2026-11-16"
   - id: sdk.editor.frame-overflow
     title: The editor frame's tabs show whole or move under More tabs; the Menus bar scrolls to cut menus with a fade and a button
-    direction: [function]
+    dimension: [function]
     priority: P1
     status: has
     paths:
@@ -517,7 +517,7 @@ features:
     since: "2026-11-16"
   - id: sdk.editor.display-modes
     title: The editor frame's display modes (Menus, Single line, Classic, Focus); Focus names its way out and Escape cancels in the kit first; Classic's ribbon gives way before the frame steps down; Single line is never one button
-    direction: [function]
+    dimension: [function]
     priority: P1
     status: has
     paths:
@@ -547,7 +547,7 @@ features:
     since: "2026-11-16"
   - id: sdk.editor.typing-focus
     title: While a tool takes text, typed keys reach the document; pressing a toolbar button does not take keyboard focus
-    direction: [function, data-safety]
+    dimension: [function, data-safety]
     priority: P0
     status: has
     paths:
@@ -558,7 +558,7 @@ features:
     since: "2026-11-16"
   - id: sdk.editor.held-keys
     title: A key pressed while the engine answers a gesture waits for that answer and then acts on what the gesture left (Delete right after a marquee deletes the selection)
-    direction: [function, data-safety]
+    dimension: [function, data-safety]
     priority: P0
     status: has
     paths:
@@ -570,7 +570,7 @@ features:
     since: "2026-11-16"
   - id: sdk.editor.file-follow
     title: An editor follows its file changed on disk without losing edits still being sent to the engine
-    direction: [function, data-safety]
+    dimension: [function, data-safety]
     priority: P0
     status: has
     paths:
@@ -581,7 +581,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.step-premises
     title: Run premises use the isolated state produced by preceding steps
-    direction: [function, data-safety]
+    dimension: [function, data-safety]
     priority: P0
     status: has
     paths:
@@ -596,7 +596,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.editing-guides
     title: Agent plugin editing skills match their kit's current guide
-    direction: [ai]
+    dimension: [ai]
     priority: P1
     status: has
     paths:
@@ -608,7 +608,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.headless-drafts
     title: An agent's headless drafts through kition-kits-mcp, which only the person reviews, merges or discards
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -625,7 +625,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.object-model
     title: The object-model tools say how each field is written and refuse what a batch cannot set
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -643,7 +643,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.tool-ids
     title: A kit's KDM schema names the field holding each type's tool id, and the object model answers and takes that id (one id space)
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -672,7 +672,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.previews
     title: An inspect preview is drawn at the call's target, scale and size, by the kit's declared render command or its screenshot; what neither can draw fails the preview instead of a silent whole-document image
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -689,7 +689,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.preview-view
     title: A preview is a function of the document and the view the call gives (a time, a range of frames, a part); the kit's render command gets the whole view, refuses a member it does not declare, and its answer says what the picture shows
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -715,7 +715,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.headless-runs
     title: A headless run is atomic, acts on its target part whatever part was current, and is refused once after the file changed outside the agent's calls
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -732,7 +732,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.call-context
     title: Every run step says what it acts on (`on`) and where (`at`, the run's `target`); the server sets the kit's editor state for the call and puts it back, so no call leaves hidden state behind
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -768,7 +768,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.receipts
     title: Every accepted write (`<prefix>_run`, `<prefix>_batch`) answers with a change set the SDK computes from the document's model (created, changed with before and after, moved, deleted; tool ids), a revision, and the diagnostics it introduced and resolved; drafts compare uses the same change set
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -837,7 +837,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.structural-consequences
     title: Structural environment tasks declare dependent fields scoped to their container instance
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -852,7 +852,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.kit-env
     title: Any kit with an object model is a training and evaluation environment with no code of its own (kition-env, `kit-env`), giving seeded editing tasks with the receipt as ground truth and instructions that name objects as a person would, rewards that check nothing else changed from the states however the attempt was made, oracle traces kept only at reward 1, and reset, step and score
-    direction: [ai, data-safety]
+    dimension: [ai, data-safety]
     priority: P1
     status: has
     paths:
@@ -889,7 +889,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.named-json
     title: Selector premises with declared stable member identities distinguish named JSON resources being renamed, deleted, reassigned or changed
-    direction: [ai, collab, data-safety]
+    dimension: [ai, collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -906,7 +906,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.premise-guard
     title: Every answer on a document names its revision; a call with `basis` is told what others (agents, edits to the file) changed since, and a write whose targets, part or replaced fields they deleted, relocated or changed is refused as `conflict`, while changes to other objects never refuse
-    direction: [ai, collab, data-safety]
+    dimension: [ai, collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -1046,7 +1046,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.live-editor
     title: A document open in its editor gets the headless path's agent guarantees through the Kit AI bridge, without moving the person's selection, part or playhead
-    direction: [ai, collab, data-safety]
+    dimension: [ai, collab, data-safety]
     priority: P1
     status: partial
     gap: Desktop hosts must forward the editor's new bridge members before the editor's answers reach the server
@@ -1084,7 +1084,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.required-params
     title: A kit that opts in publishes as required the parameters its notation leaves without a default and not optional; the gate refuses a call missing one with invalid-params naming it and where a value comes from; testing proves the opt-in both ways
-    direction: [ai, function]
+    dimension: [ai, function]
     priority: P1
     status: has
     paths:
@@ -1104,7 +1104,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.manifest-exports
     title: An export entry needs no command (agent.export.command writes every format); the manifest check warns when an exports[].command disagrees or an export command is not agent-facing
-    direction: [ai]
+    dimension: [ai]
     priority: P1
     status: has
     paths:
@@ -1118,7 +1118,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.manifest-links
     title: The manifest check accepts agent.links as a boolean only and, when it is true, needs the links-outside conformance fixture beside kit.json (KHP K21)
-    direction: [ai, security]
+    dimension: [ai, security]
     priority: P1
     status: has
     paths:
@@ -1131,7 +1131,7 @@ features:
     since: "2026-11-16"
   - id: sdk.object-model.published
     title: Published object models are registered for scripts and agent tools
-    direction: [ai, function]
+    dimension: [ai, function]
     priority: P1
     status: has
     paths:
@@ -1144,7 +1144,7 @@ features:
     since: "2026-11-16"
   - id: sdk.kdm.encoding
     title: The Kit Data Model encodes the same changes as the same bytes
-    direction: [data-safety, collab]
+    dimension: [data-safety, collab]
     priority: P1
     status: has
     paths:
@@ -1158,7 +1158,7 @@ features:
     since: "2026-11-16"
   - id: sdk.kdm.values
     title: The Kit Data Model refuses a value it cannot hold and says which values it takes
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -1171,7 +1171,7 @@ features:
     since: "2026-11-16"
   - id: sdk.collab.open-tokens
     title: Host-signed open tokens grant one person one file version, verified offline
-    direction: [collab, security]
+    dimension: [collab, security]
     priority: P1
     status: has
     paths:
@@ -1183,7 +1183,7 @@ features:
     since: "2026-11-16"
   - id: sdk.collab.file-rooms
     title: Managed co-editing keeps one room per file generation, seeded once, per-file connections
-    direction: [collab, security]
+    dimension: [collab, security]
     priority: P1
     status: has
     paths:
@@ -1205,7 +1205,7 @@ features:
     since: "2026-11-16"
   - id: sdk.collab.saves
     title: Co-edited rooms save through one state machine, one version per save with its authors
-    direction: [collab, data-safety]
+    dimension: [collab, data-safety]
     priority: P1
     status: has
     paths:
@@ -1224,7 +1224,7 @@ features:
     since: "2026-11-16"
   - id: sdk.ui.host-services
     title: Kits ask the host for files, people, sharing and comment anchors (Kit UI host services)
-    direction: [function, security]
+    dimension: [function, security]
     priority: P1
     status: has
     paths:
@@ -1237,7 +1237,7 @@ features:
     since: "2026-11-16"
   - id: sdk.ui.fetch-image
     title: Kits keep a pasted picture given by its web address through the host, which downloads public addresses only (Kit UI protocol 2.8, section 7l)
-    direction: [function, security]
+    dimension: [function, security]
     priority: P1
     status: has
     paths:
@@ -1248,7 +1248,7 @@ features:
     since: "2026-11-16"
   - id: sdk.embed.url
     title: Single-user URL embedding through the embed server
-    direction: [function, security]
+    dimension: [function, security]
     priority: P1
     status: has
     paths:
@@ -1260,7 +1260,7 @@ features:
     since: "2026-11-16"
   - id: sdk.testing.unknown-params
     title: Kits can test that commands refuse unknown parameters
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -1269,20 +1269,20 @@ features:
       - regressions/issue-unknown-params
     since: "2026-11-16"
   - id: sdk.testing.ai-cases
-    title: Kits check their layer ai cases with a dry run that calls no model; only the owner starts a real run (F-QA-16)
-    direction: [ai, function]
+    title: Kits check their eval cases with a dry run that calls no model; only a maintainer starts a real run (F-QA-16)
+    dimension: [ai, function]
     priority: P1
     status: has
     paths:
-      - tools/ai-cases.mjs
-      - tools/ai/**
-      - tools/ai-cases.test.mjs
+      - tools/eval-cases.mjs
+      - tools/eval/**
+      - tools/eval-cases.test.mjs
     cases:
       - regressions/issue-ai-dry-run-entry
     since: "2026-11-16"
   - id: sdk.testing.agent-ready
     title: Kits run the KHP Agent-ready phases in-process (kition_headless::agent_ready::check), which list every failure and ask what KHP asks
-    direction: [ai, function]
+    dimension: [ai, function]
     priority: P1
     status: has
     paths:
@@ -1296,7 +1296,7 @@ features:
     since: "2026-11-16"
   - id: sdk.quality.sync
     title: The quality rules, gate and Stop hook are generated into every repository from templates, with each repository's check command kept in one table
-    direction: [platform]
+    dimension: [platform]
     priority: P1
     status: has
     paths:
@@ -1309,7 +1309,7 @@ features:
     since: "2026-11-16"
   - id: sdk.quality.kit-matrix
     title: The kit matrix settles every kit against the kit requirements table, reading each kit's files where the layout standard puts them
-    direction: [platform]
+    dimension: [platform]
     priority: P1
     status: has
     paths:
@@ -1320,7 +1320,7 @@ features:
     since: "2026-11-16"
   - id: sdk.community.sync
     title: The community files (contributing guide, code of conduct, security and support policies, issue and pull request templates) are generated into every repository from templates and per-repository data, and each README is checked against its rules (a kit's README is a product page with pictures)
-    direction: [platform]
+    dimension: [platform]
     priority: P1
     status: has
     paths:
@@ -1332,7 +1332,7 @@ features:
     since: "2026-11-16"
   - id: sdk.readme.shots
     title: Kits take their README pictures with one shared runner that opens a sample in the kit's development host, writes assets/readme/<name>.png at device scale 2, retakes only the named shots, and flags pictures over 400 KB
-    direction: [platform]
+    dimension: [platform]
     priority: P2
     status: has
     paths:
@@ -1342,7 +1342,7 @@ features:
     since: "2026-11-16"
   - id: sdk.testing.kit-fixtures
     title: kition-kits tests read the kits' committed manifests, copied byte for byte and checked for drift
-    direction: [platform]
+    dimension: [platform]
     priority: P1
     status: has
     paths:
@@ -1354,7 +1354,7 @@ features:
     since: "2026-11-16"
   - id: sdk.docs.protocol-names
     title: KHP names only the Kit Harness Protocol; the Kit Process Protocol is always written in full, and platform rules are cited as the platform's
-    direction: [platform]
+    dimension: [platform]
     priority: P2
     status: has
     paths:
@@ -1366,7 +1366,7 @@ features:
     since: "2026-11-16"
   - id: sdk.testing.malformed-files
     title: Kits can test that damaged files are refused without a panic or a hang
-    direction: [robustness, security]
+    dimension: [robustness, security]
     priority: P0
     status: has
     paths:
@@ -1376,7 +1376,7 @@ features:
     since: "2026-11-16"
   - id: sdk.bundle.kits
     title: The SDK bundle holds the kits a host embeds, Table and Note included, by their current names
-    direction: [function]
+    dimension: [function]
     priority: P1
     status: has
     paths:
@@ -1392,7 +1392,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.kit-discovery
     title: kition-kits-mcp and kition-kits serve know which kit each executable given is, or refuse to start
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -1405,7 +1405,7 @@ features:
     since: "2026-11-16"
   - id: sdk.agent.version-lock-step
     title: A kit executable of another version than its manifest is refused at start, with what to do
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -1418,7 +1418,7 @@ features:
     since: "2026-11-16"
   - id: sdk.embed.open
     title: An embedded editor opens linked files and web addresses through the page (KitEmbed EM25)
-    direction: [function, security]
+    dimension: [function, security]
     priority: P1
     status: partial
     paths:
@@ -1430,7 +1430,7 @@ features:
     since: "2026-11-16"
   - id: sdk.embed.shortcuts
     title: An embedded editor forwards the page's shortcuts to it (KitEmbed EM28)
-    direction: [function]
+    dimension: [function]
     priority: P1
     status: has
     paths:
@@ -1442,7 +1442,7 @@ features:
     since: "2026-11-16"
   - id: sdk.embed.page-comments
     title: An embedded editor serves the page's services and marks the comment threads the page keeps (KitEmbed EM29, EM30)
-    direction: [function]
+    dimension: [function]
     priority: P1
     status: has
     paths:
@@ -1454,7 +1454,7 @@ features:
     since: "2026-11-16"
   - id: sdk.embed.host-writes
     title: A page writes through the person's open editor as itself (origin system), no undo step, and the editor says the app made the change (KitEmbed EM31, Kit UI protocol 2.7)
-    direction: [function, security]
+    dimension: [function, security]
     priority: P1
     status: has
     paths:
@@ -1472,7 +1472,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.document-text
     title: Kits answer document.text with their words in reading order within a limit, so hosts index words outside the object model (KitText 1.0)
-    direction: [function, ai]
+    dimension: [function, ai]
     priority: P1
     status: has
     paths:
@@ -1489,7 +1489,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.kits-service
     title: A host in any language uses the kits through `kition-kits serve`, by workspace path, with JSON lines on standard input and output
-    direction: [function, robustness, data-safety]
+    dimension: [function, robustness, data-safety]
     priority: P1
     status: has
     paths:
@@ -1517,7 +1517,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.lent-files
     title: Engines read the files a document refers to through the host, and tell a missing file (file_not_found) from a refused one
-    direction: [function, security]
+    dimension: [function, security]
     priority: P1
     status: has
     paths:
@@ -1534,7 +1534,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.unknown-params
     title: A headless kit refuses a top-level parameter its command's schema does not name, unless the command says its top level is open
-    direction: [ai, robustness]
+    dimension: [ai, robustness]
     priority: P1
     status: has
     paths:
@@ -1548,7 +1548,7 @@ features:
     since: "2026-11-16"
   - id: sdk.security.agent-command-gate
     title: Every way an agent runs a command passes the gate commands.execute applies, and a kit's own dispatchers ask it before each step
-    direction: [ai, security]
+    dimension: [ai, security]
     priority: P0
     status: has
     paths:
@@ -1567,7 +1567,7 @@ features:
     since: "2026-11-16"
   - id: sdk.security.file-parameters
     title: A lint fails on agent-facing commands that take a path in a plain string, until the kit types it file or reviews it
-    direction: [ai, security]
+    dimension: [ai, security]
     priority: P1
     status: has
     paths:
@@ -1582,7 +1582,7 @@ features:
     since: "2026-11-16"
   - id: sdk.security.kit-launch-environment
     title: A kit process starts in a private folder with an allowlisted environment, and a one-line check finds any file it leaves there
-    direction: [platform, security]
+    dimension: [platform, security]
     priority: P0
     status: has
     paths:
@@ -1600,7 +1600,7 @@ features:
     since: "2026-11-16"
   - id: sdk.security.kit-sandbox
     title: With --sandbox a kit process runs under the platform's sandbox, reaching its package, its private folder and no network
-    direction: [platform, security]
+    dimension: [platform, security]
     priority: P1
     status: partial
     paths:
@@ -1619,7 +1619,7 @@ features:
     since: "2026-11-16"
   - id: sdk.security.host-files-only
     title: Every document a headless host serves is told the host owns every file, so its engine reaches nothing by path
-    direction: [platform, security]
+    dimension: [platform, security]
     priority: P1
     status: has
     paths:
@@ -1633,7 +1633,7 @@ features:
     since: "2026-11-16"
   - id: sdk.host.headless-kit
     title: One host crate launches a kit headless, initializes it as the host in one call, and serves it a workspace's files by handle (Kit Process Protocol 2)
-    direction: [function, robustness]
+    dimension: [function, robustness]
     priority: P1
     status: has
     paths:
@@ -1658,7 +1658,7 @@ features:
     since: "2026-11-16"
   - id: sdk.quality.kit-vocabulary
     title: A read-only report measures how consistently the kits name and describe their commands (parameters, target and time spellings, id types, verb families), read from the SDK's generated catalogues
-    direction: [ai, platform]
+    dimension: [ai, platform]
     priority: P2
     status: has
     paths:

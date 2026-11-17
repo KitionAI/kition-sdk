@@ -3,8 +3,8 @@ id: regressions/issue-29-nested-windows
 feature: sdk.agent.premise-guard
 intent: >-
   Nested and raw UUID list operations preserve private positional history: insertions or deletions before a held index refuse relocated, while later edits apply.
-layer: golden
-source: { kind: synthetic, from: Mock SDK regression, licence: owned }
+layer: gate
+source: { kind: synthetic, from: Mock SDK regression, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: premise_guard, filter: nested_raw_list_windows_ }

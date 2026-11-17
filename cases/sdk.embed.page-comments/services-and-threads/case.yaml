@@ -6,11 +6,11 @@ intent: >-
   answers failed (EM29); the comment threads the page keeps are marked in the kit once it opens and
   again when the list changes, locate answers through the kit, and a clicked marker reaches the
   page (EM30).
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: packages/embed/test/opening.test.ts
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

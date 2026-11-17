@@ -4,11 +4,11 @@ feature: sdk.host.idle-reclaim
 intent: >-
   idle decisions never interrupt an active request. An idle dirty file is saved before
   its worker exits, and its next call reopens the saved bytes with the same public document id.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/process_control.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kits, filter: idle_reclaim_never_interrupts_a_call }

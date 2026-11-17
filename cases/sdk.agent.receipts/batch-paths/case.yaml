@@ -8,11 +8,11 @@ intent: >-
   receipt names the change at that path; a path past a list's end, to no field, in words no held
   object has, or `text.set` into a value is refused as `invalid-op`, with the same message in Rust
   and TypeScript.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

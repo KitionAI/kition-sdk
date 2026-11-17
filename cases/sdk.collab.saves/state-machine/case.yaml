@@ -2,11 +2,11 @@ format: 1
 id: sdk.collab.saves/state-machine
 feature: sdk.collab.saves
 intent: A co-edited room saves one version at a time with the authors and receipt the server names, keeps edits dirty when the host refuses a version, and hands an unsaved room to the next editor, by the same transitions in TypeScript and Rust.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-sync-protocol/tests/save-transitions.json
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

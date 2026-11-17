@@ -5,11 +5,11 @@ intent: >-
   A conflict's `now` keeps the list an object is in (`parent`, `field`, `index`) apart from its
   position fields: a node's position field `parent` (another node's key) is `now.fields.parent`.
   Before, it overwrote the list holder `now.parent` with the object's own `parent` field.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

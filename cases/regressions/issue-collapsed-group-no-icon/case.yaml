@@ -3,11 +3,11 @@ id: regressions/issue-collapsed-group-no-icon
 feature: sdk.editor.display-modes
 intent: >-
   Every shared ribbon group (drawing, ink, chart) and every group CommandTab builds has an icon, which it shows when the ribbon collapses it; they collapsed to a label alone.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

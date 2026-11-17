@@ -9,11 +9,11 @@ intent: >-
   launch. `agent_ready::workspace_only` finds every file a kit leaves there. Before, kits inherited
   the host's current folder, home, temporary folder and every variable, so an engine's by-path
   write (an auto-save beside a bare name) landed in the person's folders.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

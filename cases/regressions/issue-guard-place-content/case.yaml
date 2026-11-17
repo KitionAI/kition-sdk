@@ -7,11 +7,11 @@ intent: >-
   `clip.trim` on `"#3"` after a colleague changed clip 3 is refused as `changed`, nothing written.
   Before, a place's premise was which objects were under it and where, and both applied over the
   colleague's change.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

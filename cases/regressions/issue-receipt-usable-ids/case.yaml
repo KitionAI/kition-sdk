@@ -8,11 +8,11 @@ intent: >-
   those (`table.cells.0:1`). A ref to an object no tool id names and no holder with one holds (a
   new slide's `layout`) read as that object's minted id; now `{ "unnamed": "Layout" }`. Rust and
   TypeScript answer alike (`fixtures/usable-ids.json`).
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

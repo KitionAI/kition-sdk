@@ -7,11 +7,11 @@ intent: >-
   its change set read from the editor's replica: the person's edit of another object is named in
   the next write's `others` and the write applies; the person's deletion or move of the write's
   target refuses it as `conflict` (`deleted`, `relocated` with where it is now), and nothing runs.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/live_editor.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

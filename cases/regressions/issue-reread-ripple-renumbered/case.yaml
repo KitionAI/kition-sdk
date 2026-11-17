@@ -7,11 +7,11 @@ intent: >-
   each clip with the one that had been where it is now, took the shift for tool ids moved between
   clips, and refused every write naming a later clip as `unknown`. Content is now compared without
   the fields the schema marks `position`; clips whose numbers were swapped are still renumbered.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

@@ -8,11 +8,11 @@ intent: >-
   content (inspect without the kit's declared editor state), or a restore that does not bring
   `editor_state()` back. Before, it required `inspect()` to be identical, so real kits could run it
   only with contexts that move nothing.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit, filter: context_tests }

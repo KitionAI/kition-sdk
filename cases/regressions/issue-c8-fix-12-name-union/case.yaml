@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-12-name-union
 feature: sdk.agent.premise-guard
 intent: A point-or-object name parameter guards scalar names without treating point coordinates as ids.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

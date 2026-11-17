@@ -1,4 +1,4 @@
-// The agents an ai case can be run with. Every adapter gets the same kits' MCP server command and
+// The agents an eval case can be run with. Every adapter gets the same kits' MCP server command and
 // the case's turns, and answers usage: `{ tool_calls, tool_errors, input_tokens, cache_read_tokens,
 // cache_write_tokens, output_tokens, cost_usd?, stop, invalid?, transcript }`. `fake` replays the
 // case's `solution` through the server and calls no model.

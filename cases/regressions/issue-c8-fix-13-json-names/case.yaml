@@ -2,8 +2,8 @@ format: 1
 id: regressions/issue-c8-fix-13-json-names
 feature: sdk.agent.named-json
 intent: A stable identity hint on a selector premise distinguishes a JSON resource's rename, deletion, reassignment and content changes across agent edits and saved rereads without conflicting on siblings.
-layer: golden
-source: { kind: issue, from: SDK regression suite, licence: owned }
+layer: gate
+source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - exec:

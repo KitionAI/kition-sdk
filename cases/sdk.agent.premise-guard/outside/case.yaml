@@ -6,11 +6,11 @@ intent: >-
   objects it changed: with `basis`, an unrelated one is reported and the write runs, one that
   moved or deleted the target conflicts; for a kit without an object model it is `unknown`.
   Without `basis`, a `_batch` is refused once like a `_run` (A56), and reads do not clear that.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: crates/kition-kits/tests/premise_guard.rs
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

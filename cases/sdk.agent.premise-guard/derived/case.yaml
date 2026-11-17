@@ -8,11 +8,11 @@ intent: >-
   `changed` after a subdivide, in the file and between agents; a pick at the edge of a node whose
   mesh a colleague shrank away from it, or which a colleague deleted, is refused from the bounds
   the journal kept.
-layer: golden
+layer: gate
 source:
   kind: synthetic
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

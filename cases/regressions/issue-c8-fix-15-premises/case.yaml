@@ -2,9 +2,9 @@ format: 1
 id: regressions/issue-c8-fix-15-premises
 feature: sdk.agent.premise-guard
 intent: Exhaustive non-positional address and premise matrices refuse stale writes with precise reasons.
-layer: golden
+layer: gate
 timeout_s: 60
-source: { kind: synthetic, from: SDK regression suite, licence: owned }
+source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kits, test: premise_guard, filter: remaining_id_field_matrix }

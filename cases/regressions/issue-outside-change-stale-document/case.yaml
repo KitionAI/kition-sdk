@@ -7,11 +7,11 @@ intent: >-
   is, with the summaries before and after, and the run after the one refused proceeds on the new
   file and keeps the change made outside. Before, the kit kept the document it had read earlier:
   inspect showed the old content, and the retried run failed to save with a file conflict.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

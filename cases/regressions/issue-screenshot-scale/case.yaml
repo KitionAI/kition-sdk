@@ -9,11 +9,11 @@ intent: >-
   kition-headless never drew above scale 1, and `scale` and `target` were dropped without a word,
   so every kit without a render command failed khp check phase 7 ("scale 2 gives 320 × 200, not
   twice 320 × 200").
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

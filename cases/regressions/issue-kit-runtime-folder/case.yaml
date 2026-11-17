@@ -9,11 +9,11 @@ intent: >-
   temporary folder goes with the last private folder in it. Before, `XDG_CACHE_HOME` named
   `<private>/cache`, a second folder, and the host left `kition-kits` behind in its own
   `TMPDIR`, which is the private runtime folder its harness gives `kition-kits-mcp`.
-layer: golden
+layer: gate
 source:
   kind: probe
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

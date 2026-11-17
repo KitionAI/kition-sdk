@@ -6,11 +6,11 @@ intent: >-
   `"2"`, a clip `2` is `2`), else the all-digits rule; a batch's `results` give created objects'
   integer tool ids as numbers. Before, conflicts read every all-digit id as a number and results
   were strings while every other answer gave numbers.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

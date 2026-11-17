@@ -8,11 +8,11 @@ intent: >-
   system by path (auto-saves, caches, folders in settings, process starts, system fonts). Before,
   an engine could not tell it ran under a host and could write an auto-save into the
   headless process's current folder.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

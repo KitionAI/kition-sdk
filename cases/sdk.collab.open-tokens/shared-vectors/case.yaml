@@ -2,12 +2,12 @@ format: 1
 id: sdk.collab.open-tokens/shared-vectors
 feature: sdk.collab.open-tokens
 intent: Open tokens verify the same way in TypeScript as in the Rust crate, against the shared signed vectors, so a token Kition Server refuses is never accepted by the page and a forged, misdirected or malformed one is always refused.
-layer: golden
-direction: security
+layer: gate
+dimension: security
 source:
   kind: synthetic
   from: crates/kition-open-token/tests/vectors.json
-  licence: owned
+  license: owned
 input: []
 steps:
   - exec:

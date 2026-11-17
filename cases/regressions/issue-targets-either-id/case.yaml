@@ -7,11 +7,11 @@ intent: >-
   any of them; a parameter that is not an id (an object, a boolean, free JSON) stays refused.
   Before, `check_targets` refused the converter's own `oneOf` id, so the presentation kit could
   declare `targets` on one command of 255 and the 3D kit's `object`/`objects` on none.
-layer: golden
+layer: gate
 source:
   kind: issue
   from: SDK regression suite
-  licence: owned
+  license: owned
 input: []
 steps:
   - cargo-test: { package: kition-kit, filter: a_target_parameter_may_be_an_id_of_either_kind }
