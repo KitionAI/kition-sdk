@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-kdm-bulk-undo-memory
+feature: sdk.model.register-undo
+intent: >-
+  Undo and redo of a transaction that only writes registers and map keys (a table's whole column
+  cleared, pasted or filled) write back the values it replaced, noted when it committed, and keep
+  about as much memory as those notes: nothing of the document's history. Before, the engine's
+  undo looked up each key's previous value in the history and kept every part of the history it
+  read, so on a page undo and redo of a 100,000-record column ran out of memory.
+layer: gate
+source: { kind: issue, from: Kition Table bulk writes (card bulk-undo), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: bulk_undo_memory }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-18"

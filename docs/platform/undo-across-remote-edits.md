@@ -11,16 +11,18 @@ change splits it.
 
 ## Where it happens
 
-- `@kition/kdm` `Replica.beginUndoGroup` / `endUndoGroup` (and the Rust twin
-  `kition-kdm` `Replica::begin_undo_group`) open a Loro `UndoManager` group in
-  each undo scope (person, agent). Both managers run with `mergeInterval: 0`,
-  so a typing run is one step only because its editor opens a group around it.
+- `@kition/kdm` `Replica.beginUndoGroup` / `endUndoGroup` open a Loro
+  `UndoManager` group in each undo scope (person, agent). Both managers run
+  with `mergeInterval: 0`, so a typing run is one step only because its
+  editor opens a group around it.
 - When `importChanges` takes a remote change that touches what the open group
-  changed, Loro ends the group. `reopenUndoGroup` (Rust: the same after
-  import) starts a new one, so the run becomes two steps: before and after the
-  import. That is documented in `beginUndoGroup`'s comment and pinned by
-  `packages/kdm/test/replica.test.ts` "an import that changes what the group
-  changed splits the group into two undo steps" (and its Rust counterpart).
+  changed, Loro ends the group. `reopenUndoGroup` starts a new one, so the run
+  becomes two steps: before and after the import. That is documented in
+  `beginUndoGroup`'s comment and pinned by `packages/kdm/test/replica.test.ts`
+  "an import that changes what the group changed splits the group into two
+  undo steps".
+- The Rust twin `kition-kdm` keeps its undo steps itself (see "The Rust
+  replica's steps" below), so an import never splits its groups.
 - Kits whose engine keeps its own undo history (Rust engines that call
   `edit.undo` themselves) group typing in their own code; this design covers
   the KDM history only, which `@kition/kit-editor`'s worker and the KDM-based
@@ -28,7 +30,8 @@ change splits it.
 
 ## Design
 
-Keep Loro's per-step undo items as they are, and make the KDM group a chain:
+For `@kition/kdm`: keep Loro's per-step undo items as they are, and make the
+KDM group a chain:
 
 1. `Replica` keeps a run id while a group is open. Each Loro group started for
    the open KDM group (the first, and every one `reopenUndoGroup` starts after
@@ -51,6 +54,43 @@ Keep Loro's per-step undo items as they are, and make the KDM group a chain:
 Rule change (`KitModel 1.1` M12b, new): "A person's undo group stays one undo
 step when other replicas' changes arrive while it is open, also when they touch
 what the group changed."
+
+## The Rust replica's steps
+
+`kition-kdm`'s `Replica` keeps one stack of undo steps and one of redo steps
+per scope. A step is one transaction, or the transactions of one undo group
+(M12b: an import never splits it, as the replica, not the engine, decides
+what a step holds), each kept as one of two kinds of part:
+
+1. **Register writes.** A transaction whose every operation writes a register
+   field or a key of a map field of an object that existed before it (a
+   table's column cleared, pasted, or filled) notes, when it commits, each
+   register it changes and the value it held before. Undo writes those values
+   back, every one, in one commit, and notes the values it replaced for redo,
+   which does the same the other way. Nothing of the document's history is
+   read: Loro's undo looks up each overwritten key's previous value in the
+   history (`MapHistoryCache`) and keeps every part of the history it parsed,
+   which ran a page out of memory after a 100,000-record column write.
+   These transactions commit with an origin the engine's undo managers
+   exclude, so for the engine they are changes made since, like another
+   replica's.
+2. **Engine steps.** Any other transaction is a step of the scope's Loro
+   `UndoManager`, which the part names by a serial the replica gives each of
+   its items. Undo and redo call the manager once per part, so a group's
+   parts replay in reverse order of their transactions and redo in order.
+
+Both kinds follow M12 and M12a the same way: undo writes back every register
+of the step, then puts back the value of each register another replica or
+another scope wrote later, in a `system` commit (`keep-later-changes`).
+`crates/kition-kdm/tests/register_undo.rs` runs the same random scripts on
+three replicas with register steps and with engine steps and requires the
+same states and undo answers (every step the replica keeps is in the engine's
+history too), and that replicas converge with partial delivery. A step with nothing left to replay (another replica deleted
+everything it wrote) is dropped, and the same undo or redo replays the step
+before it, as Loro does with its own items.
+
+A scope keeps its last 100 steps (Loro's default before). `@kition/kdm` keeps
+the chain design above.
 
 ## Why it stops here
 

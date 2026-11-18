@@ -1,0 +1,21 @@
+format: 1
+id: sdk.model.register-undo/as-engine-steps
+feature: sdk.model.register-undo
+intent: >-
+  A transaction that only writes registers and keys of map fields of existing objects is an undo
+  step the replica keeps itself, and it undoes and redoes as the engine's steps do: random scripts
+  of writes, undos, redos and groups in both scopes on three replicas give the same states and
+  undo answers with either kind of step; replicas that write the same and different cells
+  concurrently, undo and redo, and exchange changes in any order converge; a group mixing both
+  kinds is one step; the step writes back into an object deleted and brought back, skips one
+  another replica deleted, keeps the other scope's and other replicas' later writes, and an undo
+  drops a step whose objects are all gone and takes back the one before it.
+layer: gate
+source: { kind: issue, from: Kition Table bulk writes (card bulk-undo), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: register_undo }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-18"

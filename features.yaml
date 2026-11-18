@@ -91,6 +91,14 @@ features:
     paths: [crates/kition-kdm/src/changes.rs, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs]
     cases: [regressions/issue-kition-table-bulk-write-changes]
     since: "2026-11-18"
+  - id: sdk.model.register-undo
+    title: Undo and redo of a transaction that only writes registers write back the values it replaced, without the document's history
+    dimension: [performance, collab, data-safety]
+    priority: P0
+    status: has
+    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs]
+    cases: [sdk.model.register-undo/as-engine-steps, regressions/issue-kdm-bulk-undo-memory]
+    since: "2026-11-18"
   - id: sdk.model.projected-objects
     title: Kit-computed objects participate in the object model without replica storage
     dimension: [function, collab, ai]

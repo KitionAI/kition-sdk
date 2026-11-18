@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
-use loro::{Container, ContainerID, ContainerTrait, LoroDoc, ToJson, ValueOrContainer};
+use loro::{Container, ContainerID, ContainerTrait, LoroDoc, LoroMap, ToJson, ValueOrContainer};
 use serde_json::{Map, Value};
 
 use crate::ids::{NodeInner, PendingNode};
@@ -61,6 +61,14 @@ pub struct Tx<'a> {
 struct Reads<'a> {
     types: HashMap<ObjectId, &'a str>,
     containers: HashMap<FieldKey<'a>, Option<Container>>,
+}
+
+/// One register a transaction writes: a key of `container` (an object's own map for a register
+/// field, a map field's map for one of its keys), with the value written (`None`: deleted).
+pub(crate) struct RegisterWrite {
+    pub(crate) container: ContainerID,
+    pub(crate) key: String,
+    pub(crate) value: Option<loro::LoroValue>,
 }
 
 /// A successful transaction's operations, ready to apply.
@@ -186,33 +194,81 @@ impl<'a> Staged<'a> {
         self.ops.iter().any(|op| matches!(op, Op::RaiseSchema { .. }))
     }
 
-    /// The registers the operations write: `(container, key, value)`, the container an object's
-    /// own map for its register fields, the value `None` for a deleted map key. Writes to an
+    /// The registers the operations write ([`RegisterWrite`]), in order. Writes to an
     /// object the same operations create are left out, as its creation's own fields are: no undo
     /// reaches such a register before a later write replaces it (undoing the creation removes
     /// the whole object), so the replica keeps no note of them. Map fields the transaction read
     /// are not looked up again.
-    pub(crate) fn register_writes(&self, doc: &LoroDoc) -> Vec<(ContainerID, String, Option<Value>)> {
+    pub(crate) fn register_writes(&self, doc: &LoroDoc) -> Vec<RegisterWrite> {
         let created: HashSet<&ObjectId> = self.ops.iter().filter_map(|op| if let Op::Create { id, .. } = op { Some(id) } else { None }).collect();
-        let map_field = |id: &ObjectId, field: &'a str| -> Option<ContainerID> {
-            match self.containers.get(&(id.clone(), field)) {
-                Some(Some(Container::Map(map))) => Some(map.id()),
-                _ => match read::object_map(doc, id).ok()?.get(field) {
-                    Some(ValueOrContainer::Container(Container::Map(map))) => Some(map.id()),
-                    _ => None,
-                },
-            }
-        };
         self.ops
             .iter()
             .filter_map(|op| match op {
                 Op::Set { id, .. } | Op::MapSet { id, .. } | Op::MapDelete { id, .. } if created.contains(id) => None,
-                Op::Set { id, field, value } => Some((read::object_map(doc, id).ok()?.id(), (*field).to_owned(), Some(value.clone()))),
-                Op::MapSet { id, field, key, value } => Some((map_field(id, field)?, key.clone(), Some(value.clone()))),
-                Op::MapDelete { id, field, key } => Some((map_field(id, field)?, key.clone(), None)),
-                _ => None,
+                op => self.register_write(doc, op).map(|(_, write)| write),
             })
             .collect()
+    }
+
+    /// The register `op` writes, with the map holding it, when it is a write to a register field
+    /// or to a key of a map field.
+    fn register_write(&self, doc: &LoroDoc, op: &Op<'a>) -> Option<(LoroMap, RegisterWrite)> {
+        let map_field = |id: &ObjectId, field: &'a str| -> Option<LoroMap> {
+            match self.containers.get(&(id.clone(), field)) {
+                Some(Some(Container::Map(map))) => Some(map.clone()),
+                _ => match read::object_map(doc, id).ok()?.get(field) {
+                    Some(ValueOrContainer::Container(Container::Map(map))) => Some(map),
+                    _ => None,
+                },
+            }
+        };
+        let (map, key, value) = match op {
+            Op::Set { id, field, value } => (read::object_map(doc, id).ok()?, (*field).to_owned(), Some(to_loro(value.clone()))),
+            Op::MapSet { id, field, key, value } => (map_field(id, field)?, key.clone(), Some(to_loro(value.clone()))),
+            Op::MapDelete { id, field, key } => (map_field(id, field)?, key.clone(), None),
+            _ => return None,
+        };
+        let container = map.id();
+        Some((map, RegisterWrite { container, key, value }))
+    }
+
+    /// When every operation writes a register field or a key of a map field of an object that
+    /// existed before the transaction, the transaction's undo step as the replica keeps it
+    /// ([`crate::replica::Entry`]): each register it changes with the value it held before, read
+    /// now, before the operations apply. A register written twice is noted once; one the
+    /// transaction leaves at the value it held is not noted, as the engine writes nothing for it.
+    /// Also answers [`Staged::register_writes`]. `None` for any other transaction.
+    pub(crate) fn register_step(&self, doc: &LoroDoc) -> Option<(Vec<RegisterWrite>, Vec<crate::replica::Entry>)> {
+        let mut writes = Vec::with_capacity(self.ops.len());
+        let mut entries: Vec<crate::replica::Entry> = Vec::with_capacity(self.ops.len());
+        let mut noted: HashMap<(ContainerID, String), usize> = HashMap::with_capacity(self.ops.len());
+        for op in &self.ops {
+            let (map, write) = self.register_write(doc, op)?;
+            let (id, field) = match op {
+                Op::Set { id, .. } => (id, None),
+                Op::MapSet { id, field, .. } | Op::MapDelete { id, field, .. } => (id, Some((*field).to_owned())),
+                _ => return None,
+            };
+            let register = (write.container.clone(), write.key.clone());
+            if !noted.contains_key(&register) {
+                let before = match map.get(&write.key) {
+                    Some(ValueOrContainer::Value(value)) => Some(value),
+                    Some(ValueOrContainer::Container(_)) => return None,
+                    None => None,
+                };
+                noted.insert(register.clone(), entries.len());
+                entries.push(crate::replica::Entry { container: register.0, key: register.1, object: id.clone(), field, value: before });
+            }
+            writes.push(write);
+        }
+        // A register the transaction leaves at its value changes nothing.
+        let mut last: HashMap<(&ContainerID, &str), &Option<loro::LoroValue>> = HashMap::with_capacity(entries.len());
+        for write in &writes {
+            last.insert((&write.container, write.key.as_str()), &write.value);
+        }
+        let entries =
+            entries.into_iter().filter(|entry| last.get(&(&entry.container, entry.key.as_str())).is_none_or(|value| **value != entry.value)).collect();
+        Some((writes, entries))
     }
 
     /// Applies the operations without committing. On success the transaction's node handles

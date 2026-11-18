@@ -254,6 +254,13 @@ These rules bound the work performed by kit engines.
   Undo bookkeeping grows faster than linearly with a transaction's size.
 - **P3** An interactive transaction SHOULD touch at most about 10,000
   objects. Larger edits split into several transactions or run as an import.
+  A larger transaction that only writes register fields and keys of map
+  fields of existing objects (a table's column cleared, pasted, or filled)
+  is the exception in `kition-kdm`: its undo and redo write back values the
+  replica noted when it committed, and cost about what it wrote, never the
+  document's history ([undo across remote edits](../undo-across-remote-edits.md)).
+  Any other transaction's undo is the CRDT engine's, which reads the history
+  since the step.
 - **P4** Bulk work MUST run inside the engine's WebAssembly module. Driving
   the KDM object by object across the JavaScript boundary is several times
   slower than the same work inside the module. Every Rust kit runs the KDM

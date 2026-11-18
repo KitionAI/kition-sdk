@@ -211,8 +211,9 @@ A kit on the KDM ships `model/schema.json`:
   it is open, also when they touch what the group changed: one Undo takes
   back all of the group's transactions and keeps those changes, and one Redo
   puts the group back. Two groups stay two steps, and each scope's steps stay
-  in that scope (M12a). `@kition/kdm` and `kition-kdm` chain the steps an
-  import split by the group's run ([undo across remote edits](../undo-across-remote-edits.md)).
+  in that scope (M12a). `@kition/kdm` chains the steps an import split by the
+  group's run; `kition-kdm` keeps each group as one step of its own
+  ([undo across remote edits](../undo-across-remote-edits.md)).
 
   `undo()`, `redo()`, `can_undo()`, and `can_redo()` (`undo()`, `redo()`,
   `canUndo()`, `canRedo()` in TypeScript) work in the `person` scope;
