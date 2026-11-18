@@ -20,8 +20,13 @@ export function locate({ sdk, siblings, mcp, kitBinaries = {} }) {
 
 /** The command that serves `kits` on `workspace`, for the runner and for every adapter. */
 export function serverCommand(where, workspace, kits) {
+  if (!existsSync(where.server)) throw new Error(`the kits' MCP server is not built: ${where.server} is missing (cargo build -p kition-kits-mcp in kition-sdk, or set KITION_KITS_MCP)`)
   const args = ['--workspace', workspace]
-  for (const name of kits) args.push('--kit', where.kit(name))
+  for (const name of kits) {
+    const binary = where.kit(name)
+    if (!existsSync(binary)) throw new Error(`the ${name} kit is not built: ${binary} is missing (cargo build -p kition-${name} in kition-${name}, or set KITION_KIT_${name.toUpperCase()}_BINARY)`)
+    args.push('--kit', binary)
+  }
   return { command: where.server, args }
 }
 
