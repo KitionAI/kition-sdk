@@ -1,5 +1,5 @@
 {
-  "$comment": "The Kition SDK's one version and what its bundle holds (tools/sdk-bundle.mjs, docs/sdk/README.md). Bump the version and add a CHANGELOG.md entry together.",
+  "$comment": "The Kition SDK's one version and what its bundle holds (tools/sdk-bundle.mjs, docs/sdk/README.md). Bump the version, crates/kition-cli's version (kition --version) and add a CHANGELOG.md entry together.",
   "version": "0.2.0",
   "packages": ["@kition/embed", "@kition/script", "@kition/sync", "@kition/kdm", "@kition/embed-server"],
   "kits": ["note", "table"],

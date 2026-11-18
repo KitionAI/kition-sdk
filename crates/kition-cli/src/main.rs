@@ -361,6 +361,13 @@ mod tests {
         assert_eq!(cli["defaultIndex"], DEFAULT_INDEX);
     }
 
+    /// `kition --version` is the SDK version: bump this crate's version with sdk.json's.
+    #[test]
+    fn the_version_is_the_sdks() {
+        let sdk: Value = serde_json::from_str(include_str!("../../../sdk.json")).unwrap();
+        assert_eq!(sdk["version"], VERSION, "set crates/kition-cli/Cargo.toml version to sdk.json's");
+    }
+
     #[test]
     fn a_kit_may_name_its_version() {
         assert_eq!(kit_and_version("note").unwrap(), ("note".to_owned(), None));
