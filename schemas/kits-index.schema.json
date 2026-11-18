@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/KitionAI/kition-sdk/schemas/kits-index.schema.json",
+  "title": "Kition kit index (kits-index.json)",
+  "description": "Every kit the `kition` command line can install: per kit its id, display name and file extensions; per version the Kit Process Protocol it speaks and, per platform, its archive (a .tar.gz with kit.json and the kit's executable at its top) with size and SHA-256. `kition` reads exactly the `schemaVersion` it was built for and asks to be upgraded for a newer one. See kition-sdk's docs/sdk/cli.md.",
+  "type": "object",
+  "required": ["schemaVersion", "kits"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1, "description": "The index format. A change that an older kition would misread raises it." },
+    "kits": {
+      "type": "object",
+      "description": "Each kit by its short name: `note` for `kit.note`.",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9]*$" },
+      "additionalProperties": { "$ref": "#/$defs/kit" }
+    }
+  },
+  "$defs": {
+    "kit": {
+      "type": "object",
+      "required": ["id", "name", "extensions", "versions"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^kit\\.[a-z][a-z0-9]*$", "description": "The kit.json `id`: `kit.` and the short name." },
+        "name": { "type": "string", "minLength": 1, "description": "The kit.json `name`." },
+        "extensions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The extensions it edits (kit.json formats with role `edit`), lowercase, without the dot.",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" }
+        },
+        "versions": {
+          "type": "object",
+          "description": "Each published version, by its semver.",
+          "propertyNames": { "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
+          "additionalProperties": { "$ref": "#/$defs/version" }
+        }
+      }
+    },
+    "version": {
+      "type": "object",
+      "required": ["protocol", "platforms"],
+      "properties": {
+        "protocol": { "type": "string", "pattern": "^kition-kit/[0-9]+$", "description": "The Kit Process Protocol the executable speaks, as its kit.json says (`headless.protocol`). kition installs only a version that speaks its own." },
+        "platforms": {
+          "type": "object",
+          "description": "The archive for each platform: darwin-arm64, darwin-x64, linux-arm64, linux-x64 (glibc), win32-x64.",
+          "propertyNames": { "pattern": "^[a-z0-9]+-[a-z0-9]+$" },
+          "additionalProperties": { "$ref": "#/$defs/archive" }
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "required": ["url", "size", "sha256"],
+      "properties": {
+        "url": { "type": "string", "minLength": 1, "description": "An https address, or a path; a relative one is read beside the index." },
+        "size": { "type": "integer", "minimum": 1, "description": "Bytes." },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

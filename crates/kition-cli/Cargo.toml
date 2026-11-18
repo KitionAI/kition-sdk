@@ -1,0 +1,38 @@
+[package]
+name = "kition-cli"
+description = "kition, the Kition command line: a kit store under ~/.kition filled from a kit index, and the kits' MCP server and Kits Service on the store's kits."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "kition"
+path = "src/main.rs"
+
+[dependencies]
+kition-kits = { path = "../kition-kits" }
+kition-kit-process-protocol = { path = "../kition-kit-process-protocol" }
+
+# Downloads: rustls with ring and the Mozilla roots built in (no OpenSSL, no system TLS library,
+# cross-compiles to every platform the SDK releases for); proxies from HTTPS_PROXY, HTTP_PROXY,
+# ALL_PROXY and NO_PROXY. Archives: tar over flate2's pure-Rust inflater.
+flate2 = "1"
+hex = "0.4"
+rand = "0.9"
+semver = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+url = "2"
+
+[dev-dependencies]
+jsonschema = { version = "0.58", default-features = false }
+tempfile = "3"
