@@ -101,7 +101,7 @@ names, with the size and SHA-256 it gives.
 ## Getting one
 
 ```sh
-v=0.3.0 p=darwin-arm64
+v=0.4.0 p=darwin-arm64
 base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
 curl -fsSLO "$base/SHA256SUMS"
 curl -fsSLO "$base/kition-sdk-$v.json"
@@ -149,7 +149,7 @@ and `--version` name a rehearsal's own release:
 
 ```sh
 node tools/release-archives.mjs --bin <folder> --out <release folder> \
-  --previous kits-index.json --base-url http://127.0.0.1:8000/releases/download/sdk-v0.3.0
+  --previous kits-index.json --base-url http://127.0.0.1:8000/releases/download/sdk-v0.4.0
 ```
 
 Served over HTTP as `<url>/releases/download/sdk-v<version>/` and `<url>/releases/latest/download/`,

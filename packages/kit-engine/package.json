@@ -1,6 +1,6 @@
 {
   "name": "@kition/kit-engine",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Engine contract 2 in TypeScript: the document class a kit's engine worker drives, and KitSession, which makes one from a kit model on the Kit Data Model.",
   "license": "Apache-2.0",
   "type": "module",

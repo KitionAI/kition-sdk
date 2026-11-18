@@ -1,6 +1,6 @@
 {
   "name": "@kition/script",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The Kition object model for scripts and extensions: typed proxies, load and sync() batching, commands, and change events over any contract 2 kit, in a page or in Node.",
   "license": "Apache-2.0",
   "type": "module",

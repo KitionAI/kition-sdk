@@ -2,6 +2,34 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
+## 0.4.0
+
+Contracts: KHP 1.0, the Kit Process Protocol `kition-kit/2`, the kit engine contract 1
+(`CONTRACT_VERSION`), the Kit UI protocol `kition-kit-ui/1` and KDM 1, as in 0.3.0.
+
+- **Published kits**: `kit.table` 0.5.1, built from its `package-v0.5.1` tag, with `kit.note`
+  0.3.0 and `kit.html` 0.1.0 as before (`crates/kition-kits/tests/fixtures/kits/`).
+- **Lazy fonts in `@kition/kit-editor`**: the engine manifest gains `lazyFonts`, font files given
+  to `addFont` after the document opened, once the engine's optional `wantsFonts()` answers true
+  (right after the document opens for an engine without it); `fonts` stays the faces the first
+  frame waits for. `KitEngine.loadFonts`, `KitEngine.fontsPending` and `onFonts` follow them, and
+  `KitCanvas` draws the whole view again after each. Engine contract E9 (late faces lay out from
+  the next call on) and E9a (`wantsFonts`) in `docs/platform/kits/engine.md`; both are optional,
+  so the engine contract stays 1.
+- **KDM changes**: `Replica::take_changes` answers `Changes`, the changed objects and, for an
+  object whose only changes were writes to keys of map fields, those keys with their values. A
+  transaction, an import, an undo or redo and a draft's merge report them, so a host's
+  projection of a large write reads nothing back for such objects. `take_changed` answers the
+  objects, as before.
+- **KDM bulk writes**: a transaction reads each object's type and containers once and writes to
+  the containers it found, gathers its undo footprint in one pass, and prepares the maps it
+  writes while their values are still decoded; Loro from KitionPkg/loro `2498cd8`, which links a
+  child to its parent when reading finds it and builds a lazy map's state from its decoded
+  value. A write to every record of a large table no longer decodes each record again.
+- `kition-kits`: a document call's future is on the heap, so debug builds no longer overflow a
+  test thread's stack.
+- `@kition/kit-editor`: commands named "smart graphic" keep the diagram icon.
+
 ## 0.3.0
 
 - **Published kits**: HTML joins Note and Table (`published-kits.json`, `sdk.json`): `kit.html`

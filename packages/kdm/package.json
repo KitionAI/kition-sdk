@@ -1,6 +1,6 @@
 {
   "name": "@kition/kdm",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Kit Data Model for TypeScript engines and hosts: the same replicated document model as the kition-kdm crate.",
   "license": "Apache-2.0",
   "type": "module",

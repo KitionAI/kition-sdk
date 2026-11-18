@@ -1,6 +1,6 @@
 # Kition SDK
 
-Version **0.3.0** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
+Version **0.4.0** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
 
 The [platform documentation](../platform/index.md) describes the SDK contracts.
 A distribution may additionally include a separately supplied KHP specification.
