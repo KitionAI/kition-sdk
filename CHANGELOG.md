@@ -2,6 +2,23 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
+## Unreleased
+
+- **`kition`, the command line**: one small program with no kit inside; it installs kits from a
+  kit index into a store under `~/.kition` (`kition kit list/install/upgrade/remove`), and
+  `kition mcp` installs a kit the first time an agent opens a file of it (`docs/sdk/cli.md`).
+  `kition --version` is the SDK version.
+- **Releases** add `kition-<version>-<platform>.tar.gz` for the five platforms, the kit archives
+  `kition-<kit>-<kitVersion>-<platform>.tar.gz`, `kits-index.json` and the installers `install.sh`
+  and `install.ps1`, all in the release manifest and `SHA256SUMS`. Each release's index carries
+  the previous release's forward, so every published kit version stays installable
+  (`tools/release-archives.mjs`, `docs/sdk/distribution.md`).
+- `@kition/kits-mcp-<platform>` carries `kition` and no kit; `@kition/kits-mcp` starts
+  `kition mcp` (the same `npx -y @kition/kits-mcp --workspace <folder>`), and
+  `npx -y @kition/kits-mcp kit install <kit>` installs a kit ahead of time. The Claude Code
+  plugin prefers `kition` on the `PATH`.
+- The shipped executables are built with the `dist` profile (LTO, stripped).
+
 ## 0.2.0
 
 - **Releases you download**: each SDK version is the GitHub Release `sdk-v<version>`, made by

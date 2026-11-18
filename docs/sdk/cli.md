@@ -8,6 +8,48 @@ running the kits in the store.
 
 It is free on any machine, servers included, and needs no licence key.
 
+## Installing it
+
+Nothing has to be compiled, and Rust is not needed. Pick one:
+
+```sh
+# macOS and Linux (glibc): the latest release, into ~/.kition/bin/kition
+curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
+# a given SDK version
+curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.3.0
+```
+
+```powershell
+# Windows (x64; Windows 11 on Arm runs it by emulation): into %USERPROFILE%\.kition\bin\kition.exe
+irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex
+```
+
+```sh
+# with Node.js 20 or later: the same kition, started as kition mcp (packages/kits-mcp)
+npx -y @kition/kits-mcp --workspace <folder>
+npx -y @kition/kits-mcp kit install note     # the kit commands, through the same package
+```
+
+The scripts take the `kition-<version>-<platform>.tar.gz` of this machine's platform from the SDK
+release ([distribution.md](distribution.md)), check it against the release's `SHA256SUMS`, check
+that it runs, and move it into `$KITION_HOME/bin` (`~/.kition/bin`) with one rename. They never
+ask for administrator rights and never change a shell profile or the `PATH`: they print the line
+to add. `install.sh` refuses Linux with the musl C library (Alpine) and says so; `kition` is built
+for glibc. Both read `KITION_HOME`, `KITION_VERSION` (as the argument) and `KITION_RELEASES_URL`,
+another address laid out like `https://github.com/KitionAI/kition-sdk/releases` (a mirror). By
+hand:
+
+```sh
+v=0.3.0 p=darwin-arm64
+base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
+curl -fsSLO "$base/SHA256SUMS" && curl -fsSLO "$base/kition-$v-$p.tar.gz"
+grep " kition-$v-$p.tar.gz\$" SHA256SUMS | shasum -a 256 -c
+mkdir -p ~/.kition/bin && tar -xzf "kition-$v-$p.tar.gz" -C ~/.kition/bin kition
+```
+
+Running `install.sh` again replaces `kition` with the release's; the kits in the store stay.
+`kition --version` names the SDK version it came with.
+
 ## Commands
 
 ```sh
@@ -167,7 +209,11 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
   at its top. Its `url` is an `https` address or a path; a relative one is read beside the index.
 - `kition` reads the `schemaVersion` it was built for, and asks to be upgraded for a newer one.
 
-The default index is `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`.
+The default index is `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`,
+the index of the latest SDK release. It lists every kit version that can still be downloaded, not
+only the ones that release built: each release's index is the previous release's with the new
+archives added, and the older entries keep their addresses in the releases that hold them
+([distribution.md](distribution.md#kit-archives-and-the-kit-index)).
 `KITION_INDEX` or `--index` name another: an address, or a file on this machine (an index you made,
 a mirror on a shared drive). Each good read is kept in `cache/`, so the installed kits and the last
 known index stay visible without a network.
@@ -188,4 +234,8 @@ depends on the system's TLS library.
 
 ```sh
 cargo build --release -p kition-cli        # target/release/kition
+cargo build --profile dist -p kition-cli   # target/dist/kition, as released: LTO, stripped
 ```
+
+`kition --version` is the crate's version, which is the SDK's (`sdk.json`): they are bumped
+together.

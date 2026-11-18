@@ -115,6 +115,17 @@ and can ask the kit to check their own work. Edits can go to a draft that the pe
 merges. [`examples/agent-mcp`](examples/agent-mcp) is the agent's side, in a few dozen lines.
 Connecting Claude Code, Claude Desktop, Cursor or Codex: [docs/sdk/agent.md](docs/sdk/agent.md#connect-your-agent).
 
+`kition`, the command line, brings the server without the kits and downloads each kit the first
+time an agent opens a file of it:
+
+```sh
+curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
+claude mcp add kition -- ~/.kition/bin/kition mcp --workspace "$PWD"
+```
+
+On Windows, `irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex`;
+with Node.js, `npx -y @kition/kits-mcp --workspace <folder>`. See [docs/sdk/cli.md](docs/sdk/cli.md).
+
 ## Scripts and extensions
 
 <img src="assets/readme/scripts.png" alt="The script example's output: a review section added, its heading renamed and its task checked, then saved and reopened; and the title-case extension changing two headings." width="70%" />
@@ -143,7 +154,7 @@ The packages are version 0.2.0, published under the [`@kition` scope on npm](htt
 | --- | --- |
 | [`@kition/embed`](packages/embed) | Embed kit editors in any web page, over your storage and identity |
 | [`@kition/embed-server`](packages/embed-server) | Serve single-user kit editor pages for embedding by URL |
-| [`@kition/kits-mcp`](packages/kits-mcp) | `kition-kits-mcp` and the published kits from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` |
+| [`@kition/kits-mcp`](packages/kits-mcp) | `kition` from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` starts `kition mcp`, which installs the published kits on first use |
 | [`@kition/script`](packages/script) | The object model for scripts and extensions, in browsers and Node |
 | [`@kition/extensions`](packages/extensions) | The extension host: manifests, sandboxed workers, declared permissions |
 | [`@kition/sync`](packages/sync) | Client for the open sync protocol `kition-sync/1` |

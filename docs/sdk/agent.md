@@ -10,9 +10,13 @@ kits are Note, for Markdown, and Table, for `.ktable` tables.
 
 Pick one way to get the server:
 
-- **npm**: `npx -y @kition/kits-mcp --workspace <folder>` downloads and starts `kition-kits-mcp` for your platform (macOS arm64 and
-  x64, Linux arm64 and x64 with glibc, Windows x64), with the published kits. Node.js 20 or later.
-  `npm install -g @kition/kits-mcp` installs it as the command `kition-kits-mcp`.
+- **npm**: `npx -y @kition/kits-mcp --workspace <folder>` downloads `kition` for your platform
+  (macOS arm64 and x64, Linux arm64 and x64 with glibc, Windows x64) and starts `kition mcp`,
+  which downloads each published kit into `~/.kition/kits` the first time the agent opens a file
+  of it. Node.js 20 or later. `npm install -g @kition/kits-mcp` installs it as the command
+  `kition-kits-mcp`.
+- **`kition`**: the same server without Node.js. Install `kition` with the install script and
+  register `kition mcp --workspace <folder>` ([cli.md](cli.md)).
 - **Installed binary**: take `bin/<platform>/kition-kits-mcp` from the SDK release's bundle for
   your platform ([distribution.md](distribution.md)), or build it from kition-sdk with
   `cargo build --release -p kition-kits --bin kition-kits-mcp`. It then needs the kits: give
@@ -106,9 +110,10 @@ kit's executable in the bundle's `bin/<platform>/`, beside itself, through
 `KITION_KIT_<KIT>_BINARY`, or on the PATH, and says on standard error which kit it found no
 executable for (`--list-kits` gives the same reason).
 
-`@kition/kits-mcp` passes `--kits-dir` itself, for the kits its platform package carries, when
-you give neither `--kits-dir` nor `--kit`. `KITION_KITS_MCP` names another `kition-kits-mcp` for
-it to start.
+`kition mcp` (and `@kition/kits-mcp`, which starts it) takes the same options; with neither
+`--kits-dir` nor `--kit`, its kits are those of the kit store, installed on first use
+([cli.md](cli.md)). `KITION_KITS_MCP` names another `kition`, or a `kition-kits-mcp`, for
+`@kition/kits-mcp` to start.
 
 Options: `--unified` (one `kit_<action>` set for every kit), `--drafts` (the agent's edits are
 drafts unless a call says `draft: false`; a kit whose `kit.json` declares no `agent.drafts`
