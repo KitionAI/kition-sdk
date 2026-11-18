@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -8,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::ids::{NodeInner, PendingNode};
 use crate::op::{self, Op};
-use crate::overlay::{ListEdit, ListState, NodeKey, Overlay, TreeState};
+use crate::overlay::{FieldKey, ListEdit, ListState, NodeKey, Overlay, TreeState};
 use crate::read;
 use crate::value::{canonical, to_loro};
 use crate::{FieldDef, FieldKind, KdmError, NodeRef, ObjectId, Result, Schema};
@@ -48,12 +49,26 @@ pub struct Tx<'a> {
     nodes: Vec<Arc<PendingNode>>,
     /// The largest schema version this transaction raised the document to.
     raised: Option<u32>,
+    /// What the transaction read of the document, read once: each object's type (an object never
+    /// changes type) and each field's container. A large write (every record of a table) reads
+    /// each object once instead of once per operation, and applies its operations to the
+    /// containers it found instead of looking them up again; the engine keeps only a few thousand
+    /// containers decoded, so a second lookup decodes the object again.
+    read: RefCell<Reads<'a>>,
+}
+
+#[derive(Default)]
+struct Reads<'a> {
+    types: HashMap<ObjectId, &'a str>,
+    containers: HashMap<FieldKey<'a>, Option<Container>>,
 }
 
 /// A successful transaction's operations, ready to apply.
 pub(crate) struct Staged<'a> {
     ops: Vec<Op<'a>>,
     nodes: Vec<Arc<PendingNode>>,
+    /// The containers the transaction found in the document ([`Tx`]'s reads).
+    containers: HashMap<FieldKey<'a>, Option<Container>>,
 }
 
 impl Staged<'_> {
@@ -175,7 +190,7 @@ impl Staged<'_> {
     /// Applies the operations without committing, calling `touched` with each changed object.
     /// On success the transaction's node handles resolve.
     pub(crate) fn apply(self, doc: &LoroDoc, schema: &Schema, touched: impl FnMut(&ObjectId)) -> Result<()> {
-        let ids = op::apply(doc, schema, self.ops, self.nodes.len(), touched)?;
+        let ids = op::apply(doc, schema, self.ops, self.nodes.len(), &self.containers, touched)?;
         for (pending, id) in self.nodes.iter().zip(ids) {
             if let Some(id) = id {
                 // Set exactly once: this transaction is the only writer.
@@ -188,11 +203,20 @@ impl Staged<'_> {
 
 impl<'a> Tx<'a> {
     pub(crate) fn new(doc: &'a LoroDoc, schema: &'a Schema) -> Self {
-        Self { doc, schema, serial: NEXT_SERIAL.fetch_add(1, Ordering::Relaxed), ops: Vec::new(), overlay: Overlay::default(), nodes: Vec::new(), raised: None }
+        Self {
+            doc,
+            schema,
+            serial: NEXT_SERIAL.fetch_add(1, Ordering::Relaxed),
+            ops: Vec::new(),
+            overlay: Overlay::default(),
+            nodes: Vec::new(),
+            raised: None,
+            read: RefCell::default(),
+        }
     }
 
     pub(crate) fn finish(self) -> Staged<'a> {
-        Staged { ops: self.ops, nodes: self.nodes }
+        Staged { ops: self.ops, nodes: self.nodes, containers: self.read.into_inner().containers }
     }
 
     /// Raises the document's minimum schema version to `version` (rule M20): replicas whose
@@ -329,7 +353,7 @@ impl<'a> Tx<'a> {
     }
 
     pub fn exists(&self, id: &ObjectId) -> bool {
-        self.overlay.exists(id, || read::object_map(self.doc, id).is_ok())
+        self.overlay.exists(id, || self.read.borrow().types.contains_key(id) || read::object_map(self.doc, id).is_ok())
     }
 
     pub(crate) fn was_deleted(&self, id: &ObjectId) -> bool {
@@ -744,9 +768,14 @@ impl<'a> Tx<'a> {
         if let Some((ty, _)) = self.overlay.created.get(id) {
             return Ok(ty);
         }
+        if let Some(ty) = self.read.borrow().types.get(id) {
+            return Ok(ty);
+        }
         let ty = read::object_type(self.doc, id)?;
         let schema: &'a Schema = self.schema;
-        schema.types.get_key_value(ty.as_str()).map(|(name, _)| name.as_str()).ok_or(KdmError::UnknownType(ty))
+        let ty = schema.types.get_key_value(ty.as_str()).map(|(name, _)| name.as_str()).ok_or(KdmError::UnknownType(ty))?;
+        self.read.borrow_mut().types.insert(id.clone(), ty);
+        Ok(ty)
     }
 
     /// The object's type, and the schema's name and definition of `field`.
@@ -795,15 +824,27 @@ impl<'a> Tx<'a> {
     /// The document's container for a field, or `None` when it starts empty: the object was
     /// created by this transaction, or (for reads) it predates the field. Writes to a field the
     /// stored object lacks fail with [`KdmError::NotFound`].
-    fn stored(&self, id: &ObjectId, name: &str, write: bool) -> Result<Option<Container>> {
+    fn stored(&self, id: &ObjectId, name: &'a str, write: bool) -> Result<Option<Container>> {
         if self.overlay.is_created(id) {
             return Ok(None);
         }
-        match read::object_map(self.doc, id)?.get(name) {
-            Some(ValueOrContainer::Container(found)) => Ok(Some(found)),
-            Some(ValueOrContainer::Value(_)) => Err(read::wrong_container(id, name)),
+        let key = (id.clone(), name);
+        let cached = self.read.borrow().containers.get(&key).cloned();
+        let found = match cached {
+            Some(found) => found,
+            None => {
+                let found = match read::object_map(self.doc, id)?.get(name) {
+                    Some(ValueOrContainer::Container(found)) => Some(found),
+                    Some(ValueOrContainer::Value(_)) => return Err(read::wrong_container(id, name)),
+                    None => None,
+                };
+                self.read.borrow_mut().containers.insert(key, found.clone());
+                found
+            }
+        };
+        match found {
             None if write => Err(KdmError::NotFound(format!("{id}.{name}"))),
-            None => Ok(None),
+            found => Ok(found),
         }
     }
 
