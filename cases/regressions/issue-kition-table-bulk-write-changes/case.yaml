@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-kition-table-bulk-write-changes
+feature: sdk.model.changed-map-writes
+intent: >-
+  A replica reports, for each object whose only changes were writes to keys of its map fields,
+  those keys and the values they hold now, the same for a transaction, an import of it, its undo
+  (the values an undo keeps for another replica's later write included) and its redo; an object
+  with any other change is reported whole. A host's projection of a large write (a table's whole
+  column cleared) reads nothing back from the replica for those objects.
+layer: gate
+source: { kind: issue, from: Kition Table bulk writes (card bulk-write2), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: changed_keys }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-18"

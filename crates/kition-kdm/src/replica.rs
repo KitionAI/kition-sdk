@@ -13,7 +13,8 @@ use sha2::{Digest, Sha256};
 
 use crate::error::{engine, importing};
 use crate::read::{self, META, OBJECTS, SCHEMA_VERSION};
-use crate::{ActorId, DocId, FieldKind, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
+use crate::value::canonical;
+use crate::{ActorId, Changes, DocId, FieldKind, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
 
 /// The origin given to the partial operations of a transaction the engine refused while applying
 /// it, and to their reversal, so the undo history never records either.
@@ -76,7 +77,7 @@ pub struct Replica {
     undo: Histories,
     /// Set between [`Replica::begin_undo_group`] and [`Replica::end_undo_group`].
     grouping: bool,
-    changed: BTreeSet<ObjectId>,
+    changed: Changes,
     /// For each replica whose changes an import could not apply yet, the counter just past the
     /// last of them. They are applied (and no longer pending) once [`Replica::version`] reaches it.
     pending: HashMap<PeerID, Counter>,
@@ -171,7 +172,7 @@ impl Replica {
             (value, tx.finish())
         };
         // The new document is discarded on failure, so nothing needs reverting.
-        staged.apply(&doc, &schema, |_| {}).map_err(applying_failed)?;
+        staged.apply(&doc, &schema).map_err(applying_failed)?;
         doc.set_next_commit_origin(commit_origin(origin.kind));
         doc.set_next_commit_message(&origin.encode_commit(schema.schema_version));
         doc.commit();
@@ -237,7 +238,7 @@ impl Replica {
             actor,
             undo,
             grouping: false,
-            changed: BTreeSet::new(),
+            changed: Changes::default(),
             pending: HashMap::new(),
             imported_registers: HashSet::new(),
             kept_registers: HashMap::new(),
@@ -315,12 +316,10 @@ impl Replica {
             });
         }
         let before = self.doc.state_frontiers();
-        let writes = staged.register_writes();
+        let writes = staged.register_writes(&self.doc);
         let touches = staged.undo_touches(&self.doc, &schema);
-        let mut touched = BTreeSet::new();
-        if let Err(error) = staged.apply(&self.doc, &schema, |id| {
-            touched.insert(id.clone());
-        }) {
+        let changes = staged.changes();
+        if let Err(error) = staged.apply(&self.doc, &schema) {
             // Validation should have made this impossible: an operation the overlay accepted was
             // refused by the engine, so this is a validation bug. Some operations may already be
             // applied and the engine cannot abort, so they are committed and reverted. Both
@@ -346,7 +345,7 @@ impl Replica {
             merge_undo_touches(runs.group_touches.entry((scope, group)).or_default(), &pending);
         }
         self.doc.commit();
-        self.changed.extend(touched);
+        self.changed.extend(changes);
         self.note_own_writes(writes, UndoScope::of(origin.kind));
         Ok(value)
     }
@@ -467,9 +466,10 @@ impl Replica {
             self.imported_registers.extend(registers);
         }
         self.note_pending(status.pending.as_ref());
-        self.changed.extend(changed.iter().cloned());
+        let objects = changed.objects().clone();
+        self.changed.extend(changed);
         self.reopen_undo_group();
-        Ok(changed)
+        Ok(objects)
     }
 
     /// Replaces the document with its history up to `version`, dropping every change applied
@@ -511,8 +511,15 @@ impl Replica {
         self.pending.retain(|peer, end| applied.get(peer).copied().unwrap_or(0) < *end);
     }
 
-    /// The objects changed since the last call, by local transactions or imports.
+    /// The objects changed since the last call (of this or [`Replica::take_changes`]), by local
+    /// transactions or imports.
     pub fn take_changed(&mut self) -> BTreeSet<ObjectId> {
+        mem::take(&mut self.changed).into_objects()
+    }
+
+    /// [`Replica::take_changed`] with the map keys written, and their values now, in objects whose
+    /// only changes were writes to map keys: a projection reads nothing back for them.
+    pub fn take_changes(&mut self) -> Changes {
         mem::take(&mut self.changed)
     }
 
@@ -607,7 +614,7 @@ impl Replica {
         }
         self.note_pending(None);
         self.reopen_undo_group();
-        self.changed.extend(changed.iter().cloned());
+        self.changed.extend(Changes::from(changed.clone()));
         Ok(changed)
     }
 
@@ -695,7 +702,11 @@ impl Replica {
         if restored {
             self.doc.set_next_commit_origin(OriginKind::System.as_str());
             self.doc.set_next_commit_message(&Origin::system("keep-later-changes").encode_commit(self.schema.schema_version));
-            self.doc.commit();
+            // What the restore writes is part of what the undo changed (its values are the
+            // ones to report).
+            let doc = &self.doc;
+            let ((), kept, _) = observe_changes(doc, || doc.commit());
+            self.changed.extend(kept);
         }
         Ok(done)
     }
@@ -726,16 +737,8 @@ impl Replica {
     }
 
     /// Records the registers a local transaction of `scope` wrote, with their values.
-    fn note_own_writes(&mut self, writes: Vec<(ObjectId, Option<String>, String, Option<Value>)>, scope: Option<UndoScope>) {
-        for (id, field, key, value) in writes {
-            let Ok(object) = read::object_map(&self.doc, &id) else { continue };
-            let container = match field {
-                None => loro::ContainerTrait::id(&object),
-                Some(field) => match object.get(&field) {
-                    Some(ValueOrContainer::Container(loro::Container::Map(map))) => loro::ContainerTrait::id(&map),
-                    _ => continue,
-                },
-            };
+    fn note_own_writes(&mut self, writes: Vec<(ContainerID, String, Option<Value>)>, scope: Option<UndoScope>) {
+        for (container, key, value) in writes {
             let value = value.map(crate::value::to_loro);
             self.local_writes.insert((container.clone(), key.clone()), (scope, value.clone()));
             self.own_registers.insert((container, key), value);
@@ -972,8 +975,9 @@ impl Replica {
             self.local_writes.insert(register.clone(), (scope.map(|_| UndoScope::Person), value.clone()));
             self.own_registers.insert(register, value);
         }
-        self.changed.extend(changed.iter().cloned());
-        Ok(changed)
+        let objects = changed.objects().clone();
+        self.changed.extend(changed);
+        Ok(objects)
     }
 
     /// A copy of this document with `changes` imported, checked as [`Replica::merge_changes`] checks them.
@@ -1221,15 +1225,15 @@ fn undo_manager(doc: &LoroDoc, scope: UndoScope, runs: &Arc<Mutex<Runs>>) -> Und
     undo
 }
 
-/// Runs `run` while observing which objects change, and which registers inside objects. Change
-/// events are observed only during the call: a document-wide subscription makes large local
-/// transactions slow to commit.
-fn observe_changes<T>(doc: &LoroDoc, run: impl FnOnce() -> T) -> (T, BTreeSet<ObjectId>, Vec<Register>) {
-    let found = Arc::new(Mutex::new((BTreeSet::new(), Vec::new())));
+/// Runs `run` while observing which objects change ([`Changes`]: with the keys written in map
+/// fields), and which registers inside objects. Change events are observed only during the call:
+/// a document-wide subscription makes large local transactions slow to commit.
+fn observe_changes<T>(doc: &LoroDoc, run: impl FnOnce() -> T) -> (T, Changes, Vec<Register>) {
+    let found = Arc::new(Mutex::new((Changes::default(), Vec::new())));
     let sink = Arc::clone(&found);
     let subscription = doc.subscribe_root(Arc::new(move |event| {
         let Ok(mut found) = sink.lock() else { return };
-        let (set, registers) = &mut *found;
+        let (changes, registers) = &mut *found;
         for diff in event.events.iter() {
             let in_objects = matches!(diff.path.first(), Some((_, Index::Key(key))) if key.to_string() == OBJECTS);
             if !in_objects {
@@ -1237,7 +1241,7 @@ fn observe_changes<T>(doc: &LoroDoc, run: impl FnOnce() -> T) -> (T, BTreeSet<Ob
             }
             match diff.path.get(1) {
                 Some((_, Index::Key(key))) => {
-                    set.insert(ObjectId::from_string(key.to_string()));
+                    let id = ObjectId::from_string(key.to_string());
                     if let Diff::Map(map) = &diff.diff {
                         for (field, value) in map.updated.iter() {
                             if !matches!(value, Some(ValueOrContainer::Container(_))) {
@@ -1245,10 +1249,28 @@ fn observe_changes<T>(doc: &LoroDoc, run: impl FnOnce() -> T) -> (T, BTreeSet<Ob
                             }
                         }
                     }
+                    // Keys of a map field (the object's map, one level down) set to values or
+                    // deleted; any other change is the object's.
+                    match (&diff.diff, diff.path.get(2), diff.path.len()) {
+                        (Diff::Map(map), Some((_, Index::Key(field))), 3)
+                            if map.updated.values().all(|value| !matches!(value, Some(ValueOrContainer::Container(_)))) =>
+                        {
+                            for (key, value) in map.updated.iter() {
+                                let value = match value {
+                                    Some(ValueOrContainer::Value(value)) => Some(canonical(value.to_json_value())),
+                                    _ => None,
+                                };
+                                changes.insert_map_write(&id, field.as_ref(), key.as_ref(), value);
+                            }
+                        }
+                        _ => changes.insert_object(id),
+                    }
                 }
                 _ => {
                     if let Diff::Map(map) = &diff.diff {
-                        set.extend(map.updated.keys().map(|key| ObjectId::from_string(key.to_string())));
+                        for key in map.updated.keys() {
+                            changes.insert_object(ObjectId::from_string(key.to_string()));
+                        }
                     }
                 }
             }

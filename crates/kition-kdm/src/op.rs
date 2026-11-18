@@ -145,24 +145,19 @@ impl Op<'_> {
     }
 }
 
-/// Applies validated operations in order, calling `touched` with each one's object. Answers the
-/// engine ids of the created nodes, by creation index. Does not commit.
-/// Applies `ops` in order. `found` holds containers the transaction already found in the document
-/// (by object and field); the others are looked up.
+/// Applies validated operations in order. Answers the engine ids of the created nodes, by
+/// creation index. Does not commit. `found` holds containers the transaction already found in
+/// the document (by object and field); the others are looked up.
 pub(crate) fn apply(
     doc: &LoroDoc,
     schema: &Schema,
     ops: Vec<Op<'_>>,
     node_count: usize,
     found: &HashMap<FieldKey<'_>, Option<Container>>,
-    mut touched: impl FnMut(&ObjectId),
 ) -> Result<Vec<Option<TreeID>>> {
     let mut nodes: Vec<Option<TreeID>> = vec![None; node_count];
     for (index, op) in ops.into_iter().enumerate() {
         fail_if_forced(index)?;
-        if let Some(id) = op.object() {
-            touched(id);
-        }
         apply_one(doc, schema, op, found, &mut nodes)?;
     }
     Ok(nodes)
