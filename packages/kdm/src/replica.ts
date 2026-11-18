@@ -494,7 +494,11 @@ export class Replica {
       throw error
     }
     if (status === null) throw importing(failure)
-    for (const register of registers) this.importedRegisters.add(register)
+    // Without an undo or redo step no undo reaches what the import wrote: a later step writes
+    // such a register before its own undo can, and then it is this replica's. Loading a document
+    // replays its stored changes this way.
+    const hasSteps = (['person', 'agent'] as const).some((scope) => this.undoManagers[scope].canUndo() || this.undoManagers[scope].canRedo())
+    if (hasSteps) for (const register of registers) this.importedRegisters.add(register)
     this.notePending(status)
     for (const id of changed) this.changed.add(id)
     this.reopenUndoGroup()

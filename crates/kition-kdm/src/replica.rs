@@ -442,7 +442,12 @@ impl Replica {
             return Err(KdmError::NewerSchema { found, reads: self.schema.schema_version });
         }
         let status = imported?;
-        self.imported_registers.extend(registers);
+        // Without an undo or redo step no undo reaches what the import wrote: a later step
+        // writes such a register before its own undo can, and then it is this replica's.
+        // Loading a document replays its stored changes this way.
+        if self.has_steps() {
+            self.imported_registers.extend(registers);
+        }
         self.note_pending(status.pending.as_ref());
         self.changed.extend(changed.iter().cloned());
         self.reopen_undo_group();
@@ -770,6 +775,11 @@ impl Replica {
     /// Whether [`Replica::redo`] has an undone transaction of the person to redo.
     pub fn can_redo(&self) -> bool {
         self.undo.person.can_redo()
+    }
+
+    /// Whether either scope has a step to undo or redo.
+    fn has_steps(&self) -> bool {
+        [&self.undo.person, &self.undo.agent].into_iter().any(|history| history.can_undo() || history.can_redo())
     }
 
     /// Whether [`Replica::undo_in`] has a transaction of `scope` to undo.
@@ -1325,5 +1335,36 @@ mod tests {
         assert_eq!(replica.map_get(&sheet, "cells", "c1").unwrap(), json!("agent"));
         assert!(replica.undo().unwrap());
         assert!(!replica.exists(&sheet));
+    }
+
+    /// Loading a table replays its stored changes as imports: the replica kept a note of every
+    /// cell they wrote, though without undo or redo steps no undo can reach them (a later step
+    /// writes such a register before its undo can).
+    #[test]
+    fn an_import_before_any_undo_step_keeps_no_notes() {
+        let schema = Arc::new(Schema::parse(include_str!("../tests/fixtures/test-schema.json")).unwrap());
+        let person = Origin::person("user:test");
+        let mut theirs = Replica::create(Arc::clone(&schema), DocId::new(), ActorId::from_u64(1).unwrap()).unwrap();
+        let sheet = theirs.transact(&Origin::system("fixture"), |tx| tx.create("Sheet", serde_json::Map::new())).unwrap();
+        let mut mine = Replica::load(schema, &theirs.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
+        theirs
+            .transact(&person, |tx| {
+                for cell in 0..100 {
+                    tx.map_set(&sheet, "cells", &format!("c{cell}"), json!(cell))?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        mine.import_changes(&theirs.export_changes(&mine.version()).unwrap()).unwrap();
+        assert!(mine.imported_registers.is_empty());
+        // After a step of its own, an import is noted, and the person's undo keeps the other
+        // replica's later write, as before.
+        mine.transact(&person, |tx| tx.map_set(&sheet, "cells", "c1", json!("mine"))).unwrap();
+        theirs.import_changes(&mine.export_changes(&theirs.version()).unwrap()).unwrap();
+        theirs.transact(&person, |tx| tx.map_set(&sheet, "cells", "c1", json!("theirs"))).unwrap();
+        mine.import_changes(&theirs.export_changes(&mine.version()).unwrap()).unwrap();
+        assert_eq!(mine.imported_registers.len(), 1);
+        assert!(mine.undo().unwrap());
+        assert_eq!(mine.map_get(&sheet, "cells", "c1").unwrap(), json!("theirs"));
     }
 }

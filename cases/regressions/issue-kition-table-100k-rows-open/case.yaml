@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-kition-table-100k-rows-open
+feature: sdk.model.undo-footprint
+intent: >-
+  An import made while neither undo scope has a step to undo or redo keeps no notes of the
+  registers it wrote, in Rust and in TypeScript, while an import after a step of the replica's own
+  is still noted and survives the person's undo. Before, loading a table replayed its stored
+  changes as imports and kept a note of every cell they wrote.
+layer: gate
+source: { kind: issue, from: Kition Table storage card (table-storage), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, filter: an_import_before_any_undo_step_keeps_no_notes }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/undo-scopes.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-17"

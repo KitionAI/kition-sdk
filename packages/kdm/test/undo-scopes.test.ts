@@ -160,6 +160,28 @@ describe('undo scopes', () => {
     expect(replica.exists(sheet)).toBe(false)
   })
 
+  // The Rust twin is `replica::tests::an_import_before_any_undo_step_keeps_no_notes`.
+  it('keeps no notes of an import made before any undo step', () => {
+    const theirs = Replica.create(testSchema(), newDocId(), 1n)
+    const sheet = theirs.transact(system('fixture'), (tx) => tx.create('Sheet', {}))
+    const mine = Replica.load(testSchema(), theirs.snapshot(), 2n)
+    const imported = () => (mine as unknown as { importedRegisters: Set<string> }).importedRegisters.size
+    theirs.transact(me, (tx) => {
+      for (let cell = 0; cell < 100; cell += 1) tx.mapSet(sheet, 'cells', `c${cell}`, cell)
+    })
+    mine.importChanges(theirs.exportChanges(mine.version()))
+    expect(imported()).toBe(0)
+    // After a step of its own, an import is noted, and the person's undo keeps the other
+    // replica's later write, as before.
+    mine.transact(me, (tx) => tx.mapSet(sheet, 'cells', 'c1', 'mine'))
+    theirs.importChanges(mine.exportChanges(theirs.version()))
+    theirs.transact(me, (tx) => tx.mapSet(sheet, 'cells', 'c1', 'theirs'))
+    mine.importChanges(theirs.exportChanges(mine.version()))
+    expect(imported()).toBe(1)
+    expect(mine.undo()).toBe(true)
+    expect(mine.mapGet(sheet, 'cells', 'c1')).toBe('theirs')
+  })
+
   it('refuses an unknown scope', () => {
     const { replica } = fresh()
     expect(() => replica.undoIn('robot' as 'agent')).toThrow(/undo scope/)
