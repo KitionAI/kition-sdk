@@ -2,7 +2,7 @@
 
 Kition's kit tools in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 (`KitAgent 1.4` D1). A DeepSeek Harness agent can then inspect and edit the files Kition's
-kits own: today the Note kit's Markdown notes and the Table kit's tables; the other kits are not published yet.
+kits own: today the Note kit's Markdown notes, the Table kit's tables and the HTML kit's pages; the other kits are not published yet.
 
 The package is two DeepSeek Harness profile patches. Each mounts Kition's MCP server through
 DeepSeek Harness's own `@deepseek-ai/dsh-mcp-client`, so the tools register on `ctx.tools` with

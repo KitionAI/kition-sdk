@@ -1,6 +1,6 @@
 {
   "name": "kition",
-  "description": "Kition's Claude Code plugins: the published Kition kits (Note, for Markdown, so far) as KHP tools for files in your project.",
+  "description": "Kition's Claude Code plugins: the published Kition kits (Note, for Markdown; Table, for .ktable tables; HTML, for .html pages) as KHP tools for files in your project.",
   "owner": {
     "name": "Kition",
     "url": "https://kition.ai"

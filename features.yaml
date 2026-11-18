@@ -459,6 +459,19 @@ features:
     cases:
       - sdk.distribution.release/manifest
     since: "2026-11-17"
+  - id: sdk.distribution.glibc-floor
+    title: The Linux executables a release ships (kition, kition-kits, kition-kits-mcp, each kit's) run on glibc 2.17 and later; the release fails a Linux build that needs a newer GLIBC symbol version
+    dimension: [platform]
+    priority: P1
+    status: has
+    paths:
+      - tools/glibc-floor.mjs
+      - tools/glibc-floor.test.mjs
+      - .github/workflows/release.yml
+      - docs/sdk/distribution.md
+    cases:
+      - sdk.distribution.glibc-floor/needs
+    since: "2026-11-18"
   - id: sdk.distribution.kition
     title: "Each SDK release carries kition for every platform, an archive of each published kit version no earlier release published, and a kit index that carries the previous release's forward so every published version stays installable; install.sh and install.ps1 install kition from it, checked against SHA256SUMS"
     dimension: [platform, security]

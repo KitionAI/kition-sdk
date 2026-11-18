@@ -1,0 +1,23 @@
+format: 1
+id: sdk.distribution.glibc-floor/needs
+feature: sdk.distribution.glibc-floor
+intent: >-
+  The glibc floor check reads every GLIBC symbol version a Linux executable needs from its ELF
+  version needs, from every library and nothing else, orders versions numerically, and fails the
+  executables that need a newer glibc than the floor while passing those at or below it.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/glibc-floor.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/glibc-floor.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 60

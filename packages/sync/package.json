@@ -1,6 +1,6 @@
 {
   "name": "@kition/sync",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Client for the open sync protocol kition-sync/1: JSON-RPC 2.0 over WebSocket, reconnect with backoff, offline push queue, and the relay between a KDM replica and its room.",
   "license": "Apache-2.0",
   "type": "module",

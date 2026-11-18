@@ -1,12 +1,12 @@
 # Kition SDK
 
-Version **0.2.0** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
+Version **0.3.0** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
 
 The [platform documentation](../platform/index.md) describes the SDK contracts.
 A distribution may additionally include a separately supplied KHP specification.
 
 The Kition SDK delivers published Kition kits to products and AI agents. The published kits are
-Note, for Markdown documents, and Table, for `.ktable` tables. A kit is one engine behind four delivery forms, so a person in your web
+Note, for Markdown documents; Table, for `.ktable` tables; and HTML, for `.html` pages. A kit is one engine behind four delivery forms, so a person in your web
 app and your agent work on the same file with the same engine:
 
 | Form | Use it to | Package or executable | Guide | Platform |

@@ -10,7 +10,7 @@ them needs no account, no token and no Rust.
 
 | Asset | What |
 | --- | --- |
-| `kition-sdk-<version>-<platform>.tar.gz` | The SDK bundle for one platform: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc), `win32-x64` |
+| `kition-sdk-<version>-<platform>.tar.gz` | The SDK bundle for one platform: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc 2.17 or later), `win32-x64` |
 | `kition-<version>-<platform>.tar.gz` | The `kition` command line for one platform: `kition` (`kition.exe` on Windows) and `LICENSE` ([cli.md](cli.md)) |
 | `kition-<kit>-<kitVersion>-<platform>.tar.gz` | One kit version for one platform, as `kition` installs it: `kit.json` and `kition-<kit>` (`.exe` on Windows). Only kit versions no earlier release published |
 | `kits-index.json` | The kit index ([`kits-index.schema.json`](../../schemas/kits-index.schema.json)): every published kit version still downloadable, from this release and the earlier ones |
@@ -61,6 +61,16 @@ The npm package `@kition/kits-mcp-<platform>` carries the same `kition` as `bin/
 `@kition/kits-mcp` starts it as `kition mcp`. The executables a release ships, `kition` among them,
 are built with the workspace's `dist` profile (LTO, one code unit, symbols stripped).
 
+## Linux: the glibc floor
+
+The Linux executables of a release (`kition`, `kition-kits`, `kition-kits-mcp` and every kit's)
+run on glibc 2.17 and later: CentOS 7, RHEL 7, Debian 8, Ubuntu 14.04 and every newer glibc
+distribution, on x64 and arm64. The release workflow links them against glibc 2.17 with
+[cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) (`--target <triple>.2.17`) rather
+than against its build machine's glibc, and fails the build when one of them needs a newer
+`GLIBC_` symbol version (`node tools/glibc-floor.mjs --max 2.17 <file>...`, which reads each
+file's ELF version needs). Linux with the musl C library (Alpine) is not supported.
+
 ## Kit archives and the kit index
 
 `kition` reads `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`:
@@ -91,7 +101,7 @@ names, with the size and SHA-256 it gives.
 ## Getting one
 
 ```sh
-v=0.2.0 p=darwin-arm64
+v=0.3.0 p=darwin-arm64
 base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
 curl -fsSLO "$base/SHA256SUMS"
 curl -fsSLO "$base/kition-sdk-$v.json"

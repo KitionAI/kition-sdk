@@ -71,8 +71,8 @@ jobs:
         include:
           - { platform: darwin-arm64, target: aarch64-apple-darwin, runner: macos-15 }
           - { platform: darwin-x64, target: x86_64-apple-darwin, runner: macos-15-intel }
-          - { platform: linux-arm64, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm }
-          - { platform: linux-x64, target: x86_64-unknown-linux-gnu, runner: ubuntu-24.04 }
+          - { platform: linux-arm64, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm, glibc: '2.17' }
+          - { platform: linux-x64, target: x86_64-unknown-linux-gnu, runner: ubuntu-24.04, glibc: '2.17' }
           - { platform: win32-x64, target: x86_64-pc-windows-msvc, runner: windows-2025 }
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -81,11 +81,24 @@ jobs:
     env:
       TARGET: ${{ matrix.target }}
       PLATFORM: ${{ matrix.platform }}
+      # Linux: the glibc floor, the oldest glibc the executables run on (docs/sdk/distribution.md).
+      # They are linked against it with cargo-zigbuild (<target>.<glibc>), not against the runner's.
+      GLIBC: ${{ matrix.glibc }}
+      BUILD_TARGET: ${{ matrix.glibc && format('{0}.{1}', matrix.target, matrix.glibc) || matrix.target }}
+      CARGO_BUILD: ${{ matrix.glibc && 'zigbuild' || 'build' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - if: matrix.glibc
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.1
+      - if: matrix.glibc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
       - uses: actions/setup-node@v4
         with:
           node-version: '22.23.4'
@@ -93,7 +106,8 @@ jobs:
         with:
           name: kits-lock
           path: target/lock
-      # The tag must be the commit the lock pins, and its kit.json the version the lock pins.
+      # The tag must be the commit the lock pins, and its kit.json the version the lock pins. A kit
+      # that embeds fonts has scripts/fetch-fonts.sh; one without it embeds none.
       - name: Check out each published kit at its package tag, with its fonts
         run: |
           set -euo pipefail
@@ -105,17 +119,22 @@ jobs:
             declared=$(node -p "require('../kition-$kit/kit.json').version")
             [ "$declared" = "$version" ] || { echo "$repository $tag kit.json is $declared; the lock pins $version" >&2; exit 1; }
             # A relative path: Git Bash's sha256sum escapes a Windows path's backslashes.
-            bash "../kition-$kit/scripts/fetch-fonts.sh" "../fonts-$kit"
+            if [ -f "../kition-$kit/scripts/fetch-fonts.sh" ]; then bash "../kition-$kit/scripts/fetch-fonts.sh" "../fonts-$kit"; fi
           done
       # The dist profile (Cargo.toml): the shipped executables with LTO, stripped.
-      - run: cargo build --locked --profile dist -p kition-kits --bins -p kition-cli --target "$TARGET"
+      - run: cargo "$CARGO_BUILD" --locked --profile dist -p kition-kits --bins -p kition-cli --target "$BUILD_TARGET"
       - name: Build each published kit's headless executable
         run: |
           set -euo pipefail
           for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
-            # The fonts folder as the compiler reads paths (D:/a/... on Windows).
-            if [ "$RUNNER_OS" = Windows ]; then fonts=$(cd "../fonts-$kit" && pwd -W); else fonts=$(cd "../fonts-$kit" && pwd); fi
-            (cd "../kition-$kit" && KITION_FONTS_DIR="$fonts" KITION_FONTS_REQUIRED=1 cargo build --locked --release -p "kition-$kit" --target "$TARGET")
+            (
+              if [ -d "../fonts-$kit" ]; then
+                # The fonts folder as the compiler reads paths (D:/a/... on Windows).
+                if [ "$RUNNER_OS" = Windows ]; then fonts=$(cd "../fonts-$kit" && pwd -W); else fonts=$(cd "../fonts-$kit" && pwd); fi
+                export KITION_FONTS_DIR="$fonts" KITION_FONTS_REQUIRED=1
+              fi
+              cd "../kition-$kit" && cargo "$CARGO_BUILD" --locked --release -p "kition-$kit" --target "$BUILD_TARGET"
+            )
           done
       # The executables, each kit's kit.json (kits/<kit>/kit.json), and what each kit answered to
       # kit.initialize here (handshakes.json).
@@ -131,6 +150,10 @@ jobs:
             mkdir -p "$out/kits/$kit"
             cp "../kition-$kit/kit.json" "$out/kits/$kit/kit.json"
           done
+          if [ -n "$GLIBC" ]; then
+            kits=$(node -p 'require("./published-kits.json").map((kit) => "kition-" + kit).join(" ")')
+            (cd "$out" && node "$GITHUB_WORKSPACE/tools/glibc-floor.mjs" --max "$GLIBC" kition kition-kits kition-kits-mcp $kits)
+          fi
           node tools/kit-handshake.mjs --record "$out"
           version=$(node -p 'require("./sdk.json").version')
           "$out/kition$exe" --version | grep -F "kition $version "

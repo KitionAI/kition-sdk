@@ -94,6 +94,13 @@ Tables with typed fields, views (grid, kanban, gallery, calendar), filters, sort
 dashboards. Published: [Kition Table](https://github.com/KitionAI/kition-table), whose Releases
 carry the self-contained editor package (`kition-table-<version>.tgz`, unpacks to `table-ui/`).
 
+### HTML: available now
+
+HTML pages (`.html`, `.htm`) with their CSS rendered and bounded JavaScript run, edited as source
+with undo and redo. Published: [Kition HTML](https://github.com/KitionAI/kition-html), whose
+Releases carry the self-contained editor package (`kition-html-<version>.tgz`, unpacks to
+`html-ui/`).
+
 ## Build your own kit
 
 <img src="assets/readme/grid-kit.png" alt="An agent session on the grid example kit: inspect with a preview, twelve grid.set steps, inspect again, and a check that finds nothing wrong; beside it, the kit's own previews before and after." width="100%" />
@@ -148,7 +155,7 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.2.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
+The packages are version 0.3.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
 
 | Package | What |
 | --- | --- |

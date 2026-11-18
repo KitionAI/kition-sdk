@@ -2,14 +2,14 @@
   "name": "kition-kits",
   "displayName": "Kition kits",
   "version": "0.1.0",
-  "description": "Create, edit and check Markdown notes in your project with the Kition Note kit's KHP tools, with no Kition app running. Other Kition kits join as they are published.",
+  "description": "Create, edit and check Markdown notes, .ktable tables and HTML pages in your project with the published Kition kits' KHP tools, with no Kition app running. Other Kition kits join as they are published.",
   "author": {
     "name": "Kition",
     "url": "https://kition.ai"
   },
   "homepage": "https://kition.ai",
   "license": "Apache-2.0",
-  "keywords": ["kition", "khp", "kits", "mcp", "markdown", "notes"],
+  "keywords": ["kition", "khp", "kits", "mcp", "markdown", "notes", "tables", "html"],
   "mcpServers": {
     "kition-kits": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/kits-mcp.sh",

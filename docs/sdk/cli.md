@@ -35,7 +35,7 @@ release ([distribution.md](distribution.md)), check it against the release's `SH
 that it runs, and move it into `$KITION_HOME/bin` (`~/.kition/bin`) with one rename. They never
 ask for administrator rights and never change a shell profile or the `PATH`: they print the line
 to add. `install.sh` refuses Linux with the musl C library (Alpine) and says so; `kition` is built
-for glibc. Both read `KITION_HOME`, `KITION_VERSION` (as the argument) and `KITION_RELEASES_URL`,
+for glibc 2.17 or later. Both read `KITION_HOME`, `KITION_VERSION` (as the argument) and `KITION_RELEASES_URL`,
 another address laid out like `https://github.com/KitionAI/kition-sdk/releases` (a mirror). By
 hand:
 
@@ -69,7 +69,8 @@ kition --help
 $ kition kit list
 KIT    NAME   INSTALLED  LATEST  FILES
 note   Note   0.3.0      0.3.0   .md .markdown
-table  Table  -          0.2.0   .ktable
+table  Table  -          0.4.0   .ktable
+html   HTML   -          0.1.0   .html .htm
 ```
 
 `(upgrade)` after a version means a newer one is in the index; `(pinned)` means the version was

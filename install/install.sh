@@ -50,7 +50,7 @@ platform() {
     Linux)
       os=linux
       if [ -n "$(ls /lib/ld-musl-* /usr/lib/ld-musl-* 2>/dev/null || true)" ] || ldd --version 2>&1 | grep -qi musl; then
-        fail "this Linux uses the musl C library (Alpine, for example); kition is built for glibc only. Use a glibc distribution (Debian, Ubuntu, Fedora, ...) or a glibc container image, or build kition from source: cargo build --release -p kition-cli in https://github.com/KitionAI/kition-sdk."
+        fail "this Linux uses the musl C library (Alpine, for example); kition is built for glibc 2.17 or later only. Use a glibc distribution (Debian, Ubuntu, Fedora, ...) or a glibc container image, or build kition from source: cargo build --release -p kition-cli in https://github.com/KitionAI/kition-sdk."
       fi
       ;;
     MINGW* | MSYS* | CYGWIN* | Windows_NT)

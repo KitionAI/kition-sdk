@@ -4,7 +4,7 @@
 Cursor, Codex, DeepSeek Harness, your own agent) the kits' tools on one workspace folder. The
 agent creates, inspects, edits and checks files there through each kit's headless executable. No
 Kition app has to run, and the server is free on any machine with no licence key. The published
-kits are Note, for Markdown, and Table, for `.ktable` tables.
+kits are Note, for Markdown; Table, for `.ktable` tables; and HTML, for `.html` pages.
 
 ## Connect your agent
 

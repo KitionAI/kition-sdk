@@ -2,8 +2,12 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
-## Unreleased
+## 0.3.0
 
+- **Published kits**: HTML joins Note and Table (`published-kits.json`, `sdk.json`): `kit.html`
+  0.1.0, for `.html` and `.htm` pages, built from its `package-v0.1.0` tag, with its generated
+  typings (`@kition/script/kits/html`), its Claude Code plugin skill and its kit archives in the
+  index.
 - **`kition`, the command line**: one small program with no kit inside; it installs kits from a
   kit index into a store under `~/.kition` (`kition kit list/install/upgrade/remove`), and
   `kition mcp` installs a kit the first time an agent opens a file of it (`docs/sdk/cli.md`).
@@ -18,6 +22,10 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `npx -y @kition/kits-mcp kit install <kit>` installs a kit ahead of time. The Claude Code
   plugin prefers `kition` on the `PATH`.
 - The shipped executables are built with the `dist` profile (LTO, stripped).
+- **Linux: glibc 2.17 or later.** The Linux executables (`kition`, `kition-kits`,
+  `kition-kits-mcp` and every kit's) are linked against glibc 2.17 with cargo-zigbuild instead of
+  the build machine's, so older distributions run them; the release fails a Linux build that
+  needs a newer `GLIBC_` symbol version (`tools/glibc-floor.mjs`, `docs/sdk/distribution.md`).
 
 ## 0.2.0
 
