@@ -5,10 +5,14 @@ Codex, or your own MCP client. The agent creates, inspects, edits and checks fil
 workspace folder through each kit's headless executable. No Kition app has to run, nothing is
 compiled on your machine, and no licence key is needed.
 
-The published kits are **Note**, for Markdown (`.md`, `.markdown`), and **Table**, for tables
-(`.ktable`). Other Kition kits are not published yet. The same executables, without npm, are in
-each [SDK release](https://github.com/KitionAI/kition-sdk/releases) with their SHA-256 sums
-([docs/sdk/distribution.md](https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/distribution.md)).
+The package carries `kition`, Kition's command line, and no kit. Each kit is downloaded the
+first time your agent opens a file of it, into `~/.kition/kits`, and kept there for every later
+start ([Kits](#kits-downloaded-on-first-use)). The kits published so far are **Note**, for
+Markdown (`.md`, `.markdown`), and **Table**, for tables (`.ktable`); others join as they are
+published. The same `kition`, without npm, is in each
+[SDK release](https://github.com/KitionAI/kition-sdk/releases) with its SHA-256 sum, with an
+install script
+([docs/sdk/cli.md](https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/cli.md)).
 
 ## Run
 
@@ -71,15 +75,40 @@ command = "npx"
 args = ["-y", "@kition/kits-mcp", "--workspace", "/absolute/path/to/folder"]
 ```
 
-With the server installed globally (`npm install -g @kition/kits-mcp`, or a `kition-kits-mcp`
-binary on the `PATH`), put `kition-kits-mcp` as the command and drop `-y` and
-`@kition/kits-mcp` from the arguments.
+With the package installed globally (`npm install -g @kition/kits-mcp`), put `kition-kits-mcp`
+as the command and drop `-y` and `@kition/kits-mcp` from the arguments. With `kition` itself
+installed, put `kition` as the command and `mcp` as the first argument.
+
+## Kits: downloaded on first use
+
+The server starts with the kits already in `~/.kition/kits` (or `$KITION_HOME/kits`). When the
+agent first names a file that no installed kit opens, the server downloads the kit that opens it
+from the kit index of the latest SDK release, checks its SHA-256, installs it, and tells the agent
+about its tools (`notifications/tools/list_changed`). A file of a kit that cannot be downloaded
+answers why, as a tool error.
+
+To install kits before the agent starts (a machine that will be offline, a shared image), run the
+`kit` commands of `kition` through the same package:
+
+```sh
+npx -y @kition/kits-mcp kit install note
+npx -y @kition/kits-mcp kit install table
+npx -y @kition/kits-mcp kit list
+```
+
+Offline, the server serves the installed kits and downloads nothing. `--no-install` turns
+downloads off even when the network is there. `KITION_INDEX` (or `--index`) names another kit
+index, an address or a file, for a mirror. `KITION_HOME` moves the whole store. These, and the
+store's layout, are in
+[docs/sdk/cli.md](https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/cli.md).
 
 ## Tools: per kit, or `--unified`
 
 By default each kit adds its own ten tools, named by its prefix: `note_inspect`,
 `note_commands`, `note_run`, `note_query`, `note_batch`, `note_check`, `note_export`,
-`note_create`, `note_draft_ready` and `note_draft_reopen`.
+`note_create`, `note_draft_ready` and `note_draft_reopen`. A kit's own tools are there once it is
+installed; until then the server offers `kit_inspect`, which installs the kit of the file it is
+given and then inspects the file.
 
 With `--unified` the server offers one set of ten tools for every kit, `kit_inspect`,
 `kit_commands`, `kit_run`, `kit_query`, `kit_batch`, `kit_check`, `kit_export`, `kit_create`,
@@ -126,30 +155,32 @@ npx -y @kition/kits-mcp drafts merge notes/plan.md --workspace .      # refused 
 npx -y @kition/kits-mcp drafts discard notes/plan.md --workspace .
 ```
 
-## How it finds the server and the kits
+## How it finds kition
 
-`kition-kits-mcp` here is a small Node launcher. It starts the real server with your arguments
-and your standard input, output and error, and exits with the server's exit code or signal. The
-launcher itself never writes to standard output. It uses the first server it finds:
+`kition-kits-mcp` here is a small Node launcher. It starts `kition mcp` with your arguments and
+your standard input, output and error, and exits with its exit code or signal (`kition-kits-mcp
+kit <command>` runs `kition kit <command>`). The launcher itself never writes to standard output.
+It uses the first program it finds:
 
-1. `KITION_KITS_MCP`, the path of a `kition-kits-mcp` executable you name, for example a
-   development build. If the variable names a missing file, the launcher stops with an error.
+1. `KITION_KITS_MCP`, an executable you name, for example a development build: a `kition`
+   (started as `kition mcp`), or a `kition-kits-mcp` (started with your arguments alone, with the
+   kits you give it by `--kits-dir` or `--kit`). If the variable names a missing file, the
+   launcher stops with an error.
 2. The optional package `@kition/kits-mcp-<platform>`, which npm installs with this one on
    `darwin-arm64`, `darwin-x64`, `linux-arm64` (glibc), `linux-x64` (glibc) and `win32-x64`.
-   It holds `bin/kition-kits-mcp` and the published kits' manifests and headless executables
-   (`kits/note/kit.json`, `kits/note/kition-note`). When you give neither `--kits-dir` nor
-   `--kit`, the launcher passes `--kits-dir` for those kits.
-3. `kition-kits-mcp` on the `PATH`.
+   It holds `bin/kition` and nothing else.
+3. `kition` on the `PATH`, else `kition-kits-mcp` on the `PATH`.
 
 If none is found, the launcher says on standard error which platforms are supported. Installing
-with `--omit=optional` leaves the platform package out. To serve other kits, give
-`--kits-dir <folder>` (one folder per kit, holding its `kit.json` and its executable) or
-`--kit <executable>`, or name an executable in `KITION_KIT_<KIT>_BINARY`.
+with `--omit=optional` leaves the platform package out. To serve kits of your own instead of the
+store's, give `--kits-dir <folder>` (one folder per kit, holding its `kit.json` and its
+executable) or `--kit <executable>`, or name an executable in `KITION_KIT_<KIT>_BINARY`.
 
 Programs that start the server themselves can use the same lookup:
 
 ```js
 import { resolveServer, serverArgs, thisMachine } from '@kition/kits-mcp'
+// resolveServer(thisMachine(file)) -> { command, kind }; serverArgs(args, kind) -> the arguments
 ```
 
 ## More

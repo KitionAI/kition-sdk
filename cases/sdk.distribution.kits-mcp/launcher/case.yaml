@@ -2,11 +2,12 @@ format: 1
 id: sdk.distribution.kits-mcp/launcher
 feature: sdk.distribution.kits-mcp
 intent: >-
-  The npm launcher finds kition-kits-mcp in the order its README gives (KITION_KITS_MCP, the
-  platform package, the PATH but never itself), adds the platform package's kits as --kits-dir only
-  when the person names none, passes arguments, stdin and stdout through untouched, ends with the
+  The npm launcher finds what to start in the order its README gives (KITION_KITS_MCP, kition or a
+  kition-kits-mcp; the platform package's kition; kition, then kition-kits-mcp, on the PATH but
+  never itself), starts kition as kition mcp with the person's arguments and hands kit commands to
+  kition as they are, passes arguments, stdin and stdout through untouched, ends with the
   server's exit status or signal, hands a client's SIGTERM to the server, and names the supported
-  platforms on stderr when it finds no server; the platform packages carry only published kits.
+  platforms on stderr when it finds none; the platform packages carry kition and no kit.
 layer: gate
 dimension: platform
 source:

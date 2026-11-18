@@ -431,7 +431,7 @@ features:
       - sdk.distribution.container/context
     since: "2026-11-16"
   - id: sdk.distribution.kits-mcp
-    title: "@kition/kits-mcp starts kition-kits-mcp for this platform from npm, with the published kits, passing stdio, exit status and signals through"
+    title: "@kition/kits-mcp starts kition mcp for this platform from npm (kition from its platform package, which carries no kit), passing stdio, exit status and signals through"
     dimension: [platform, ai]
     priority: P1
     status: has

@@ -26,7 +26,6 @@ export function thisMachine(self: string): Machine {
       }
     },
     isFile: (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false,
-    isDir: (dir) => fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory() ?? false,
     realPath(file) {
       try {
         return fs.realpathSync(file)

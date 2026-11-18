@@ -1,19 +1,17 @@
 #!/usr/bin/env node
-// Writes the npm packages that carry kition-kits-mcp, from executables already built. Nothing here
+// Writes the npm packages that carry `kition`, from executables already built. Nothing here
 // builds, publishes or commits: the packages go to a folder under target/.
 //
 //   node packages/kits-mcp/scripts/platform-package.mjs platform --platform <platform>
-//        --server <kition-kits-mcp> [--kit <kit.json>=<kition-kit>]... [--out <folder>]
+//        --kition <kition> [--out <folder>]
 //
 //     writes <out>/<platform>/ (default out: target/kits-mcp/npm), the package
 //     @kition/kits-mcp-<platform>:
 //       package.json         os, cpu (and libc) of the platform, so npm installs it only there
-//       bin/kition-kits-mcp  the server
-//       kits/<kit>/kit.json  each kit's manifest, with its headless executable beside it
-//       kits/<kit>/kition-<kit>
+//       bin/kition           the Kition command line (kition.exe on Windows)
 //       README.md LICENSE
-//     The launcher passes kits/ as the server's --kits-dir. A kit enters only when it is in
-//     published-kits.json and its kit.json names the executable given (headless.executable).
+//     It carries no kit: the launcher starts `kition mcp`, which installs each kit into the kit
+//     store (~/.kition/kits) when the agent first needs it.
 //
 //   node packages/kits-mcp/scripts/platform-package.mjs link --launcher <kits-mcp.tgz> [--out <folder>]
 //
@@ -33,7 +31,6 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const launcherDir = path.resolve(here, '..')
 const PLATFORMS = Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(path.join(launcherDir, 'src/platforms.json'), 'utf8'))).filter(([key]) => !key.startsWith('$')))
-const PUBLISHED_KITS = JSON.parse(fs.readFileSync(path.join(root, 'published-kits.json'), 'utf8'))
 const launcher = JSON.parse(fs.readFileSync(path.join(launcherDir, 'package.json'), 'utf8'))
 
 export const packageName = (platform) => `${launcher.name}-${platform}`
@@ -42,65 +39,40 @@ export const packageName = (platform) => `${launcher.name}-${platform}`
  * The manifest of the platform package: installed by npm only on its platform (os, cpu, libc), as
  * an optional dependency of the launcher.
  */
-export function platformManifest(platform, version, kits) {
+export function platformManifest(platform, version) {
   const target = PLATFORMS[platform]
   if (!target) throw new Error(`no platform ${platform}: one of ${Object.keys(PLATFORMS).join(', ')}`)
   return {
     name: packageName(platform),
     version,
-    description: `kition-kits-mcp for ${platform}${target.libc ? ` (${target.libc})` : ''}, with the published Kition kits (${kits.map(({ kit, version: v }) => `${kit} ${v}`).join(', ') || 'none'}). Installed by ${launcher.name}; run that.`,
+    description: `kition, the Kition command line, for ${platform}${target.libc ? ` (${target.libc})` : ''}; it installs kits on first use. Installed by ${launcher.name}; run that.`,
     license: launcher.license,
     repository: launcher.repository,
     os: [target.os],
     cpu: [target.cpu],
     ...(target.libc ? { libc: [target.libc] } : {}),
-    files: ['bin', 'kits'],
+    files: ['bin'],
     preferUnplugged: true,
-    kitionKits: Object.fromEntries(kits.map(({ kit, version: v }) => [kit, v])),
   }
-}
-
-/** Reads `<kit.json>=<executable>` and checks the pair against the publication allowlist. */
-export function kitInput(spec) {
-  const at = spec.lastIndexOf('=')
-  if (at <= 0) throw new Error(`--kit ${spec}: give <kit.json>=<executable>`)
-  const manifestFile = spec.slice(0, at)
-  const executable = spec.slice(at + 1)
-  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'))
-  const kit = typeof manifest.id === 'string' && manifest.id.startsWith('kit.') ? manifest.id.slice(4) : null
-  if (!kit || !PUBLISHED_KITS.includes(kit)) throw new Error(`${manifestFile}: ${manifest.id} is not in published-kits.json (${PUBLISHED_KITS.join(', ')})`)
-  const named = manifest.headless?.executable
-  const given = path.basename(executable).replace(/\.exe$/, '')
-  if (named !== given) throw new Error(`${manifestFile}: headless.executable is ${named}, not ${given}`)
-  if (!fs.statSync(executable, { throwIfNoEntry: false })?.isFile()) throw new Error(`${executable}: no such file`)
-  return { kit, version: manifest.version, manifestFile, executable, name: named }
-}
-
-function copyExecutable(from, to) {
-  fs.mkdirSync(path.dirname(to), { recursive: true })
-  fs.copyFileSync(from, to)
-  fs.chmodSync(to, 0o755)
 }
 
 /** Writes `<out>/<platform>/` and answers its folder. */
-export function writePlatformPackage({ platform, server, kits, out, version = launcher.version }) {
+export function writePlatformPackage({ platform, kition, out, version = launcher.version }) {
   if (!PLATFORMS[platform]) throw new Error(`no platform ${platform}: one of ${Object.keys(PLATFORMS).join(', ')}`)
-  if (!fs.statSync(server, { throwIfNoEntry: false })?.isFile()) throw new Error(`${server}: no such file`)
+  if (!fs.statSync(kition, { throwIfNoEntry: false })?.isFile()) throw new Error(`${kition}: no such file`)
   const exe = PLATFORMS[platform].os === 'win32' ? '.exe' : ''
+  const named = path.basename(kition)
+  if (named !== `kition${exe}`) throw new Error(`${kition}: give the kition${exe} executable, not ${named}`)
   const dir = path.join(out, platform)
   fs.rmSync(dir, { recursive: true, force: true })
-  copyExecutable(server, path.join(dir, 'bin', `kition-kits-mcp${exe}`))
-  for (const kit of kits) {
-    const kitDir = path.join(dir, 'kits', kit.kit)
-    fs.mkdirSync(kitDir, { recursive: true })
-    fs.copyFileSync(kit.manifestFile, path.join(kitDir, 'kit.json'))
-    copyExecutable(kit.executable, path.join(kitDir, `${kit.name}${exe}`))
-  }
-  const manifest = platformManifest(platform, version, kits)
+  fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
+  fs.copyFileSync(kition, path.join(dir, 'bin', `kition${exe}`))
+  fs.chmodSync(path.join(dir, 'bin', `kition${exe}`), 0o755)
+  const manifest = platformManifest(platform, version)
   fs.writeFileSync(path.join(dir, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   fs.writeFileSync(
     path.join(dir, 'README.md'),
-    `# ${manifest.name}\n\n${manifest.description}\n\nDo not install this package yourself: install or run [\`${launcher.name}\`](https://www.npmjs.com/package/${launcher.name}), which depends on it on ${platform} and starts \`bin/kition-kits-mcp\` with \`--kits-dir kits\`.\n`,
+    `# ${manifest.name}\n\n${manifest.description}\n\nDo not install this package yourself: install or run [\`${launcher.name}\`](https://www.npmjs.com/package/${launcher.name}), which depends on it on ${platform} and starts \`bin/kition mcp\`. Kits are downloaded on first use into \`~/.kition/kits\`.\n`,
   )
   fs.copyFileSync(path.join(root, 'LICENSE'), path.join(dir, 'LICENSE'))
   return dir
@@ -156,25 +128,24 @@ function link(archive, out) {
 
 function main(argv) {
   const [command, ...rest] = argv
-  const flags = { kit: [] }
+  const flags = {}
   for (let i = 0; i < rest.length; i += 1) {
     const name = rest[i].replace(/^--/, '')
     const value = rest[++i]
     if (!rest[i - 1].startsWith('--') || value === undefined) throw new Error(`${rest[i - 1]} needs a value`)
-    if (name === 'kit') flags.kit.push(value)
-    else flags[name] = value
+    flags[name] = value
   }
   const out = path.resolve(flags.out ?? path.join(root, 'target/kits-mcp/npm'))
   if (command === 'platform') {
-    if (!flags.platform || !flags.server) throw new Error('platform needs --platform and --server')
-    const dir = writePlatformPackage({ platform: flags.platform, server: path.resolve(flags.server), kits: flags.kit.map(kitInput), out })
+    if (!flags.platform || !flags.kition) throw new Error('platform needs --platform and --kition')
+    const dir = writePlatformPackage({ platform: flags.platform, kition: path.resolve(flags.kition), out })
     process.stderr.write(`wrote ${dir}\n`)
   } else if (command === 'link') {
     if (!flags.launcher) throw new Error('link needs --launcher')
     const linked = link(path.resolve(flags.launcher), out)
     process.stderr.write(`${flags.launcher}: optionalDependencies ${Object.keys(linked).join(', ')}\n`)
   } else {
-    throw new Error('usage: platform-package.mjs platform --platform <p> --server <exe> [--kit <kit.json>=<exe>]... [--out <dir>] | link --launcher <tgz> [--out <dir>]')
+    throw new Error('usage: platform-package.mjs platform --platform <p> --kition <exe> [--out <dir>] | link --launcher <tgz> [--out <dir>]')
   }
 }
 

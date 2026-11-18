@@ -1,6 +1,6 @@
 // The built `kition-kits-mcp` command (dist/cli.js, built here into a temporary folder) with
-// stand-in servers: what it passes through, and how it exits. The last test drives the real
-// server over MCP where kition-sdk's target/ holds one.
+// stand-in programs: what it passes through, and how it exits. The last test drives the real
+// `kition mcp` over MCP where kition-sdk's target/ holds kition.
 import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -42,24 +42,30 @@ describe('the kition-kits-mcp command', () => {
     expect(result.stderr).toBe('')
   })
 
-  it('starts the platform package’s server with its kits as --kits-dir, unless the person names kits', () => {
-    script(path.join(platformDir, 'bin', 'kition-kits-mcp'), `exec ${echo} "$@"`)
-    fs.mkdirSync(path.join(platformDir, 'kits', 'note'), { recursive: true })
+  it('starts the platform package’s kition as kition mcp, and hands it kit commands as they are', () => {
+    script(path.join(platformDir, 'bin', 'kition'), `exec ${echo} "$@"`)
     fs.writeFileSync(path.join(platformDir, 'package.json'), '{"name":"@kition/kits-mcp-test"}\n')
     try {
-      const kits = fs.realpathSync(path.join(platformDir, 'kits'))
-      expect(run(['--workspace', '.'], {}).stdout.split('\n').slice(0, 4)).toEqual(['--workspace', '.', '--kits-dir', kits])
-      expect(run(['--workspace', '.', '--kits-dir', '/mine'], {}).stdout.split('\n').slice(0, 4)).toEqual(['--workspace', '.', '--kits-dir', '/mine'])
+      expect(run(['--workspace', '.'], {}).stdout.split('\n').slice(0, 3)).toEqual(['mcp', '--workspace', '.'])
+      expect(run(['--workspace', '.', '--kits-dir', '/mine'], {}).stdout.split('\n').slice(0, 5)).toEqual(['mcp', '--workspace', '.', '--kits-dir', '/mine'])
+      expect(run(['kit', 'install', 'note'], {}).stdout.split('\n').slice(0, 3)).toEqual(['kit', 'install', 'note'])
     } finally {
       fs.rmSync(platformDir, { recursive: true, force: true })
     }
+  })
+
+  it('refuses kit commands when the environment names a kition-kits-mcp', () => {
+    const result = run(['kit', 'list'], { KITION_KITS_MCP: echo })
+    expect(result.status).toBe(2)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toContain('has no kit commands; they need kition')
   })
 
   it('writes nothing to stdout and names the platforms on stderr when it finds no server', () => {
     const result = run(['--workspace', '.'], {})
     expect(result.status).toBe(1)
     expect(result.stdout).toBe('')
-    expect(result.stderr).toMatch(/^kition-kits-mcp: no kition-kits-mcp for this platform/)
+    expect(result.stderr).toMatch(/^kition-kits-mcp: no kition for this platform/)
     expect(result.stderr).toContain('darwin-arm64, darwin-x64, linux-arm64 (glibc), linux-x64 (glibc) and win32-x64')
   })
 
@@ -127,17 +133,20 @@ describe('the kition-kits-mcp command', () => {
   })
 })
 
-// kition-kits-mcp from this checkout (cargo build -p kition-kits --bin kition-kits-mcp), and the Note
-// kit's debug build when kition-note is checked out beside it. Without them there is nothing to drive.
-const server = ['release', 'debug'].map((profile) => path.join(sdkRoot, 'target', profile, 'kition-kits-mcp')).find((file) => fs.existsSync(file))
+// kition from this checkout (cargo build -p kition-cli), and the Note kit's debug build when
+// kition-note is checked out beside it. Without them there is nothing to drive.
+const server = ['dist', 'release', 'debug'].map((profile) => path.join(sdkRoot, 'target', profile, 'kition')).find((file) => fs.existsSync(file))
 const note = path.join(sdkRoot, '..', 'kition-note', 'target', 'debug', 'kition-note')
 
 describe('the real server through the launcher', () => {
-  it('answers initialize and tools/list over stdio (where target/ holds kition-kits-mcp)', async () => {
+  it('answers initialize and tools/list over stdio (where target/ holds kition)', async () => {
     if (!server) return
     const workspace = fs.mkdtempSync(path.join(scratch, 'workspace-'))
     const args = ['--workspace', workspace, '--unified', ...(fs.existsSync(note) ? ['--kit', note] : [])]
-    const child = spawn(process.execPath, [cli, ...args], { env: { ...process.env, KITION_KITS_MCP: server } })
+    // A Kition home and an index of its own: the test never reads ~/.kition or the network.
+    const home = fs.mkdtempSync(path.join(scratch, 'home-'))
+    const env = { ...process.env, KITION_KITS_MCP: server, KITION_HOME: home, KITION_INDEX: path.join(home, 'no-index.json') }
+    const child = spawn(process.execPath, [cli, ...args], { env })
     const replies: Record<number, { result?: { serverInfo?: { name: string }; tools?: { name: string }[] } }> = {}
     let buffer = ''
     let stderr = ''

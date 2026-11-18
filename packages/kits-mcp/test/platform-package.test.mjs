@@ -6,45 +6,39 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { kitInput, optionalDependencies, platformManifest, writePlatformPackage } from '../scripts/platform-package.mjs'
+import { optionalDependencies, platformManifest, writePlatformPackage } from '../scripts/platform-package.mjs'
 
 const platforms = Object.keys(JSON.parse(fs.readFileSync(new URL('../src/platforms.json', import.meta.url), 'utf8'))).filter((key) => !key.startsWith('$'))
 const script = fileURLToPath(new URL('../scripts/platform-package.mjs', import.meta.url))
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'kits-mcp-platform-'))
 
-function kit(dir, id, executable) {
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, 'kit.json'), JSON.stringify({ id, name: 'Note', version: '0.1.0', headless: { executable } }))
-  fs.writeFileSync(path.join(dir, executable), 'binary')
-  return `${path.join(dir, 'kit.json')}=${path.join(dir, executable)}`
-}
-
 describe('platform packages', () => {
   it('install only on their platform, as npm reads os, cpu and libc', () => {
-    expect(platformManifest('linux-x64', '0.1.0', [{ kit: 'note', version: '0.1.0' }])).toMatchObject({
-      name: '@kition/kits-mcp-linux-x64', version: '0.1.0', os: ['linux'], cpu: ['x64'], libc: ['glibc'], files: ['bin', 'kits'], kitionKits: { note: '0.1.0' },
+    expect(platformManifest('linux-x64', '0.1.0')).toMatchObject({
+      name: '@kition/kits-mcp-linux-x64', version: '0.1.0', os: ['linux'], cpu: ['x64'], libc: ['glibc'], files: ['bin'],
     })
-    expect(platformManifest('darwin-arm64', '0.1.0', [])).not.toHaveProperty('libc')
-    expect(() => platformManifest('sunos-x64', '0.1.0', [])).toThrow(/no platform sunos-x64/)
+    expect(platformManifest('darwin-arm64', '0.1.0')).not.toHaveProperty('libc')
+    expect(() => platformManifest('sunos-x64', '0.1.0')).toThrow(/no platform sunos-x64/)
   })
 
-  it('carry the server and each kit as --kits-dir lays it out: kits/<kit>/kit.json beside its executable', () => {
+  it('carry kition and no kit', () => {
+    const dir = scratch()
+    const kition = path.join(dir, 'kition.exe')
+    fs.writeFileSync(kition, 'kition')
+    const written = writePlatformPackage({ platform: 'win32-x64', kition, out: path.join(dir, 'npm') })
+    const files = fs.readdirSync(written, { recursive: true }).map((file) => file.split(path.sep).join('/')).sort()
+    expect(files).toEqual(['LICENSE', 'README.md', 'bin', 'bin/kition.exe', 'package.json'])
+    expect(JSON.parse(fs.readFileSync(path.join(written, 'package.json'), 'utf8')).name).toBe('@kition/kits-mcp-win32-x64')
+    expect(fs.readFileSync(path.join(written, 'README.md'), 'utf8')).toContain('~/.kition/kits')
+    if (process.platform !== 'win32') expect(fs.statSync(path.join(written, 'bin/kition.exe')).mode & 0o111).toBeTruthy()
+  })
+
+  it('take only kition, named as on its platform', () => {
     const dir = scratch()
     const server = path.join(dir, 'kition-kits-mcp')
     fs.writeFileSync(server, 'server')
-    const written = writePlatformPackage({ platform: 'win32-x64', server, kits: [kitInput(kit(path.join(dir, 'note'), 'kit.note', 'kition-note'))], out: path.join(dir, 'npm') })
-    const files = fs.readdirSync(written, { recursive: true }).map((file) => file.split(path.sep).join('/')).sort()
-    expect(files).toEqual(['LICENSE', 'README.md', 'bin', 'bin/kition-kits-mcp.exe', 'kits', 'kits/note', 'kits/note/kit.json', 'kits/note/kition-note.exe', 'package.json'])
-    expect(JSON.parse(fs.readFileSync(path.join(written, 'package.json'), 'utf8')).name).toBe('@kition/kits-mcp-win32-x64')
-    if (process.platform !== 'win32') expect(fs.statSync(path.join(written, 'bin/kition-kits-mcp.exe')).mode & 0o111).toBeTruthy()
-  })
-
-  it('take only published kits, with the executable their kit.json names', () => {
-    const dir = scratch()
-    expect(() => kitInput(kit(path.join(dir, 'doc'), 'kit.doc', 'kition-doc'))).toThrow(/not in published-kits.json/)
-    const wrong = kit(path.join(dir, 'note'), 'kit.note', 'kition-note').replace(/kition-note$/, 'kition-notes')
-    fs.writeFileSync(wrong.split('=')[1], 'binary')
-    expect(() => kitInput(wrong)).toThrow(/headless.executable is kition-note, not kition-notes/)
+    expect(() => writePlatformPackage({ platform: 'linux-x64', kition: server, out: path.join(dir, 'npm') })).toThrow(/give the kition executable, not kition-kits-mcp/)
+    expect(() => writePlatformPackage({ platform: 'linux-x64', kition: path.join(dir, 'kition'), out: path.join(dir, 'npm') })).toThrow(/no such file/)
   })
 })
 

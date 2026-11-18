@@ -54,7 +54,7 @@ describe('draft skills', () => {
 })
 
 describe('the launcher', () => {
-  // A stand-in kition-kits-mcp that prints the arguments it was started with.
+  // Stand-ins for kition-kits-mcp and kition that print the arguments they were started with.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kition-kits-plugin-'))
   const fake = path.join(dir, 'kition-kits-mcp')
   fs.writeFileSync(fake, '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 })
@@ -83,6 +83,17 @@ describe('the launcher', () => {
 
   it('takes kition-kits-mcp from the PATH when the option is unset', () => {
     expect(run(['--workspace', '/w'], { PATH: `${dir}:/usr/bin:/bin`, KITION_KITS_MCP: '${user_config.kits_mcp}', KITION_KITS_UNIFIED: 'false' })).toEqual(['--workspace', '/w'])
+  })
+
+  it('prefers kition, from the option or the PATH, and starts it as kition mcp', () => {
+    const bin = path.join(dir, 'with-kition')
+    fs.mkdirSync(bin, { recursive: true })
+    const kition = path.join(bin, 'kition')
+    fs.writeFileSync(kition, '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 })
+    const both = `${bin}:${dir}:/usr/bin:/bin`
+    expect(run(['--workspace', '/w'], { PATH: both, KITION_KITS_MCP: '${user_config.kits_mcp}' })).toEqual(['mcp', '--workspace', '/w', '--unified'])
+    expect(run(['drafts', 'list', '--workspace', '/w'], { PATH: both, KITION_KITS_MCP: '' })).toEqual(['mcp', 'drafts', 'list', '--workspace', '/w'])
+    expect(run(['--workspace', '/w'], { KITION_KITS_MCP: kition, KITION_KITS_DIR: '/kits', KITION_KITS_UNIFIED: 'false' })).toEqual(['mcp', '--workspace', '/w', '--kits-dir', '/kits'])
   })
 
   it('falls back to the npm launcher through npx, without the unset option in its environment', () => {

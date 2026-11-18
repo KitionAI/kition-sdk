@@ -26,12 +26,12 @@
     "kits_mcp": {
       "type": "file",
       "title": "kition-kits-mcp",
-      "description": "The kition-kits-mcp executable (built from kition-sdk with `cargo build -p kition-kits --bin kition-kits-mcp`). Leave empty to use the one on the PATH, else `npx -y @kition/kits-mcp`, which brings the server and the published kits (once that package is on npm)."
+      "description": "The server executable: kition (started as `kition mcp`; installed by install.sh in ~/.kition/bin, or built with `cargo build -p kition-cli`) or a kition-kits-mcp. Leave empty to use kition on the PATH, else kition-kits-mcp on the PATH, else `npx -y @kition/kits-mcp`, which brings kition. kition downloads each kit into ~/.kition/kits on first use."
     },
     "kits_dir": {
       "type": "directory",
       "title": "Installed kits",
-      "description": "A folder with one folder per installed kit, each holding its kit.json and headless executable. Leave empty to use kit repositories, or the kits @kition/kits-mcp brings."
+      "description": "A folder with one folder per installed kit, each holding its kit.json and headless executable. Leave empty to use kit repositories, or the kits kition installs in ~/.kition/kits."
     },
     "kit_repos": {
       "type": "directory",
