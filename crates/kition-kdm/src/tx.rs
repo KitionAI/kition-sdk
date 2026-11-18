@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -141,11 +141,16 @@ impl Staged<'_> {
     }
 
     /// The registers the operations write: `(object, map field, key, value)`, the map field `None`
-    /// for an object's own register field, the value `None` for a deleted map key.
+    /// for an object's own register field, the value `None` for a deleted map key. Writes to an
+    /// object the same operations create are left out, as its creation's own fields are: no undo
+    /// reaches such a register before a later write replaces it (undoing the creation removes
+    /// the whole object), so the replica keeps no note of them.
     pub(crate) fn register_writes(&self) -> Vec<(ObjectId, Option<String>, String, Option<Value>)> {
+        let created: HashSet<&ObjectId> = self.ops.iter().filter_map(|op| if let Op::Create { id, .. } = op { Some(id) } else { None }).collect();
         self.ops
             .iter()
             .filter_map(|op| match op {
+                Op::Set { id, .. } | Op::MapSet { id, .. } | Op::MapDelete { id, .. } if created.contains(id) => None,
                 Op::Set { id, field, value } => Some((id.clone(), None, (*field).to_owned(), Some(value.clone()))),
                 Op::MapSet { id, field, key, value } => Some((id.clone(), Some((*field).to_owned()), key.clone(), Some(value.clone()))),
                 Op::MapDelete { id, field, key } => Some((id.clone(), Some((*field).to_owned()), key.clone(), None)),

@@ -81,7 +81,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/tx.ts, crates/kition-kit/src/session/mod.rs]
-    cases: [regressions/issue-c8-fix-22-undo, regressions/issue-c8-fix-22-undo-repair, regressions/issue-c8-fix-22-undo-prefix]
+    cases: [regressions/issue-c8-fix-22-undo, regressions/issue-c8-fix-22-undo-repair, regressions/issue-c8-fix-22-undo-prefix, regressions/issue-kition-table-100k-rows]
     since: "2026-11-16"
   - id: sdk.model.projected-objects
     title: Kit-computed objects participate in the object model without replica storage

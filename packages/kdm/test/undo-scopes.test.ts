@@ -136,6 +136,30 @@ describe('undo scopes', () => {
     expect(replica.text(shape, 'label')).toBe('')
   })
 
+  // The Rust twin is `replica::tests::a_transaction_keeps_no_notes_of_the_objects_it_creates`.
+  it('keeps no notes of the registers of objects a transaction creates', () => {
+    const replica = Replica.create(testSchema(), newDocId(), 1n)
+    const notes = () => {
+      const held = replica as unknown as { ownRegisters: Map<string, unknown>; localWrites: Map<string, unknown> }
+      return [held.ownRegisters.size, held.localWrites.size]
+    }
+    const sheet = replica.transact(me, (tx) => {
+      const id = tx.create('Sheet', {})
+      for (let cell = 0; cell < 100; cell += 1) tx.mapSet(id, 'cells', `c${cell}`, cell)
+      return id
+    })
+    expect(notes()).toEqual([0, 0])
+    // A later write to one of them is noted, and an agent's later write survives the person's
+    // undo of it, as before.
+    replica.transact(me, (tx) => tx.mapSet(sheet, 'cells', 'c1', 'person'))
+    expect(notes()).toEqual([1, 1])
+    replica.transact(theAgent, (tx) => tx.mapSet(sheet, 'cells', 'c1', 'agent'))
+    expect(replica.undo()).toBe(true)
+    expect(replica.mapGet(sheet, 'cells', 'c1')).toBe('agent')
+    expect(replica.undo()).toBe(true)
+    expect(replica.exists(sheet)).toBe(false)
+  })
+
   it('refuses an unknown scope', () => {
     const { replica } = fresh()
     expect(() => replica.undoIn('robot' as 'agent')).toThrow(/undo scope/)

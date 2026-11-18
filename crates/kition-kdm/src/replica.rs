@@ -1296,4 +1296,34 @@ mod tests {
         assert!(replica.undo().unwrap());
         assert!(!replica.exists(&shape));
     }
+
+    /// A bulk create (a table's 100,000 records) kept a note of every cell it wrote, about 23 KB
+    /// a record: notes of registers in objects the same transaction creates are never read, since
+    /// no undo reaches such a register before a later write replaces the note (undoing the
+    /// creation deletes the whole object).
+    #[test]
+    fn a_transaction_keeps_no_notes_of_the_objects_it_creates() {
+        let schema = Arc::new(Schema::parse(include_str!("../tests/fixtures/test-schema.json")).unwrap());
+        let mut replica = Replica::create(schema, DocId::new(), ActorId::from_u64(1).unwrap()).unwrap();
+        let person = Origin::person("user:test");
+        let sheet = replica
+            .transact(&person, |tx| {
+                let sheet = tx.create("Sheet", serde_json::Map::new())?;
+                for cell in 0..100 {
+                    tx.map_set(&sheet, "cells", &format!("c{cell}"), json!(cell))?;
+                }
+                Ok(sheet)
+            })
+            .unwrap();
+        assert_eq!((replica.own_registers.len(), replica.local_writes.len()), (0, 0));
+        // A later write to one of them is noted, and an agent's later write survives the person's
+        // undo of it, as before.
+        replica.transact(&person, |tx| tx.map_set(&sheet, "cells", "c1", json!("person"))).unwrap();
+        assert_eq!((replica.own_registers.len(), replica.local_writes.len()), (1, 1));
+        replica.transact(&Origin::agent("agent:test"), |tx| tx.map_set(&sheet, "cells", "c1", json!("agent"))).unwrap();
+        assert!(replica.undo().unwrap());
+        assert_eq!(replica.map_get(&sheet, "cells", "c1").unwrap(), json!("agent"));
+        assert!(replica.undo().unwrap());
+        assert!(!replica.exists(&sheet));
+    }
 }

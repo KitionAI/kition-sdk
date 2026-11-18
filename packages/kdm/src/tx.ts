@@ -94,6 +94,7 @@ export class Tx {
       throw errors.engine('a transaction runs synchronously; its function returned a promise')
     }
     const { ops, nodes } = tx
+    const created = new Set(ops.flatMap((op) => (op.op === 'create' ? [op.id] : [])))
     return {
       result,
       staged: {
@@ -116,7 +117,11 @@ export class Tx {
           return touches
         }),
         apply: (target, applySchema, touched) => apply(target, applySchema, ops, nodes, touched),
+        // Writes to an object the same operations create are left out, as its creation's own
+        // fields are: no undo reaches such a register before a later write replaces it (undoing
+        // the creation removes the whole object), so the replica keeps no note of them.
         registerWrites: ops.flatMap((op): Array<{ id: ObjectId; field: string | null; key: string; value: unknown }> => {
+          if ((op.op === 'set' || op.op === 'mapSet' || op.op === 'mapDelete') && created.has(op.id)) return []
           if (op.op === 'set') return [{ id: op.id, field: null, key: op.field, value: op.value as unknown }]
           if (op.op === 'mapSet') return [{ id: op.id, field: op.field, key: op.key, value: op.value as unknown }]
           if (op.op === 'mapDelete') return [{ id: op.id, field: op.field, key: op.key, value: undefined }]
