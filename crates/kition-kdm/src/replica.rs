@@ -108,18 +108,36 @@ pub struct UndoTouch {
     pub fields: Option<BTreeSet<String>>,
 }
 
+/// Merges `more` into `into`, which holds one touch per object sorted by id (and still does
+/// afterwards): a touch of an object `into` holds adds its fields, or holds the whole object
+/// (`fields: None`) when either does. Costs O(n + m log m) for `n` held and `m` more touches, so a
+/// transaction that writes every record of a large table merges in one pass.
 pub(crate) fn merge_undo_touches(into: &mut Vec<UndoTouch>, more: &[UndoTouch]) {
-    for touch in more {
-        if let Some(held) = into.iter_mut().find(|held| held.id == touch.id) {
-            match (&mut held.fields, &touch.fields) {
-                (Some(fields), Some(more)) => fields.extend(more.iter().cloned()),
-                _ => held.fields = None,
-            }
-        } else {
-            into.push(touch.clone());
+    fn add(held: &mut UndoTouch, touch: &UndoTouch) {
+        match (&mut held.fields, &touch.fields) {
+            (Some(fields), Some(more)) => fields.extend(more.iter().cloned()),
+            _ => held.fields = None,
         }
     }
-    into.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut adding: Vec<&UndoTouch> = more.iter().collect();
+    adding.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut held = mem::take(into).into_iter().peekable();
+    let mut merged: Vec<UndoTouch> = Vec::with_capacity(held.len() + adding.len());
+    for touch in adding {
+        merged.extend(std::iter::from_fn(|| held.next_if(|next| next.id < touch.id)));
+        match merged.last_mut() {
+            Some(last) if last.id == touch.id => add(last, touch),
+            _ => match held.next_if(|next| next.id == touch.id) {
+                Some(mut next) => {
+                    add(&mut next, touch);
+                    merged.push(next);
+                }
+                None => merged.push(touch.clone()),
+            },
+        }
+    }
+    merged.extend(held);
+    *into = merged;
 }
 
 impl Replica {

@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -56,8 +57,20 @@ pub(crate) struct Staged<'a> {
 }
 
 impl Staged<'_> {
+    /// The objects and fields the operations write, one touch per object sorted by id (see
+    /// [`crate::UndoTouch`]). Gathered in a map, so a transaction of many operations costs
+    /// O(n log n), not a merge per operation.
     pub(crate) fn undo_touches(&self, doc: &LoroDoc, schema: &Schema) -> Vec<crate::UndoTouch> {
-        let mut touches = Vec::new();
+        let mut touches: BTreeMap<String, Option<BTreeSet<String>>> = BTreeMap::new();
+        let mut touch = |id: String, fields: Option<BTreeSet<String>>| match touches.entry(id) {
+            Entry::Vacant(entry) => {
+                entry.insert(fields);
+            }
+            Entry::Occupied(mut entry) => match (entry.get_mut(), fields) {
+                (Some(held), Some(more)) => held.extend(more),
+                (held, _) => *held = None,
+            },
+        };
         for (before, op) in self.ops.iter().enumerate() {
             let Some(id) = op.object() else { continue };
             let field = match op {
@@ -74,10 +87,10 @@ impl Staged<'_> {
                 | Op::MapDelete { field, .. }
                 | Op::TreeCreate { field, .. }
                 | Op::TreeMove { field, .. }
-                | Op::TreeDelete { field, .. } => Some(std::collections::BTreeSet::from([(*field).to_owned()])),
+                | Op::TreeDelete { field, .. } => Some(BTreeSet::from([(*field).to_owned()])),
                 Op::RaiseSchema { .. } => continue,
             };
-            crate::replica::merge_undo_touches(&mut touches, &[crate::UndoTouch { id: id.to_string(), fields: field }]);
+            touch(id.to_string(), field);
             let item = match op {
                 Op::ListInsert { item, .. } | Op::TreeCreate { object: item, .. } => Some(item.clone()),
                 Op::ListMove { field, from: index, .. } | Op::ListRemove { field, index, .. } => self.undo_list_item(doc, schema, id, field, *index, before),
@@ -87,10 +100,10 @@ impl Staged<'_> {
                 _ => None,
             };
             if let Some(item) = item {
-                crate::replica::merge_undo_touches(&mut touches, &[crate::UndoTouch { id: item.to_string(), fields: Some(Default::default()) }]);
+                touch(item.to_string(), Some(Default::default()));
             }
         }
-        touches
+        touches.into_iter().map(|(id, fields)| crate::UndoTouch { id, fields }).collect()
     }
 
     fn undo_list_item(&self, doc: &LoroDoc, schema: &Schema, id: &ObjectId, field: &str, mut index: usize, before: usize) -> Option<ObjectId> {

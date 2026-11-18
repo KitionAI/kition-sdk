@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-kition-table-bulk-write
+feature: sdk.model.undo-footprint
+intent: >-
+  A transaction that writes many objects notes its undo footprint in time proportional to its
+  writes, one touch per object with every field it wrote, and an undo group merges its
+  transactions' footprints the same way. Before, each write was merged into the footprint with a
+  search and a sort of everything noted so far, so clearing a column of a 100,000-record table
+  spent minutes there.
+layer: gate
+source: { kind: issue, from: Kition Table bulk writes (card bulk-write), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: bulk_touches }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-18"
