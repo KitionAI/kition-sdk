@@ -250,7 +250,7 @@ const OBJECT_ICONS: Array<[RegExp, IconComponent]> = [
   [/\b(?:painter)\b/, PaintbrushIcon],
   [/\b(?:field|form)\b/, TextCursorInputIcon],
   [/\b(?:tab order)\b/, ListOrderedIcon],
-  [/\b(?:smart ?art|diagram)\b/, NetworkIcon],
+  [/\b(?:smart ?graphics?|diagram)\b/, NetworkIcon],
   [/\b(?:action button|button)\b/, MousePointerClickIcon],
   [/\b(?:pen)\b/, PenToolIcon],
   [/\b(?:pencil)\b/, PencilIcon],
