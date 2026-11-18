@@ -4,8 +4,8 @@ feature: sdk.model.undo-footprint
 intent: >-
   A transaction keeps no undo notes of the registers of objects it creates, in Rust and in
   TypeScript, while a later write is still noted and an agent's later write still survives the
-  person's undo. Before, a table's bulk record create kept two notes of every cell it wrote, about
-  23 KB a record, so a 100,000-record table ran out of WebAssembly memory before it was saved.
+  person's undo. Before, a table's bulk record create kept two notes of every cell it wrote, so a
+  large table ran out of WebAssembly memory before it was saved.
 layer: gate
 source: { kind: issue, from: Kition Table storage card (table-storage), license: owned }
 input: []

@@ -1312,10 +1312,10 @@ mod tests {
         assert!(!replica.exists(&shape));
     }
 
-    /// A bulk create (a table's 100,000 records) kept a note of every cell it wrote, about 23 KB
-    /// a record: notes of registers in objects the same transaction creates are never read, since
-    /// no undo reaches such a register before a later write replaces the note (undoing the
-    /// creation deletes the whole object).
+    /// A bulk create (a table's records) kept a note of every cell it wrote, which grew the
+    /// replica's memory with every record: notes of registers in objects the same transaction
+    /// creates are never read, since no undo reaches such a register before a later write replaces
+    /// the note (undoing the creation deletes the whole object).
     #[test]
     fn a_transaction_keeps_no_notes_of_the_objects_it_creates() {
         let schema = Arc::new(Schema::parse(include_str!("../tests/fixtures/test-schema.json")).unwrap());
