@@ -121,7 +121,7 @@ describe('commandGroups', () => {
 
   it('keeps a real group, even of one command, and groups commands with no second segment under the tab', () => {
     const groups = commandGroups(
-      [command('insert.table', 'Table', ['Insert', 'Tables']), command('insert.pivotTable', 'PivotTable', ['Insert', 'Tables']), command('insert.link', 'Link', ['Insert', 'Links']), command('insert.any', 'Anything', ['Insert'])],
+      [command('insert.table', 'Table', ['Insert', 'Tables']), command('insert.pivotTable', 'Pivot table', ['Insert', 'Tables']), command('insert.link', 'Link', ['Insert', 'Links']), command('insert.any', 'Anything', ['Insert'])],
       ['Insert'],
     )
     expect([...groups.keys()]).toEqual(['Tables', 'Links', 'Insert'])
@@ -145,7 +145,7 @@ describe('commandsOfGroup', () => {
 
 describe('commandIcon', () => {
   it('reads the words of a command id and title', () => {
-    expect(commandIcon({ id: 'insert.pivotTable', title: 'PivotTable' })).not.toBe(commandIcon({ id: 'insert.table', title: 'Table' }))
+    expect(commandIcon({ id: 'insert.pivotTable', title: 'Pivot table' })).not.toBe(commandIcon({ id: 'insert.table', title: 'Table' }))
     expect(commandIcon({ id: 'insert.sparklines', title: 'Sparklines' })).not.toBe(commandIcon({ id: 'insert.line', title: 'Line' }))
     expect(commandIcon({ id: 'insert', title: 'Block...' })).not.toBe(COMMAND_FALLBACK_ICON)
     expect(commandIcon({ id: 'insert.headerFooter', title: 'Header & Footer' })).not.toBe(COMMAND_FALLBACK_ICON)

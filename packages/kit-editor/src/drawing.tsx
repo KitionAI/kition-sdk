@@ -134,7 +134,7 @@ export const DRAWING_SHADOWS: ReadonlyArray<{ id: string; label: string; shadow:
   { id: 'around', label: 'drawingShadowAround', shadow: { blur: 8, distance: 0, angle: 0 } },
 ]
 
-/** Shape Format › Transform: WordArt's preset text warps (`KitDrawing 1.3`, DR26). */
+/** Shape Format › Transform: art text's preset text warps (`KitDrawing 1.3`, DR26). */
 export const DRAWING_WARPS: ReadonlyArray<{ preset: string; label: string }> = [
   { preset: 'textArchUp', label: 'drawingWarpArchUp' },
   { preset: 'textArchDown', label: 'drawingWarpArchDown' },

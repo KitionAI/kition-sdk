@@ -1,4 +1,4 @@
-//! DrawingML colours the Office kits read alike (charts, SmartArt, shapes): a colour element with
+//! DrawingML colours the Office kits read alike (charts, smart graphics, shapes): a colour element with
 //! its modifiers applied, its opacity, and the paint of a fill or line (solid, the first stop of
 //! a gradient, a pattern's foreground) or a gradient's stops. Generic over the kit's XML tree
 //! ([`crate::xml::Xml`]).

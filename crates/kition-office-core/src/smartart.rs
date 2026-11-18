@@ -1,9 +1,9 @@
-//! SmartArt diagrams: the ready-made drawing (`dsp:drawing`) Office keeps beside a diagram's data
-//! model, turned into items ready to draw ([`items`]). The diagram's layout isn't run; the saved
-//! drawing is the picture. Shapes take their outlines from the shared preset catalog
-//! ([`crate::preset`]), colours follow [`crate::drawingml`], and empty placeholder nodes show their
-//! prompt from the data model (`dgm:dataModel`), as WPS draws them. Generic over the kit's XML
-//! tree ([`crate::xml::Xml`]).
+//! Smart graphics (OOXML diagrams, `dgm:`): the ready-made drawing (`dsp:drawing`) Office keeps
+//! beside a diagram's data model, turned into items ready to draw ([`items`]). The diagram's
+//! layout isn't run; the saved drawing is the picture. Shapes take their outlines from the shared
+//! preset catalog ([`crate::preset`]), colours follow [`crate::drawingml`], and empty placeholder
+//! nodes show their prompt from the data model (`dgm:dataModel`), as WPS draws them. Generic over
+//! the kit's XML tree ([`crate::xml::Xml`]).
 
 use std::collections::HashMap;
 
@@ -210,7 +210,7 @@ pub fn prompts<E: Xml>(data: &E) -> HashMap<&str, Vec<Option<&str>>> {
     out
 }
 
-/// The items of a SmartArt drawing, scaled so its extent fills the `w` × `h` (points) frame.
+/// The items of a smart graphic's drawing, scaled so its extent fills the `w` × `h` (points) frame.
 /// `data` is the diagram's data model, for the prompts of empty placeholder nodes.
 /// `image` maps a relationship id of the drawing part to a `Document::media` key.
 pub fn items<E: Xml>(drawing: &E, data: Option<&E>, theme: &[Rgb], w: f32, h: f32, image: &mut dyn FnMut(&str) -> Option<String>) -> Vec<Item> {

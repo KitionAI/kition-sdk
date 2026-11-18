@@ -2,8 +2,8 @@
 //! three hold, so each is drawn, edited, read and written the same way in every kit. Today the
 //! drawing objects (Kit Harness Protocol set `KitDrawing 1.0`), charts, ink, text warps, and
 //! equations ([`math`]: the model, its text forms, its OMML codec and its layout, set in the
-//! kit's fonts), and SmartArt diagrams ([`smartart`]) with the DrawingML colours they use
-//! ([`drawingml`]). Shared readers take the kit's own XML tree through [`xml::Xml`].
+//! kit's fonts), and smart graphics ([`smartart`], OOXML diagrams) with the DrawingML colours
+//! they use ([`drawingml`]). Shared readers take the kit's own XML tree through [`xml::Xml`].
 //!
 //! The dependency direction is kit adapter → this crate: nothing here knows a kit, its document
 //! model, its renderer, or Kition. A kit keeps its own placement (Word's floats, Sheet's cell

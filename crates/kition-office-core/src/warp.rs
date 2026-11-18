@@ -1,4 +1,4 @@
-//! Text warp (`KitDrawing 1.3`, WordArt): a text body laid out flat in its box, then bent by a
+//! Text warp (`KitDrawing 1.3`, art text): a text body laid out flat in its box, then bent by a
 //! DrawingML preset (`a:prstTxWarp@prst`).
 //!
 //! Each preset is an envelope (the curves the text's top and bottom follow across the box, the

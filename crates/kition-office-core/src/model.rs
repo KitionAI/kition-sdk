@@ -441,7 +441,7 @@ pub struct TextBody {
     pub insets: [f64; 4],
     pub wrap: bool,
     pub autofit: Autofit,
-    /// WordArt's preset text warp (DR26); `None` for unbent text.
+    /// Art text's preset text warp (DR26); `None` for unbent text.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warp: Option<Warp>,
 }

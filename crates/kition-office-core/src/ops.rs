@@ -717,10 +717,10 @@ mod tests {
 
     #[test]
     fn warps_are_set_kept_and_removed() {
-        let mut o = DrawingObject { id: "1".into(), text: Some(TextBody::plain("WordArt")), ..Default::default() };
+        let mut o = DrawingObject { id: "1".into(), text: Some(TextBody::plain("Art text")), ..Default::default() };
         DrawingOp::parse("drawing.text", &json!({ "id": "1", "warp": "textArchUp" })).unwrap().apply(&mut o).unwrap();
         let t = o.text.clone().unwrap();
-        assert_eq!((t.text().as_str(), t.warp.unwrap().preset.as_str()), ("WordArt", "textArchUp"));
+        assert_eq!((t.text().as_str(), t.warp.unwrap().preset.as_str()), ("Art text", "textArchUp"));
         // New text keeps the warp.
         DrawingOp::parse("drawing.text", &json!({ "id": "1", "text": "Kition" })).unwrap().apply(&mut o).unwrap();
         assert_eq!(o.text.as_ref().unwrap().warp.as_ref().unwrap().preset, "textArchUp");

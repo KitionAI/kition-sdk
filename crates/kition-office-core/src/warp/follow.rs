@@ -1,4 +1,4 @@
-//! Single-path WordArt geometry. Unlike a two-path envelope, this path locates shaped
+//! Single-path art text geometry. Unlike a two-path envelope, this path locates shaped
 //! clusters; it does not deform points within a glyph. Font layout remains in the kit.
 //!
 //! Arc start/sweep and radii follow ECMA-376 Part 1 Annex D's textArchUp/textArchDown

@@ -17,7 +17,7 @@ described in RFC 2119.
 | Host side | None: drawing objects are the kit's own |
 
 Minor versions add members for charts (1.1), ink (1.2), text warp for
-WordArt (1.3), and arrange, groups, gradients, effects and connectors (1.4).
+art text (1.3), and arrange, groups, gradients, effects and connectors (1.4).
 A kit MAY offer a feature through its own commands until it implements the
 version that standardizes it.
 
@@ -309,7 +309,7 @@ as its own object or several in one (a slide's ink layer).
 
 ## 8. Text warp (1.3, draft)
 
-`KitDrawing 1.3` adds WordArt: a shape's or a text box's text bent by a
+`KitDrawing 1.3` adds art text: a shape's or a text box's text bent by a
 DrawingML preset text warp (`a:bodyPr/a:prstTxWarp`, ECMA-376 Part 1,
 20.1.10.76), its fill, outline and effects the runs' own.
 

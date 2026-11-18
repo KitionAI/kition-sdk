@@ -160,7 +160,7 @@ describe('drawing controls', () => {
     expect(byTestId('s-effects')).toBeNull()
   })
 
-  it("bend each selected object's text with a WordArt transform, and take it off", () => {
+  it("bend each selected object's text with an art text transform, and take it off", () => {
     const editor = fakeEditor()
     render(editor, <DrawingFormatGroup ids={['7', '9']} testId="d" />)
     click(byTestId('d-transform'))
