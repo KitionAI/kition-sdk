@@ -1,0 +1,25 @@
+format: 1
+id: sdk.distribution.kition/install
+feature: sdk.distribution.kition
+intent: >-
+  install.sh, run against a release served on loopback, installs this platform's kition from the
+  latest release or a given version into $KITION_HOME/bin (~/.kition/bin by default), leaves no
+  download behind, writes no shell profile and prints the PATH line only when it is needed; an
+  archive that does not match SHA256SUMS, a release without this platform, a missing version, or
+  Linux with the musl C library installs nothing and says why.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/install-script.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/install-script.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-17"
+timeout_s: 60

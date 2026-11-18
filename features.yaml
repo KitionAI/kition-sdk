@@ -459,6 +459,23 @@ features:
     cases:
       - sdk.distribution.release/manifest
     since: "2026-11-17"
+  - id: sdk.distribution.kition
+    title: "Each SDK release carries kition for every platform, an archive of each published kit version no earlier release published, and a kit index that carries the previous release's forward so every published version stays installable; install.sh and install.ps1 install kition from it, checked against SHA256SUMS"
+    dimension: [platform, security]
+    priority: P1
+    status: has
+    paths:
+      - tools/release-archives.mjs
+      - tools/release-archives.test.mjs
+      - tools/install-script.test.mjs
+      - install/**
+      - .github/workflows/release.yml
+      - docs/sdk/distribution.md
+      - docs/sdk/cli.md
+    cases:
+      - sdk.distribution.kition/index
+      - sdk.distribution.kition/install
+    since: "2026-11-17"
   - id: sdk.docs.integration
     title: Deterministic agent integration reference from every kit command catalogue, with read-only stale-output checking
     dimension: [ai, platform]
