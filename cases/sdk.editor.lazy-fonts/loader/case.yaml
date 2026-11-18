@@ -1,0 +1,26 @@
+format: 1
+id: sdk.editor.lazy-fonts/loader
+feature: sdk.editor.lazy-fonts
+intent: >-
+  The engine manifest's fonts are given to addFont before the module answers, its lazyFonts not
+  until the engine's wantsFonts() answers true (or right after the document opens when the engine
+  has no wantsFonts), then all of them in the order listed, one at a time, a file that does not
+  load or that the engine refuses skipped. The worker gives them all when the page asks (fonts);
+  KitEngine follows how many are left and tells its listeners after each, and KitCanvas renders
+  the whole view again then.
+layer: gate
+dimension: function
+source:
+  kind: synthetic
+  from: SDK editor tests
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/lazyFonts.test.ts, packages/kit-editor/src/engine/KitCanvas.view.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-18"

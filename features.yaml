@@ -1727,3 +1727,19 @@ features:
       - sdk.cli.kit-store/store
       - sdk.cli.kit-store/on-demand
     since: "2026-11-17"
+  - id: sdk.editor.lazy-fonts
+    title: An embedded editor gives the engine its primary font before the document opens and its other fonts (lazyFonts) only once the engine wants a face it lacks, in order, and the page draws again after each
+    dimension: [function, performance]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/lazyFonts.ts
+      - packages/kit-editor/src/engine/kitModule.ts
+      - packages/kit-editor/src/engine/kitEngine.ts
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - docs/platform/kits/engine.md
+      - docs/platform/reference/contract.md
+    cases:
+      - sdk.editor.lazy-fonts/loader
+    since: "2026-11-18"

@@ -43,7 +43,7 @@ function editorWith(doc: object) {
   } as unknown as KitEditor
 }
 
-const docWith = (render: () => Promise<Uint8Array>) => ({ width: 20, height: 10, info: { dirty: true, revision: 4 }, render, renderArea: render })
+const docWith = (render: () => Promise<Uint8Array>) => ({ width: 20, height: 10, info: { dirty: true, revision: 4 }, render, renderArea: render, onFonts: () => () => undefined })
 
 it('keeps a failed live canvas and unsaved document mounted, then retries and clears the alert', async () => {
   const render = vi.fn(async () => new Uint8Array(20 * 10 * 4)).mockRejectedValueOnce(new Error('page 2: render failed'))

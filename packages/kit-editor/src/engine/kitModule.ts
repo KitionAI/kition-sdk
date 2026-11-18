@@ -4,6 +4,8 @@
  * worker, one client, and one document hook serve every kit.
  */
 
+import { LazyFonts, type AddFont } from './lazyFonts'
+
 /** One engine command, as the editor's menus and shortcuts show it. */
 export type KitCommand = {
   id: string
@@ -58,11 +60,20 @@ export type KitModuleManifest = {
    */
   setup?: Array<{ method: string; args: unknown[] }>
   /**
-   * Font files (URLs) given to the engine's `addFont(bytes)` once it loads, before any document
-   * opens: faces for scripts the engine does not embed (a CJK font in a web build). One that does
-   * not load is skipped; text in it shows in the engine's own faces.
+   * Font files (URLs) given to the engine's `addFont(bytes)` once it loads, in order, before any
+   * document opens: the faces the first frame needs (the primary face). One that does not load is
+   * skipped; text in it shows in the engine's own faces.
    */
   fonts?: string[]
+  /**
+   * Font files (URLs) given to `addFont` after the document opened, in order (engine contract E9):
+   * faces for scripts the engine does not embed and few documents use (a CJK or emoji font in a
+   * web build), so the first frame does not wait for them. They load once the engine's
+   * `wantsFonts()` says text needed a face it does not have, or right after the document opens
+   * when the engine has no `wantsFonts`. `KitEngine.onFonts` tells the page when each one is in,
+   * since what the engine draws may then change.
+   */
+  lazyFonts?: string[]
   /**
    * The commands that write only comment threads (KitModel rule M23): the kit's
    * `kit.json` `collaboration.comments.commands`. A commenter's read-only session runs them (the
@@ -167,6 +178,7 @@ function sdkURL(manifest: KitModuleManifest, file: string) {
 }
 
 const loading = new Map<string, Promise<KitModuleExports>>()
+const lazy = new Map<string, LazyFonts>()
 
 /** Loads and starts a kit's SDK once per page or worker. */
 export function loadKitModule(manifest: KitModuleManifest): Promise<KitModuleExports> {
@@ -182,23 +194,23 @@ export function loadKitModule(manifest: KitModuleManifest): Promise<KitModuleExp
       } else {
         await loaded.default({ module_or_path: sdkURL(manifest, `${manifest.module}_bg.wasm`) })
       }
-      const addFont = (loaded as Record<string, unknown>).addFont
-      if (typeof addFont === 'function') {
-        for (const font of manifest.fonts ?? []) {
-          try {
-            const response = await fetch(new URL(font, globalThis.location.href))
-            if (response.ok) (addFont as (bytes: Uint8Array) => number)(new Uint8Array(await response.arrayBuffer()))
-          } catch {
-            // Without this face its script shows in the engine's own fonts.
-          }
-        }
-      }
+      const exports = loaded as Record<string, unknown>
+      const addFont = typeof exports.addFont === 'function' ? (exports.addFont as AddFont) : null
+      const wantsFonts = typeof exports.wantsFonts === 'function' ? (exports.wantsFonts as () => boolean) : null
+      // The primary faces now, the rest once the engine wants them (or the document opened).
+      if (addFont) await new LazyFonts(manifest.fonts ?? [], addFont, null).loadAll()
+      lazy.set(manifest.kitId, new LazyFonts(manifest.lazyFonts ?? [], addFont, wantsFonts))
       return loaded
     })()
     loading.set(manifest.kitId, module)
     module.catch(() => loading.delete(manifest.kitId))
   }
   return module
+}
+
+/** The lazy fonts of a kit's loaded SDK (its manifest's `lazyFonts`); null before `loadKitModule` answered. */
+export function kitModuleLazyFonts(manifest: KitModuleManifest): LazyFonts | null {
+  return lazy.get(manifest.kitId) ?? null
 }
 
 type KitModuleClass = {

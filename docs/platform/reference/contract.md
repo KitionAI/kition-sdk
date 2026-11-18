@@ -108,6 +108,15 @@ Kition's `src/features/kits/module/kitModule.ts`):
 | `editorState()`, `restoreEditorState(state)`, `setContext(context)` | The editor-state hooks (`KitDocument::editor_state`, `restore_editor_state`, `set_context`) as JSON text: the state that is not the document (`null` for a kit that keeps none), putting it back, and setting what one command reads from a call context `{ on?, part?, time? }`. `export_kit_document!` adds them. An editor runs an agent's step in an editor state of the agent's own with them, so the person's selection, part and time do not move ([Kit UI protocol](ui-protocol.md) section 2, capability `context`) |
 | `free()` | Releases the document |
 
+Two module functions beside the class, both optional in contract 1, give a
+web build fonts it does not embed ([engine contract](../kits/engine.md) E9,
+E9a): `addFont(bytes)` adds a font file's faces and answers how many it added,
+and `wantsFonts()` answers whether text laid out since the last call needed a
+character none of the faces has, and clears it. kit-editor gives `addFont` the
+engine manifest's `fonts` before a document opens and its `lazyFonts` once
+`wantsFonts()` answers `true` (right after the document opens when the engine
+has no `wantsFonts`); `KitEngine.onFonts` tells the page after each one.
+
 Commands must include `edit.undo` and `edit.redo`; the shared frame's Undo and
 Redo call them. Under engine contract 2 they take an optional `scope` (`"person"`
 or `"agent"`) and otherwise work in the scope of the origin they run as

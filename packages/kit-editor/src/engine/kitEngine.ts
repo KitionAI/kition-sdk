@@ -90,6 +90,7 @@ export type KitEngineRequest =
   | { method: 'save' }
   | { method: 'markSaved'; revision?: number }
   | { method: 'info' }
+  | { method: 'fonts' }
   | { method: 'invoke'; name: string; args: unknown[] }
   | { method: 'tool'; name: KitToolMethod; args: unknown[]; settled: boolean }
   | { method: 'saveWithReplica' }
@@ -117,6 +118,12 @@ export type KitToolMethod = 'tools' | 'tool' | 'selectTool' | 'pointer' | 'toolK
  */
 export type KitEngineResponse = { id: number; ok: true; value: unknown } | { id: number; ok: false; error: string; reason?: string; data?: ModelErrorData; errors?: KitParamError[] }
 
+/**
+ * What the worker tells the page unasked: `fonts`, how many of the manifest's `lazyFonts` the
+ * engine has not been given yet, when the document opens and after each one is in.
+ */
+export type KitEngineEvent = { fonts: number }
+
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void }
 
 const CLOSED_INFO: KitEngineInfo = { width: 0, height: 0, pinned: { left: 0, top: 0 }, revision: 0, dirty: false, canUndo: false, canRedo: false, inspected: {} }
@@ -130,6 +137,9 @@ export class KitEngine {
   private readonly pending = new Map<number, Pending>()
   private nextId = 1
   private failure: Error | null = null
+  private readonly fontListeners = new Set<() => void>()
+  /** How many of the manifest's `lazyFonts` the engine has not been given yet. */
+  fontsPending = 0
 
   private constructor(private readonly worker: Worker, public info: KitEngineInfo) {}
 
@@ -144,7 +154,7 @@ export class KitEngine {
   static async open(manifest: KitModuleManifest, name: string, bytes: ArrayBuffer, lent: LentFiles | null = null, replica: KitEngineReplica | null = null, readOnly = false, canComment = false) {
     const worker = new Worker(new URL('./kitEngine.worker.ts', import.meta.url), { type: 'module' })
     const engine = new KitEngine(worker, CLOSED_INFO)
-    worker.onmessage = (event: MessageEvent<KitEngineResponse>) => engine.settle(event.data)
+    worker.onmessage = (event: MessageEvent<KitEngineResponse | KitEngineEvent>) => engine.settle(event.data)
     worker.onerror = (event) => engine.fail(new Error(event.message || 'the kit engine stopped'))
     try {
       const stored = replica?.stored
@@ -163,7 +173,7 @@ export class KitEngine {
   static async create(manifest: KitModuleManifest, name: string, width: number, height: number, lent: LentFiles | null = null, readOnly = false) {
     const worker = new Worker(new URL('./kitEngine.worker.ts', import.meta.url), { type: 'module' })
     const engine = new KitEngine(worker, CLOSED_INFO)
-    worker.onmessage = (event: MessageEvent<KitEngineResponse>) => engine.settle(event.data)
+    worker.onmessage = (event: MessageEvent<KitEngineResponse | KitEngineEvent>) => engine.settle(event.data)
     worker.onerror = (event) => engine.fail(new Error(event.message || 'the kit engine stopped'))
     try {
       engine.info = (await engine.call({ method: 'create', manifest, name, width, height, lent, readOnly })) as KitEngineInfo
@@ -186,7 +196,13 @@ export class KitEngine {
     return this.info.pinned
   }
 
-  private settle(response: KitEngineResponse) {
+  private settle(response: KitEngineResponse | KitEngineEvent) {
+    if (!('id' in response)) {
+      const added = response.fonts < this.fontsPending
+      this.fontsPending = response.fonts
+      if (added) for (const listener of this.fontListeners) listener()
+      return
+    }
     const waiting = this.pending.get(response.id)
     if (!waiting) return
     this.pending.delete(response.id)
@@ -380,6 +396,21 @@ export class KitEngine {
    */
   async markSaved(revision?: number) {
     this.info = (await this.call({ method: 'markSaved', revision })) as KitEngineInfo
+  }
+
+  /**
+   * Calls `listener` each time the engine was given one of the manifest's `lazyFonts`: what it
+   * draws may have changed (text it drew as missing glyphs), so the page draws again. Answers how
+   * to stop.
+   */
+  onFonts(listener: () => void): () => void {
+    this.fontListeners.add(listener)
+    return () => this.fontListeners.delete(listener)
+  }
+
+  /** Gives the engine every one of the manifest's `lazyFonts` now; resolves once each is in (or skipped). */
+  async loadFonts() {
+    await this.call({ method: 'fonts' })
   }
 
   /** Brings `info` up to date after changes it does not follow (an `invoke` that edits, such as a merge of the file). */

@@ -167,7 +167,13 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     // the backdrop follows it, as the rest of the UI does through CSS.
     const theme = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => viewport.setBackdrop(backdrop()))
     theme?.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-color-scheme', 'data-brand', 'class'] })
+    // A lazy font the engine got may change what it draws (glyphs it had none for).
+    const fonts = doc.onFonts(() => {
+      viewport.invalidate()
+      void viewport.render()
+    })
     return () => {
+      fonts()
       theme?.disconnect()
       observer.disconnect()
       canvas.removeEventListener('wheel', wheel)

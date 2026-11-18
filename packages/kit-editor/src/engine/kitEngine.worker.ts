@@ -5,8 +5,9 @@
  * file is, and a failing engine cannot take the page down. Requests are
  * answered in the order they arrive.
  */
-import { createKitModuleDocument, kitModuleCommands, loadKitModule, openKitModuleDocument, type KitModuleDocument, type KitModuleManifest } from './kitModule'
-import type { KitCallContext, KitEngineInfo, KitEngineRequest, KitEngineResponse, KitEngineSchema, KitToolMethod } from './kitEngine'
+import { createKitModuleDocument, kitModuleCommands, kitModuleLazyFonts, loadKitModule, openKitModuleDocument, type KitModuleDocument, type KitModuleManifest } from './kitModule'
+import type { KitCallContext, KitEngineEvent, KitEngineInfo, KitEngineRequest, KitEngineResponse, KitEngineSchema, KitToolMethod } from './kitEngine'
+import type { LazyFonts } from './lazyFonts'
 import { lendFiles, lendHandle } from './lentFiles'
 import { KitModelError, REDO_COMMANDS, UNDO_COMMANDS, batchWrites, modelSupport } from './kitModel'
 import type { ReplicaModel } from './kitModelRunner'
@@ -17,6 +18,8 @@ import type { ChangeAudit, Origin } from '@kition/kdm'
 declare const self: DedicatedWorkerGlobalScope
 
 let doc: KitModuleDocument | null = null
+/** The engine's lazy fonts (`lazyFonts.ts`), once a document opened. */
+let fonts: LazyFonts | null = null
 /**
  * The file name the document was opened or made with. Saves pass it to the engine, which picks
  * the format from its extension (a `.pptx` saves as PowerPoint, not `.kslide`), as the headless
@@ -324,6 +327,21 @@ function setup(open: KitModuleDocument, manifest: KitModuleManifest) {
 }
 
 /** Opens a document's session: read-only or not (and commenting or not), its commands not yet known. */
+/** The page hears how many lazy fonts are left now and after each one is given to the engine. */
+function followFonts(manifest: KitModuleManifest) {
+  const lazy = kitModuleLazyFonts(manifest)
+  if (lazy !== fonts) {
+    fonts = lazy
+    lazy?.onSettled((pending) => post({ fonts: pending }))
+  }
+  post({ fonts: fonts?.pending ?? 0 })
+}
+
+/** An event to the page (`KitEngineEvent`); none outside a worker (the tests call `handle`). */
+function post(event: KitEngineEvent) {
+  if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof window === 'undefined') self.postMessage(event)
+}
+
 function start(asReadOnly: boolean, canComment: boolean, manifest: KitModuleManifest) {
   readOnly = asReadOnly
   comments = commentCommands(manifest.commentCommands, asReadOnly && canComment)
@@ -620,6 +638,7 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
       infoSent = null
       setup(doc, request.manifest)
       start(request.readOnly === true, request.canComment === true, request.manifest)
+      followFonts(request.manifest)
       return { value: sent(info(doc)) }
     }
     case 'create': {
@@ -635,6 +654,7 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
       infoSent = null
       setup(doc, request.manifest)
       start(request.readOnly === true, false, request.manifest)
+      followFonts(request.manifest)
       return { value: sent(info(doc)) }
     }
     case 'execute':
@@ -729,6 +749,9 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'info':
       return { value: info(opened(), true) }
+    case 'fonts':
+      await fonts?.loadAll()
+      return { value: null }
     case 'markSaved': {
       if (readOnly) throw new ReadOnlyError('markSaved')
       const open = opened()
@@ -857,5 +880,7 @@ self.onmessage = (event: MessageEvent<{ id: number; request: KitEngineRequest }>
       const errors = error instanceof KitParamsError ? error.errors : undefined
       self.postMessage({ id, ok: false, error: error instanceof Error ? error.message : String(error), reason, data, errors } satisfies KitEngineResponse)
     }
+    // Text this request laid out may have wanted a face the engine has not got yet.
+    fonts?.check()
   })
 }

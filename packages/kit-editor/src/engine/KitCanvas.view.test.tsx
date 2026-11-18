@@ -53,7 +53,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const doc = { width: 400, height: 200, render: async () => new Uint8Array(0), renderArea: async () => new Uint8Array(0) } as unknown as KitEngine
+const doc = { width: 400, height: 200, render: async () => new Uint8Array(0), renderArea: async () => new Uint8Array(0), onFonts: () => () => undefined } as unknown as KitEngine
 
 function mount(tool: KitTool) {
   const ref = createRef<KitCanvasHandle>()
@@ -179,6 +179,26 @@ describe('KitCanvas view and pointer reports', () => {
     const rendered = render.mock.calls.length
     draw({ tick: 2, damage: null })
     expect(render.mock.calls.length).toBe(rendered + 1)
+  })
+
+  it('renders the whole view again when the engine gets a lazy font, and stops listening when it goes', () => {
+    const listeners = new Set<() => void>()
+    const fonts = { ...doc, onFonts: (listener: () => void) => (listeners.add(listener), () => listeners.delete(listener)) } as unknown as KitEngine
+    const render = vi.spyOn(RasterViewport.prototype, 'render')
+    const invalidate = vi.spyOn(RasterViewport.prototype, 'invalidate')
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    act(() => root!.render(<KitCanvas doc={fonts} change={{ revision: 0, damage: null }} tool={{ id: 't', cursor: 'default', begin: () => undefined }} onView={() => undefined} viewMemory={{ current: null }} />))
+    act(() => FakeResizeObserver.instances.at(-1)!.callback())
+    expect(listeners.size).toBe(1)
+    const before = { render: render.mock.calls.length, invalidate: invalidate.mock.calls.length }
+    act(() => listeners.forEach((listener) => listener()))
+    expect(invalidate.mock.calls.length).toBe(before.invalidate + 1)
+    expect(render.mock.calls.length).toBe(before.render + 1)
+    act(() => root!.unmount())
+    root = null
+    expect(listeners.size).toBe(0)
   })
 })
 

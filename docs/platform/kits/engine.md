@@ -72,9 +72,25 @@ The engine contract is specified member by member in
 - **E9** An engine whose web build embeds no face for some scripts (a CJK
   face is too large to compile in) MAY export a module function
   `addFont(bytes) -> number` that adds a font file's faces and answers how
-  many it added. An embedded editor gives it the fonts it ships, before any
-  document opens (kit-editor's engine manifest `fonts`), so text in those scripts
-  lays out and draws with real glyphs.
+  many it added. An embedded editor gives it the fonts it ships, so text in
+  those scripts lays out and draws with real glyphs: the faces the first frame
+  needs (the primary face) before any document opens (kit-editor's engine
+  manifest `fonts`), in order, and the rest (kit-editor's `lazyFonts`) after
+  the document opened, in order, so a large CJK or emoji face does not hold
+  up the first frame. An engine given faces late MUST lay out with each new
+  face from its next call on (no layout it cached with the faces it had
+  before may answer again), so text it drew as missing glyphs draws with real
+  ones once the page asks again.
+- **E9a** Such an engine MAY also export `wantsFonts() -> boolean`: whether
+  text it laid out since the last call needed a character none of its faces
+  has (it drew a missing-glyph box, or a fallback, for it). The call clears
+  what it answers. The editor asks after each request while lazy fonts are
+  left and gives them all once it answers `true`; an engine without it is
+  given them right after the document opens. A document that only ever needs
+  the primary face so never loads the rest. After each face the editor tells
+  the page (`KitEngine.onFonts`), which draws again: kit-editor's `KitCanvas`
+  renders the whole view, and an editor that draws the engine's output
+  itself asks for it again. Both are optional in contract 1.
 - **E10** A document MAY pin bands that stay in view while the rest
   scrolls: the getters `pinnedLeft` and `pinnedTop` (document pixels, 0 when
   absent) name the columns left of and the rows above which stay put, as a
