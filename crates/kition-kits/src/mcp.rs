@@ -68,8 +68,23 @@ fn instructions_with(kits: &KitManager, draft_mode: bool) -> String {
             direct.join(", ")
         ));
     }
+    let mut later = String::new();
+    if let Some(supply) = kits.supply() {
+        let waiting: Vec<String> =
+            supply.available().into_iter().filter(|kit| !installed.contains(&kit.id)).map(|kit| format!("{} ({})", kit.name, kit.agent.formats)).collect();
+        if !waiting.is_empty() && supply.installs() {
+            later = format!(
+                " Kits installed when you first use a file of theirs (through `kit_inspect`), after which their own tools appear: {}.",
+                waiting.join("; ")
+            );
+        } else if !waiting.is_empty() {
+            later = format!(" Kits that are not installed, which the person installs with `kition kit install <kit>`: {}.", waiting.join("; "));
+        } else if let Some(reason) = supply.unavailable() {
+            later = format!(" Kits that are not installed cannot be installed now: {reason}");
+        }
+    }
     format!(
-        "Kition kits edit workspace files that are not text: {edits}. For a file, call its kit's `<kit>_inspect` first, find commands with `<kit>_commands`, then edit with `<kit>_run`; check the preview it returns. Kits with an object model also offer `<kit>_query` (read objects by id or by following fields from the root) and `<kit>_batch` (edit them in one model/batch), and their objects as `kit://` resources. After editing, call `<kit>_check` to list what the kit finds wrong with the file (each diagnostic has a stable `code`, a `severity`, a `target`, and maybe a `fix` command) and fix the errors. Failed calls answer `error.code` (for example `not-found`, `read-only`, `unknown-command`) and `error.index`. Answers on a file carry `revision`: pass the latest one as `basis` on your next call on it, and the answer lists what others changed since (`others`); a write refused with `conflict` ran nothing because others deleted, moved or changed what it acts on: look at `others` and `conflicts`, then decide again.{drafts} A file open in Kition is edited live in its editor."
+        "Kition kits edit workspace files that are not text: {edits}.{later} For a file, call its kit's `<kit>_inspect` first, find commands with `<kit>_commands`, then edit with `<kit>_run`; check the preview it returns. Kits with an object model also offer `<kit>_query` (read objects by id or by following fields from the root) and `<kit>_batch` (edit them in one model/batch), and their objects as `kit://` resources. After editing, call `<kit>_check` to list what the kit finds wrong with the file (each diagnostic has a stable `code`, a `severity`, a `target`, and maybe a `fix` command) and fix the errors. Failed calls answer `error.code` (for example `not-found`, `read-only`, `unknown-command`) and `error.index`. Answers on a file carry `revision`: pass the latest one as `basis` on your next call on it, and the answer lists what others changed since (`others`); a write refused with `conflict` ran nothing because others deleted, moved or changed what it acts on: look at `others` and `conflicts`, then decide again.{drafts} A file open in Kition is edited live in its editor."
     )
 }
 
@@ -86,7 +101,7 @@ fn error_with(id: &Value, code: i64, message: &str, data: Value) -> Value {
 }
 
 fn tool_list(kits: &KitManager) -> Value {
-    let tools: Vec<Value> = tools::installed(kits)
+    let tools: Vec<Value> = tools::offered(kits)
         .into_iter()
         .map(|spec| {
             let mut tool = json!({
@@ -339,7 +354,7 @@ async fn handle_inner(kits: &KitManager, session: &Session, message: &Value, opt
                 json!({
                     "protocolVersion": version,
                     "capabilities": {
-                        "tools": { "listChanged": false },
+                        "tools": { "listChanged": kits.supply().is_some() },
                         "resources": { "subscribe": false, "listChanged": false },
                     },
                     "serverInfo": { "name": "kition-kits", "title": "Kition kits", "version": server_version(kits) },
@@ -354,8 +369,11 @@ async fn handle_inner(kits: &KitManager, session: &Session, message: &Value, opt
                 return Some(error(id, -32602, "tools/call needs a `name`"));
             };
             let arguments = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
-            if !tools::installed(kits).iter().any(|spec| spec.name == name) {
+            if !tools::offered(kits).iter().any(|spec| spec.name == name) {
                 return Some(error(id, -32602, &format!("unknown tool `{name}`")));
+            }
+            if let Err(failure) = install_on_demand(kits, session, name, &arguments).await {
+                return Some(response(id, tool_result(Err(failure))));
             }
             match tools::call_as(kits, name, &arguments, options, session.agent()).await {
                 Some(outcome) => response(id, tool_result(outcome)),
@@ -375,6 +393,59 @@ async fn handle_inner(kits: &KitManager, session: &Session, message: &Value, opt
         }
         other => error(id, -32601, &format!("method `{other}` is not supported")),
     })
+}
+
+/// Installs the kit of the file a unified tool call (`kit_<action>`) names, when the manager has
+/// a kit supply and no installed kit opens the file's extension; then tells the client that the
+/// tool list changed. A call on a kit that is installed, or without a supply, goes on untouched.
+/// A kit that cannot be installed is the call's answer, saying why and what to do.
+async fn install_on_demand(kits: &KitManager, session: &Session, name: &str, arguments: &Value) -> Result<(), tools::KitToolError> {
+    use tools::{ErrorCode, KitToolError};
+    let Some(supply) = kits.supply().cloned() else { return Ok(()) };
+    if !name.starts_with("kit_") {
+        return Ok(());
+    }
+    let Some(path) = arguments.get("path").and_then(Value::as_str) else { return Ok(()) };
+    let Some(extension) = path.trim().rsplit_once('.').map(|(_, extension)| extension.to_ascii_lowercase()).filter(|extension| !extension.contains('/')) else {
+        return Err(KitToolError::new(
+            ErrorCode::InvalidParams,
+            format!("`{path}` has no file extension, so no kit can be chosen for it: name a file with its extension"),
+        ));
+    };
+    let installed = |kits: &KitManager| kits.kit_for_path(path).is_some_and(|kit| kits.statuses().iter().any(|status| status.id == kit.id && status.installed));
+    if installed(kits) {
+        return Ok(());
+    }
+    // One install at a time in this process; the store keeps installs by other processes safe.
+    static INSTALLING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _one = INSTALLING.lock().await;
+    if installed(kits) {
+        return Ok(());
+    }
+    let asked = extension.clone();
+    let outcome = tokio::task::spawn_blocking(move || supply.install(&asked))
+        .await
+        .unwrap_or_else(|error| Err(crate::supply::SupplyError::new("failed", format!("installing the kit stopped: {error}"))));
+    match outcome {
+        Ok(found) => {
+            tracing::info!(kit = found.0.id, version = found.0.version, "installed on demand");
+            kits.add(found);
+            if let Some(notifications) = &session.notifications {
+                let _ = notifications.try_send(json!({ "jsonrpc": "2.0", "method": "notifications/tools/list_changed" }));
+            }
+            Ok(())
+        }
+        Err(failure) => {
+            let code = match failure.reason {
+                "unknown-type" => ErrorCode::InvalidParams,
+                "off" | "protocol" => ErrorCode::NotAllowed,
+                _ => ErrorCode::Unavailable,
+            };
+            let mut error = KitToolError::new(code, failure.message);
+            error.retryable = failure.reason == "unavailable";
+            Err(error)
+        }
+    }
 }
 
 /// The stdio transport: newline-delimited JSON-RPC on stdin and stdout until stdin closes.

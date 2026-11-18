@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 
 use kition_kit_host::files::{FilesManifest, GrantStore};
 use kition_kit_host::{ClientError, HOST_PRINCIPAL, HostService, KitClient, KitFiles, KitProcess, LaunchOptions, file_error};
@@ -403,8 +403,12 @@ impl RunningKit {
 
 pub(crate) struct Inner {
     workspace: Option<PathBuf>,
-    /// Known kits and their executables, when installed.
-    kits: Vec<(&'static KitDefinition, Option<PathBuf>)>,
+    /// Known kits and their executables, when installed. Kits are added while serving when a
+    /// [`crate::supply::KitSupply`] installs one ([`KitManager::add`]).
+    kits: RwLock<Vec<(&'static KitDefinition, Option<PathBuf>)>>,
+    /// Where kits that are not installed yet come from, when the program has such a place
+    /// (`kition mcp` with its kit store).
+    supply: OnceLock<Arc<dyn crate::supply::KitSupply>>,
     running: tokio::sync::Mutex<HashMap<String, Arc<RunningKit>>>,
     launches: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     routes: Routes,
@@ -466,7 +470,8 @@ impl KitManager {
             inner: Arc::new(Inner {
                 grants: Arc::new(GrantStore::new(workspace.clone())),
                 workspace,
-                kits,
+                kits: RwLock::new(kits),
+                supply: OnceLock::new(),
                 running: tokio::sync::Mutex::new(HashMap::new()),
                 launches: Mutex::default(),
                 routes: Arc::default(),
@@ -519,6 +524,33 @@ impl KitManager {
     pub fn with_sandbox(self) -> Self {
         self.inner.sandbox.store(true, Ordering::Relaxed);
         self
+    }
+
+    /// Installs kits that are not installed yet from `supply` when the agent names a file they
+    /// open (`kition mcp`, `mcp.rs`).
+    #[must_use]
+    pub fn with_supply(self, supply: Arc<dyn crate::supply::KitSupply>) -> Self {
+        let _ = self.inner.supply.set(supply);
+        self
+    }
+
+    /// Where kits that are not installed yet come from, if anywhere.
+    pub fn supply(&self) -> Option<&Arc<dyn crate::supply::KitSupply>> {
+        self.inner.supply.get()
+    }
+
+    /// Adds a kit found while serving, or replaces the one with its id (a kit installed on
+    /// demand). A process already running for the replaced kit keeps running until it stops.
+    pub fn add(&self, found: (&'static KitDefinition, Option<PathBuf>)) {
+        crate::definitions::register([&found.0]);
+        let mut kits = self.inner.kits.write().unwrap_or_else(PoisonError::into_inner);
+        kits.retain(|(kit, _)| kit.id != found.0.id);
+        kits.push(found);
+        kits.sort_by_key(|(kit, _)| kit.id);
+    }
+
+    fn kits(&self) -> Vec<(&'static KitDefinition, Option<PathBuf>)> {
+        self.inner.kits.read().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
     /// Applies to subsequently launched processes. Set before serving requests.
@@ -602,8 +634,7 @@ impl KitManager {
     }
 
     pub fn statuses(&self) -> Vec<KitStatus> {
-        self.inner
-            .kits
+        self.kits()
             .iter()
             .map(|(kit, binary)| KitStatus {
                 id: kit.id,
@@ -632,17 +663,17 @@ impl KitManager {
 
     /// The definitions of the kits this manager knows.
     pub fn definitions(&self) -> impl Iterator<Item = &'static KitDefinition> + '_ {
-        self.inner.kits.iter().map(|(kit, _)| *kit)
+        self.kits().into_iter().map(|(kit, _)| kit)
     }
 
     pub(crate) fn definition(&self, id: &str) -> Result<&'static KitDefinition, KitError> {
-        self.inner.kits.iter().map(|(kit, _)| *kit).find(|kit| kit.id == id).ok_or_else(|| KitError::UnknownKit(id.to_owned()))
+        self.definitions().find(|kit| kit.id == id).ok_or_else(|| KitError::UnknownKit(id.to_owned()))
     }
 
     /// The kit that opens a workspace path, by extension.
     pub fn kit_for_path(&self, path: &str) -> Option<&'static KitDefinition> {
         let extension = path.rsplit_once('.')?.1.to_ascii_lowercase();
-        self.inner.kits.iter().map(|(kit, _)| *kit).find(|kit| kit.extensions.contains(&extension.as_str()))
+        self.definitions().find(|kit| kit.extensions.contains(&extension.as_str()))
     }
 
     fn workspace(&self) -> Result<&Path, KitError> {
@@ -705,13 +736,13 @@ impl KitManager {
     async fn launch(&self, kit: &'static KitDefinition, slot: String, path: Option<String>) -> Result<RunningKit, KitError> {
         let workspace = self.workspace()?;
         let binary = self
-            .inner
-            .kits
-            .iter()
+            .kits()
+            .into_iter()
             .find(|(known, _)| known.id == kit.id)
-            .and_then(|(_, binary)| binary.as_ref())
+            .and_then(|(_, binary)| binary)
             .filter(|path| path.is_file())
             .ok_or(KitError::NotInstalled { name: kit.name })?;
+        let binary = binary.as_path();
         let launch_error = |detail: String| KitError::Launch { name: kit.name, detail };
         // A kit built on another protocol version would exit at once; say why instead.
         let speaks = format!("kition-kit/{PROTOCOL_VERSION}");
@@ -770,7 +801,12 @@ impl KitManager {
                 // Lock-step (H11): the executable is the version of the package it serves, so a
                 // stale build never serves its old behaviour under a newer manifest.
                 if result.kit.version != kit.version {
-                    return Err(KitError::VersionMismatch { name: kit.name, executable: binary.clone(), reported: result.kit.version, manifest: kit.version });
+                    return Err(KitError::VersionMismatch {
+                        name: kit.name,
+                        executable: binary.to_path_buf(),
+                        reported: result.kit.version,
+                        manifest: kit.version,
+                    });
                 }
                 Ok::<_, KitError>(Arc::new(client))
             }
@@ -884,10 +920,8 @@ impl KitManager {
     pub async fn create(&self, caller: Caller, folder: &str, extension: &str, options: Map<String, Value>) -> Result<DocumentView, KitError> {
         let extension = extension.trim_start_matches('.').to_ascii_lowercase();
         let (kit, format) = self
-            .inner
-            .kits
-            .iter()
-            .find_map(|(kit, _)| kit.creates.iter().find(|(known, _)| *known == extension).map(|(_, format)| (*kit, *format)))
+            .definitions()
+            .find_map(|kit| kit.creates.iter().find(|(known, _)| *known == extension).map(|(_, format)| (kit, *format)))
             .ok_or_else(|| KitError::InvalidPath(format!("no kit creates .{extension} files")))?;
         let directory = if folder.trim().trim_matches('/').is_empty() { self.workspace()?.to_path_buf() } else { self.resolve(folder)? };
         if !directory.is_dir() {
@@ -943,10 +977,8 @@ impl KitManager {
     pub async fn create_at(&self, caller: Caller, path: &str, options: Map<String, Value>) -> Result<DocumentView, KitError> {
         let extension = path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
         let (kit, format) = self
-            .inner
-            .kits
-            .iter()
-            .find_map(|(kit, _)| kit.creates.iter().find(|(known, _)| *known == extension).map(|(_, format)| (*kit, *format)))
+            .definitions()
+            .find_map(|kit| kit.creates.iter().find(|(known, _)| *known == extension).map(|(_, format)| (kit, *format)))
             .ok_or_else(|| KitError::InvalidPath(format!("no kit creates .{extension} files")))?;
         let wanted = self.resolve(path)?;
         if !wanted.parent().is_some_and(Path::is_dir) {
@@ -1468,7 +1500,7 @@ impl KitManager {
             }
             FileWrite::New => {
                 let extension = path.rsplit_once('.').map(|(_, extension)| extension.to_ascii_lowercase()).unwrap_or_default();
-                let export = self.inner.kits.iter().any(|(kit, _)| kit.exports.contains(&extension.as_str()));
+                let export = self.kits().iter().any(|(kit, _)| kit.exports.contains(&extension.as_str()));
                 if !edited && !export {
                     return Err(KitError::InvalidPath(format!("no kit edits `{path}`")));
                 }

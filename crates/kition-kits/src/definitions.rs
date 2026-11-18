@@ -511,6 +511,19 @@ pub fn found(executables: &[PathBuf], kits_dir: Option<&Path>, sandbox: bool, li
     Ok(found)
 }
 
+/// Adds the kits of a store (`kition`'s) to those `found` from the options and the environment:
+/// a kit found with an executable keeps it; a kit found without one takes the store's.
+pub fn merge(found: &mut Vec<Found>, stored: Vec<Found>) {
+    for (kit, executable) in stored {
+        match found.iter_mut().find(|(known, _)| known.id == kit.id) {
+            Some((_, Some(_))) => {}
+            Some(slot) => *slot = (kit, executable),
+            None => found.push((kit, executable)),
+        }
+    }
+    found.sort_by_key(|(kit, _)| kit.id);
+}
+
 /// Gives the kit a `given` executable is its executable: the one whose kit.json names it, else
 /// the one it reports when asked (`kit.initialize`). Errs, saying why, when it is neither, or when
 /// it is another kit than its variable names.

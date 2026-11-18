@@ -5,6 +5,7 @@
 //! a host in another language runs it as `kition-kits serve` (`serve.rs`, the Kits Service API).
 
 pub mod bridge;
+pub mod cli;
 pub mod control;
 pub mod definitions;
 pub mod drafts;
@@ -12,6 +13,7 @@ pub mod manager;
 pub mod mcp;
 pub mod resources;
 pub mod serve;
+pub mod supply;
 pub mod tools;
 
 pub use bridge::{Bridge, LiveChange, LiveDocument};

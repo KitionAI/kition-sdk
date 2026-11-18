@@ -221,7 +221,8 @@ fn unified_specs(on: &[&'static KitDefinition]) -> Vec<KitToolSpec> {
     specs_of(first)
         .into_iter()
         .map(|spec| KitToolSpec {
-            name: spec.name,
+            // `kit_<action>` also while the tools are each kit's own (a kit supply's `kit_inspect`).
+            name: spec.name.strip_prefix(&format!("{}_", first.agent.prefix)).map_or_else(|| spec.name.clone(), |action| format!("kit_{action}")),
             description: words(&spec.description),
             input_schema: serde_json::from_str(&words(&spec.input_schema.to_string())).unwrap_or(spec.input_schema),
             writes: spec.writes,
@@ -475,26 +476,68 @@ pub fn installed(kits: &KitManager) -> Vec<KitToolSpec> {
     if unified() {
         let on: Vec<&'static KitDefinition> = kits.definitions().filter(|kit| installed.contains(&kit.id)).collect();
         if !on.is_empty() {
-            let exports = on.iter().any(|kit| kit.agent.export.is_some());
-            let creates = on.iter().any(|kit| !kit.creates.is_empty());
-            let drafts = on.iter().any(|kit| kit.agent.drafts);
-            let models = on.iter().any(|kit| kit.agent.object_model);
-            return unified_specs(&on)
-                .into_iter()
-                .filter(|spec| match parse_unified(&spec.name) {
-                    Some(Action::Export) => exports,
-                    Some(Action::Create) => creates,
-                    Some(Action::DraftReady | Action::DraftReopen) => drafts,
-                    Some(Action::Query | Action::Batch) => models,
-                    _ => true,
-                })
-                .collect();
+            return unified_offered(&on);
         }
     }
     kits.definitions()
         .filter(|kit| installed.contains(&kit.id))
         .flat_map(|kit| specs_described(kit, kits.described(kit.id).as_ref()).into_iter().filter(|spec| offers(kit, &spec.name)))
         .collect()
+}
+
+/// The unified tools `on` the kits `on` (the first one words them), without the tools none of
+/// them offers.
+fn unified_offered(on: &[&'static KitDefinition]) -> Vec<KitToolSpec> {
+    let exports = on.iter().any(|kit| kit.agent.export.is_some());
+    let creates = on.iter().any(|kit| !kit.creates.is_empty());
+    let drafts = on.iter().any(|kit| kit.agent.drafts);
+    let models = on.iter().any(|kit| kit.agent.object_model);
+    unified_specs(on)
+        .into_iter()
+        .filter(|spec| match parse_unified(&spec.name) {
+            Some(Action::Export) => exports,
+            Some(Action::Create) => creates,
+            Some(Action::DraftReady | Action::DraftReopen) => drafts,
+            Some(Action::Query | Action::Batch) => models,
+            _ => true,
+        })
+        .collect()
+}
+
+/// The tools a server offers: [`installed`], and, when the manager has a kit supply
+/// ([`KitManager::with_supply`]) with kits not installed yet, the tools that install them on
+/// first use. With the unified tools (`--unified`), those are the `kit_<action>` tools worded for
+/// the installed kits and the ones the supply has; else `kit_inspect` beside each installed kit's
+/// own tools: inspecting a file of a kit not installed installs it, and its own tools appear
+/// (the server announces `notifications/tools/list_changed`).
+pub fn offered(kits: &KitManager) -> Vec<KitToolSpec> {
+    let mut specs = installed(kits);
+    let Some(supply) = kits.supply() else { return specs };
+    let installed: Vec<&'static KitDefinition> =
+        kits.statuses().into_iter().filter(|status| status.installed).filter_map(|status| kits.definitions().find(|kit| kit.id == status.id)).collect();
+    let waiting: Vec<&'static KitDefinition> = supply.available().into_iter().filter(|kit| !installed.iter().any(|known| known.id == kit.id)).collect();
+    if waiting.is_empty() {
+        return specs;
+    }
+    let names: Vec<String> = waiting.iter().map(|kit| format!("{} ({})", kit.name, kit.agent.formats)).collect();
+    let note = if supply.installs() {
+        format!(" A file of a kit that is not installed yet ({}) installs that kit first, which takes a moment; its own tools then appear.", names.join("; "))
+    } else {
+        format!(" A file of a kit that is not installed ({}) answers how the person installs it.", names.join("; "))
+    };
+    let on: Vec<&'static KitDefinition> = installed.iter().chain(waiting.iter()).copied().collect();
+    let mut extra: Vec<KitToolSpec> = unified_offered(&on);
+    if !unified() {
+        extra.retain(|spec| parse_unified(&spec.name) == Some(Action::Inspect));
+    }
+    for spec in &mut extra {
+        spec.description.push_str(&note);
+    }
+    if unified() {
+        return extra;
+    }
+    specs.extend(extra);
+    specs
 }
 
 /// Whether `kit` offers the tool `name` once installed (KHP A35, A41): `<prefix>_export` only
