@@ -410,7 +410,7 @@ impl Replica {
     /// Exported bytes carry this document's id; see [`Replica::import_changes`].
     pub fn export_changes(&self, since: &Version) -> Result<Vec<u8>> {
         let bytes = self.doc.export(ExportMode::updates(&since.0)).map_err(|error| KdmError::Encoding(error.to_string()))?;
-        Ok(envelope::wrap(self.doc_id, &bytes))
+        Ok(envelope::wrap(self.doc_id, bytes))
     }
 
     /// Applies changes from another replica or from storage, in any order, any number of times.
@@ -501,7 +501,7 @@ impl Replica {
     /// A compacted copy of the whole document, for fast loading and new replicas.
     pub fn snapshot(&self) -> Result<Vec<u8>> {
         let bytes = self.doc.export(ExportMode::Snapshot).map_err(|error| KdmError::Encoding(error.to_string()))?;
-        Ok(envelope::wrap(self.doc_id, &bytes))
+        Ok(envelope::wrap(self.doc_id, bytes))
     }
 
     /// A **shallow snapshot** (standard 2.0 rule M16a): the document's current state with only the
@@ -520,7 +520,7 @@ impl Replica {
         }
         let frontiers = if self.reaches(at) { self.doc.vv_to_frontiers(&at.0) } else { self.doc.shallow_since_frontiers() };
         let bytes = self.doc.export(ExportMode::shallow_snapshot(&frontiers)).map_err(|error| KdmError::Encoding(error.to_string()))?;
-        Ok(envelope::wrap(self.doc_id, &bytes))
+        Ok(envelope::wrap(self.doc_id, bytes))
     }
 
     /// Whether this replica holds only part of the document's history: it was loaded from a
@@ -1249,8 +1249,13 @@ mod envelope {
 
     const MAGIC: &[u8; 4] = b"KDM\x01";
 
-    pub(super) fn wrap(doc_id: DocId, bytes: &[u8]) -> Vec<u8> {
-        [MAGIC.as_slice(), doc_id.as_bytes().as_slice(), bytes].concat()
+    /// Puts the envelope in front of the engine's bytes in their own buffer: a copy would hold a
+    /// large document's snapshot twice.
+    pub(super) fn wrap(doc_id: DocId, mut bytes: Vec<u8>) -> Vec<u8> {
+        let header: Vec<u8> = [MAGIC.as_slice(), doc_id.as_bytes().as_slice()].concat();
+        bytes.reserve_exact(header.len());
+        bytes.splice(0..0, header);
+        bytes
     }
 
     pub(super) fn open(bytes: &[u8]) -> Result<(DocId, &[u8])> {
