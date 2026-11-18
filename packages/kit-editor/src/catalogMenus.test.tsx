@@ -28,11 +28,11 @@ const CATALOG: MenuRow[] = [
   row(['File'], 'Print…', 'file.print'),
   row(['File', 'Export'], 'Quick Export', 'file.export.quick'),
   row(['Layer'], 'New Layer', 'layer.new'),
-  row(['Layer', 'Smart Objects'], 'Convert', 'layer.smartObjects.convert'),
-  row(['Layer', 'Smart Objects', 'Stack Mode'], 'Median', 'layer.smartObjects.stackMode.median'),
+  row(['Layer', 'Object Layers'], 'Convert', 'layer.objectLayers.convert'),
+  row(['Layer', 'Object Layers', 'Stack Mode'], 'Median', 'layer.objectLayers.stackMode.median'),
 ]
 
-const ENGINE = [command('file.open', ['File']), command('file.export.exportAs', ['File', 'Export']), command('file.print', ['File']), command('layer.new', ['Layer']), command('layer.smartObjects.stackMode.median', ['Layer'])]
+const ENGINE = [command('file.open', ['File']), command('file.export.exportAs', ['File', 'Export']), command('file.print', ['File']), command('layer.new', ['Layer']), command('layer.objectLayers.stackMode.median', ['Layer'])]
 
 let container: HTMLDivElement
 let roots: Root[] = []
@@ -122,7 +122,7 @@ describe('catalogMenuTree', () => {
     const tree = catalogMenuTree(CATALOG, () => true)
     expect(tree.map((menu) => menu.label)).toEqual(['File', 'Layer'])
     expect(shape(tree[0].children)).toEqual(['file.open', '---', { 'File/Export': ['file.export.exportAs', 'file.export.quick'] }, 'file.print'])
-    expect(shape(tree[1].children)).toEqual(['layer.new', { 'Layer/Smart Objects': ['layer.smartObjects.convert', { 'Layer/Smart Objects/Stack Mode': ['layer.smartObjects.stackMode.median'] }] }])
+    expect(shape(tree[1].children)).toEqual(['layer.new', { 'Layer/Object Layers': ['layer.objectLayers.convert', { 'Layer/Object Layers/Stack Mode': ['layer.objectLayers.stackMode.median'] }] }])
   })
 
   it('collapses separators left leading, trailing, or doubled by hidden rows, and drops emptied submenus and menus', () => {
@@ -163,10 +163,10 @@ describe('catalog menu tabs', () => {
     click(byTestId('k-menu-File'))
 
     click(byTestId('k-menu-Layer'))
-    hover(byUiId('menu:Layer/Smart Objects'))
-    hover(byUiId('menu:Layer/Smart Objects/Stack Mode'))
-    click(byUiId('command:layer.smartObjects.stackMode.median'))
-    expect(editor.run).toHaveBeenCalledWith('layer.smartObjects.stackMode.median', undefined)
+    hover(byUiId('menu:Layer/Object Layers'))
+    hover(byUiId('menu:Layer/Object Layers/Stack Mode'))
+    click(byUiId('command:layer.objectLayers.stackMode.median'))
+    expect(editor.run).toHaveBeenCalledWith('layer.objectLayers.stackMode.median', undefined)
   })
 
   it('collapses separators around rows the kit hides', () => {
