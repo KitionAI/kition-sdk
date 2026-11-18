@@ -394,6 +394,11 @@ impl Replica {
         read::object_map(&self.doc, id).is_ok()
     }
 
+    /// Whether the engine holds its index of the history for checkouts ([`crate::testing`]).
+    pub(crate) fn engine_history_cached(&self) -> bool {
+        self.doc.has_history_cache()
+    }
+
     pub fn object_type(&self, id: &ObjectId) -> Result<String> {
         read::object_type(&self.doc, id)
     }
@@ -782,6 +787,10 @@ impl Replica {
         let last = self.undo.serial.load(Ordering::Relaxed);
         let manager = &mut self.undo.of(scope).engine;
         let (done, changed, written) = observe_changes(&self.doc, || if undo { manager.undo() } else { manager.redo() });
+        // The engine's undo checks out across the history after the step and keeps what it read
+        // of it parsed and indexed: of a large document's history, more than the document. It
+        // reads it again for the next engine step.
+        self.doc.release_parsed_history();
         self.changed.extend(changed);
         done.map_err(engine)?;
         registers.extend(written);

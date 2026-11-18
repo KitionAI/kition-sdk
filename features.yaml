@@ -97,7 +97,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs]
-    cases: [sdk.model.register-undo/as-engine-steps, regressions/issue-kdm-bulk-undo-memory]
+    cases: [sdk.model.register-undo/as-engine-steps, regressions/issue-kdm-bulk-undo-memory, regressions/issue-kdm-mixed-undo-memory]
     since: "2026-11-18"
   - id: sdk.model.projected-objects
     title: Kit-computed objects participate in the object model without replica storage

@@ -78,6 +78,13 @@ what a step holds), each kept as one of two kinds of part:
    `UndoManager`, which the part names by a serial the replica gives each of
    its items. Undo and redo call the manager once per part, so a group's
    parts replay in reverse order of their transactions and redo in order.
+   The manager checks out across every change made since the step, which
+   reads the history (the maps the step wrote, and from the start the
+   operations of a list it wrote); once it is done the replica has the
+   engine release what it parsed and indexed of the history
+   (`LoroDoc::release_parsed_history`), so an undo of a record created
+   before a 100,000-record column write holds no more afterwards than
+   before, and the next engine step reads the history again.
 
 Both kinds follow M12 and M12a the same way: undo writes back every register
 of the step, then puts back the value of each register another replica or

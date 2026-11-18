@@ -60,6 +60,8 @@ pub struct Tx<'a> {
 #[derive(Default)]
 struct Reads<'a> {
     types: HashMap<ObjectId, &'a str>,
+    /// Each object's own map, found once in the document's objects.
+    objects: HashMap<ObjectId, LoroMap>,
     containers: HashMap<FieldKey<'a>, Option<Container>>,
 }
 
@@ -437,7 +439,7 @@ impl<'a> Tx<'a> {
     }
 
     pub fn exists(&self, id: &ObjectId) -> bool {
-        self.overlay.exists(id, || self.read.borrow().types.contains_key(id) || read::object_map(self.doc, id).is_ok())
+        self.overlay.exists(id, || self.read.borrow().types.contains_key(id) || self.object(id).is_ok())
     }
 
     pub(crate) fn was_deleted(&self, id: &ObjectId) -> bool {
@@ -855,7 +857,7 @@ impl<'a> Tx<'a> {
         if let Some(ty) = self.read.borrow().types.get(id) {
             return Ok(ty);
         }
-        let ty = read::object_type(self.doc, id)?;
+        let ty = read::type_of(&self.object(id)?, id)?;
         let schema: &'a Schema = self.schema;
         let ty = schema.types.get_key_value(ty.as_str()).map(|(name, _)| name.as_str()).ok_or(KdmError::UnknownType(ty))?;
         self.read.borrow_mut().types.insert(id.clone(), ty);
@@ -908,6 +910,17 @@ impl<'a> Tx<'a> {
     /// The document's container for a field, or `None` when it starts empty: the object was
     /// created by this transaction, or (for reads) it predates the field. Writes to a field the
     /// stored object lacks fail with [`KdmError::NotFound`].
+    /// The object's own map in the document, looked up in the document's objects once per
+    /// transaction.
+    fn object(&self, id: &ObjectId) -> Result<LoroMap> {
+        if let Some(map) = self.read.borrow().objects.get(id) {
+            return Ok(map.clone());
+        }
+        let map = read::object_map(self.doc, id)?;
+        self.read.borrow_mut().objects.insert(id.clone(), map.clone());
+        Ok(map)
+    }
+
     fn stored(&self, id: &ObjectId, name: &'a str, write: bool) -> Result<Option<Container>> {
         if self.overlay.is_created(id) {
             return Ok(None);
@@ -917,7 +930,7 @@ impl<'a> Tx<'a> {
         let found = match cached {
             Some(found) => found,
             None => {
-                let found = match read::object_map(self.doc, id)?.get(name) {
+                let found = match self.object(id)?.get(name) {
                     Some(ValueOrContainer::Container(found)) => Some(found),
                     Some(ValueOrContainer::Value(_)) => return Err(read::wrong_container(id, name)),
                     None => None,
@@ -1024,7 +1037,7 @@ impl<'a> Tx<'a> {
     /// last editor of a key reads a container's state.
     fn prepare_write(&self, id: &ObjectId, map: &loro::LoroMap) {
         map.get_last_editor("");
-        if let Ok(object) = read::object_map(self.doc, id) {
+        if let Ok(object) = self.object(id) {
             object.get_last_editor(read::TYPE_KEY);
         }
     }

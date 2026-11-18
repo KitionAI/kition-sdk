@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-kdm-mixed-undo-memory
+feature: sdk.model.register-undo
+intent: >-
+  An undo or redo of an engine step older than a large register write (a table's record created,
+  then a whole column cleared, then both undone) leaves the engine holding nothing of the history
+  its checkout read: the replica releases the index and the parsed history once the engine is
+  done. Before, the engine kept every map operation of the history indexed and every block of it
+  parsed, and on a page "create a record, clear a column, undo, undo" over 100,000 records ran
+  out of memory.
+layer: gate
+source: { kind: issue, from: Kition Table bulk writes (card bulk-page2), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: mixed_undo_memory }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-18"
