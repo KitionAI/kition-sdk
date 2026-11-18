@@ -1,0 +1,28 @@
+format: 1
+id: sdk.cli.kit-store/store
+feature: sdk.cli.kit-store
+intent: >-
+  The kit index is read and checked (format version, names, ids, semver, archives) and kept for
+  offline use. An install from an index served over HTTP checks the archive's size and SHA-256
+  and the unpacked kit.json, and renames the finished folder into kits/<kit>/<version>/; an
+  archive with a bad hash or size, an entry leaving the folder, a link, another kit or version,
+  no executable, or no gzip is refused and leaves nothing in kits/ or tmp/. A kit of another Kit
+  Process Protocol is refused, saying to upgrade kition when it is newer. Four installs of one
+  version at once end with one folder. A folder another program renames into place is seen; the
+  version in use is the pinned one, else the newest; upgrade prunes and remove leaves nothing.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/store.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: store }
+  - cargo-test: { package: kition-cli, filter: "index::tests::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-17"
+timeout_s: 300

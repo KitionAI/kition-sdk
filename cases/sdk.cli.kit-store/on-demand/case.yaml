@@ -1,0 +1,26 @@
+format: 1
+id: sdk.cli.kit-store/on-demand
+feature: sdk.cli.kit-store
+intent: >-
+  kition mcp with an empty store offers kit_inspect and declares tools.listChanged; kit_inspect on
+  a file of a kit the index lists installs it, announces notifications/tools/list_changed, and
+  the kit's own tools follow; the next server starts with it. An unknown extension answers
+  invalid-params naming the kits there are; --no-install answers not-allowed with the install
+  command; an archive that cannot be fetched answers unavailable and retryable, installing nothing.
+  kit list shows the installed kits when the index cannot be read and reads the index through
+  the proxy the environment names.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/cli.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: cli }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-17"
+timeout_s: 300

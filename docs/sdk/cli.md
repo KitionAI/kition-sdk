@@ -1,0 +1,191 @@
+# The `kition` command line: kits on demand
+
+`kition` is one small program with no kit inside. Kits are listed in a kit index, downloaded into
+a kit store under `~/.kition` when you ask for them (or when your agent first opens a file of
+theirs), and upgraded in place. `kition mcp` and `kition serve` are the kits' MCP server and the
+Kits Service, the same programs as `kition-kits-mcp` and `kition-kits serve` with the same flags,
+running the kits in the store.
+
+It is free on any machine, servers included, and needs no licence key.
+
+## Commands
+
+```sh
+kition kit list [--json]                  # the kits in the index and those installed
+kition kit install <kit>[@<version>]      # install a kit
+kition kit upgrade [<kit>]                # move a kit, or every kit, to its newest version
+kition kit remove <kit>                   # remove every version of a kit
+kition mcp --workspace <folder> [options] # the kits' MCP server on stdio
+kition serve --workspace <folder> [...]   # the Kits Service API on stdio (hosts.md)
+kition --version
+kition --help
+```
+
+`kit list` shows each kit with the version in use and the newest version this `kition` can run:
+
+```text
+$ kition kit list
+KIT    NAME   INSTALLED  LATEST  FILES
+note   Note   0.3.0      0.3.0   .md .markdown
+table  Table  -          0.2.0   .ktable
+```
+
+`(upgrade)` after a version means a newer one is in the index; `(pinned)` means the version was
+asked for by number. When the index cannot be read, `kit list` says so on stderr and still lists
+the installed kits. `--json` prints the same as JSON: `home`, `platform`, `index`
+(`location`, `read`, `stale` or `error`) and `kits`, each with `name`, `id`, `displayName`,
+`extensions`, `installed` (every version present), `inUse`, `pinned`, `latest`, `upgrade`,
+`inIndex` and the `executable` in use.
+
+`kit install <kit>` installs the newest version this `kition` can run and uses it from then on.
+`kit install <kit>@<version>` installs that version and pins it: it stays in use when newer ones
+are installed, and `kit upgrade` without a kit leaves it alone. `kit upgrade <kit>` unpins the
+kit, installs its newest version, and removes the older ones. `<kit>` is the short name (`note`)
+or the kit id (`kit.note`).
+
+## Your agent
+
+```sh
+claude mcp add kition -- kition mcp --workspace "$PWD"
+```
+
+or, in an `mcpServers` file:
+
+```json
+{ "mcpServers": { "kition": { "command": "kition", "args": ["mcp", "--workspace", "/absolute/path/to/folder"] } } }
+```
+
+With no `--kit` and no `--kits-dir`, the server's kits are the store's: the version in use of each
+installed kit. A kit the environment names (`KITION_KIT_<KIT>_BINARY`, a development build) is used
+instead of the store's. `--kit` and `--kits-dir` mean what they mean for `kition-kits-mcp`, and
+with either, the store is not used. Every other option is `kition-kits-mcp`'s
+([agent.md](agent.md#the-server)).
+
+### Kits installed on first use
+
+The server reads the kit index when it starts (the copy kept from the last hour, if there is one).
+A kit the index lists and the store does not hold is installed the first time the agent names a
+file of it:
+
+- Each kit's own tools (`note_inspect`, `note_run`, ...) are there for the installed kits. Beside
+  them, while some kit in the index is not installed, the server offers `kit_inspect`: called on a
+  file of a kit that is not installed, it installs the kit, then inspects the file. The server then
+  sends `notifications/tools/list_changed` (it declares `tools.listChanged`), and the kit's own
+  tools appear in the next `tools/list`.
+- With `--unified`, the `kit_<action>` tools cover the installed kits and the ones the index lists;
+  any of them, called on a file of a kit not installed, installs it first.
+- The server's instructions name the kits that would be installed.
+
+When a kit cannot be installed, the call answers why and what to do, as a tool error
+(`isError: true`, `structuredContent.error`):
+
+| Case | `error.code` | `retryable` | The message says |
+| --- | --- | --- | --- |
+| No kit in the index opens the extension | `invalid-params` | no | which kits there are, and the file types they open |
+| The index or the archive cannot be reached | `unavailable` | yes | what failed; try again later, or ask the person to run `kition kit install <kit>` |
+| The kit speaks another Kit Process Protocol | `not-allowed` | no | the protocols, and to upgrade `kition` (or the kit) |
+| `--no-install` | `not-allowed` | no | the person installs it with `kition kit install <kit>` and restarts the server |
+
+`--no-install` turns automatic installs off; `--index <address or file>` reads another index.
+
+Why the per-kit tools of a kit not installed are not listed before it is: they come from the
+kit's `kit.json` (its commands, its object model, whether it keeps drafts), which comes with the
+kit. A client that does not follow `tools/list_changed` sees the new tools when it starts the
+server again; by then the kit is installed.
+
+## The store
+
+The Kition home is `~/.kition` on every system (`%USERPROFILE%\.kition` on Windows), or the folder
+`KITION_HOME` names:
+
+```text
+~/.kition/
+  bin/                        kition itself, when an installer put it there
+  kits/<kit>/<version>/       an installed kit version: kit.json and kition-<kit> (.exe on Windows)
+  kits/<kit>/pinned           optional: the version to use instead of the newest (one line)
+  cache/kits-index-<id>.json  the kit index as last read from each address
+  tmp/                        downloads and unpacking in progress; never read as kits
+```
+
+- **Installed** is a complete folder: `kits/<kit>/<version>/` whose `kit.json` has the id
+  `kit.<kit>` and the version of the folder's name, with the executable its `headless.executable`
+  names beside it. Anything else is not a kit and is left alone.
+- **In use** is the version `pinned` names, when that version is installed; otherwise the newest
+  installed version (semver).
+- **Installing** downloads the archive into `tmp/`, checks its size and SHA-256 against the index,
+  unpacks it there, checks the unpacked `kit.json` (id, version, protocol, executable) against the
+  index, and moves the finished folder to `kits/<kit>/<version>/` with one rename. An archive entry
+  that is not a plain file or folder (a link, a device) or whose path leaves the folder (`..`, an
+  absolute path) refuses the whole archive. A failed or interrupted install leaves nothing in
+  `kits/`; what it left in `tmp/` is cleared a day later. Two programs installing the same version
+  at once both end with the one folder that was renamed into place first.
+- **Removing** moves the kit's folder (or one version's) out of `kits/` with one rename and then
+  deletes it. On Windows a version a running program uses cannot be moved: `kit remove` says to
+  close it; `kit upgrade` leaves the old version and removes it next time.
+- There are no links, so the store works the same on every system.
+
+**Another program adding a kit** (Kition's desktop app) does what `kition` does: it builds the
+complete version folder somewhere on the same volume (the home's `tmp/` is meant for it) and renames
+it to `kits/<kit>/<version>/`. `kition` sees it at once: `kit list`, and the next `kition mcp`.
+
+## The kit index
+
+The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kits-index.schema.json):
+
+```json
+{
+  "schemaVersion": 1,
+  "kits": {
+    "note": {
+      "id": "kit.note",
+      "name": "Note",
+      "extensions": ["md", "markdown"],
+      "versions": {
+        "0.3.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 11534336, "sha256": "<64 hex digits>" },
+            "linux-x64": { "url": "https://example.com/kits/kition-note-0.3.0-linux-x64.tar.gz", "size": 12058624, "sha256": "<64 hex digits>" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+- `kits` is keyed by the short name; `id` is `kit.` and that name.
+- `extensions` are the kit's `edit` formats, lowercase and without the dot: they choose the kit to
+  install for a file.
+- `versions` is keyed by semver. `protocol` is the Kit Process Protocol the executable speaks, as
+  its `kit.json` says (`headless.protocol`). `kition` installs the newest version that speaks its
+  own protocol and has an archive for this platform, and refuses another protocol, saying to
+  upgrade `kition` when the kit's is newer.
+- Platforms are `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc) and `win32-x64`,
+  as in the SDK release ([distribution.md](distribution.md)).
+- An archive is a `.tar.gz` with `kit.json` and the executable (`kition-<kit>`, `.exe` on Windows)
+  at its top. Its `url` is an `https` address or a path; a relative one is read beside the index.
+- `kition` reads the `schemaVersion` it was built for, and asks to be upgraded for a newer one.
+
+The default index is `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`.
+`KITION_INDEX` or `--index` name another: an address, or a file on this machine (an index you made,
+a mirror on a shared drive). Each good read is kept in `cache/`, so the installed kits and the last
+known index stay visible without a network.
+
+## Environment
+
+| Variable | Meaning |
+| --- | --- |
+| `KITION_HOME` | The Kition home, instead of `~/.kition` |
+| `KITION_INDEX` | The kit index: an `https` address or a file |
+| `KITION_KIT_<KIT>_BINARY` | A kit executable to use instead of the store's (development builds), as for `kition-kits-mcp` |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | Proxies for reading the index and downloading kits (lowercase forms too) |
+
+Downloads use HTTPS with the Mozilla root certificates built into `kition` (rustls); nothing
+depends on the system's TLS library.
+
+## Building it
+
+```sh
+cargo build --release -p kition-cli        # target/release/kition
+```

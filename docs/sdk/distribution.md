@@ -38,6 +38,9 @@ Each kit executable in `bin/<platform>/` is built from the tag of its kit packag
 was made: it answered `kit.initialize` with its package's kit id and version and the SDK's Kit
 Process Protocol version, or there is no release.
 
+The `kition` command line takes kits one at a time instead: it downloads each kit's archive
+from a kit index into a store under `~/.kition` when it is needed ([cli.md](cli.md)).
+
 ## Getting one
 
 ```sh

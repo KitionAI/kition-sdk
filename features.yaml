@@ -1681,3 +1681,19 @@ features:
     cases:
       - sdk.quality.kit-vocabulary/catalogues
     since: "2026-11-16"
+  - id: sdk.cli.kit-store
+    title: "kition installs kits from a kit index into a store under ~/.kition (size, SHA-256 and kit.json checked, atomic, no links, safe when two processes install at once), lists them offline, upgrades and removes them, and kition mcp installs a kit when the agent first names a file of it"
+    dimension: [platform, ai, security]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-cli/**
+      - crates/kition-kits/src/cli/**
+      - crates/kition-kits/src/supply.rs
+      - crates/kition-kits/src/mcp.rs
+      - schemas/kits-index.schema.json
+      - docs/sdk/cli.md
+    cases:
+      - sdk.cli.kit-store/store
+      - sdk.cli.kit-store/on-demand
+    since: "2026-11-17"
