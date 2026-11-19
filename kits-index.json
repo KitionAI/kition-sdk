@@ -67,6 +67,36 @@
               "sha256": "b474bdad22462d5b11597139873f1eeeccec40b8cbd2449b866c2800279bdbbf"
             }
           }
+        },
+        "0.1.2": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.2/kition-board-0.1.2-darwin-arm64.tar.gz",
+              "size": 9793461,
+              "sha256": "e237a5adb80c0f90c4ebec2fb895eea4312a7f022154acf1e2db0f25ab1d2d67"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.2/kition-board-0.1.2-darwin-x64.tar.gz",
+              "size": 10317626,
+              "sha256": "1776c74f2b9512a587c40a453862c08ebd9d1f0d39232ac4c32f2b2ff144dd99"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.2/kition-board-0.1.2-linux-arm64.tar.gz",
+              "size": 9234228,
+              "sha256": "0653f1fb4c23a3e2644008126ab0a5a13997cf44d8b5e93c11d3aa52b49858fe"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.2/kition-board-0.1.2-linux-x64.tar.gz",
+              "size": 9823575,
+              "sha256": "5f69c9a99755cbcc369195b91492098c823a58667917b110054db3ad1edc6b9c"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.2/kition-board-0.1.2-win32-x64.tar.gz",
+              "size": 9784147,
+              "sha256": "6ccb79c67bdc90dd17bcf5cc532ce2d89f48edb2e998d79b1d5fa277df3c4a24"
+            }
+          }
         }
       }
     },
