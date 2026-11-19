@@ -1,0 +1,516 @@
+{
+  "schemaVersion": 1,
+  "kits": {
+    "board": {
+      "id": "kit.board",
+      "name": "Board",
+      "extensions": [
+        "kboard"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.0/kition-board-0.1.0-darwin-arm64.tar.gz",
+              "size": 9785104,
+              "sha256": "f8625debb29e5df86d998af2ac91ffd83198b752bd73e25bfef12e0c8818ae7e"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.0/kition-board-0.1.0-darwin-x64.tar.gz",
+              "size": 10314140,
+              "sha256": "e6a5cd3c5535248a1eef14a0251950183e8a06c05f304a65f697f67cf9f51763"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.0/kition-board-0.1.0-linux-arm64.tar.gz",
+              "size": 9231371,
+              "sha256": "940972a2585631eed94c7db6402213d7f7361889cab21c80d052fc9ad3fa3c5f"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.0/kition-board-0.1.0-linux-x64.tar.gz",
+              "size": 9821467,
+              "sha256": "fb437cfa98df0bd7b430c02f34e046dddae76060d91084f83ad7ebd769c4208f"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.0/kition-board-0.1.0-win32-x64.tar.gz",
+              "size": 9778789,
+              "sha256": "da0f63fda7b6b7e563f26a0642d85ae89f2e677cd7191fc4d7873a1501326ac5"
+            }
+          }
+        }
+      }
+    },
+    "cad": {
+      "id": "kit.cad",
+      "name": "CAD",
+      "extensions": [
+        "dxf"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-cad/releases/download/package-v0.1.0/kition-cad-0.1.0-darwin-arm64.tar.gz",
+              "size": 11911013,
+              "sha256": "52487384f86118d1f2118e65f69ed025be3ae7eef452ce1aba3c428300aae46a"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-cad/releases/download/package-v0.1.0/kition-cad-0.1.0-darwin-x64.tar.gz",
+              "size": 12923043,
+              "sha256": "7d020b03a285febb7900503f984d749b2cb216ce88b467727e1f300372a56ebf"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-cad/releases/download/package-v0.1.0/kition-cad-0.1.0-linux-arm64.tar.gz",
+              "size": 11047899,
+              "sha256": "3717c867eb7c3fa6ab5d3f47cfb859eb420d5cfc76c7f873143a9aa475490134"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-cad/releases/download/package-v0.1.0/kition-cad-0.1.0-linux-x64.tar.gz",
+              "size": 12139912,
+              "sha256": "6e730e7d3f28ff93a8b0024abd8a3303309631e0733ef0c841da7347ecd563d2"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-cad/releases/download/package-v0.1.0/kition-cad-0.1.0-win32-x64.tar.gz",
+              "size": 12222995,
+              "sha256": "80e92d77dbb83fa437e6e58f4e0a93efce7aeb2f0b86d44fd336cf12690f2768"
+            }
+          }
+        }
+      }
+    },
+    "design": {
+      "id": "kit.design",
+      "name": "Design",
+      "extensions": [
+        "kdesign"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-design/releases/download/package-v0.1.0/kition-design-0.1.0-darwin-arm64.tar.gz",
+              "size": 38218864,
+              "sha256": "2b014e8281065dba33704ecee23f81ba703bca5297a0f9bdad72bd2466b86a81"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-design/releases/download/package-v0.1.0/kition-design-0.1.0-darwin-x64.tar.gz",
+              "size": 39495427,
+              "sha256": "74387bca4a0f22f3429c7c2728d5ab7421cd3b27a2de3e74bade3b742767f0b7"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-design/releases/download/package-v0.1.0/kition-design-0.1.0-linux-arm64.tar.gz",
+              "size": 36667341,
+              "sha256": "4a89c470f6cbf0685f3513eb7702002d85750935b60b3a4af8b8ff72e500e884"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-design/releases/download/package-v0.1.0/kition-design-0.1.0-linux-x64.tar.gz",
+              "size": 38380610,
+              "sha256": "63a8539dcf9e75475238250dce5ca14daf1d42a2e3b2d5e4900d5c7a12be6d38"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-design/releases/download/package-v0.1.0/kition-design-0.1.0-win32-x64.tar.gz",
+              "size": 38874068,
+              "sha256": "2d496f487f010f8597f63e749ddd485cbb0b0a9faca620b24c25a8e9518e2eb1"
+            }
+          }
+        }
+      }
+    },
+    "doc": {
+      "id": "kit.doc",
+      "name": "Doc",
+      "extensions": [
+        "docx"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.0/kition-doc-0.1.0-darwin-arm64.tar.gz",
+              "size": 18556495,
+              "sha256": "c44847dfb8cb4ebf550c7a73a959a2d17526ed2e284f2bccd03440067c0bec14"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.0/kition-doc-0.1.0-darwin-x64.tar.gz",
+              "size": 19767936,
+              "sha256": "41c37c6aad7ef61d5d7f1cce4114410ca52b5c42af4b56f5d0aa0ebc9d258643"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.0/kition-doc-0.1.0-linux-arm64.tar.gz",
+              "size": 17284832,
+              "sha256": "1327494ad90eb06c1316a3c11b70bf0fafd75f439d142c3df2760a4a33131004"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.0/kition-doc-0.1.0-linux-x64.tar.gz",
+              "size": 18723264,
+              "sha256": "f7fc316d66bb6049eac38c20d3db8d04ac640c5a5cbd818c3f3d94afdb0cbe8f"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.0/kition-doc-0.1.0-win32-x64.tar.gz",
+              "size": 18678357,
+              "sha256": "942901d2d60af61c231da2593f98c2536752f03363bfd3e27e6def8b07f3304b"
+            }
+          }
+        }
+      }
+    },
+    "film": {
+      "id": "kit.film",
+      "name": "Film",
+      "extensions": [
+        "kfilm"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-film/releases/download/package-v0.1.0/kition-film-0.1.0-darwin-arm64.tar.gz",
+              "size": 16086237,
+              "sha256": "de36a4768f61d99b75be678253d5955aa316980350e240c7925f7d166230a5fa"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-film/releases/download/package-v0.1.0/kition-film-0.1.0-darwin-x64.tar.gz",
+              "size": 17319313,
+              "sha256": "c2db71d412623de29492ee88f006838e15de45994bec7c395604df09484dd5bc"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-film/releases/download/package-v0.1.0/kition-film-0.1.0-linux-arm64.tar.gz",
+              "size": 15441385,
+              "sha256": "fde6cee1b3c367b6c18c2dee21b6d01c970df15be528152387c8873e41b6645c"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-film/releases/download/package-v0.1.0/kition-film-0.1.0-linux-x64.tar.gz",
+              "size": 16804233,
+              "sha256": "2d5f43f3b7d8baf1f2ccc20c44a4e55eb5f809267ba8c40c20b5d059d0475335"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-film/releases/download/package-v0.1.0/kition-film-0.1.0-win32-x64.tar.gz",
+              "size": 17545402,
+              "sha256": "2d72221b1ea67e0fd27085aafa1fb0aee4f0b02bd7814f7802f08afef7d02693"
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "id": "kit.layout",
+      "name": "Layout",
+      "extensions": [
+        "klayout"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.0/kition-layout-0.1.0-darwin-arm64.tar.gz",
+              "size": 47955111,
+              "sha256": "31a07eae71cad987e140524b50d5b9bc9ef54f2b25760350be8450c96084b985"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.0/kition-layout-0.1.0-darwin-x64.tar.gz",
+              "size": 49176017,
+              "sha256": "78d7696e2a306978e7d7649ac18e2e58aef63dee910e6f07945b388971e29744"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.0/kition-layout-0.1.0-linux-arm64.tar.gz",
+              "size": 46068790,
+              "sha256": "879c28ec31492a48d5f90ab966650cde3da5b46370fbce828b2edbf044f58f28"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.0/kition-layout-0.1.0-linux-x64.tar.gz",
+              "size": 47894508,
+              "sha256": "fce1d1ded13e0de632ec7a46128bc569a5723ee790f80ef205bf295b3e546da4"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.0/kition-layout-0.1.0-win32-x64.tar.gz",
+              "size": 47935479,
+              "sha256": "5a6b08e220e4e560019844b0619b3dc67348ed9d3ebdfa0b57c6a62b06815bdb"
+            }
+          }
+        }
+      }
+    },
+    "motion": {
+      "id": "kit.motion",
+      "name": "Motion",
+      "extensions": [
+        "kmotion"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0-darwin-arm64.tar.gz",
+              "size": 24776666,
+              "sha256": "2b6ce8e213c8d842684ad888613d8e993accfba5e92710eeb3b6d9c25c8ea46c"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0-darwin-x64.tar.gz",
+              "size": 26487438,
+              "sha256": "5a56e54fde6e409cb92f3cece56573bf7d32f502abad2b05fc59965890ececd3"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0-linux-arm64.tar.gz",
+              "size": 23555994,
+              "sha256": "5a1e982040f7d0dc79ec6952c5b8d5e6aad4e250bfa555c10f7f1fee75b9ea75"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0-linux-x64.tar.gz",
+              "size": 25530906,
+              "sha256": "b0c94f67ed874f68a24dcf95593c5960a5ba031eca0c08167d8435b0a85ab8cf"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0-win32-x64.tar.gz",
+              "size": 26972816,
+              "sha256": "bdc8506fdfb1f3fcb1ff009aa833a4f59a3af008879dcb4b09cf9d049c42720b"
+            }
+          }
+        }
+      }
+    },
+    "pdf": {
+      "id": "kit.pdf",
+      "name": "PDF",
+      "extensions": [
+        "pdf"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.0/kition-pdf-0.1.0-darwin-arm64.tar.gz",
+              "size": 16802270,
+              "sha256": "d0a4343a477df323444d811af42af0ef1597e3e2e15eaf1d96c2af59c959926e"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.0/kition-pdf-0.1.0-darwin-x64.tar.gz",
+              "size": 18545144,
+              "sha256": "a656db9c3bb5b0243d14e22e75a556f74dd3e7b74df2d36e4ffdf166eead2ed2"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.0/kition-pdf-0.1.0-linux-arm64.tar.gz",
+              "size": 16100493,
+              "sha256": "80cf09a949e0563e85fea436b94a5e45c6659c216c4058d7828fa9712c27312f"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.0/kition-pdf-0.1.0-linux-x64.tar.gz",
+              "size": 17860866,
+              "sha256": "d94d3752a45b76b1b075a2bc177113c6623443184b8fabebd435a63d0fadaba3"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.0/kition-pdf-0.1.0-win32-x64.tar.gz",
+              "size": 18218262,
+              "sha256": "3f335217c62756a7870870a63c87fc9b58f1bb1c31b139cd96abc5f97548f286"
+            }
+          }
+        }
+      }
+    },
+    "photo": {
+      "id": "kit.photo",
+      "name": "Photo",
+      "extensions": [
+        "psd",
+        "psb",
+        "kphoto"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-photo/releases/download/package-v0.1.0/kition-photo-0.1.0-darwin-arm64.tar.gz",
+              "size": 19687875,
+              "sha256": "edb481d13ac57233555b6ce0276f1b8f3b09142f65d1e0e54d2b823a89a8b883"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-photo/releases/download/package-v0.1.0/kition-photo-0.1.0-darwin-x64.tar.gz",
+              "size": 21232867,
+              "sha256": "075320903e840ee93f840c6080fd773ba7a87923fc17be5a9b1eb20e7c16f84f"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-photo/releases/download/package-v0.1.0/kition-photo-0.1.0-linux-arm64.tar.gz",
+              "size": 18946522,
+              "sha256": "f7113cda01702942148cc518e6dd9d09da7d9f4ddf88f3fbae15f6e8945c8d13"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-photo/releases/download/package-v0.1.0/kition-photo-0.1.0-linux-x64.tar.gz",
+              "size": 20675318,
+              "sha256": "a61c7183ecc38191892d25c38449b954c639e29ca8c1c9ba2a5c5be17d693325"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-photo/releases/download/package-v0.1.0/kition-photo-0.1.0-win32-x64.tar.gz",
+              "size": 21372098,
+              "sha256": "83c2b07e7eca6b8173563e6de9acf65fd6073ef33b6895c5d852e9cd09502fdf"
+            }
+          }
+        }
+      }
+    },
+    "scene": {
+      "id": "kit.scene",
+      "name": "Scene",
+      "extensions": [
+        "kscene"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.0/kition-scene-0.1.0-darwin-arm64.tar.gz",
+              "size": 10361932,
+              "sha256": "e0a880b686136eeb0f84b60ab3ff74ed53d6a1d1985c69ffd677eed2095e16ba"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.0/kition-scene-0.1.0-darwin-x64.tar.gz",
+              "size": 11235281,
+              "sha256": "0c5b583c666d9b994da24595f04146cf4bfd5ba6e8762a7a92065ff7c8a584cf"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.0/kition-scene-0.1.0-linux-arm64.tar.gz",
+              "size": 9564800,
+              "sha256": "404bfcc397b458b41592a21f992a850cd6ef6314af7691aa398bda0eaaf5b6b3"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.0/kition-scene-0.1.0-linux-x64.tar.gz",
+              "size": 10541449,
+              "sha256": "07eab70b0977649a450a4033d77cfb0e2f20f6a7a7e9d62ac1dda73b892a2ece"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.0/kition-scene-0.1.0-win32-x64.tar.gz",
+              "size": 10666542,
+              "sha256": "9f9be53bd92253ed5bdd05f528a887a03e1fedb5ec515b372e630670d0263594"
+            }
+          }
+        }
+      }
+    },
+    "sheet": {
+      "id": "kit.sheet",
+      "name": "Sheet",
+      "extensions": [
+        "xlsx",
+        "xlsm"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.0/kition-sheet-0.1.0-darwin-arm64.tar.gz",
+              "size": 12918367,
+              "sha256": "13172fa016d047761ff91e9d7852fa0c437d0c77f846a5b4d4c1387eb87e5097"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.0/kition-sheet-0.1.0-darwin-x64.tar.gz",
+              "size": 13908240,
+              "sha256": "d0ac4d931201138931e2ecb05b6d39b77a60b6fd08aea872a166a5660894ffde"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.0/kition-sheet-0.1.0-linux-arm64.tar.gz",
+              "size": 12014459,
+              "sha256": "30f5435606919ab04c9a0108cb992e7d7a4d499e766b76d2c455e6bd4a24b69b"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.0/kition-sheet-0.1.0-linux-x64.tar.gz",
+              "size": 13144974,
+              "sha256": "365ff045659cf24a1f3f49f987361cf65e1b507d1511c84702199d87f14b012b"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.0/kition-sheet-0.1.0-win32-x64.tar.gz",
+              "size": 13219850,
+              "sha256": "7dd87a4709dbc7c957d8880e03b8e6816ea58ed2c8868fa71e42f0360d2a687d"
+            }
+          }
+        }
+      }
+    },
+    "slide": {
+      "id": "kit.slide",
+      "name": "Slide",
+      "extensions": [
+        "kslide",
+        "pptx"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0-darwin-arm64.tar.gz",
+              "size": 43243578,
+              "sha256": "41bc638450ca2d9de57831129ef78d3b8d844df28c6c06477a524ceedc257d3b"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0-darwin-x64.tar.gz",
+              "size": 44043882,
+              "sha256": "8b616ff34404acf1820408c7170497ba93f6e52ac414048fc36d3262d41be524"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0-linux-arm64.tar.gz",
+              "size": 41700765,
+              "sha256": "78bc8f289a40280e31261160ebd3a9deef6fe6172402476078161b110adee460"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0-linux-x64.tar.gz",
+              "size": 43113994,
+              "sha256": "68973b3e9804b6ba30cce0f2f956381db1ca9cd8696e5adaa5a5ae761cc0f721"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0-win32-x64.tar.gz",
+              "size": 43235888,
+              "sha256": "a05874f4b4cd6ada258664f6f1aa62c69ba26dc79ae830679b44fc015be430e3"
+            }
+          }
+        }
+      }
+    },
+    "vector": {
+      "id": "kit.vector",
+      "name": "Vector",
+      "extensions": [
+        "kvector"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-vector/releases/download/package-v0.1.0/kition-vector-0.1.0-darwin-arm64.tar.gz",
+              "size": 23488533,
+              "sha256": "25c1bd316ae92e3a2385df7dc296d7b93bf6908afe68a01c23752cb8e25d27d2"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-vector/releases/download/package-v0.1.0/kition-vector-0.1.0-darwin-x64.tar.gz",
+              "size": 25700466,
+              "sha256": "e9151b79e793a00fc0756a5d1550db1f3d31b9c774daa40d5a2f292323b5cc59"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-vector/releases/download/package-v0.1.0/kition-vector-0.1.0-linux-arm64.tar.gz",
+              "size": 22557742,
+              "sha256": "8e6a40d11e328592f5696acad25d6f677f4567d90825d67d64438e6dc0931083"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-vector/releases/download/package-v0.1.0/kition-vector-0.1.0-linux-x64.tar.gz",
+              "size": 24942276,
+              "sha256": "f83c362012937c09da4279a238f56c6a54949c4e93e244621994ce5644fb2aa9"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-vector/releases/download/package-v0.1.0/kition-vector-0.1.0-win32-x64.tar.gz",
+              "size": 25896509,
+              "sha256": "b347bcfbbfd05e2992a71a22648be7afcf99f5a8e0a6cab33e874590acd5972e"
+            }
+          }
+        }
+      }
+    }
+  }
+}
