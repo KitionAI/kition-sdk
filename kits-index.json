@@ -196,6 +196,46 @@
         }
       }
     },
+    "html": {
+      "id": "kit.html",
+      "name": "HTML",
+      "extensions": [
+        "html",
+        "htm"
+      ],
+      "versions": {
+        "0.1.0": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-html/releases/download/package-v0.1.0/kition-html-0.1.0-darwin-arm64.tar.gz",
+              "size": 15310025,
+              "sha256": "d39c75fa962a347444e54c253cf8cc7f2ac8a25e2120d377dc42eaaab50393b0"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-html/releases/download/package-v0.1.0/kition-html-0.1.0-darwin-x64.tar.gz",
+              "size": 16475466,
+              "sha256": "de24350395cdcd44d7682377877c21255e7b64bd9ed4c998823ce77a6ba2ba64"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-html/releases/download/package-v0.1.0/kition-html-0.1.0-linux-arm64.tar.gz",
+              "size": 15659652,
+              "sha256": "d8ede266e7aaf8b64a2c1f4cfc62231c3396f4b1acfa9aa8b84ddb31d8683e95"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-html/releases/download/package-v0.1.0/kition-html-0.1.0-linux-x64.tar.gz",
+              "size": 16988846,
+              "sha256": "af3848e4b1b5dfcb281b4f9915140a9decf4762d5b3e2f5dcd3643f9145ad6b0"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-html/releases/download/package-v0.1.0/kition-html-0.1.0-win32-x64.tar.gz",
+              "size": 17181539,
+              "sha256": "f37115706614a5fcd0da4edf04a60c757d31dfd5228e3667e758dae97f1f3e37"
+            }
+          }
+        }
+      }
+    },
     "layout": {
       "id": "kit.layout",
       "name": "Layout",
@@ -269,6 +309,46 @@
               "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0-win32-x64.tar.gz",
               "size": 26972816,
               "sha256": "bdc8506fdfb1f3fcb1ff009aa833a4f59a3af008879dcb4b09cf9d049c42720b"
+            }
+          }
+        }
+      }
+    },
+    "note": {
+      "id": "kit.note",
+      "name": "Note",
+      "extensions": [
+        "md",
+        "markdown"
+      ],
+      "versions": {
+        "0.1.2": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-note/releases/download/package-v0.1.2/kition-note-0.1.2-darwin-arm64.tar.gz",
+              "size": 13723130,
+              "sha256": "e77d5d8b33dce78f54c545f4a5ee26d87aef50fff57de4711a7f6f86e36fcff9"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-note/releases/download/package-v0.1.2/kition-note-0.1.2-darwin-x64.tar.gz",
+              "size": 14289277,
+              "sha256": "377a1f143f964c2d23eebdad699f5cf60069ef269e047324ace700390afbef00"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-note/releases/download/package-v0.1.2/kition-note-0.1.2-linux-arm64.tar.gz",
+              "size": 13079577,
+              "sha256": "8c206369f3ae57bd0449f9eb061edb28df2380f83fabc12958ca26a91e6e2453"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-note/releases/download/package-v0.1.2/kition-note-0.1.2-linux-x64.tar.gz",
+              "size": 13805023,
+              "sha256": "abf3aa49c0a7102459ac839dd4f2086d271fc909846bffd24dfffe0527685e75"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-note/releases/download/package-v0.1.2/kition-note-0.1.2-win32-x64.tar.gz",
+              "size": 13777881,
+              "sha256": "95b1ef082f4b3aee4b513c81709401fca12d34fd17a5ec70dfd67050e340b207"
             }
           }
         }
@@ -468,6 +548,45 @@
               "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0-win32-x64.tar.gz",
               "size": 43235888,
               "sha256": "a05874f4b4cd6ada258664f6f1aa62c69ba26dc79ae830679b44fc015be430e3"
+            }
+          }
+        }
+      }
+    },
+    "table": {
+      "id": "kit.table",
+      "name": "Table",
+      "extensions": [
+        "ktable"
+      ],
+      "versions": {
+        "0.5.5": {
+          "protocol": "kition-kit/2",
+          "platforms": {
+            "darwin-arm64": {
+              "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.5/kition-table-0.5.5-darwin-arm64.tar.gz",
+              "size": 14929676,
+              "sha256": "70ebf364fa8ae225934a600914cc8898bfade7028a630c7bd698ac05fc7f3d66"
+            },
+            "darwin-x64": {
+              "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.5/kition-table-0.5.5-darwin-x64.tar.gz",
+              "size": 15755268,
+              "sha256": "b023fac3979257b56ea8cea657bdce9c699b0074690158026d8130fde5fb960c"
+            },
+            "linux-arm64": {
+              "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.5/kition-table-0.5.5-linux-arm64.tar.gz",
+              "size": 14459059,
+              "sha256": "bbbb850641cceeacb619b3ea22ef5b5748b6c031ca1bc14c1d21af1ff32cf222"
+            },
+            "linux-x64": {
+              "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.5/kition-table-0.5.5-linux-x64.tar.gz",
+              "size": 15423781,
+              "sha256": "11777648e2df60bad8fde1ad939df5cd5e7be35da48c1c08c96c44b3b333a84d"
+            },
+            "win32-x64": {
+              "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.5/kition-table-0.5.5-win32-x64.tar.gz",
+              "size": 15641677,
+              "sha256": "5cdb1654a2bba04f4c52725af363df605e444da303df593640fd7580a421433d"
             }
           }
         }
