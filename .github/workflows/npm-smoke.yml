@@ -80,14 +80,17 @@ jobs:
           node ../registered.cjs .cursor/mcp.json kition
           kition agent list
           kition agent remove cursor --scope project
+      - name: kition doctor
+        run: kition doctor
+      # Without the global install: with it, npx runs the installed command, which registers itself.
       - name: kition agent add, through npx, registers npx -y @kition/cli, which serves MCP
         working-directory: ${{ runner.temp }}/smoke/ws
         run: |
           set -euo pipefail
+          npm uninstall -g @kition/cli
+          if command -v kition; then echo "kition is still on the PATH" >&2; exit 1; fi
           npx -y "@kition/cli${VERSION:+@$VERSION}" agent add cursor --scope project
           node ../registered.cjs .cursor/mcp.json npx
-      - name: kition doctor
-        run: kition doctor
 
   # Alpine has musl, which the kition executable does not run on: the command says so and names install.sh.
   musl:
