@@ -5,8 +5,7 @@ on npm). It gives any MCP client (Claude Code, Claude Desktop, Cursor, Codex, De
 your own agent) the kits' tools on one workspace folder. The agent creates, inspects, edits and
 checks files there through each kit's headless executable; `kition` downloads each kit into
 `~/.kition/kits` the first time the agent opens a file of it. No Kition app has to run, and the
-server is free on any machine with no licence key. The published kits are Note, for Markdown;
-Table, for `.ktable` tables; and HTML, for `.html` pages.
+server is free on any machine with no licence key. All 16 Kition kits are published: Note, for Markdown notes; Table, for `.ktable` tables; Board, for whiteboards; Doc, for Word documents; Sheet, for spreadsheets; Slide, for presentations; PDF; HTML, for `.html` pages; Photo, for layered images; Vector, for vector drawings; Layout, for page layouts; Design, for interface designs; Film, for video projects; Motion, for motion graphics; CAD, for `.dxf` drawings; and Scene, for 3D scenes.
 
 ## Connect your agent
 

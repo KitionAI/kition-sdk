@@ -4,6 +4,14 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Published kits: all 16.** Board, CAD, Design, Doc, Film, Layout, Motion, PDF, Photo, Scene,
+  Sheet, Slide and Vector join HTML, Note and Table (`published-kits.json`, `sdk.json`), each at
+  the version Kition's `kits/kits.lock.json` pins: their generated typings
+  (`@kition/script/kits/<kit>`), their schemas for `@kition/embed`, their manifests as
+  `kition-kits` test fixtures (in place of the reduced stand-ins), and their Claude Code plugin
+  skills (`<kit>-editing`). `@kition/script/kits/note` gains `view.scheme`, from the pinned Note
+  0.1.2 package. The release builds every published kit's headless executable.
+
 ## 0.5.2 (2026-11-19)
 
 Contracts: KHP 1.0, the Kit Process Protocol `kition-kit/2`, the kit engine contract 1

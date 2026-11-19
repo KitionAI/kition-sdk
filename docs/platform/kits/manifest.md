@@ -16,7 +16,7 @@ How a kit is packaged and described. Integrators read a manifest to learn what a
 ### Kition product names
 
 Kition's maintained kits use one singular lowercase identity across their manifest,
-repository, SDK, tools and editor package. Note is the published kit; the
+repository, SDK, tools and editor package. All 16 Kition kits are published; the
 publication allowlist is `published-kits.json`. Product naming rules live in
 `tools/kit-naming.mjs` and do not constrain third-party KHP products.
 

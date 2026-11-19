@@ -66,13 +66,14 @@ Co-editing goes through a `kition-sync/1` server. The full guide is
 Every kit embeds the same way. Each picture below is the kit's editor running embedded, with
 `@kition/embed`, in a plain page of "your app".
 
-### Motion: coming soon
+### Motion: available now
 
 <img src="assets/readme/kit-motion.jpg" alt="The Motion editor embedded in a page: a 1920 by 1080 title composition, Launch Day over a purple gradient with a glow, a timeline with three layers, and the title layer's transform." width="100%" />
 
 Motion graphics and video: compositions, layers, keyframes, effects, text animation presets and
 MP4 rendering, with checks that point out what makes a frame look flat. Kition's most used kit.
-Not published yet.
+Published: [Kition Motion](https://github.com/KitionAI/kition-motion), whose Releases carry the
+self-contained editor package (`kition-motion-<version>.tgz`, unpacks to `motion-ui/`).
 
 ### Note: available now
 
@@ -100,6 +101,23 @@ HTML pages (`.html`, `.htm`) with their CSS rendered and bounded JavaScript run,
 with undo and redo. Published: [Kition HTML](https://github.com/KitionAI/kition-html), whose
 Releases carry the self-contained editor package (`kition-html-<version>.tgz`, unpacks to
 `html-ui/`).
+
+### Every other kit: available now
+
+All 16 Kition kits are published, each from its own repository, whose Releases carry the
+self-contained editor package (`kition-<kit>-<version>.tgz`, unpacks to `<kit>-ui/`):
+[Board](https://github.com/KitionAI/kition-board) (whiteboards),
+[Doc](https://github.com/KitionAI/kition-doc) (Word documents),
+[Sheet](https://github.com/KitionAI/kition-sheet) (spreadsheets),
+[Slide](https://github.com/KitionAI/kition-slide) (presentations),
+[PDF](https://github.com/KitionAI/kition-pdf),
+[Photo](https://github.com/KitionAI/kition-photo) (layered images),
+[Vector](https://github.com/KitionAI/kition-vector) (vector drawings),
+[Layout](https://github.com/KitionAI/kition-layout) (page layouts),
+[Design](https://github.com/KitionAI/kition-design) (interface designs),
+[Film](https://github.com/KitionAI/kition-film) (video projects),
+[CAD](https://github.com/KitionAI/kition-cad) (`.dxf` drawings) and
+[Scene](https://github.com/KitionAI/kition-scene) (3D scenes).
 
 ## Build your own kit
 

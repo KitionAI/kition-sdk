@@ -1,8 +1,19 @@
 {
+  "$schema": "https://github.com/KitionAI/kition-sdk/schemas/kit.schema.json",
   "khp": "1.0",
+  "level": "basic",
   "id": "kit.vector",
   "name": "Vector",
   "version": "0.1.0",
+  "license": "Apache-2.0",
+  "distribution": "plugin",
+  "engine": {
+    "runtime": "rust-wasm",
+    "module": "kition_vector_kit",
+    "class": "VectorDocument",
+    "contract": 2,
+    "crate": "kition-vector-kit"
+  },
   "formats": [
     {
       "id": "vector",
@@ -27,7 +38,11 @@
     {
       "id": "vector",
       "extension": "kvector",
-      "baseName": "Untitled vector"
+      "baseName": "Untitled vector",
+      "size": {
+        "width": 1920,
+        "height": 1080
+      }
     }
   ],
   "exports": [
@@ -51,6 +66,27 @@
     "engine-tools",
     "kdm"
   ],
+  "ui": {
+    "mode": "embedded",
+    "display": "menus",
+    "entry": "ui/index.html",
+    "menus": [
+      "File",
+      "Edit",
+      "Object",
+      "Type",
+      "Select",
+      "Effect",
+      "View",
+      "Window",
+      "Help"
+    ],
+    "layout": "canvas",
+    "brand": {
+      "light": "#58810f",
+      "dark": "#a6d64a"
+    }
+  },
   "agent": {
     "prefix": "vector",
     "tools": "document",
@@ -62,7 +98,12 @@
       "data": "data"
     },
     "describe": {
-      "noun": "vector drawing"
+      "noun": "vector drawing",
+      "fileTypes": ".kvector",
+      "reports": "its artboards, layers, objects, and selection",
+      "covers": "shapes, paths, paint, type, alignment, effects, artboards, and more",
+      "queries": "`rectangle`, `align`, or `stroke`",
+      "example": "shape.rectangle"
     }
   },
   "headless": {
@@ -81,5 +122,21 @@
     "capabilities": [
       "document-text"
     ]
+  },
+  "model": {
+    "schema": "crates/kdm/kdm-model/model/schema.json",
+    "schemaVersion": 1
+  },
+  "collaboration": {
+    "merge": [
+      "structured",
+      "rich-text",
+      "binary"
+    ],
+    "leases": [],
+    "serverValidation": false
+  },
+  "objectModel": {
+    "namespace": "Vector"
   }
 }

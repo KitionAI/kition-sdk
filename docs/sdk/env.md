@@ -468,8 +468,8 @@ for it, so a reopen that mints new object ids does not read as a change there.
 
 ## Generating tasks
 
-The examples on this page use a slide kit, whose object model shows every kind of edit; that kit
-is not published yet. The published Note, Table and HTML kits work the same way (`--kit kit.note`, `--kit kit.table`, `--kit kit.html`).
+The examples on this page use the Slide kit, whose object model shows every kind of edit. The
+other kits work the same way (`--kit kit.note`, `--kit kit.table`, `--kit kit.sheet`, ...).
 
 ```sh
 kit-env generate --workspace corpus/ --kit slide --seed 7 --count 200 --inverse-share 0.3 \

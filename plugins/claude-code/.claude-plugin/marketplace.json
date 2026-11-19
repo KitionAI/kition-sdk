@@ -1,6 +1,6 @@
 {
   "name": "kition",
-  "description": "Kition's Claude Code plugins: the published Kition kits (Note, for Markdown; Table, for .ktable tables; HTML, for .html pages) as KHP tools for files in your project.",
+  "description": "Kition's Claude Code plugins: the 16 Kition kits (Note, Table, Board, Doc, Sheet, Slide, PDF, HTML, Photo, Vector, Layout, Design, Film, Motion, CAD and Scene) as KHP tools for files in your project.",
   "owner": {
     "name": "Kition",
     "url": "https://kition.ai"
@@ -9,7 +9,7 @@
     {
       "name": "kition-kits",
       "source": "./kition-kits",
-      "description": "Create, edit and check Markdown notes in your project with the Kition Note kit's KHP tools (MCP), with its editing skill and the person's draft review. Other Kition kits join as they are published.",
+      "description": "Create, edit and check files of the 16 Kition kits in your project with their KHP tools (MCP), with each kit's editing skill and the person's draft review.",
       "category": "productivity"
     }
   ]

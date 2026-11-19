@@ -5,9 +5,9 @@ Version **0.5.2** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
 The [platform documentation](../platform/index.md) describes the SDK contracts.
 A distribution may additionally include a separately supplied KHP specification.
 
-The Kition SDK delivers published Kition kits to products and AI agents. The published kits are
-Note, for Markdown documents; Table, for `.ktable` tables; and HTML, for `.html` pages. A kit is one engine behind four delivery forms, so a person in your web
-app and your agent work on the same file with the same engine:
+The Kition SDK delivers published Kition kits to products and AI agents. All 16 Kition kits
+are published: Note, for Markdown notes; Table, for `.ktable` tables; Board, for whiteboards; Doc, for Word documents; Sheet, for spreadsheets; Slide, for presentations; PDF; HTML, for `.html` pages; Photo, for layered images; Vector, for vector drawings; Layout, for page layouts; Design, for interface designs; Film, for video projects; Motion, for motion graphics; CAD, for `.dxf` drawings; and Scene, for 3D scenes (`published-kits.json`). A kit is one engine behind four delivery
+forms, so a person in your web app and your agent work on the same file with the same engine:
 
 | Form | Use it to | Package or executable | Guide | Platform |
 | --- | --- | --- | --- | --- |

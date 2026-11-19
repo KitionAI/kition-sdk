@@ -1,8 +1,19 @@
 {
+  "$schema": "https://github.com/KitionAI/kition-sdk/schemas/kit.schema.json",
   "khp": "1.0",
+  "level": "basic",
   "id": "kit.layout",
   "name": "Layout",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "license": "Apache-2.0",
+  "distribution": "plugin",
+  "engine": {
+    "runtime": "rust-wasm",
+    "module": "kition_layout_kit",
+    "class": "LayoutDocument",
+    "contract": 2,
+    "crate": "kition-layout-kit"
+  },
   "formats": [
     {
       "id": "layout",
@@ -25,7 +36,11 @@
     {
       "id": "layout",
       "extension": "klayout",
-      "baseName": "Untitled layout"
+      "baseName": "Untitled layout",
+      "size": {
+        "width": 612,
+        "height": 792
+      }
     }
   ],
   "exports": [
@@ -65,6 +80,27 @@
     "engine-tools",
     "pages"
   ],
+  "ui": {
+    "mode": "embedded",
+    "display": "line",
+    "entry": "ui/index.html",
+    "menus": [
+      "File",
+      "Edit",
+      "Layout",
+      "Type",
+      "Object",
+      "Table",
+      "View",
+      "Window",
+      "Help"
+    ],
+    "layout": "canvas",
+    "brand": {
+      "light": "#d32f8d",
+      "dark": "#f57bbd"
+    }
+  },
   "agent": {
     "prefix": "layout",
     "tools": "document",
@@ -72,13 +108,22 @@
     "objectModel": true,
     "layout": true,
     "render": "file.render",
+    "exclude": [
+      "file.print",
+      "file.printers"
+    ],
     "export": {
       "command": "file.exportBytes",
       "data": "data",
       "params": {}
     },
     "describe": {
-      "noun": "page layout"
+      "noun": "page layout",
+      "fileTypes": ".klayout",
+      "reports": "its pages, spreads, frames, stories, styles, and swatches",
+      "covers": "pages, frames, text, styles, swatches, tables, and more",
+      "queries": "`text frame`, `paragraph style`, or `insert page`",
+      "example": "frame.create"
     }
   },
   "headless": {
@@ -94,5 +139,29 @@
       "model.describe",
       "model.batch"
     ]
+  },
+  "extras": {
+    "setBackdrop": {
+      "params": [
+        "color: string"
+      ],
+      "returns": "void"
+    }
+  },
+  "model": {
+    "schema": "crates/kdm/kdm-model/model/schema.json",
+    "schemaVersion": 2
+  },
+  "collaboration": {
+    "merge": [
+      "structured",
+      "rich-text",
+      "binary"
+    ],
+    "leases": [],
+    "serverValidation": false
+  },
+  "objectModel": {
+    "namespace": "Layout"
   }
 }

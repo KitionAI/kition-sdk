@@ -641,15 +641,12 @@ pub fn on_path(found: &mut [Found]) {
 }
 
 /// The fixture kits, registered: the published kits' manifests (`tests/fixtures/kits`, copied by
-/// `tools/sync-kit-fixtures.mjs`) and reduced stand-ins for other kit shapes (`tests/support/kits`),
-/// for tests here and in the crates that use these tools (feature `test-kits`).
+/// `tools/sync-kit-fixtures.mjs`), for tests here and in the crates that use these tools (feature
+/// `test-kits`).
 #[cfg(any(test, feature = "test-kits"))]
 pub fn fixture_kits() -> Vec<&'static KitDefinition> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut paths: Vec<PathBuf> = ["tests/fixtures/kits", "tests/support/kits"]
-        .iter()
-        .flat_map(|dir| std::fs::read_dir(root.join(dir)).into_iter().flatten().flatten().map(|entry| entry.path()))
-        .collect();
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(root.join("tests/fixtures/kits")).into_iter().flatten().flatten().map(|entry| entry.path()).collect();
     paths.sort();
     let kits: Vec<&'static KitDefinition> =
         paths.iter().filter_map(|path| std::fs::read_to_string(path).ok()).filter_map(|text| KitDefinition::from_manifest_text(&text).ok()).collect();

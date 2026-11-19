@@ -74,7 +74,20 @@ A bundle's `manifest.json` names the version of each kit it holds.
 | --- | --- | --- | --- |
 | `kit.note` | `.md`, `.markdown` | yes | yes |
 | `kit.table` | `.ktable` | yes | yes |
+| `kit.board` | `.kboard` | yes | yes |
+| `kit.doc` | `.docx`, `.html`, `.htm` | yes | yes |
+| `kit.sheet` | `.xlsx`, `.xlsm`, `.xltx`, `.xltm`, `.xls`, `.xlt`, `.et`, `.ett`, `.xlsb`, `.ods`, `.csv` | yes | yes |
+| `kit.slide` | `.kslide`, `.pptx` | yes | yes |
+| `kit.pdf` | `.pdf` | yes | yes |
 | `kit.html` | `.html`, `.htm` | no | yes |
+| `kit.photo` | `.psd`, `.psb`, `.kphoto` | yes | yes |
+| `kit.vector` | `.kvector`, `.svg`, `.ai`, `.eps` | yes | yes |
+| `kit.layout` | `.klayout`, `.idml` | yes | yes |
+| `kit.design` | `.kdesign`, `.fig`, `.sketch` | object-model tools; no drafts | yes |
+| `kit.film` | `.kfilm` | yes | yes |
+| `kit.motion` | `.kmotion` | yes | yes |
+| `kit.cad` | `.dxf` | yes | yes |
+| `kit.scene` | `.kscene` | object-model tools; no drafts | yes |
 
 - An editor of a kit on the Kit Data Model lists the Kit UI capabilities
   `model`, `draft`, `draft-model`, and `check`.

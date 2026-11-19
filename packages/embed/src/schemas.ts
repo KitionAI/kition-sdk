@@ -8,9 +8,22 @@
 type Descriptor = { schema: object }
 
 const GENERATED: Record<string, () => Promise<Descriptor>> = {
-  'kit.note': async () => (await import('../../script/kits/note')).noteKit,
-  'kit.table': async () => (await import('../../script/kits/table')).tableKit,
+  'kit.board': async () => (await import('../../script/kits/board')).boardKit,
+  'kit.cad': async () => (await import('../../script/kits/cad')).cadKit,
+  'kit.design': async () => (await import('../../script/kits/design')).designKit,
+  'kit.doc': async () => (await import('../../script/kits/doc')).docKit,
+  'kit.film': async () => (await import('../../script/kits/film')).filmKit,
   'kit.html': async () => (await import('../../script/kits/html')).htmlKit,
+  'kit.layout': async () => (await import('../../script/kits/layout')).layoutKit,
+  'kit.motion': async () => (await import('../../script/kits/motion')).motionKit,
+  'kit.note': async () => (await import('../../script/kits/note')).noteKit,
+  'kit.pdf': async () => (await import('../../script/kits/pdf')).pdfKit,
+  'kit.photo': async () => (await import('../../script/kits/photo')).photoKit,
+  'kit.scene': async () => (await import('../../script/kits/scene')).sceneKit,
+  'kit.sheet': async () => (await import('../../script/kits/sheet')).sheetKit,
+  'kit.slide': async () => (await import('../../script/kits/slide')).slideKit,
+  'kit.table': async () => (await import('../../script/kits/table')).tableKit,
+  'kit.vector': async () => (await import('../../script/kits/vector')).vectorKit,
 }
 
 /** The schema a kit package ships at `url`, or `undefined` when it ships none or it cannot be read. */

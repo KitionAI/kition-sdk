@@ -14,7 +14,7 @@
 //
 // <folder holding note-ui/> is the Note kit's package unpacked (kition-note's Releases,
 // kition-note-<version>.tgz). The `kits` pictures also need motion-ui/ and table-ui/ there, the
-// Motion and Table packages, which are not published yet. Run it with no HTTP proxy set (the browser reaches local servers).
+// Motion and Table packages (kition-motion's and kition-table's Releases). Run it with no HTTP proxy set (the browser reaches local servers).
 // hero.svg is drawn by hand; this script does not touch it.
 import { execFileSync, spawn } from 'node:child_process'
 import http from 'node:http'

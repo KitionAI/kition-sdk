@@ -9,9 +9,22 @@
     "./node": "./src/node.ts",
     "./proxy": "./src/proxy.ts",
     "./kits": "./kits/index.ts",
+    "./kits/board": "./kits/board.ts",
+    "./kits/cad": "./kits/cad.ts",
+    "./kits/design": "./kits/design.ts",
+    "./kits/doc": "./kits/doc.ts",
+    "./kits/film": "./kits/film.ts",
+    "./kits/html": "./kits/html.ts",
+    "./kits/layout": "./kits/layout.ts",
+    "./kits/motion": "./kits/motion.ts",
     "./kits/note": "./kits/note.ts",
+    "./kits/pdf": "./kits/pdf.ts",
+    "./kits/photo": "./kits/photo.ts",
+    "./kits/scene": "./kits/scene.ts",
+    "./kits/sheet": "./kits/sheet.ts",
+    "./kits/slide": "./kits/slide.ts",
     "./kits/table": "./kits/table.ts",
-    "./kits/html": "./kits/html.ts"
+    "./kits/vector": "./kits/vector.ts"
   },
   "files": [
     "dist"
@@ -50,17 +63,69 @@
         "types": "./dist/types/kits/index.d.ts",
         "import": "./dist/kits/index.js"
       },
+      "./kits/board": {
+        "types": "./dist/types/kits/board.d.ts",
+        "import": "./dist/kits/board.js"
+      },
+      "./kits/cad": {
+        "types": "./dist/types/kits/cad.d.ts",
+        "import": "./dist/kits/cad.js"
+      },
+      "./kits/design": {
+        "types": "./dist/types/kits/design.d.ts",
+        "import": "./dist/kits/design.js"
+      },
+      "./kits/doc": {
+        "types": "./dist/types/kits/doc.d.ts",
+        "import": "./dist/kits/doc.js"
+      },
+      "./kits/film": {
+        "types": "./dist/types/kits/film.d.ts",
+        "import": "./dist/kits/film.js"
+      },
+      "./kits/html": {
+        "types": "./dist/types/kits/html.d.ts",
+        "import": "./dist/kits/html.js"
+      },
+      "./kits/layout": {
+        "types": "./dist/types/kits/layout.d.ts",
+        "import": "./dist/kits/layout.js"
+      },
+      "./kits/motion": {
+        "types": "./dist/types/kits/motion.d.ts",
+        "import": "./dist/kits/motion.js"
+      },
       "./kits/note": {
         "types": "./dist/types/kits/note.d.ts",
         "import": "./dist/kits/note.js"
+      },
+      "./kits/pdf": {
+        "types": "./dist/types/kits/pdf.d.ts",
+        "import": "./dist/kits/pdf.js"
+      },
+      "./kits/photo": {
+        "types": "./dist/types/kits/photo.d.ts",
+        "import": "./dist/kits/photo.js"
+      },
+      "./kits/scene": {
+        "types": "./dist/types/kits/scene.d.ts",
+        "import": "./dist/kits/scene.js"
+      },
+      "./kits/sheet": {
+        "types": "./dist/types/kits/sheet.d.ts",
+        "import": "./dist/kits/sheet.js"
+      },
+      "./kits/slide": {
+        "types": "./dist/types/kits/slide.d.ts",
+        "import": "./dist/kits/slide.js"
       },
       "./kits/table": {
         "types": "./dist/types/kits/table.d.ts",
         "import": "./dist/kits/table.js"
       },
-      "./kits/html": {
-        "types": "./dist/types/kits/html.d.ts",
-        "import": "./dist/kits/html.js"
+      "./kits/vector": {
+        "types": "./dist/types/kits/vector.d.ts",
+        "import": "./dist/kits/vector.js"
       }
     }
   },

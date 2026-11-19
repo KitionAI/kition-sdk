@@ -1,8 +1,12 @@
 # kition-kits: the Kition kits in Claude Code
 
 A Claude Code plugin that lets Claude create, inspect, edit and check files in your project with
-published Kition kits through their Kit Harness Protocol (KHP) tools. The published kits are
-Note, for Markdown documents; Table, for `.ktable` tables; and HTML, for `.html` pages. No Kition app needs to run: the
+the Kition kits through their Kit Harness Protocol (KHP) tools. All 16 kits are published: Note,
+for Markdown notes; Table, for `.ktable` tables; Board, for whiteboards; Doc, for Word documents;
+Sheet, for spreadsheets; Slide, for presentations; PDF; HTML, for `.html` pages; Photo, for
+layered images; Vector, for vector drawings; Layout, for page layouts; Design, for interface
+designs; Film, for video projects; Motion, for motion graphics; CAD, for `.dxf` drawings; and
+Scene, for 3D scenes. No Kition app needs to run: the
 plugin starts `kition mcp` (`@kition/cli`), which drives each kit's headless executable on the
 files in your project folder.
 

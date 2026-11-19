@@ -1,5 +1,18 @@
 [
+  "board",
+  "cad",
+  "design",
+  "doc",
+  "film",
   "html",
+  "layout",
+  "motion",
   "note",
-  "table"
+  "pdf",
+  "photo",
+  "scene",
+  "sheet",
+  "slide",
+  "table",
+  "vector"
 ]
