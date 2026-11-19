@@ -8,8 +8,6 @@ description: "Create, inspect, edit and check a board (.kboard) with the Kition 
 This plugin serves one tool set for every kit by default (KITION_KITS_UNIFIED): the
 `board_<action>` tools this guide names are `mcp__kition__kit_<action>`, routed by the file's
 extension (`board_run` is `mcp__kition__kit_run`, `board_check` is `mcp__kition__kit_check`).
-They load on demand: before the first call, add the ones you need with
-`mcp__kition__load_tools`, for example `{"tools": ["kit_inspect", "kit_commands", "kit_run", "kit_check"]}`.
 With KITION_KITS_UNIFIED=false they are `mcp__kition__board_<action>`. Paths are relative to the
 workspace folder.
 

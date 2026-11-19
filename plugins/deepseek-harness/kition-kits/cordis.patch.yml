@@ -5,9 +5,9 @@
 # - kition-kits: Kition's MCP server through DeepSeek Harness's own MCP client. bin/kits-mcp.mjs
 #   finds the server (KITION_KITS_MCP, else kition on the PATH as `kition mcp`, else
 #   kition-kits-mcp, else `npx -y @kition/cli mcp`) and serves one workspace folder:
-#   KITION_WORKSPACE, else the folder dsh started in. Its tools are mcp__kition__kit_<action>,
-#   loaded on demand: the system prompt lists them and an agent adds the ones it needs with
-#   mcp__kition__load_tools, so a session that edits no kit file carries no kit tool definitions.
+#   KITION_WORKSPACE, else the folder dsh started in. Its tools are mcp__kition__kit_<action>.
+#   (DeepSeek Harness 0.2.2-rc.5's MCP client has no on-demand tool loading: every request
+#   carries the tools' definitions.)
 # - kition-kits-skills: this package's skills (an editing skill per kit, and the person's draft
 #   review) in every agent's skill catalog, from the host's global skill layer.
 #
@@ -23,7 +23,6 @@
         transport: stdio
         command: !!js process.execPath
         args: !!js "[process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@kition/dsh-kits/package.json')), 'bin', 'kits-mcp.mjs'), '--workspace', process.env.KITION_WORKSPACE || process.cwd()]"
-        toolLoading: on-demand
         # A run of edits on a large document can take a while.
         toolCallTimeoutMs: 180000
     - id: kition-kits-skills

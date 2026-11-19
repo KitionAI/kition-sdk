@@ -27,12 +27,11 @@ describe('kit skills', () => {
     expect(text.endsWith('# Slide\n\nInspect first.\n')).toBe(true)
   })
 
-  it('name the tools as DeepSeek Harness shows them, loaded on demand, for its plugin', () => {
+  it('name the tools as DeepSeek Harness shows them, for its plugin', () => {
     const manifest = { name: 'Slide', agent: { prefix: 'slide' } }
     const claude = skill('slide', manifest, '# Slide\n', 'claude-code')
     const dsh = skill('slide', manifest, '# Slide\n', 'deepseek-harness')
     expect(dsh).toContain('`slide_run` is `mcp__kition__kit_run`')
-    expect(dsh).toContain('`mcp__kition__load_tools`')
     expect(dsh).toContain('`mcp__kition__slide_<action>`')
     expect(dsh).not.toContain('`slide_run` is `kit_run`')
     // The frontmatter and the guide are the same for both harnesses.

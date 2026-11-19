@@ -13,5 +13,4 @@
     serverName: kition
     transport: streamable-http
     url: !!js process.env.KITION_MCP_URL
-    toolLoading: on-demand
     toolCallTimeoutMs: 180000

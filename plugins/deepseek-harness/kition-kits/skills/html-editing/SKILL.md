@@ -8,8 +8,6 @@ description: "Create, inspect, edit and check a HTML document (HTML (.html or .h
 This plugin serves one tool set for every kit by default (KITION_KITS_UNIFIED): the
 `html_<action>` tools this guide names are `mcp__kition__kit_<action>`, routed by the file's
 extension (`html_run` is `mcp__kition__kit_run`, `html_check` is `mcp__kition__kit_check`).
-They load on demand: before the first call, add the ones you need with
-`mcp__kition__load_tools`, for example `{"tools": ["kit_inspect", "kit_commands", "kit_run", "kit_check"]}`.
 With KITION_KITS_UNIFIED=false they are `mcp__kition__html_<action>`. Paths are relative to the
 workspace folder.
 
