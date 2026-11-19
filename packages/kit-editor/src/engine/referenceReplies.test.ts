@@ -29,3 +29,22 @@ it('translates the first agent reply using the native model description', () => 
   } as unknown as KitModuleDocument
   expect(new ReplicaModel(doc).reply({ target: 'raw-item' })).toEqual({ target: 'item:7' })
 })
+
+it('translates the first agent reply when the native description names a text field\'s marks', () => {
+  // `model/describe` names a text field's marks by key (OM1); the schema declares their definitions (M4c).
+  const schema = { kdm: 1, kit: 'kit.mock', schemaVersion: 1, root: 'Item', types: {
+    Item: { toolId: { field: 'key', prefix: 'item:' }, fields: {
+      key: { kind: 'integer', readOnly: true },
+      text: { kind: 'text', marks: { bold: { expand: 'after' }, link: { expand: 'none' } } },
+    } },
+  } }
+  const replica = Replica.create(parseSchema(schema), '01920000-0000-7000-8000-0000000000cc', 1n)
+  replica.transact(system('open'), tx => tx.create('Item', { key: 7 }, { id: 'raw-item' }))
+  const described = describeModel(replica)
+  expect(described.types.Item.fields.text.marks).toEqual(['bold', 'link'])
+  const doc = {
+    modelDescribe: () => JSON.stringify(described),
+    exportChanges: (since: Uint8Array) => replica.exportChanges(since.length ? Version.decode(since) : undefined),
+  } as unknown as KitModuleDocument
+  expect(new ReplicaModel(doc).reply({ target: 'raw-item' })).toEqual({ target: 'item:7' })
+})

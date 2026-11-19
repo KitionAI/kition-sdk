@@ -6,7 +6,7 @@
  * entry chunk, and WebKit evaluates a module worker's entry script again when a chunk imports
  * it, replacing the worker's message handler with one that has no document open.
  */
-import { BatchError, describeModel, diffStates, diffWithToolIds, encodeOrigin, KdmError, parseSchema, randomActor, Replica, runBatch, Version, withLeafEdits, type BatchRequest, type BatchResult, type NodeRef, type ObjectId, type Origin, type Schema, type StateDiff, type Tx } from '@kition/kdm'
+import { BatchError, describeModel, diffStates, diffWithToolIds, encodeOrigin, KdmError, parseSchema, randomActor, Replica, runBatch, schemaOfDescription, Version, withLeafEdits, type BatchRequest, type BatchResult, type NodeRef, type ObjectId, type Origin, type Schema, type StateDiff, type Tx } from '@kition/kdm'
 import type { ModelErrorData } from '@kition/kit-ui-protocol'
 import { ToolIds } from '@kition/kdm'
 import type { KitModuleDocument } from './kitModule'
@@ -199,8 +199,13 @@ export class ReplicaModel {
   /** Translate replies using the native model description or the host-supplied schema. */
   reply(value: unknown): unknown {
     if (!this.schema && this.open.modelDescribe) {
-      const described = JSON.parse(this.open.modelDescribe()) as Record<string, unknown>
-      this.useSchema({ kdm: 1, kit: described.kit, schemaVersion: described.schemaVersion, root: described.root, types: described.types })
+      // The description names a text field's marks by key (OM1), not as the schema declares them.
+      try {
+        this.schema = schemaOfDescription(JSON.parse(this.open.modelDescribe()) as object)
+      } catch (error) {
+        throw new BatchError('invalid-op', null, `the schema does not parse: ${message(error)}`)
+      }
+      this.forget()
     }
     return this.schema ? ToolIds.ofReplica(this.catchUp()).showJson(value) : value
   }

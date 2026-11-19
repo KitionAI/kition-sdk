@@ -714,10 +714,12 @@ features:
       - crates/kition-kdm/tests/fixtures/refs.json
       - docs/platform/sets/object-model.md
       - packages/embed/src/agent.ts
+      - packages/kit-editor/src/engine/kitModelRunner.ts
     cases:
       - regressions/issue-29-nested-text
       - regressions/issue-batch-command-atomic
       - regressions/issue-describe-field-kinds
+      - regressions/issue-describe-marks-schema
     since: "2026-11-16"
   - id: sdk.agent.tool-ids
     title: A kit's KDM schema names the field holding each type's tool id, and the object model answers and takes that id (one id space)

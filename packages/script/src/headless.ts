@@ -13,7 +13,7 @@ import { existsSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { Readable, Writable } from 'node:stream'
-import { BatchError, KDM_VERSION, parseSchema, type BatchErrorCode, type BatchRequest, type BatchResult, type Schema } from '@kition/kdm'
+import { BatchError, parseSchema, schemaOfDescription, type BatchErrorCode, type BatchRequest, type BatchResult, type Schema } from '@kition/kdm'
 import { ModelDocument, type ModelBackend, type OpenOptions } from './document'
 import type { ModelDescription } from './exchange'
 import { kitDescriptor } from './kits'
@@ -255,12 +255,9 @@ export class HeadlessDocument {
    * (`model.describe`).
    */
   async model<Root extends ModelObject = ModelObject, C extends CommandMap = CommandMap>(options: OpenOptions = {}): Promise<ModelDocument<Root, C>> {
-    let schema: Schema | object | undefined = options.schema ?? kitDescriptor(this.kitId)?.schema
-    if (!schema) {
-      const described = await this.request<ModelDescription>('model.describe')
-      schema = { kdm: KDM_VERSION, kit: described.kit, schemaVersion: described.schemaVersion, root: described.root, types: described.types }
-    }
-    return new ModelDocument<Root, C>(headlessBackend(this, parseSchema(schema)), options.origin)
+    const schema: Schema | object | undefined = options.schema ?? kitDescriptor(this.kitId)?.schema
+    const parsed = schema ? parseSchema(schema) : schemaOfDescription(await this.request<ModelDescription>('model.describe'))
+    return new ModelDocument<Root, C>(headlessBackend(this, parsed), options.origin)
   }
 
   /** `commands.list` for this document. */

@@ -8,6 +8,7 @@ export {
   resolveValues,
   rootId,
   runBatch,
+  schemaOfDescription,
   type BatchErrorCode,
   type BatchLoad,
   type BatchOp,
