@@ -1,0 +1,24 @@
+format: 1
+id: sdk.cli.usage/help-and-mistakes
+feature: sdk.cli.usage
+intent: >-
+  kition --help is grouped (kits, agents, servers, troubleshooting) in at most 40 lines; kit, kit
+  install, kit add, kit pack, kit info, agent, agent add and doctor each print their own usage
+  with --help; kition install, kition kit instal, kition doctr and kition agent ad exit 2 naming
+  the closest command and pointing at --help, in at most three lines; an unknown option names the
+  command's --help.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/usage.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: usage, filter: "each_command_has_its_own_usage" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

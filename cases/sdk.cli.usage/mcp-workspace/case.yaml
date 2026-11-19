@@ -1,0 +1,22 @@
+format: 1
+id: sdk.cli.usage/mcp-workspace
+feature: sdk.cli.usage
+intent: >-
+  kition mcp without --workspace serves the folder it starts in and names it on stderr as the
+  current folder; with --workspace it names that folder; kition-kits-mcp still refuses to start
+  without --workspace.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/usage.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: usage, filter: "mcp_serves_the_folder" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

@@ -18,6 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 kition-kits = { path = "../kition-kits" }
+kition-kit-host = { path = "../kition-kit-host" }
 kition-kit-process-protocol = { path = "../kition-kit-process-protocol" }
 
 # Downloads: rustls with ring and the Mozilla roots built in (no OpenSSL, no system TLS library,
@@ -31,6 +32,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"
 tar = { version = "0.4", default-features = false }
+# `kition doctor` starts the installed kits at once, on kition-kits' runtime.
+tokio = { version = "1", features = ["rt"] }
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 url = "2"
 

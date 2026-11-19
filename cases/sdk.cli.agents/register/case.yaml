@@ -1,0 +1,26 @@
+format: 1
+id: sdk.cli.agents/register
+feature: sdk.cli.agents
+intent: >-
+  kition agent add claude runs claude mcp add -s local kition -- <absolute kition> mcp --workspace
+  <folder> in the folder (user scope: no workspace fixed); codex is registered with codex mcp add
+  and refuses a project scope; cursor merges .cursor/mcp.json or ~/.cursor/mcp.json keeping every
+  other server and setting, through a temporary file and a rename, and refuses a file that is not
+  JSON leaving it as it is. agent list and remove find and remove the registrations; an agent not
+  on the PATH is named. Stand-ins for claude and codex and a home of the test's own: no real agent
+  configuration is touched.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/agent.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: agent }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

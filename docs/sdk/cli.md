@@ -53,14 +53,34 @@ Running `install.sh` again replaces `kition` with the release's; the kits in the
 ## Commands
 
 ```sh
+# kits
 kition kit list [--json]                  # the kits in the index and those installed
-kition kit install <kit>[@<version>]      # install a kit
+kition kit install <kit>[@<version>]...   # install kits; --all: every kit the index has for here
 kition kit upgrade [<kit>]                # move a kit, or every kit, to its newest version
-kition kit remove <kit>                   # remove every version of a kit
-kition mcp --workspace <folder> [options] # the kits' MCP server on stdio
-kition serve --workspace <folder> [...]   # the Kits Service API on stdio (hosts.md)
+kition kit remove <kit>...                # remove every version of kits
+kition kit info <kit> [--json]            # a kit's versions, files, folder, protocol and tools
+kition kit add <path>                     # put a kit built or copied here into the store
+kition kit pack <kit> [--out <folder>]    # write the kit in use as an archive for kit add
+# agents
+kition agent add <claude|codex|cursor> [--workspace <folder>] [--scope user|project]
+kition agent remove <agent> [--workspace <folder>] [--scope user|project]
+kition agent list [--workspace <folder>]
+# servers
+kition mcp [--workspace <folder>] [options]   # the kits' MCP server on stdio
+kition serve --workspace <folder> [...]       # the Kits Service API on stdio (hosts.md)
+# troubleshooting
+kition doctor [--json]
 kition --version
 kition --help
+```
+
+`kition <command> --help` and `kition kit <command> --help` print that command's own usage. A
+mistyped command names the closest one and where its usage is, and exits with status 2:
+
+```text
+$ kition install note
+kition: unknown command install; did you mean `kition kit install`?
+run `kition --help` for the commands
 ```
 
 `kit list` shows each kit with the version in use and the newest version this `kition` can run:
@@ -82,11 +102,89 @@ the installed kits. `--json` prints the same as JSON: `home`, `platform`, `index
 
 `kit install <kit>` installs the newest version this `kition` can run and uses it from then on.
 `kit install <kit>@<version>` installs that version and pins it: it stays in use when newer ones
-are installed, and `kit upgrade` without a kit leaves it alone. `kit upgrade <kit>` unpins the
-kit, installs its newest version, and removes the older ones. `<kit>` is the short name (`note`)
-or the kit id (`kit.note`).
+are installed, and `kit upgrade` without a kit leaves it alone. `kit install` takes several kits
+(`kition kit install note table html`), and `kit install --all` installs every kit the index has a
+build of for this machine, naming on stderr the ones it skips and why. A kit that fails does not
+stop the others; the exit status is 1 when any failed. While a kit downloads, stderr shows its
+name, the bytes done and the total, and the percent, on one line written over as it goes; only
+when stderr is a terminal, so scripts and `kition mcp` see nothing of it. `kit upgrade <kit>`
+unpins the kit, installs its newest version, and removes the older ones. `kit remove` takes
+several kits, as `install` does. `<kit>` is the short name (`note`) or the kit id (`kit.note`).
+
+`kit info <kit>` states what one kit is here and in the index:
+
+```text
+$ kition kit info note
+note (kit.note): Note
+files:       .md .markdown
+installed:   0.3.0 (in use)
+in index:    0.3.0, 0.2.0
+newest here: 0.3.0
+folder:      /Users/me/.kition/kits/note/0.3.0
+executable:  /Users/me/.kition/kits/note/0.3.0/kition-note
+protocol:    kition-kit/2
+agent:       prefix note
+tools:       note_inspect note_commands note_run note_query note_batch ...
+```
+
+The tools are those the installed `kit.json` declares (its `agent` prefix, and `agent.drafts`,
+`agent.objectModel`, `agent.export`, `creates` for the tools that depend on them). `--json` prints
+`name`, `id`, `displayName`, `extensions`, `installed`, `inUse`, `pinned`, `available` (each
+index version with its `protocol`, `platforms` and `runsHere`), `latest`, `folder`, `executable`,
+`protocol`, `agent` (`prefix`, `tools`) and `platform`.
+
+### Kits that are not in the index, and machines without a network
+
+`kit add <path>` puts a kit built here, or copied from elsewhere, into the store. It checks the kit
+as an install from the index does (its `kit.json` is `kit.<name>` at a semver version, speaks this
+`kition`'s Kit Process Protocol, and names an executable that is there) and moves it into
+`kits/<kit>/<version>/` with the same one rename. A kit of another protocol is refused with the
+message an install gives. `<path>` is one of:
+
+- a kit archive laid out like the index's: a `.tar.gz` with `kit.json` and the executable at its
+  top (what `kit pack` writes);
+- a folder holding `kit.json` and the executable it names (`headless.executable`);
+- a kit executable, whose `kit.json` is the nearest one above it naming it, as `--kit` finds it
+  (`kition kit add ../kition-board/target/release/kition-board`).
+
+A version installed already is left as it is: remove the kit first to replace it.
+
+`kit pack <kit> [--out <folder>]` writes the version of the kit in use as
+`kition-<kit>-<version>-<platform>.tar.gz` (default: in the current folder). Copied to another
+machine of the same platform, `kition kit add <that file>` installs it there, with no network.
 
 ## Your agent
+
+```sh
+kition agent add claude           # Claude Code, for this folder
+kition agent add codex            # Codex (its MCP servers are the user's)
+kition agent add cursor           # Cursor: .cursor/mcp.json in this folder
+kition agent list                 # where kition is registered
+kition agent remove cursor
+```
+
+`agent add` registers this `kition`, by its absolute path (so the agent finds it even when
+`~/.kition/bin` is not on its PATH), as the MCP server named `kition`, running `kition mcp`. It
+prints exactly what it ran or wrote; running it again replaces the registration.
+
+| Agent | `--scope project` (default, except Codex) | `--scope user` |
+| --- | --- | --- |
+| Claude Code | `claude mcp add -s local kition -- <kition> mcp --workspace <folder>`, run in the folder | `claude mcp add -s user kition -- <kition> mcp` |
+| Codex | refused: Codex keeps MCP servers for the user only | `codex mcp add kition -- <kition> mcp` (the default) |
+| Cursor | `<folder>/.cursor/mcp.json` | `~/.cursor/mcp.json`, with `--workspace ${workspaceFolder}` |
+
+The project folder is `--workspace`, else the current folder; it is also the folder the server
+edits. A user registration edits the folder the agent works in, unless `--workspace` fixes one.
+Claude Code's `local` scope is the one for a folder that is private to you; its `project` scope
+writes a `.mcp.json` meant to be shared, which an absolute path to your `kition` does not suit.
+Claude Code and Codex are asked through their own commands, found on the PATH; when one is not
+there, `agent add` says so. Cursor's file is merged: every other server and setting in it stays
+(keys come back in sorted order), and it is written to a temporary file beside it and renamed
+into place. A file that is not JSON is left alone, with an error. `agent remove <agent>` removes
+the server named `kition` (Claude Code: from whichever scope has it, unless `--scope`; Cursor:
+from the project file and the user file, unless `--scope`).
+
+By hand, the same registration is:
 
 ```sh
 claude mcp add kition -- kition mcp --workspace "$PWD"
@@ -97,6 +195,10 @@ or, in an `mcpServers` file:
 ```json
 { "mcpServers": { "kition": { "command": "kition", "args": ["mcp", "--workspace", "/absolute/path/to/folder"] } } }
 ```
+
+`kition mcp` without `--workspace` serves the folder it starts in, and names the workspace it
+serves on stderr when it starts (`kition mcp: workspace /path (the current folder; --workspace
+names another)`). `kition-kits-mcp` still needs `--workspace`.
 
 With no `--kit` and no `--kits-dir`, the server's kits are the store's: the version in use of each
 installed kit. A kit the environment names (`KITION_KIT_<KIT>_BINARY`, a development build) is used
@@ -135,6 +237,40 @@ Why the per-kit tools of a kit not installed are not listed before it is: they c
 kit's `kit.json` (its commands, its object model, whether it keeps drafts), which comes with the
 kit. A client that does not follow `tools/list_changed` sees the new tools when it starts the
 server again; by then the kit is installed.
+
+## When something is wrong
+
+`kition doctor` checks, in order:
+
+- `kition`'s version, its Kit Process Protocol and the index format it reads;
+- the Kition home, and whether a file can be written in it (or, when it is not made yet, in the
+  folder it would be made in);
+- whether the folder holding this `kition` is on the `PATH`, with the line to add when it is not;
+- whether the kit index can be read now; when it cannot, how old the copy kept from the last read
+  is (a warning), or that there is none (a failure);
+- each installed kit in use, started as a host starts it and asked `kit.initialize`: the version
+  it answers, or why it did not start (an answer that is not its `kit.json`'s id and version is a
+  failure too);
+- which agents have `kition` registered (Claude Code and Codex through `claude mcp get kition`
+  and `codex mcp get kition`; Cursor's two files), for information.
+
+```text
+$ kition doctor
+kition 0.4.0 (kit protocol kition-kit/2, index format 1) on darwin-arm64
+ok    home          /Users/me/.kition (writable)
+fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
+                    fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)
+ok    index         https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json: read now, 3 kits
+ok    kit note      0.3.0 answers kit.initialize (/Users/me/.kition/kits/note/0.3.0/kition-note)
+ok    agent claude  Claude Code: kition registered: ...
+info  agent codex   Codex: not here (no `codex` on the PATH)
+info  agent cursor  Cursor: kition is not registered (kition agent add cursor)
+1 check failed
+```
+
+Each failed check ends with the command that fixes it, and the exit status is 1 when any check
+failed. `--json` prints `version`, `protocol`, `platform`, `home`, `ok` and `checks`, each with
+`name`, `status` (`ok`, `warn`, `fail` or `info`), `detail` and `fix`.
 
 ## The store
 

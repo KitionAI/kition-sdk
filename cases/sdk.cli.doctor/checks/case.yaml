@@ -1,0 +1,24 @@
+format: 1
+id: sdk.cli.doctor/checks
+feature: sdk.cli.doctor
+intent: >-
+  kition doctor --json in a home not made yet, with no index and kition's folder off the PATH,
+  fails the PATH and index checks with their fixes and makes nothing; with a readable index and
+  the PATH set, a kit that exits at once fails with "did not start" and the remove-and-install
+  fix, and the mock kit answers kit.initialize; with the index gone after a read it warns with the
+  kept copy's age and passes. The text report ends a failed check with "fix:".
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/doctor.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: doctor }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

@@ -1,0 +1,25 @@
+format: 1
+id: sdk.cli.kit-commands/pack-add
+feature: sdk.cli.kit-commands
+intent: >-
+  kition kit pack writes the kit in use as kition-<kit>-<version>-<platform>.tar.gz and leaves no
+  scratch file; kit add of that archive into another home, with no index readable, installs the
+  same executable, and adding it again leaves it as it is. kit add also takes a folder with
+  kit.json and the executable, and a kit executable whose kit.json is above it in its repository;
+  it refuses a kit of another protocol with the install message, a folder without the executable,
+  and a file no kit.json names, leaving nothing in kits/ or tmp/.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/kits.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: kits, filter: "add_" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

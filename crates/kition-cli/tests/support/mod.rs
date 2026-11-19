@@ -192,3 +192,38 @@ impl IndexBuilder {
         path
     }
 }
+
+/// `kition` with its home at `home`, no index named by the environment, and no kit, proxy or
+/// development variable of the person's.
+pub fn kition(home: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_kition"));
+    command.env("KITION_HOME", home).env_remove("KITION_INDEX");
+    for (key, _) in std::env::vars_os() {
+        let key = key.to_string_lossy().into_owned();
+        if key.starts_with("KITION_KIT_") || key.to_ascii_lowercase().ends_with("_proxy") {
+            command.env_remove(key);
+        }
+    }
+    command
+}
+
+/// Runs `command`: whether it succeeded, its stdout and its stderr.
+pub fn run(command: &mut std::process::Command) -> (bool, String, String) {
+    let output = command.stdin(std::process::Stdio::null()).output().unwrap();
+    (output.status.success(), String::from_utf8_lossy(&output.stdout).into_owned(), String::from_utf8_lossy(&output.stderr).into_owned())
+}
+
+/// A kit folder in `dir/<folder>`: its kit.json and its executable `program`.
+pub fn kit_folder(dir: &Path, folder: &str, manifest: &Value, program: &[u8]) -> PathBuf {
+    let path = dir.join(folder);
+    std::fs::create_dir_all(&path).unwrap();
+    std::fs::write(path.join("kit.json"), serde_json::to_vec_pretty(manifest).unwrap()).unwrap();
+    let executable = path.join(format!("{}{}", manifest["headless"]["executable"].as_str().unwrap(), std::env::consts::EXE_SUFFIX));
+    std::fs::write(&executable, program).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    path
+}

@@ -2,6 +2,30 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
+## Unreleased
+
+- **`kition`, the command line, easier to use**:
+  - `kition kit install` takes several kits, and `--all` installs every kit the index has for this
+    machine; `kition kit remove` takes several kits. A kit that fails does not stop the others,
+    and the exit status says one failed. On a terminal, each download shows its progress on
+    stderr.
+  - `kition kit info <kit> [--json]`: its id, name and files, the versions installed, in use,
+    pinned and in the index, its folder, executable and protocol, and the agent tools its
+    `kit.json` declares.
+  - `kition kit add <path>` puts a kit built or copied here (an archive, a folder with its
+    `kit.json`, or a kit executable in its repository) into the store with the checks and the
+    one-rename move of an install; `kition kit pack <kit>` writes the version in use as an archive
+    that `kit add` takes on another machine, with no network.
+  - `kition agent add/remove/list` registers `kition mcp` with Claude Code, Codex or Cursor, by
+    this `kition`'s absolute path, and prints what it ran or wrote.
+  - `kition doctor [--json]` checks the home, the PATH, the kit index, each installed kit
+    (started and asked `kit.initialize`) and the agents, and gives the command that fixes each
+    failed check.
+  - `kition mcp` without `--workspace` serves the folder it starts in, and names it on stderr.
+  - Each command and kit command has its own `--help`; a mistyped command names the closest one
+    instead of printing the whole usage, and the usage is grouped (kits, agents, servers,
+    troubleshooting).
+
 ## 0.4.0
 
 Contracts: KHP 1.0, the Kit Process Protocol `kition-kit/2`, the kit engine contract 1

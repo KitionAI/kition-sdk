@@ -28,6 +28,8 @@ use serde_json::{Value, json};
 pub type StoreKits = (Vec<definitions::Found>, Option<Arc<dyn KitSupply>>);
 
 /// A program's kit store (`kition mcp`): the kits used when no `--kit` or `--kits-dir` is given.
+/// A program with a store serves the folder it starts in when no `--workspace` is given, and
+/// states the workspace it serves on stderr.
 pub struct Store {
     /// What the program's usage says about the store, after the kits section.
     pub usage: &'static str,
@@ -250,6 +252,9 @@ pub fn main(program: &str, args: impl Iterator<Item = String>, store: Option<Sto
         return ExitCode::SUCCESS;
     }
     tools::set_unified(options.unified);
+    // `kition mcp` serves the folder it starts in by default; `kition-kits-mcp` needs --workspace.
+    let defaulted = store.is_some() && options.workspace.is_none();
+    let workspace = if defaulted { std::env::current_dir().ok() } else { options.workspace.clone() };
     // No fallback: a sandbox that this machine cannot give is a refusal to start, never kits run
     // unconfined.
     if options.sandbox
@@ -258,6 +263,7 @@ pub fn main(program: &str, args: impl Iterator<Item = String>, store: Option<Sto
         eprintln!("{program}: --sandbox: {reason}");
         return ExitCode::FAILURE;
     }
+    let has_store = store.is_some();
     let (found, supply) = match found_kits(&options, store) {
         Ok(found) => found,
         Err(message) => {
@@ -275,10 +281,14 @@ pub fn main(program: &str, args: impl Iterator<Item = String>, store: Option<Sto
         print(&list_kits(&found));
         return ExitCode::SUCCESS;
     }
-    let Some(workspace) = options.workspace.clone().filter(|dir| dir.is_dir()) else {
+    let Some(workspace) = workspace.filter(|dir| dir.is_dir()) else {
         eprintln!("{program}: --workspace must name a folder\n\n{USAGE}");
         return ExitCode::from(2);
     };
+    if has_store {
+        let how = if defaulted { "the current folder; --workspace names another" } else { "--workspace" };
+        eprintln!("{program}: workspace {} ({how})", std::path::absolute(&workspace).unwrap_or_else(|_| workspace.clone()).display());
+    }
     let runtime = match crate::runtime() {
         Ok(runtime) => runtime,
         Err(error) => {

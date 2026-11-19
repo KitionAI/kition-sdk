@@ -1,0 +1,24 @@
+format: 1
+id: sdk.cli.kit-commands/info
+feature: sdk.cli.kit-commands
+intent: >-
+  kition kit info, as JSON and as text, states a pinned kit's id, display name, extensions,
+  versions installed, in use, pinned and in the index, the newest it can run, its folder,
+  executable and protocol, and the agent prefix and tools its kit.json declares (no export tool
+  for a kit without agent.export); a kit not installed points at kit install; an unknown kit names
+  the kits there are.
+layer: gate
+dimension: function
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/kits.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: kits, filter: "info_states_versions" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

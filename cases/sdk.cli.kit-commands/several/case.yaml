@@ -1,0 +1,24 @@
+format: 1
+id: sdk.cli.kit-commands/several
+feature: sdk.cli.kit-commands
+intent: >-
+  kition kit install with three kits installs the two the index has and fails the third, saying
+  so, with exit status 1; kit remove takes several kits and one not installed does not stop the
+  others; kit install --all installs every kit the index has for this machine and names the one of
+  another protocol it skips; --all with a kit, or no kit at all, is a usage mistake. With stderr
+  not a terminal, no progress is written.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/kits.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: kits, filter: "installs_and_removes_several_kits" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

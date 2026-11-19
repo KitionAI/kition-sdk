@@ -1743,6 +1743,65 @@ features:
       - sdk.cli.kit-store/store
       - sdk.cli.kit-store/on-demand
     since: "2026-11-17"
+  - id: sdk.cli.kit-commands
+    title: "kition kit install and remove take several kits (install --all every kit the index has for here), one failure not stopping the others, with download progress only on a terminal; kit info states a kit's versions, folder, protocol and agent tools; kit add puts a kit archive, folder or executable into the store with an install's checks and kit pack writes the archive that moves it to a machine without a network"
+    dimension: [platform, function]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-cli/src/commands/kit.rs
+      - crates/kition-cli/src/commands/progress.rs
+      - crates/kition-cli/src/store.rs
+      - crates/kition-cli/src/fetch.rs
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-cli/tests/kits.rs
+      - docs/sdk/cli.md
+    cases:
+      - sdk.cli.kit-commands/several
+      - sdk.cli.kit-commands/info
+      - sdk.cli.kit-commands/pack-add
+    since: "2026-11-18"
+  - id: sdk.cli.agents
+    title: "kition agent add/remove/list registers kition mcp, by the running kition's absolute path, as the MCP server kition with Claude Code and Codex through their own commands and with Cursor by merging its mcp.json through a temporary file and a rename, printing what it ran or wrote"
+    dimension: [ai, platform]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-cli/src/commands/agent.rs
+      - crates/kition-cli/tests/agent.rs
+      - docs/sdk/cli.md
+    cases:
+      - sdk.cli.agents/register
+    since: "2026-11-18"
+  - id: sdk.cli.doctor
+    title: "kition doctor checks the home, the PATH, the kit index (or its kept copy's age), each installed kit started and asked kit.initialize, and the agents' registrations, ends each failed check with the command that fixes it, and exits 1 when any failed"
+    dimension: [platform]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-cli/src/commands/doctor.rs
+      - crates/kition-cli/src/index.rs
+      - crates/kition-cli/tests/doctor.rs
+      - docs/sdk/cli.md
+    cases:
+      - sdk.cli.doctor/checks
+    since: "2026-11-18"
+  - id: sdk.cli.usage
+    title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"
+    dimension: [platform, ai]
+    priority: P2
+    status: has
+    paths:
+      - crates/kition-cli/src/main.rs
+      - crates/kition-cli/src/commands/help.rs
+      - crates/kition-cli/src/commands/mod.rs
+      - crates/kition-kits/src/cli/mcp.rs
+      - crates/kition-cli/tests/usage.rs
+      - docs/sdk/cli.md
+    cases:
+      - sdk.cli.usage/help-and-mistakes
+      - sdk.cli.usage/mcp-workspace
+    since: "2026-11-18"
   - id: sdk.editor.lazy-fonts
     title: An embedded editor gives the engine its primary font before the document opens and its other fonts (lazyFonts) only once the engine wants a face it lacks, in order, and the page draws again after each
     dimension: [function, performance]

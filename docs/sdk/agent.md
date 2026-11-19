@@ -16,7 +16,8 @@ Pick one way to get the server:
   of it. Node.js 20 or later. `npm install -g @kition/kits-mcp` installs it as the command
   `kition-kits-mcp`.
 - **`kition`**: the same server without Node.js. Install `kition` with the install script and
-  register `kition mcp --workspace <folder>` ([cli.md](cli.md)).
+  register it with `kition agent add claude` (or `codex`, `cursor`), which registers
+  `kition mcp --workspace <folder>` ([cli.md](cli.md#your-agent)).
 - **Installed binary**: take `bin/<platform>/kition-kits-mcp` from the SDK release's bundle for
   your platform ([distribution.md](distribution.md)), or build it from kition-sdk with
   `cargo build --release -p kition-kits --bin kition-kits-mcp`. It then needs the kits: give
