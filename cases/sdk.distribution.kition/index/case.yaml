@@ -2,15 +2,12 @@ format: 1
 id: sdk.distribution.kition/index
 feature: sdk.distribution.kition
 intent: >-
-  The release tool archives kition and each published kit version per platform (plain files at the
-  top, executables executable), and writes a kit index valid against its schema whose entries name
-  absolute addresses of the release that holds each archive; a second release's index keeps every
-  version of the first at its first address, adds only versions and platforms not listed yet, and
-  makes no archive for a version listed already; kits not in published-kits.json are refused or
-  left out; a previous index with relative addresses, another protocol for a listed version or
-  another format, and an executable other than the one checked, are refused. The release manifest
-  names the kition archives, the kit archives, the index and the installers, and refuses a
-  release missing kition for a platform, an index without the bundles' kits, or a stray archive.
+  The release tool archives kition per platform (plain files at the top, the executable
+  executable) and nothing else: no kit archive and no kit index, which the kit repositories and
+  tools/kits-index.mjs publish; a platform it does not know, a folder without kition, or no
+  platform folder at all is refused. The release manifest names the kition archives and the
+  installers, has no kit archives and no index, and refuses a release missing kition for a
+  platform or holding any other archive, a kit archive among them.
 layer: gate
 dimension: platform
 source:

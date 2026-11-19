@@ -94,7 +94,8 @@ html   HTML   -          0.1.0   .html .htm
 ```
 
 `(upgrade)` after a version means a newer one is in the index; `(pinned)` means the version was
-asked for by number. When the index cannot be read, `kit list` says so on stderr and still lists
+asked for by number; `(newer than the index)` means the index offers only older versions (see
+[the kit index](#the-kit-index)). When the index cannot be read, `kit list` says so on stderr and still lists
 the installed kits. `--json` prints the same as JSON: `home`, `platform`, `index`
 (`location`, `read`, `stale` or `error`) and `kits`, each with `name`, `id`, `displayName`,
 `extensions`, `installed` (every version present), `inUse`, `pinned`, `latest`, `upgrade`,
@@ -260,7 +261,7 @@ kition 0.4.0 (kit protocol kition-kit/2, index format 1) on darwin-arm64
 ok    home          /Users/me/.kition (writable)
 fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)
-ok    index         https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json: read now, 3 kits
+ok    index         https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json: read now, 16 kits
 ok    kit note      0.3.0 answers kit.initialize (/Users/me/.kition/kits/note/0.3.0/kition-note)
 ok    agent claude  Claude Code: kition registered: ...
 info  agent codex   Codex: not here (no `codex` on the PATH)
@@ -340,16 +341,23 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
   its `kit.json` says (`headless.protocol`). `kition` installs the newest version that speaks its
   own protocol and has an archive for this platform, and refuses another protocol, saying to
   upgrade `kition` when the kit's is newer.
+- A version installed here that is newer than every version the index offers (the index went
+  back to an older number, or the kit came by `kit add`) stays in use: `kit list` marks it
+  `(newer than the index)`, and `kit install <kit>` and `kit upgrade` leave it as it is, saying
+  so, and download nothing. `kit install <kit>@<version>` installs and pins an older one.
 - Platforms are `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc) and `win32-x64`,
-  as in the SDK release ([distribution.md](distribution.md)).
+  as in the SDK release ([distribution.md](distribution.md)). A kit version need not have every
+  platform.
 - An archive is a `.tar.gz` with `kit.json` and the executable (`kition-<kit>`, `.exe` on Windows)
   at its top. Its `url` is an `https` address or a path; a relative one is read beside the index.
 - `kition` reads the `schemaVersion` it was built for, and asks to be upgraded for a newer one.
 
-The default index is `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`,
-the index of the latest SDK release. It lists every kit version that can still be downloaded, not
-only the ones that release built: each release's index is the previous release's with the new
-archives added, and the older entries keep their addresses in the releases that hold them
+The default index is `https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json`,
+gathered from the kit repositories: each kit's `package-v<version>` Releases carry its archives and
+an index fragment, and kition-sdk's `kits-index` workflow merges every kit's fragments into this one
+file, at the archives' addresses in the kit repositories. Every kit and every version a kit
+repository has published with its archives is in it, whether or not an SDK release bundles that
+kit, and a new kit version is in it within the hour
 ([distribution.md](distribution.md#kit-archives-and-the-kit-index)).
 `KITION_INDEX` or `--index` name another: an address, or a file on this machine (an index you made,
 a mirror on a shared drive). Each good read is kept in `cache/`, so the installed kits and the last

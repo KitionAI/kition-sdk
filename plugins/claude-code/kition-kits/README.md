@@ -33,8 +33,8 @@ claude plugin install kition-kits@kition
 The plugin needs the server. It uses, in this order: the plugin's `kition-kits-mcp` option;
 `kition` on the `PATH`, started as `kition mcp`; `kition-kits-mcp` on the `PATH`; otherwise
 `npx -y @kition/kits-mcp`, the npm package that brings `kition` for your platform (Node.js
-needed). `kition` holds no kit: it downloads each published kit into `~/.kition/kits` the first
-time Claude opens a file of it (kition-sdk's `docs/sdk/cli.md`). Without Node.js,
+needed). `kition` holds no kit: it downloads each kit of the kit index into `~/.kition/kits` the
+first time Claude opens a file of it (kition-sdk's `docs/sdk/cli.md`). Without Node.js,
 install `kition` and put `~/.kition/bin` on the `PATH`:
 
 ```sh

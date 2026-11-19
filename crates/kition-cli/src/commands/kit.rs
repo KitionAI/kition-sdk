@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use kition_cli::home::Home;
-use kition_cli::index::{self, Freshness, INDEX_VARIABLE, Loaded, Source};
+use kition_cli::index::{self, Freshness, INDEX_VARIABLE, IndexKit, Loaded, Source};
 use kition_cli::store::{Outcome, Store};
 use semver::Version;
 use serde_json::{Value, json};
@@ -149,10 +149,16 @@ fn list(store: &Store, source: &Source, json: bool) -> ExitCode {
     let mut table = vec![["KIT".to_owned(), "NAME".to_owned(), "INSTALLED".to_owned(), "LATEST".to_owned(), "FILES".to_owned()]];
     for row in &rows {
         let mut installed = text(&row["inUse"]);
+        let newer = |a: &Value, b: &Value| match (a.as_str().map(Version::parse), b.as_str().map(Version::parse)) {
+            (Some(Ok(a)), Some(Ok(b))) => a > b,
+            _ => false,
+        };
         if !row["pinned"].is_null() && row["pinned"] == row["inUse"] {
             installed.push_str(" (pinned)");
         } else if row["upgrade"] == true {
             installed.push_str(" (upgrade)");
+        } else if newer(&row["inUse"], &row["latest"]) {
+            installed.push_str(" (newer than the index)");
         }
         let files: Vec<String> =
             row["extensions"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|extension| format!(".{extension}")).collect();
@@ -221,7 +227,26 @@ fn install(store: &Store, source: &Source, targets: &[&str], all: bool) -> ExitC
     ExitCode::FAILURE
 }
 
+/// The newest version of `name` installed here and the newest the index offers this machine, when
+/// the installed one is newer (the index went back to an older number, or the kit came by `kit
+/// add`): installing or upgrading without a version then leaves the kit as it is.
+fn ahead_of_index(store: &Store, name: &str, kit: &IndexKit) -> Option<(Version, Version)> {
+    let held = store.kit(name)?.versions.first()?.version.clone();
+    let offered = Store::choose(name, kit, None, &kition_cli::home::platform()).ok()?;
+    (held > offered).then_some((held, offered))
+}
+
 fn install_one(store: &Store, loaded: &Loaded, name: &str, version: Option<&Version>) -> Result<(), String> {
+    if version.is_none()
+        && let Some((short, kit)) = loaded.index.kit(name)
+        && let Some((held, offered)) = ahead_of_index(store, short, kit)
+    {
+        store.pin(short, None)?;
+        println!(
+            "{short} {held} is installed, newer than the kit index's newest, {offered}: it stays in use (`kition kit install {short}@{offered}` installs that one)"
+        );
+        return Ok(());
+    }
     let mut progress = Progress::new(short(name));
     let installed = store.install_reporting(loaded, name, version, &mut |done, total| progress.update(done, total));
     progress.finish();
@@ -260,8 +285,17 @@ fn upgrade(store: &Store, source: &Source, only: Option<&str>) -> ExitCode {
             println!("{} stays at {pinned} (pinned): `kition kit upgrade {}` moves it", kit.name, kit.name);
             continue;
         }
-        if loaded.index.kit(&kit.name).is_none() {
+        let Some((_, listed)) = loaded.index.kit(&kit.name) else {
             println!("{} is not in the kit index: left as it is", kit.name);
+            continue;
+        };
+        if let Some((held, offered)) = ahead_of_index(store, &kit.name, listed) {
+            if let Err(message) = store.pin(&kit.name, None) {
+                eprintln!("kition: {message}");
+                failed = true;
+                continue;
+            }
+            println!("{} {held} is newer than the kit index's newest, {offered}: left as it is", kit.name);
             continue;
         }
         let before = kit.in_use().map(|installed| installed.version.clone());

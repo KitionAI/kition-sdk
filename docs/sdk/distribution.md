@@ -12,10 +12,8 @@ them needs no account, no token and no Rust.
 | --- | --- |
 | `kition-sdk-<version>-<platform>.tar.gz` | The SDK bundle for one platform: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc 2.17 or later), `win32-x64` |
 | `kition-<version>-<platform>.tar.gz` | The `kition` command line for one platform: `kition` (`kition.exe` on Windows) and `LICENSE` ([cli.md](cli.md)) |
-| `kition-<kit>-<kitVersion>-<platform>.tar.gz` | One kit version for one platform, as `kition` installs it: `kit.json` and `kition-<kit>` (`.exe` on Windows). Only kit versions no earlier release published |
-| `kits-index.json` | The kit index ([`kits-index.schema.json`](../../schemas/kits-index.schema.json)): every published kit version still downloadable, from this release and the earlier ones |
 | `install.sh`, `install.ps1` | The `kition` installers for macOS and Linux, and for Windows |
-| `kition-sdk-<version>.json` | The release manifest: the SDK commit; each kit's version, package URL and SHA-256, and the tag and commit its executable was built from; each platform's bundle and every executable in it, with its size, SHA-256 and the kit version it answers `kit.initialize` with; each platform's `kition` archive (`cli`), the kit archives this release adds (`kitArchives`), the index (`index`) and the installers, each with its size, SHA-256 and URL; each schema with its URL |
+| `kition-sdk-<version>.json` | The release manifest: the SDK commit; each kit's version, package URL and SHA-256, and the tag and commit its executable was built from; each platform's bundle and every executable in it, with its size, SHA-256 and the kit version it answers `kit.initialize` with; each platform's `kition` archive (`cli`) and the installers, each with its size, SHA-256 and URL; each schema with its URL |
 | `<name>.schema.json` | The SDK's schemas (`kit.schema.json`, `mcp-tools.schema.json`, `kit-process-protocol.schema.json`, `kits-service.schema.json`, `kits-index.schema.json`), each at a versioned address |
 | `SHA256SUMS` | Every asset above, in `sha256sum -c` form |
 
@@ -43,8 +41,9 @@ was made: it answered `kit.initialize` with its package's kit id and version and
 Process Protocol version, or there is no release.
 
 The `kition` command line takes kits one at a time instead: it downloads each kit's archive
-from a kit index into a store under `~/.kition` when it is needed ([cli.md](cli.md)). Its
-archives, the kit archives and the index are assets of the same release (below).
+from a kit index into a store under `~/.kition` when it is needed ([cli.md](cli.md)). Its own
+archives are assets of the release; the kit archives are assets of each kit's repository, and the
+index is gathered from them (below). A release holds no kit archive and no kit index.
 
 ## `kition` and its installers
 
@@ -73,30 +72,55 @@ file's ELF version needs). Linux with the musl C library (Alpine) is not support
 
 ## Kit archives and the kit index
 
-`kition` reads `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`:
-the index of whichever release is the latest. That index must list every kit version that can
-still be downloaded, while a release builds only the kit versions Kition's kit lock pins now, and a
-published release never changes. So each release's index carries the previous one forward
-(`tools/release-archives.mjs`):
+Each kit repository publishes its own archives. A kit's `package-v<version>` Release (in
+`KitionAI/kition-<kit>`, made by the kit's Package workflow: Kition's `docs/kits.md`, section 4b)
+holds, beside the kit's package:
 
-- The release workflow downloads the latest release's `kits-index.json` and starts from it. A
-  latest release without one (one made before `kition`) starts the index afresh; a release it
-  cannot read stops the run, so a version is never dropped by accident.
-- Every entry of the previous index stays as it was, with its absolute address in the release
-  that holds the archive: an archive is published once, by the first release that builds its kit
-  version for its platform, and every later index points there.
-- A kit version and platform this release builds that the index does not list yet becomes an
-  archive of this release, `kition-<kit>-<kitVersion>-<platform>.tar.gz`, listed at its absolute
-  address. One the index lists already gets no new archive; the one published first stays. Its
-  Kit Process Protocol must be the same as this build's, or the run stops: a changed kit is a new
-  kit version.
-- Only kits in `published-kits.json` enter the index, and a kit taken off that list leaves it
-  (its archives stay in the releases that published them).
-- A kit's id, name and extensions follow the kit.json of its newest version.
+- `kition-<kit>-<version>-<platform>.tar.gz` for each platform: `kit.json` and `kition-<kit>`
+  (`.exe` on Windows) at its top, as `kition kit install` unpacks it;
+- `kits-index-<kit>-<version>.json`, the index fragment: a kit index of that one kit version, with
+  each archive's absolute address in the Release, size and SHA-256. It is published once and never
+  replaced, so it can list fewer platforms than the Release holds (a platform added by a later
+  run).
 
-The index is checked against its schema, and the release manifest checks that it lists every kit
-version the bundles hold, for every platform, and that every kit archive in the release is one it
-names, with the size and SHA-256 it gives.
+So a kit version is installable as soon as its Release has its archives and fragment; no SDK
+release is needed.
+
+`kition` reads the index gathered from those Releases,
+`https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json`: the one file
+of the branch `kits-index` of this repository. `.github/workflows/kits-index.yml` makes it, by hand
+and every hour, with `tools/kits-index.mjs`:
+
+- For every kit Kition's `kits/modules.json` names, it lists the repository's `package-v*`
+  Releases and reads each one's fragment. The kit repositories are the only source: nothing is
+  carried from an earlier index, and every kit is in it, not only those in
+  `published-kits.json` (the kits this SDK documents and bundles).
+- A Release without a fragment is skipped and named in the run's report. An archive the Release
+  holds that its fragment does not list is added from the Release's asset metadata: its size, and
+  the SHA-256 GitHub gives as its digest (or, without one, from downloading it).
+- A fragment that is not an index of that one kit version, or that names an archive the Release
+  no longer holds, or at another address, size or SHA-256 than the Release's, stops the run; so
+  does a repository whose Releases cannot be listed or a fragment that cannot be read. A failure
+  never publishes a smaller index.
+- A kit's id, name and extensions come from its newest version's fragment; each version keeps the
+  Kit Process Protocol its fragment declares. The index is checked against its schema and written
+  in a fixed order, so the same Releases give the same bytes.
+- An index with no kit is never published: the one published stays.
+- The workflow commits the index on the branch only when its bytes changed, without force, so the
+  branch's history is the index's history.
+
+**This is the one mutable thing the repository publishes.** Everything else, releases and their
+assets among them, never changes once published (below); the index changes whenever a kit
+repository publishes a version. It is a branch rather than a release asset because this
+repository's releases are immutable.
+
+To run it by hand (read-only; `GH_TOKEN`, when set, is used for the GitHub API):
+
+```sh
+node tools/kits-index.mjs --dry-run                       # what the index would hold
+node tools/kits-index.mjs --out kits-index.json \
+  --previous <published kits-index.json>                  # write it; name what enters and leaves
+```
 
 ## Getting one
 
@@ -135,26 +159,25 @@ npm). `@kition/embed` has no dependencies. `@kition/embed-server` depends on `@k
 
 A published release, its tag and its assets are never deleted, replaced or moved, and a version
 number is never used twice; the same holds for the kit packages (`package-v<version>` in each
-kit's repository) and the npm packages. A correction is a new version. The repositories turn on
-GitHub's immutable releases, which enforces this for releases.
+kit's repository), their archives and index fragments, and the npm packages. A correction is a
+new version. The repositories turn on GitHub's immutable releases, which enforces this for
+releases. The kit index on the branch `kits-index` is the one exception (above).
 
 ## Making one locally
 
 `node tools/sdk-bundle.mjs` (`pnpm sdk:bundle`) assembles a bundle on a developer machine with the
-executables built there; it publishes nothing. `tools/release-archives.mjs` makes the `kition` and
-kit archives and the index from a folder of `bin-<platform>/` folders, each holding `kition`, the
-kit executables, their `handshakes.json` (`node tools/kit-handshake.mjs --record <folder>`) and
-`kits/<kit>/kit.json`; `--previous <kits-index.json>` carries an index forward, and `--base-url`
-and `--version` name a rehearsal's own release:
+executables built there; it publishes nothing. `tools/release-archives.mjs` makes the `kition`
+archives from a folder of `bin-<platform>/` folders, each holding `kition`; `--version` names a
+rehearsal's own version:
 
 ```sh
-node tools/release-archives.mjs --bin <folder> --out <release folder> \
-  --previous kits-index.json --base-url http://127.0.0.1:8000/releases/download/sdk-v0.4.0
+node tools/release-archives.mjs --bin <folder> --out <release folder> --version 0.4.0
 ```
 
 Served over HTTP as `<url>/releases/download/sdk-v<version>/` and `<url>/releases/latest/download/`,
-such a folder is a release `install.sh` installs from (`KITION_RELEASES_URL=<url>/releases`) and
-`kition` installs kits from (`KITION_INDEX=<url>/releases/latest/download/kits-index.json`). Supply a KHP specification with
+such a folder is a release `install.sh` installs from (`KITION_RELEASES_URL=<url>/releases`).
+`kition` installs kits from any index named with `KITION_INDEX` or `--index`: a kit's fragment, or
+one `tools/kits-index.mjs --out` wrote. Supply a KHP specification with
 `--standard <folder>` (or `KIT_STANDARD_DIR`; a clone of
 [kitharness/khp](https://github.com/kitharness/khp)) and a kit lock with `--lock <file>` (or
 `KITION_KITS_LOCK`; Kition's `kits/kits.lock.json`). The kit packages are downloaded from their

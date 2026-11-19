@@ -12,8 +12,8 @@ Pick one way to get the server:
 
 - **npm**: `npx -y @kition/kits-mcp --workspace <folder>` downloads `kition` for your platform
   (macOS arm64 and x64, Linux arm64 and x64 with glibc, Windows x64) and starts `kition mcp`,
-  which downloads each published kit into `~/.kition/kits` the first time the agent opens a file
-  of it. Node.js 20 or later. `npm install -g @kition/kits-mcp` installs it as the command
+  which downloads each kit of the kit index into `~/.kition/kits` the first time the agent opens
+  a file of it. Node.js 20 or later. `npm install -g @kition/kits-mcp` installs it as the command
   `kition-kits-mcp`.
 - **`kition`**: the same server without Node.js. Install `kition` with the install script and
   register it with `kition agent add claude` (or `codex`, `cursor`), which registers

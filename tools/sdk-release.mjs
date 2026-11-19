@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Writes the files of one Kition SDK GitHub Release (`sdk-v<version>`, made by
 // .github/workflows/release.yml) beside the platform bundles that tools/sdk-bundle.mjs made and
-// the archives and kit index that tools/release-archives.mjs made:
+// the `kition` archives that tools/release-archives.mjs made:
 //
 //   kition-sdk-<version>.json   the release manifest: the SDK version, tag and commit; each kit
 //                               (version, package tag, commit, URL and SHA-256); each platform's
 //                               bundle and every executable in it, with its size and SHA-256 and,
 //                               for a kit, the kit version it answered kit.initialize with; each
-//                               platform's `kition` archive; the kit archives this release adds and
-//                               the kit index; the install scripts; and each schema with its URL
+//                               platform's `kition` archive; the install scripts; and each schema
+//                               with its URL
 //   <schema>.schema.json        the SDK's schemas (schemas/), each its own asset, so the release
 //                               gives every schema a stable, versioned address
 //   install.sh, install.ps1     the `kition` installers (install/)
@@ -17,9 +17,9 @@
 //   node tools/sdk-release.mjs --dir <folder of kition-sdk-<version>-<platform>.tar.gz>
 //
 // Every bundle must be of this SDK's version and commit and hold the same kits; every bundle's
-// platform needs its `kition-<version>-<platform>.tar.gz`; kits-index.json must list every kit
-// version the bundles hold for every platform; and every other `.tar.gz` there must be an archive
-// the index names. Otherwise nothing is written. It publishes nothing.
+// platform needs its `kition-<version>-<platform>.tar.gz`; and no other `.tar.gz` may be there (the
+// kit repositories publish the kit archives, and tools/kits-index.mjs gathers the kit index from
+// them: docs/sdk/distribution.md). Otherwise nothing is written. It publishes nothing.
 import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -63,12 +63,10 @@ export function bundleManifest(archive) {
 
 /**
  * The release manifest from each platform bundle's manifest (`found`: `{ platform, file, size,
- * sha256, manifest }`), the schemas and installers (`{ file, size, sha256 }`), the `kition`
- * archives (`cli`: `{ platform, file, size, sha256 }`), the kit index (`index`: `{ file, size,
- * sha256, body }`) and the kit archives in this release (`kitArchives`: `{ kit, version, platform,
- * file, size, sha256 }`, each as the index names it).
+ * sha256, manifest }`), the schemas and installers (`{ file, size, sha256 }`) and the `kition`
+ * archives (`cli`: `{ platform, file, size, sha256 }`).
  */
-export function releaseManifest(version, found, schemas, { cli = [], index = null, kitArchives = [], installers = [] } = {}) {
+export function releaseManifest(version, found, schemas, { cli = [], installers = [] } = {}) {
   if (!found.length) throw new Error(`no kition-sdk-${version}-<platform>.tar.gz`)
   const [first] = found
   const kits = (manifest) => JSON.stringify(manifest.kits.map(({ kit, version: v, sha256: sum }) => [kit, v, sum]))
@@ -87,12 +85,6 @@ export function releaseManifest(version, found, schemas, { cli = [], index = nul
   for (const { platform } of found) {
     if (!cli.some((entry) => entry.platform === platform)) throw new Error(`no kition-${version}-${platform}.tar.gz for the ${platform} bundle`)
   }
-  if (!index) throw new Error('no kits-index.json (tools/release-archives.mjs writes it)')
-  for (const kit of first.manifest.kits) {
-    for (const { platform } of found) {
-      if (!index.body.kits[kit.kit]?.versions[kit.version]?.platforms[platform]) throw new Error(`kits-index.json lists no ${kit.kit} ${kit.version} for ${platform}`)
-    }
-  }
   return {
     name: 'kition-sdk',
     version,
@@ -103,8 +95,6 @@ export function releaseManifest(version, found, schemas, { cli = [], index = nul
     packages: first.manifest.packages.map(({ name, version: v, size, sha256: sum, file }) => ({ name, version: v, file, size, sha256: sum })),
     schemas: schemas.map(({ file, size, sha256: sum }) => ({ file, size, sha256: sum, url: assetUrl(version, file) })),
     cli: Object.fromEntries(cli.map(({ platform, file, size, sha256: sum }) => [platform, { file, size, sha256: sum, url: assetUrl(version, file) }])),
-    index: { file: index.file, size: index.size, sha256: index.sha256, url: assetUrl(version, index.file) },
-    kitArchives: kitArchives.map(({ kit, version: v, platform, file, size, sha256: sum, url }) => ({ kit, version: v, platform, file, size, sha256: sum, url })),
     installers: installers.map(({ file, size, sha256: sum }) => ({ file, size, sha256: sum, url: assetUrl(version, file) })),
     platforms: Object.fromEntries(
       found.map(({ platform, file, size, sha256: sum, manifest }) => [
@@ -123,29 +113,12 @@ export function releaseManifest(version, found, schemas, { cli = [], index = nul
 }
 
 /**
- * The kit archives in `dir` that `index` names (an archive whose address ends in its file name),
- * checked against the size and SHA-256 the index gives. Any other `.tar.gz` in `dir` that is not
- * one of `known` is refused, so no stray archive is published.
+ * Refuses any `.tar.gz` in `dir` that is not one of `known` (the bundles and the `kition`
+ * archives), so no stray archive, such as a kit archive, is published with the release.
  */
-export function indexedArchives(dir, index, known) {
-  const named = new Map()
-  for (const [kit, entry] of Object.entries(index.kits)) {
-    for (const [version, { platforms }] of Object.entries(entry.versions)) {
-      for (const [platform, archive] of Object.entries(platforms)) named.set(archive.url.slice(archive.url.lastIndexOf('/') + 1), { kit, version, platform, ...archive })
-    }
-  }
-  const found = []
-  for (const file of fs.readdirSync(dir).filter((name) => name.endsWith('.tar.gz')).sort()) {
-    if (known.has(file)) continue
-    const entry = named.get(file)
-    if (!entry) throw new Error(`${file} is neither a bundle, a kition archive nor an archive kits-index.json names`)
-    const archive = path.join(dir, file)
-    const size = fs.statSync(archive).size
-    const sum = sha256(archive)
-    if (size !== entry.size || sum !== entry.sha256) throw new Error(`${file} is ${size} bytes, sha256 ${sum}; kits-index.json says ${entry.size} bytes, sha256 ${entry.sha256}`)
-    found.push({ ...entry, file })
-  }
-  return found
+export function strayArchives(dir, known) {
+  const stray = fs.readdirSync(dir).filter((name) => name.endsWith('.tar.gz') && !known.has(name)).sort()
+  if (stray.length) throw new Error(`${stray.join(', ')}: neither a bundle nor a kition archive of this version; kit archives are published by the kit repositories`)
 }
 
 /** The release files in `dir` copied from the repository: `schemas/*.schema.json` and `install/*`. */
@@ -165,14 +138,13 @@ export function writeRelease(dir, version) {
   const described = (file) => ({ file, size: fs.statSync(path.join(dir, file)).size, sha256: sha256(path.join(dir, file)) })
   const found = bundles(dir, version).map(({ file, platform }) => ({ platform, ...described(file), manifest: bundleManifest(path.join(dir, file)) }))
   const cli = cliArchives(dir, version).map(({ file, platform }) => ({ platform, ...described(file) }))
-  const index = fs.existsSync(path.join(dir, 'kits-index.json')) ? { ...described('kits-index.json'), body: JSON.parse(fs.readFileSync(path.join(dir, 'kits-index.json'), 'utf8')) } : null
-  const kitArchives = index ? indexedArchives(dir, index.body, new Set([...found, ...cli].map(({ file }) => file))) : []
+  strayArchives(dir, new Set([...found, ...cli].map(({ file }) => file)))
   const schemas = copyAssets(dir, 'schemas', (file) => file.endsWith('.schema.json'))
   const installers = copyAssets(dir, 'install', (file) => /^install\.(sh|ps1)$/.test(file))
-  const manifest = releaseManifest(version, found, schemas, { cli, index, kitArchives, installers })
+  const manifest = releaseManifest(version, found, schemas, { cli, installers })
   const manifestFile = `kition-sdk-${version}.json`
   fs.writeFileSync(path.join(dir, manifestFile), `${JSON.stringify(manifest, null, 2)}\n`)
-  const assets = [...found, ...cli, ...kitArchives, ...schemas, ...installers, ...(index ? [index] : [])].map(({ file }) => file).concat(manifestFile).sort()
+  const assets = [...found, ...cli, ...schemas, ...installers].map(({ file }) => file).concat(manifestFile).sort()
   fs.writeFileSync(path.join(dir, 'SHA256SUMS'), assets.map((file) => `${sha256(path.join(dir, file))}  ${file}`).join('\n') + '\n')
   return manifest
 }

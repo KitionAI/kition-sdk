@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-kit-newer-than-index
+feature: sdk.cli.kit-commands
+intent: >-
+  A kit version installed here that is newer than every version the kit index lists (the index
+  went back to an older number, as Note did from 0.3.0 to 0.1.0, or the kit came by kit add) stays
+  in use: kit upgrade and kit install without a version download nothing, say the installed one
+  is newer than the index's newest and leave it as it is (before, upgrade downloaded the older
+  version, said "upgraded 0.3.0 -> 0.2.0" and removed it again); kit list marks it newer than the
+  index and offers no upgrade; asked for by number, the older version is installed and pinned.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/kits.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: kits, filter: "an_installed_version_newer_than_the_index" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 300

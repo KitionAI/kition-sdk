@@ -7,6 +7,6 @@
     "service": { "name": "kition-kits", "env": "KITION_KITS", "version": 1 },
     "mcp": { "name": "kition-kits-mcp", "env": "KITION_KITS_MCP", "npm": "@kition/kits-mcp" },
     "kits": { "env": "KITION_KIT_<KIT>_BINARY", "name": "kition-<kit>" },
-    "cli": { "name": "kition", "home": "KITION_HOME", "index": "KITION_INDEX", "defaultIndex": "https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json" }
+    "cli": { "name": "kition", "home": "KITION_HOME", "index": "KITION_INDEX", "defaultIndex": "https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json" }
   }
 }

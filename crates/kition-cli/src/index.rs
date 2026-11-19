@@ -3,8 +3,9 @@
 //! (`schemas/kits-index.schema.json`). A kit archive is a `.tar.gz` holding the kit's `kit.json`
 //! and its executable.
 //!
-//! The index is read from `KITION_INDEX`, `--index`, or the SDK's latest release; each read is kept
-//! in the home's `cache/`, so a person without a network still sees what was there last time.
+//! The index is read from `KITION_INDEX`, `--index`, or [`DEFAULT_INDEX`], the index gathered from
+//! the kit repositories' releases (kition-sdk's `tools/kits-index.mjs`); each read is kept in the
+//! home's `cache/`, so a person without a network still sees what was there last time.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -19,8 +20,9 @@ use crate::home::Home;
 /// The index format this program reads (`schemaVersion`).
 pub const SCHEMA_VERSION: u64 = 1;
 
-/// Where the index is when nothing else is named.
-pub const DEFAULT_INDEX: &str = "https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json";
+/// Where the index is when nothing else is named: the one file of the branch `kits-index` of
+/// kition-sdk, which `.github/workflows/kits-index.yml` gathers from every kit repository's releases.
+pub const DEFAULT_INDEX: &str = "https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json";
 
 /// The variable that names another index: an address or a file.
 pub const INDEX_VARIABLE: &str = "KITION_INDEX";

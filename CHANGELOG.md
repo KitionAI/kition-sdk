@@ -4,6 +4,25 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit index comes from the kit repositories.** Each kit repository publishes its own
+  archives (`kition-<kit>-<version>-<platform>.tar.gz`) and an index fragment
+  (`kits-index-<kit>-<version>.json`) in its `package-v<version>` Release;
+  `tools/kits-index.mjs` merges every kit's fragments, and `.github/workflows/kits-index.yml`
+  publishes the result, when it changed, as the one file of the branch `kits-index`.
+  `kition`'s default index is now
+  `https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json`
+  (`sdk.json` `binaries.cli.defaultIndex`): every kit Kition names and every version its
+  repository has published with archives, not only the kits in `published-kits.json`, installable
+  as soon as the kit's Release has them. It is the one mutable thing this repository publishes
+  (`docs/sdk/distribution.md`).
+- **An SDK release no longer publishes kit archives or `kits-index.json`**, and no longer
+  carries an index forward: `tools/release-archives.mjs` writes the `kition` archives only, and
+  the release manifest has no `index` or `kitArchives`. The bundle still carries the published
+  kits' executables in `bin/<platform>/`.
+- `kition kit upgrade` and `kition kit install <kit>`, when the version installed is newer than
+  every version in the index (Note went from 0.3.0 back to 0.1.0), leave it in use and say so,
+  instead of downloading the older version, reporting "upgraded 0.3.0 -> 0.1.0" and removing it
+  again; `kit list` marks it `(newer than the index)`.
 - **`kition`, the command line, easier to use**:
   - `kition kit install` takes several kits, and `--all` installs every kit the index has for this
     machine; `kition kit remove` takes several kits. A kit that fails does not stop the others,

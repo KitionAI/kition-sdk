@@ -1,0 +1,31 @@
+format: 1
+id: sdk.distribution.kits-index/gather
+feature: sdk.distribution.kits-index
+intent: >-
+  The aggregator lists every package-v<version> release of each kit Kition's modules.json names,
+  page by page, and merges the releases' index fragments into one index valid against its schema,
+  at the kit repositories' addresses, byte for byte the same whatever order the releases come in;
+  a kit's id, name and extensions come from its newest version, each version keeps its own
+  protocol. A release without a fragment, a draft or another tag is skipped and named; an archive
+  the release holds and its fragment does not list is added from the asset's digest, or hashed
+  when GitHub gives none. A fragment that is not an index of that one kit version, or that names
+  an archive the release no longer holds or with another address, size or SHA-256, stops the run,
+  as does a repository that cannot be listed or a fragment that cannot be read. An index with no
+  kit is not written and has its own exit status; --dry-run writes nothing, --previous names what
+  enters and leaves; a token goes to the GitHub API only.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kits-index.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kits-index.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-18"
+timeout_s: 60

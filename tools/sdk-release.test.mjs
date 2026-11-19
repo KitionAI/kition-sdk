@@ -48,22 +48,9 @@ function writeBundle(dir, platform, body) {
   fs.rmSync(path.join(dir, 'stage'), { recursive: true })
 }
 
-/**
- * What tools/release-archives.mjs writes beside the bundles: kition-9.9.9-<platform>.tar.gz, a kit
- * archive per platform for note 0.3.0, and kits-index.json naming those and an older version.
- */
+/** What tools/release-archives.mjs writes beside the bundles: kition-9.9.9-<platform>.tar.gz. */
 function writeArchives(dir, platforms) {
-  const platformsOf = {}
-  for (const platform of platforms) {
-    fs.writeFileSync(path.join(dir, `kition-9.9.9-${platform}.tar.gz`), `kition ${platform}`)
-    const file = `kition-note-0.3.0-${platform}.tar.gz`
-    fs.writeFileSync(path.join(dir, file), `note ${platform}`)
-    platformsOf[platform] = { url: assetUrl('9.9.9', file), size: fs.statSync(path.join(dir, file)).size, sha256: sha256(path.join(dir, file)) }
-  }
-  const older = { protocol: 'kition-kit/2', platforms: { 'linux-x64': { url: 'https://github.com/KitionAI/kition-sdk/releases/download/sdk-v9.9.8/kition-note-0.2.0-linux-x64.tar.gz', size: 1, sha256: '1'.repeat(64) } } }
-  const index = { schemaVersion: 1, kits: { note: { id: 'kit.note', name: 'Note', extensions: ['md'], versions: { '0.2.0': older, '0.3.0': { protocol: 'kition-kit/2', platforms: platformsOf } } } } }
-  fs.writeFileSync(path.join(dir, 'kits-index.json'), JSON.stringify(index))
-  return index
+  for (const platform of platforms) fs.writeFileSync(path.join(dir, `kition-9.9.9-${platform}.tar.gz`), `kition ${platform}`)
 }
 
 describe('sdk-release: the release manifest of one SDK version', () => {
@@ -95,14 +82,14 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     expect(schema.sha256).toBe(sha256(path.join(dir, 'mcp-tools.schema.json')))
 
     expect(written.cli['win32-x64']).toEqual({ file: 'kition-9.9.9-win32-x64.tar.gz', size: fs.statSync(path.join(dir, 'kition-9.9.9-win32-x64.tar.gz')).size, sha256: sha256(path.join(dir, 'kition-9.9.9-win32-x64.tar.gz')), url: assetUrl('9.9.9', 'kition-9.9.9-win32-x64.tar.gz') })
-    expect(written.index).toMatchObject({ file: 'kits-index.json', url: assetUrl('9.9.9', 'kits-index.json'), sha256: sha256(path.join(dir, 'kits-index.json')) })
-    // The archives of this release only; the older version's lives in its own release.
-    expect(written.kitArchives.map(({ kit, version, platform, file }) => `${kit} ${version} ${platform} ${file}`)).toEqual(['note 0.3.0 darwin-arm64 kition-note-0.3.0-darwin-arm64.tar.gz', 'note 0.3.0 win32-x64 kition-note-0.3.0-win32-x64.tar.gz'])
+    // No kit archive and no kit index: the kit repositories publish those.
+    expect(Object.keys(written)).not.toContain('index')
+    expect(Object.keys(written)).not.toContain('kitArchives')
     expect(written.installers.map(({ file }) => file)).toEqual(['install.ps1', 'install.sh'])
     expect(fs.readFileSync(path.join(dir, 'install.sh'), 'utf8')).toMatch(/^#!\/bin\/sh/)
 
     const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').trim().split('\n').map((line) => line.split('  '))
-    for (const file of ['kition-sdk-9.9.9.json', 'kition-sdk-9.9.9-win32-x64.tar.gz', 'kition-9.9.9-darwin-arm64.tar.gz', 'kition-note-0.3.0-win32-x64.tar.gz', 'kits-index.json', 'install.sh', 'install.ps1', 'kits-index.schema.json']) {
+    for (const file of ['kition-sdk-9.9.9.json', 'kition-sdk-9.9.9-win32-x64.tar.gz', 'kition-9.9.9-darwin-arm64.tar.gz', 'install.sh', 'install.ps1', 'kits-index.schema.json']) {
       expect(sums.map(([, name]) => name)).toContain(file)
     }
     for (const [sum, file] of sums) expect(sum).toBe(sha256(path.join(dir, file)))
@@ -114,23 +101,18 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     expect(cliArchives(dir, '9.9.9')).toEqual([{ file: 'kition-9.9.9-linux-x64.tar.gz', platform: 'linux-x64' }])
   })
 
-  it('refuses a release without kition for a bundle’s platform, an index without the bundle’s kits, or an archive the index does not name', () => {
+  it('refuses a release without kition for a bundle’s platform, or with any other archive, a kit archive among them', () => {
     const release = (prepare) => {
       const dir = tempDir()
       writeBundle(dir, 'darwin-arm64', manifest('darwin-arm64'))
       writeBundle(dir, 'linux-x64', manifest('linux-x64'))
-      prepare(dir, writeArchives(dir, ['darwin-arm64', 'linux-x64']))
+      writeArchives(dir, ['darwin-arm64', 'linux-x64'])
+      prepare(dir)
       return () => writeRelease(dir, '9.9.9')
     }
     expect(release((dir) => fs.rmSync(path.join(dir, 'kition-9.9.9-linux-x64.tar.gz')))).toThrow(/no kition-9\.9\.9-linux-x64\.tar\.gz/)
-    expect(release((dir) => fs.rmSync(path.join(dir, 'kits-index.json')))).toThrow(/no kits-index\.json/)
-    expect(release((dir, index) => {
-      delete index.kits.note.versions['0.3.0'].platforms['linux-x64']
-      fs.writeFileSync(path.join(dir, 'kits-index.json'), JSON.stringify(index))
-      fs.rmSync(path.join(dir, 'kition-note-0.3.0-linux-x64.tar.gz'))
-    })).toThrow(/lists no note 0\.3\.0 for linux-x64/)
-    expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-table-0.1.0-linux-x64.tar.gz'), 'stray'))).toThrow(/kition-table-0\.1\.0-linux-x64\.tar\.gz is neither/)
-    expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-note-0.3.0-linux-x64.tar.gz'), 'rebuilt'))).toThrow(/kits-index\.json says/)
+    expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-note-0.3.0-linux-x64.tar.gz'), 'kit'))).toThrow(/kition-note-0\.3\.0-linux-x64\.tar\.gz: neither a bundle nor a kition archive/)
+    expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-9.9.8-linux-x64.tar.gz'), 'old'))).toThrow(/kition-9\.9\.8-linux-x64\.tar\.gz: neither/)
   })
 
   it('refuses bundles that disagree or a kit executable that answers another version', () => {

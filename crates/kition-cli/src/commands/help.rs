@@ -32,8 +32,9 @@ troubleshooting:
 
 environment:
   KITION_HOME    where kits are kept (default ~/.kition): kits/<kit>/<version>/
-  KITION_INDEX   the kit index: an https address or a file (default the SDK's latest release:
-                 https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json)
+  KITION_INDEX   the kit index: an https address or a file (default the SDK's kit index, gathered
+                 from every kit's releases:
+                 https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json)
   HTTPS_PROXY, HTTP_PROXY, ALL_PROXY, NO_PROXY   proxies for downloads
 ";
 

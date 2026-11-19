@@ -83,8 +83,8 @@ installed, put `kition` as the command and `mcp` as the first argument.
 
 The server starts with the kits already in `~/.kition/kits` (or `$KITION_HOME/kits`). When the
 agent first names a file that no installed kit opens, the server downloads the kit that opens it
-from the kit index of the latest SDK release, checks its SHA-256, installs it, and tells the agent
-about its tools (`notifications/tools/list_changed`). A file of a kit that cannot be downloaded
+from the kit index (gathered from every kit repository's releases), checks its SHA-256, installs
+it, and tells the agent about its tools (`notifications/tools/list_changed`). A file of a kit that cannot be downloaded
 answers why, as a tool error.
 
 To install kits before the agent starts (a machine that will be offline, a shared image), run the

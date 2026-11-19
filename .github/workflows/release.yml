@@ -3,15 +3,15 @@ name: release
 # - the GitHub Release sdk-v<version> of this repository: the SDK bundle of each platform
 #   (tools/sdk-bundle.mjs: npm tarballs, kit packages, bin/<platform>/ with kition-kits,
 #   kition-kits-mcp and each published kit's headless executable, docs, schemas, manifest.json,
-#   SHA256SUMS); kition-<version>-<platform>.tar.gz, each published kit version not released
-#   before as kition-<kit>-<kitVersion>-<platform>.tar.gz, and kits-index.json, the latest
-#   release's index with these added (tools/release-archives.mjs); install.sh and install.ps1;
-#   the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
+#   SHA256SUMS); kition-<version>-<platform>.tar.gz (tools/release-archives.mjs); install.sh and
+#   install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
 #   (tools/sdk-release.mjs), with build provenance attestations;
 # - the public @kition/* packages on npm, with @kition/kits-mcp and @kition/kits-mcp-<platform>
 #   (which carries kition).
 # Each published kit's executable is built from the tag that Kition's kits/kits.lock.json pins for
-# its package, and must answer kit.initialize with that package's version.
+# its package, and must answer kit.initialize with that package's version. A release publishes no
+# kit archive and no kit index: each kit repository publishes its own archives, and
+# .github/workflows/kits-index.yml gathers the index `kition` reads (docs/sdk/distribution.md).
 # Run it by hand from the Actions tab. A release is never replaced: a version already released
 # stops the run, and an npm version already published is skipped; bump sdk.json to publish again.
 on:
@@ -163,20 +163,21 @@ jobs:
           exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
           node packages/kits-mcp/scripts/platform-package.mjs platform --platform "$PLATFORM" \
             --kition "target/release-bin/$PLATFORM/kition$exe" --out target/kits-mcp/npm
-      # The package's kition installs every published kit from this platform's archives, made as
-      # the publish job makes them, through an index beside them (relative addresses), into a
-      # Kition home of its own; each kit is then installed with its executable.
-      - name: Smoke test the package and the kit archives
+      # The package's kition adds every published kit built here (its kit.json and executable, in a
+      # folder of their own) into a Kition home of its own, with the checks of an install; each kit
+      # is then in use with its executable.
+      - name: Smoke test the package with the published kits
         run: |
           set -euo pipefail
           exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
           smoke="target/smoke"
-          mkdir -p "$smoke/bin"
-          cp -R "target/release-bin/$PLATFORM" "$smoke/bin/bin-$PLATFORM"
-          node tools/release-archives.mjs --bin "$smoke/bin" --out "$smoke/release" --base-url .
           kition="target/kits-mcp/npm/$PLATFORM/bin/kition$exe"
-          export KITION_HOME="$smoke/home" KITION_INDEX="$smoke/release/kits-index.json"
-          for kit in $(node -p 'require("./published-kits.json").join(" ")'); do "$kition" kit install "$kit"; done
+          export KITION_HOME="$smoke/home" KITION_INDEX="$smoke/no-index.json"
+          for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
+            mkdir -p "$smoke/kits/$kit"
+            cp "target/release-bin/$PLATFORM/kits/$kit/kit.json" "target/release-bin/$PLATFORM/kition-$kit$exe" "$smoke/kits/$kit/"
+            "$kition" kit add "$smoke/kits/$kit"
+          done
           "$kition" kit list --json | node -e '
             const kits = JSON.parse(require("fs").readFileSync(0, "utf8")).kits
             const published = require("./published-kits.json")
@@ -228,21 +229,6 @@ jobs:
         with:
           pattern: bin-*
           path: target/release-bin
-      # The index this release's index carries forward (tools/release-archives.mjs): the latest
-      # release's kits-index.json. A latest release without one (before kition) starts the index
-      # afresh; a failure to read the release stops the run, so no version is ever dropped.
-      - name: The kit index of the latest release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p target/previous-index
-          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName,assets --jq '.tagName + " " + ([.assets[].name] | join(" "))')
-          tag=${latest%% *}
-          case " $latest " in
-            *" kits-index.json "*) gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern kits-index.json --dir target/previous-index ;;
-            *) echo "$tag has no kits-index.json: the index starts with this release" ;;
-          esac
       - name: The SDK bundle of each platform, and the release files
         run: |
           set -euo pipefail
@@ -256,9 +242,7 @@ jobs:
             mv "target/bundles/kition-sdk-$version-$platform.tar.gz" target/sdk-release/
             build=(--no-build)
           done
-          previous=()
-          [ -f target/previous-index/kits-index.json ] && previous=(--previous target/previous-index/kits-index.json)
-          node tools/release-archives.mjs --bin target/release-bin --out target/sdk-release "${previous[@]}"
+          node tools/release-archives.mjs --bin target/release-bin --out target/sdk-release
           node tools/sdk-release.mjs --dir target/sdk-release
           (cd target/sdk-release && sha256sum -c SHA256SUMS)
       - run: node tools/pack-public-packages.mjs
@@ -311,7 +295,6 @@ jobs:
             const kits = m.kits.map((k) => `- ${k.id} ${k.version}: package ${k.url} (sha256 ${k.sha256}), built from ${k.repository} ${k.tag} (${k.commit})`).join("\n")
             const platforms = Object.entries(m.platforms).map(([p, b]) => `- ${p}: ${b.bundle} (sha256 ${b.sha256})`).join("\n")
             const cli = Object.entries(m.cli).map(([p, a]) => `- ${p}: ${a.file} (sha256 ${a.sha256})`).join("\n")
-            const added = m.kitArchives.map((a) => `${a.kit} ${a.version} (${a.platform})`).join(", ") || "none, the index carries the archives of earlier releases"
             console.log([
               `Kition SDK ${m.version}, built from ${m.commit}.`, "",
               "Install kition (kits download on first use into ~/.kition/kits):",
@@ -319,7 +302,7 @@ jobs:
               "- Windows: irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex",
               "- npm: npx -y @kition/kits-mcp --workspace <folder>", "",
               "kition:", cli, "",
-              `Kit archives added to kits-index.json: ${added}.`, "",
+              "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.", "",
               "Kits:", kits, "",
               "SDK bundles (bin/<platform>/ holds kition-kits, kition-kits-mcp and each kit executable):", platforms, "",
               `Every executable with its SHA-256 and the kit version it answers: kition-sdk-${m.version}.json. All assets: SHA256SUMS. Provenance: gh attestation verify <file> --repo ${m.repository}.`,

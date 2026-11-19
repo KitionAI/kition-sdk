@@ -17,7 +17,7 @@ the kit store (kition mcp only):
   when the agent first names a file of it (through kit_inspect, or any kit_* tool with --unified);
   the server then announces its new tools (notifications/tools/list_changed)
   --no-install           install nothing: a file of a kit not installed answers how to install it
-  --index <address or file>  the kit index (default KITION_INDEX, else the SDK's latest release)
+  --index <address or file>  the kit index (default KITION_INDEX, else the SDK's kit index)
 ";
 
 fn main() -> ExitCode {

@@ -161,7 +161,7 @@ The packages are version 0.4.0, published under the [`@kition` scope on npm](htt
 | --- | --- |
 | [`@kition/embed`](packages/embed) | Embed kit editors in any web page, over your storage and identity |
 | [`@kition/embed-server`](packages/embed-server) | Serve single-user kit editor pages for embedding by URL |
-| [`@kition/kits-mcp`](packages/kits-mcp) | `kition` from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` starts `kition mcp`, which installs the published kits on first use |
+| [`@kition/kits-mcp`](packages/kits-mcp) | `kition` from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` starts `kition mcp`, which installs each kit on first use |
 | [`@kition/script`](packages/script) | The object model for scripts and extensions, in browsers and Node |
 | [`@kition/extensions`](packages/extensions) | The extension host: manifests, sandboxed workers, declared permissions |
 | [`@kition/sync`](packages/sync) | Client for the open sync protocol `kition-sync/1` |

@@ -130,6 +130,44 @@ fn pack_on_one_home_and_add_on_another_moves_a_kit_without_a_network() {
     assert!(tmp.is_empty(), "nothing is left in tmp/");
 }
 
+/// A kit version installed here that is newer than every version the index lists (the index went
+/// back to an older number, or the kit came by `kit add`): no command downloads the older one in
+/// its place, says it upgraded to it, or downgrades without being asked by number.
+#[test]
+fn an_installed_version_newer_than_the_index_stays_in_use() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("home");
+    // `index` lists fake 0.1.0 and 0.2.0; the store holds 0.3.0, added from a folder.
+    let index = index(dir.path());
+    let folder = kit_folder(dir.path(), "fake-build", &manifest("fake", "0.3.0", P, "kfake", "kition-fake"), b"fake three");
+    let (ok, _, err) = run(kition(&home).args(["kit", "add"]).arg(&folder));
+    assert!(ok, "{err}");
+
+    for args in [&["kit", "upgrade", "--index", &index][..], &["kit", "upgrade", "fake", "--index", &index][..]] {
+        let (ok, out, err) = run(kition(&home).args(args));
+        assert!(ok, "{out}{err}");
+        assert!(out.contains("fake 0.3.0 is newer than the kit index's newest, 0.2.0: left as it is"), "{out}");
+        assert!(!out.contains("upgraded") && !out.contains("removed"), "{out}");
+        assert!(!home.join("kits/fake/0.2.0").exists(), "nothing older is downloaded");
+    }
+
+    let (ok, out, err) = run(kition(&home).args(["kit", "install", "fake", "--index", &index]));
+    assert!(ok, "{out}{err}");
+    assert!(out.contains("fake 0.3.0 is installed, newer than the kit index's newest, 0.2.0") && out.contains("kition kit install fake@0.2.0"), "{out}");
+    assert!(!home.join("kits/fake/0.2.0").exists());
+
+    let (ok, out, _) = run(kition(&home).args(["kit", "list", "--json", "--index", &index]));
+    let fake = serde_json::from_str::<Value>(&out).unwrap()["kits"].as_array().unwrap().iter().find(|kit| kit["name"] == "fake").cloned().unwrap();
+    assert!(ok && fake["inUse"] == "0.3.0" && fake["latest"] == "0.2.0" && fake["upgrade"] == false, "{fake}");
+    let (ok, out, _) = run(kition(&home).args(["kit", "list", "--index", &index]));
+    let row = out.lines().find(|line| line.starts_with("fake ")).unwrap_or_default();
+    assert!(ok && row.contains("0.3.0 (newer than the index)") && row.contains("0.2.0"), "{out}");
+
+    // Asked for by number, the older version is installed and used.
+    let (ok, out, err) = run(kition(&home).args(["kit", "install", "fake@0.2.0", "--index", &index]));
+    assert!(ok && out.contains("fake 0.2.0 is in use (pinned)"), "{out}{err}");
+}
+
 #[test]
 fn add_takes_a_kit_folder_or_a_kit_executable_and_refuses_what_an_install_refuses() {
     let dir = tempfile::tempdir().unwrap();
