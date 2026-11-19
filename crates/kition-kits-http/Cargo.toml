@@ -1,0 +1,36 @@
+[package]
+name = "kition-kits-http"
+description = "The kits' HTTP API over kition-kits for one workspace: kit status, workspace file reads and saves for kit editors, file grants, the Kit AI bridge to open editors, headless drafts, and the kits' MCP server over Streamable HTTP; and the loopback gateway app that serves it behind kition-http-guard."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+# Third-party versions as Kition's runtime resolves them (its Cargo.lock), so the crate syncs back
+# unchanged.
+[dependencies]
+kition-http-guard = { path = "../kition-http-guard" }
+kition-kits = { path = "../kition-kits" }
+kition-kit-host = { path = "../kition-kit-host" }
+kition-kit-process-protocol = { path = "../kition-kit-process-protocol" }
+
+axum = "0.8"
+http = "1"
+httpdate = "1"
+mime_guess = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["io"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+sha2 = "0.10"
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

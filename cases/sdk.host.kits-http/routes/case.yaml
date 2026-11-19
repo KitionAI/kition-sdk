@@ -1,0 +1,32 @@
+format: 1
+id: sdk.host.kits-http/routes
+feature: sdk.host.kits-http
+intent: >-
+  The kits' HTTP API, ported from Kition's runtime into the SDK behind kition-http-guard: an
+  editor window's bridge stream and answers reach the agent's calls; the person lists, compares,
+  merges (refused as stale unless overwrite) and discards headless drafts; an in-page save
+  replaces only the document it names and a new file never replaces one; grant sessions,
+  choices, handles, ranged reads, staged writes, releases and expiry work as KitFiles 1.1 says;
+  POST /mcp/kits speaks MCP statelessly (200 JSON, 202 for notifications, 405 with Allow for GET
+  and DELETE after the token gate, 400 for batches and bad JSON, no Mcp-Session-Id, server/discover
+  unknown), and the guard's envelope, token gate, signed URLs and origin fence behave as Kition's.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-http-guard }
+  - cargo-test: { package: kition-kits-http, test: bridge_routes }
+  - cargo-test: { package: kition-kits-http, test: draft_routes }
+  - cargo-test: { package: kition-kits-http, test: grant_routes }
+  - cargo-test: { package: kition-kits-http, test: mcp_routes }
+  - cargo-test: { package: kition-kits-http, test: files }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

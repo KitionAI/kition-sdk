@@ -1845,6 +1845,20 @@ features:
     cases:
       - sdk.cli.doctor/checks
     since: "2026-11-18"
+  - id: sdk.host.kits-http
+    title: "The kits' HTTP API is an SDK crate (kition-kits-http) behind a transport guard of its own (kition-http-guard): kit status, in-page editor saves, file grants through offered choices, the Kit AI bridge, the person's draft review and the kits' MCP server over stateless Streamable HTTP, with Kition runtime's route paths, envelope and error codes"
+    dimension: [platform, ai]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-http-guard/**
+      - crates/kition-kits-http/**
+      - crates/kition-kits/src/mcp.rs
+      - crates/kition-kit-host/src/files.rs
+    cases:
+      - sdk.host.kits-http/routes
+      - regressions/issue-mcp-http-connections
+    since: "2026-11-19"
   - id: sdk.cli.usage
     title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"
     dimension: [platform, ai]

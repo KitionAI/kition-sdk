@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-mcp-http-connections
+feature: sdk.host.kits-http
+intent: >-
+  Over HTTP every MCP client shared one session whose requests in flight were keyed by JSON-RPC id
+  alone, so a second client's call with an id another had in flight was refused (-32600) and one
+  client's notifications/cancelled could cancel another's call, and every client was the same
+  agent. Connections named by Kition-Mcp-Connection now have their own requests and their own
+  agent, named from clientInfo and stable across a gateway restart; a message naming none is a
+  connection of its own.
+layer: gate
+dimension: ai
+source: { kind: probe, from: DeepSeek Harness MCP client spike S1 against the kits-http endpoint, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: mcp_routes, filter: connections_have_their_own_requests_in_flight }
+  - cargo-test: { package: kition-kits, filter: connections_are_agents_named_by_their_clients }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 120

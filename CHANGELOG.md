@@ -4,6 +4,15 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kits' HTTP API is an SDK crate**, `kition-kits-http`, ported from Kition's runtime with
+  its route paths, envelope and error codes, behind a transport guard of its own,
+  `kition-http-guard` (loopback `Host` and `Origin` fence, the per-launch token, signed GET URLs).
+  Changed from Kition's: `POST /kits/grants` takes a `choice` offered by the new
+  `POST /kits/grants/choices` (and a new file's `name`) instead of a `path`; bridge session ids are
+  random; `POST /mcp/kits` tells connections apart by `Kition-Mcp-Connection`, so clients no longer
+  share requests in flight or cancel each other's calls; routes refuse absolute paths; reads open
+  the file they checked; a link into the workspace's hidden store is refused like the store.
+
 - **Published kits: all 16.** Board, CAD, Design, Doc, Film, Layout, Motion, PDF, Photo, Scene,
   Sheet, Slide and Vector join HTML, Note and Table (`published-kits.json`, `sdk.json`), each at
   the version Kition's `kits/kits.lock.json` pins: their generated typings
