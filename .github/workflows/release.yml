@@ -319,7 +319,7 @@ jobs:
               "- npm: npx -y @kition/kits-mcp --workspace <folder>", "",
               "kition:", cli, "",
               "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.",
-              `This release's kits-index.json is a snapshot of that index as of the release (sha256 ${m.index.sha256}), for kition 0.3.0 and 0.4.0, which read releases/latest/download/kits-index.json.`, "",
+              `The kits-index.json of this release is a snapshot of that index as of the release (sha256 ${m.index.sha256}), for kition 0.3.0 and 0.4.0, which read releases/latest/download/kits-index.json.`, "",
               "Kits:", kits, "",
               "SDK bundles (bin/<platform>/ holds kition-kits, kition-kits-mcp and each kit executable):", platforms, "",
               `Every executable with its SHA-256 and the kit version it answers: kition-sdk-${m.version}.json. All assets: SHA256SUMS. Provenance: gh attestation verify <file> --repo ${m.repository}.`,
