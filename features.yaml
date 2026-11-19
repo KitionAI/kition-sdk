@@ -48,7 +48,7 @@ features:
     dimension: [platform]
     priority: P1
     status: has
-    paths: [published-kits.json, tools/published-kits.mjs, tools/published-kits.test.mjs, tools/claude-plugin-skills.mjs, tools/sync-kit-fixtures.mjs, packages/script/kits/**, packages/script/scripts/sync-kits.mjs, packages/embed/src/schemas.ts, sdk.json]
+    paths: [published-kits.json, tools/published-kits.mjs, tools/published-kits.test.mjs, tools/agent-plugin-skills.mjs, tools/sync-kit-fixtures.mjs, packages/script/kits/**, packages/script/scripts/sync-kits.mjs, packages/embed/src/schemas.ts, sdk.json]
     cases: [regressions/issue-published-kit-boundary]
     since: "2026-11-16"
   - id: sdk.packages.public
@@ -685,9 +685,10 @@ features:
     priority: P1
     status: has
     paths:
-      - plugins/claude-code/kition-kits/skills/note-editing/SKILL.md
-      - tools/claude-plugin-skills.mjs
-      - tools/claude-plugin.test.mjs
+      - plugins/claude-code/kition-kits/skills/*-editing/SKILL.md
+      - plugins/deepseek-harness/kition-kits/skills/*-editing/SKILL.md
+      - tools/agent-plugin-skills.mjs
+      - tools/agent-plugin.test.mjs
     cases:
       - regressions/issue-agent-cube-guide
     since: "2026-11-16"

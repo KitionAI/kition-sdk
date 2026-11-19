@@ -3,7 +3,7 @@ name: design-editing
 description: "Create, inspect, edit and check a interface design (.kdesign) with the Kition Design kit's tools: frames, shapes, text, auto layout, components, styles, variables, prototyping, and more. Use when the user asks to make, read, change, review or fix .kdesign files in this project."
 ---
 
-<!-- Generated from kition-design agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-design agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `design_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

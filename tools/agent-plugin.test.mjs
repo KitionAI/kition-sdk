@@ -1,13 +1,14 @@
-// The kition-kits Claude Code plugin (plugins/claude-code/kition-kits): its generated kit skills,
-// its draft skills, and the launcher that turns the plugin's options into kition-kits-mcp
-// arguments.
+// The kition-kits agent plugins' generated kit skills (tools/agent-plugin-skills.mjs), for Claude
+// Code and DeepSeek Harness, and the Claude Code plugin (plugins/claude-code/kition-kits): its
+// draft skills and the launcher that turns the plugin's options into kition-kits-mcp arguments.
+// The DeepSeek Harness plugin's own files: tools/dsh-plugin.test.mjs.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { KITS, skill } from './claude-plugin-skills.mjs'
+import { KITS, TARGETS, skill } from './agent-plugin-skills.mjs'
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const plugin = path.join(root, 'plugins/claude-code/kition-kits')
@@ -26,16 +27,31 @@ describe('kit skills', () => {
     expect(text.endsWith('# Slide\n\nInspect first.\n')).toBe(true)
   })
 
-  it("match their kit's guide (skipped where the kit repositories aren't checked out)", () => {
-    expect(() => execFileSync(process.execPath, [path.join(root, 'tools/claude-plugin-skills.mjs'), '--check'], { stdio: 'pipe' })).not.toThrow()
+  it('name the tools as DeepSeek Harness shows them, loaded on demand, for its plugin', () => {
+    const manifest = { name: 'Slide', agent: { prefix: 'slide' } }
+    const claude = skill('slide', manifest, '# Slide\n', 'claude-code')
+    const dsh = skill('slide', manifest, '# Slide\n', 'deepseek-harness')
+    expect(dsh).toContain('`slide_run` is `mcp__kition__kit_run`')
+    expect(dsh).toContain('`mcp__kition__load_tools`')
+    expect(dsh).toContain('`mcp__kition__slide_<action>`')
+    expect(dsh).not.toContain('`slide_run` is `kit_run`')
+    // The frontmatter and the guide are the same for both harnesses.
+    expect(dsh.split('---')[1]).toBe(claude.split('---')[1])
+    expect(dsh.endsWith('# Slide\n')).toBe(true)
   })
 
-  it('exist for every kit, with a description within the skill listing limit', () => {
-    for (const kit of KITS) {
-      const text = fs.readFileSync(path.join(plugin, 'skills', `${kit}-editing`, 'SKILL.md'), 'utf8')
-      const fields = frontmatter(text.split('---')[1])
-      expect(fields.name).toBe(`${kit}-editing`)
-      expect(JSON.parse(fields.description).length).toBeLessThanOrEqual(1536)
+  it("match their kit's guide (skipped where the kit repositories aren't checked out)", () => {
+    expect(() => execFileSync(process.execPath, [path.join(root, 'tools/agent-plugin-skills.mjs'), '--check'], { stdio: 'pipe' })).not.toThrow()
+  })
+
+  it('exist for every kit in both plugins, with a description within the skill listing limit', () => {
+    for (const { plugin: folder } of Object.values(TARGETS)) {
+      for (const kit of KITS) {
+        const text = fs.readFileSync(path.join(root, folder, 'skills', `${kit}-editing`, 'SKILL.md'), 'utf8')
+        const fields = frontmatter(text.split('---')[1])
+        expect(fields.name).toBe(`${kit}-editing`)
+        expect(JSON.parse(fields.description).length).toBeLessThanOrEqual(1536)
+      }
     }
   })
 })

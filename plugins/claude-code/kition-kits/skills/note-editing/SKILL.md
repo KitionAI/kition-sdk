@@ -3,7 +3,7 @@ name: note-editing
 description: "Create, inspect, edit and check a note (Markdown (.md)) with the Kition Note kit's tools: text, headings, lists, tasks, tables, properties, links, comments, templates, and more; `text.insert` adds text. Use when the user asks to make, read, change, review or fix Markdown (.md) files in this project."
 ---
 
-<!-- Generated from kition-note agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-note agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `note_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

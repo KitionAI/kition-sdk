@@ -3,7 +3,7 @@ name: vector-editing
 description: "Create, inspect, edit and check a vector drawing (.kvector) with the Kition Vector kit's tools: shapes, paths, paint, type, alignment, effects, artboards, and more. Use when the user asks to make, read, change, review or fix .kvector files in this project."
 ---
 
-<!-- Generated from kition-vector agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-vector agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `vector_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

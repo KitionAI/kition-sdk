@@ -3,7 +3,7 @@ name: scene-editing
 description: "Create, inspect, edit and check a 3D scene (.kscene) with the Kition Scene kit's tools: adding primitives, curves, and text, transforms, parenting, edit-mode modeling (extrude, inset, bevel, loop cut, knife, dissolve, bridge, bisect, spin), sculpting (sculpt.stroke, sculpt.gesture, dynamic topology, multires, face sets), modifiers (including shrinkwrap and lattice), seams and UV unwrapping, image and normal-map textures, materials, lights, cameras, armatures, skinning, constraints and IK, shape keys, keyframe animation with drivers, actions, and keying sets, rigid body and cloth physics with constraints and force fields, particles and hair, Geometry Nodes (nodes.*), fast and path-traced rendering with a compositor (compositor.*), glTF/FBX/USD (usda, usdc, usdz)/OBJ/STL import and export, and .blend import; rotations are in degrees and Z is up. Use when the user asks to make, read, change, review or fix .kscene files in this project."
 ---
 
-<!-- Generated from kition-scene agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-scene agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `scene_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

@@ -5,12 +5,12 @@ intent: Published editing skills stay synchronized with their kits' canonical ag
 layer: gate
 source:
   kind: probe
-  from: tools/claude-plugin.test.mjs
+  from: tools/agent-plugin.test.mjs
   license: owned
 input: []
 steps:
   - exec:
-      cmd: [pnpm, exec, vitest, run, tools/claude-plugin.test.mjs]
+      cmd: [pnpm, exec, vitest, run, tools/agent-plugin.test.mjs]
 expected:
   - actual: out:exec
     compare: exit

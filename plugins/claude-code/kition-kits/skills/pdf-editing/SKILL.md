@@ -3,7 +3,7 @@ name: pdf-editing
 description: "Create, inspect, edit and check a PDF (.pdf) with the Kition PDF kit's tools: pages, text, comments, forms, bookmarks, links, watermarks, redaction, measuring, accessibility, and more. Use when the user asks to make, read, change, review or fix .pdf files in this project."
 ---
 
-<!-- Generated from kition-pdf agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-pdf agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `pdf_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

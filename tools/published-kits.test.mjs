@@ -13,6 +13,7 @@ describe('published kit boundary', () => {
     const entries = (dir, suffix) => fs.readdirSync(path.join(root, dir))
       .filter((name) => name.endsWith(suffix)).map((name) => name.slice(0, -suffix.length)).sort()
     expect(entries('plugins/claude-code/kition-kits/skills', '-editing')).toEqual(published)
+    expect(entries('plugins/deepseek-harness/kition-kits/skills', '-editing')).toEqual(published)
     expect(entries('crates/kition-kits/tests/fixtures/kits', '.json')).toEqual(published)
     expect(entries('packages/script/kits', '.ts').filter((name) => name !== 'index')).toEqual(published)
     expect(read('sdk.json').kits).toEqual(published)

@@ -3,7 +3,7 @@ name: board-editing
 description: "Create, inspect, edit and check a board (.kboard) with the Kition Board kit's tools: shapes, sticky notes, text, connectors, frames, mind maps, templates, layout, pages, and more; `element.create` adds elements. Use when the user asks to make, read, change, review or fix .kboard files in this project."
 ---
 
-<!-- Generated from kition-board agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-board agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `board_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

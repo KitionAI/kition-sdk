@@ -3,7 +3,7 @@ name: sheet-editing
 description: "Create, inspect, edit and check a spreadsheet (.xlsx (and opens .xlsm, .xls, .xltx, .csv, .ods, .xlsb)) with the Kition Sheet kit's tools: cells, formulas, formatting, sorting, filtering, tables, charts, pivot tables, and more; `cell.set` enters a value or formula. Use when the user asks to make, read, change, review or fix .xlsx (and opens .xlsm, .xls, .xltx, .csv, .ods, .xlsb) files in this project."
 ---
 
-<!-- Generated from kition-sheet agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-sheet agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `sheet_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

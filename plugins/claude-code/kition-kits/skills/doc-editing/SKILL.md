@@ -3,7 +3,7 @@ name: doc-editing
 description: "Create, inspect, edit and check a doc (.docx) with the Kition Doc kit's tools: typing, styles, fonts, paragraphs, lists, tables, pictures, headers and footers, references, review, and more. Use when the user asks to make, read, change, review or fix .docx files in this project."
 ---
 
-<!-- Generated from kition-doc agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-doc agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `doc_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

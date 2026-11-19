@@ -3,7 +3,7 @@ name: slide-editing
 description: "Create, inspect, edit and check a slide file (.kslide and .pptx) with the Kition Slide kit's tools: slides, layouts, text, shapes, pictures, tables, charts, transitions, animations, and more. Use when the user asks to make, read, change, review or fix .kslide and .pptx files in this project."
 ---
 
-<!-- Generated from kition-slide agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-slide agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `slide_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

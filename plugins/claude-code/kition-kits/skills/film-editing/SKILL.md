@@ -3,7 +3,7 @@ name: film-editing
 description: "Create, inspect, edit and check a video project (.kfilm) with the Kition Film kit's tools: clips, the timeline, trimming, transitions, titles, audio, and more. Use when the user asks to make, read, change, review or fix .kfilm files in this project."
 ---
 
-<!-- Generated from kition-film agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-film agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `film_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

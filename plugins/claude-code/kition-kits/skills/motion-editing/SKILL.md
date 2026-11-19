@@ -3,7 +3,7 @@ name: motion-editing
 description: "Create, inspect, edit and check a motion graphics project (.kmotion) with the Kition Motion kit's tools: compositions, layers, keyframes, effects, masks, text, and more. Use when the user asks to make, read, change, review or fix .kmotion files in this project."
 ---
 
-<!-- Generated from kition-motion agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-motion agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `motion_<action>` tools this guide names are `kit_<action>`, routed by the file's extension

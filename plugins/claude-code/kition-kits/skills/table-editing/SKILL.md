@@ -3,7 +3,7 @@ name: table-editing
 description: "Create, inspect, edit and check a table file (.ktable) with the Kition Table kit's tools: tables, fields, records, views, filters, sorting, grouping, links, dashboards, and more; `table.records.create` adds a record; a new file holds one starter table (table 1, `Table`: title, status, notes) that `table.tables.delete` removes. Use when the user asks to make, read, change, review or fix .ktable files in this project."
 ---
 
-<!-- Generated from kition-table agent/guide.md by kition-sdk tools/claude-plugin-skills.mjs; edit the guide, not this file. -->
+<!-- Generated from kition-table agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
 
 This plugin serves one tool set for every kit by default (its "unified" option): the
 `table_<action>` tools this guide names are `kit_<action>`, routed by the file's extension
