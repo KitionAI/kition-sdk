@@ -5,21 +5,21 @@
  * The program (`resolveKition`):
  * 1. `KITION_BINARY`, a `kition` executable the person names (a development build). Named but
  *    missing is an error, never a quiet fall back to another.
- * 2. The optional package `@kition/cli-<platform>`, which npm installs with `kition` on the
+ * 2. The optional package `@kition/cli-<platform>`, which npm installs with `@kition/cli` on the
  *    platforms it is built for: its `bin/kition`. It carries no kit: kition installs each kit into
  *    its store (~/.kition/kits) when it is first needed.
- * Nothing else: a launcher that looked on the PATH would find itself (`npm install -g kition` puts
- * this launcher there under the name `kition`).
+ * Nothing else: a launcher that looked on the PATH would find itself (`npm install -g @kition/cli`
+ * puts this launcher there under the name `kition`).
  *
  * How it was started (`launchedAs`), passed to kition in `KITION_LAUNCHER` so that
- * `kition agent add` registers a command that keeps working: `npx -y kition` when the launcher
+ * `kition agent add` registers a command that keeps working: `npx -y @kition/cli` when the launcher
  * runs from npx's cache, which npm may clear; npm's `kition` command (the global one, or a
  * project's node_modules/.bin/kition) when there is one for this launcher.
  */
 import platforms from './platforms.json'
 
 /** The npm package, and the command it installs (sdk.json `binaries.cli.npm` and `name`). */
-export const PACKAGE_NAME = 'kition'
+export const PACKAGE_NAME = '@kition/cli'
 export const KITION_NAME = 'kition'
 /** The environment variable naming the executable to start instead (sdk.json `binaries.cli.binary`). */
 export const BINARY_VARIABLE = 'KITION_BINARY'
@@ -121,18 +121,21 @@ export interface Launched {
  * How this launcher runs, and the command that starts it again; null when neither npx nor an npm
  * command of its own is to be seen (kition then registers its own path).
  *
- * - npx runs packages from its cache, `<npm cache>/_npx/<hash>/node_modules/kition`.
+ * - npx runs packages from its cache, `<npm cache>/_npx/<hash>/node_modules/@kition/cli`.
  * - npm's `kition` command: global, `<prefix>/bin/kition` (a link to this file) on macOS and
  *   Linux, `<prefix>\kition.cmd` on Windows, beside `<prefix>\node_modules`; a project's,
- *   `node_modules/.bin/kition` (`kition.cmd` on Windows).
+ *   `node_modules/.bin/kition` (`kition.cmd` on Windows). This file is
+ *   `<modules>/@kition/cli/dist/cli.js` in both.
  */
 export function launchedAs(machine: Machine, executable: string): Launched | null {
   const self = machine.self
   const parts = self.split(/[\\/]/)
   if (parts.includes('_npx')) return { via: 'npx', command: ['npx', '-y', PACKAGE_NAME], executable }
-  // <modules>/kition/dist/cli.js
+  // <modules>/@kition/cli/dist/cli.js
   const pkg = machine.dirname(machine.dirname(self))
-  const modules = machine.dirname(pkg)
+  const scope = machine.dirname(pkg)
+  if (`${machine.basename(scope)}/${machine.basename(pkg)}` !== PACKAGE_NAME) return null
+  const modules = machine.dirname(scope)
   if (machine.basename(modules) !== 'node_modules') return null
   const windows = machine.platform === 'win32'
   const above = machine.dirname(modules)

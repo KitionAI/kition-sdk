@@ -1,12 +1,12 @@
 {
   "$comment": "The Kition SDK's one version and what its bundle holds (tools/sdk-bundle.mjs, docs/sdk/README.md). Bump the version, crates/kition-cli's version (kition --version) and add a CHANGELOG.md entry together.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "packages": ["@kition/embed", "@kition/script", "@kition/sync", "@kition/kdm", "@kition/embed-server"],
   "kits": ["html", "note", "table"],
   "binaries": {
     "service": { "name": "kition-kits", "env": "KITION_KITS", "version": 1 },
     "mcp": { "name": "kition-kits-mcp", "env": "KITION_KITS_MCP" },
     "kits": { "env": "KITION_KIT_<KIT>_BINARY", "name": "kition-<kit>" },
-    "cli": { "name": "kition", "npm": "kition", "binary": "KITION_BINARY", "launcher": "KITION_LAUNCHER", "home": "KITION_HOME", "index": "KITION_INDEX", "defaultIndex": "https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json" }
+    "cli": { "name": "kition", "npm": "@kition/cli", "binary": "KITION_BINARY", "launcher": "KITION_LAUNCHER", "home": "KITION_HOME", "index": "KITION_INDEX", "defaultIndex": "https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json" }
   }
 }

@@ -171,7 +171,7 @@ fn folder(text: &str) -> Result<PathBuf, String> {
 }
 
 /// The command that starts this kition, as the agent is to run it: its absolute path (so the
-/// agent finds it whatever its PATH), or, started by the npm package, `npx -y kition` or npm's
+/// agent finds it whatever its PATH), or, started by the npm package, `npx -y @kition/cli` or npm's
 /// `kition` command, which outlive the npm cache and upgrades (`kition_cli::launcher`).
 fn this_kition() -> Result<(String, Vec<String>), String> {
     Ok(Started::detect()?.command(cfg!(windows)))

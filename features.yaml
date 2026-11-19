@@ -447,7 +447,7 @@ features:
       - sdk.distribution.container/context
     since: "2026-11-16"
   - id: sdk.distribution.npm
-    title: "npm install -g kition gives the kition command and npx -y kition <command> runs it: the npm package kition is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y kition or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform"
+    title: "npm install -g @kition/cli gives the kition command and npx -y @kition/cli <command> runs it: the npm package @kition/cli is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y @kition/cli or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform"
     dimension: [platform, ai]
     priority: P1
     status: has
@@ -1790,7 +1790,7 @@ features:
       - regressions/issue-kit-newer-than-index
     since: "2026-11-18"
   - id: sdk.cli.agents
-    title: "kition agent add/remove/list registers kition mcp, by the running kition's absolute path (installed with npm: npm's kition command, or npx -y kition), as the MCP server kition with Claude Code and Codex through their own commands and with Cursor by merging its mcp.json through a temporary file and a rename, printing what it ran or wrote"
+    title: "kition agent add/remove/list registers kition mcp, by the running kition's absolute path (installed with npm: npm's kition command, or npx -y @kition/cli), as the MCP server kition with Claude Code and Codex through their own commands and with Cursor by merging its mcp.json through a temporary file and a rename, printing what it ran or wrote"
     dimension: [ai, platform]
     priority: P1
     status: has

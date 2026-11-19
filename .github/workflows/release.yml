@@ -7,7 +7,7 @@ name: release
 #   a snapshot of the kit index gathered when the release is made (tools/kits-index.mjs); install.sh
 #   and install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
 #   (tools/sdk-release.mjs), with build provenance attestations;
-# - the public @kition/* packages on npm, with kition (the `kition` command, a Node launcher) and
+# - the public @kition/* packages on npm, with @kition/cli (the `kition` command, a Node launcher) and
 #   @kition/cli-<platform> (which carries the kition executable).
 # Each published kit's executable is built from the tag that Kition's kits/kits.lock.json pins for
 # its package, and must answer kit.initialize with that package's version. A release publishes no
@@ -90,7 +90,7 @@ jobs:
           path: target/lock/kits.lock.json
           if-no-files-found: error
 
-  # The npm package kition, packed once: every platform installs this archive in its smoke test,
+  # The npm package @kition/cli (packages/kition), packed once: every platform installs this archive in its smoke test,
   # and the publish job publishes it.
   launcher:
     needs: lock
@@ -362,7 +362,7 @@ jobs:
           pattern: kition-cli-*
           path: target/kition/packed
           merge-multiple: true
-      # kition depends on every platform package, optionally: npm installs the one for its platform.
+      # @kition/cli depends on every platform package, optionally: npm installs the one for its platform.
       - run: node packages/kition/scripts/platform-package.mjs link --launcher target/npm-pack/kition.tgz --out target/kition/packed
       - run: pnpm exec playwright install --with-deps chromium
       - run: node tools/smoke-public-packages.mjs
@@ -395,7 +395,7 @@ jobs:
               "Install kition (kits download on first use into ~/.kition/kits):",
               "- macOS, Linux: curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh",
               "- Windows: irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex",
-              "- npm (Node.js 20 or later): npm install -g kition, or npx -y kition <command>", "",
+              "- npm (Node.js 20 or later): npm install -g @kition/cli, or npx -y @kition/cli <command>", "",
               "kition:", cli, "",
               "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.",
               `The kits-index.json of this release is a snapshot of that index as of the release (sha256 ${m.index.sha256}), for kition 0.3.0 and 0.4.0, which read releases/latest/download/kits-index.json.`, "",
@@ -420,10 +420,8 @@ jobs:
             --title "Kition SDK $version" --notes-file target/release-notes.md --draft
       # A version on npm can never be published again: this is the step that cannot be undone,
       # so it comes after every check and after the draft. What npm has already is skipped, so a
-      # run again publishes only what is missing. The scoped @kition packages go first, then the
-      # platform packages, then kition, which depends on them: the first publish of the unscoped
-      # name kition is the one an npm token scoped to @kition refuses, and it then stops the run
-      # with everything else published and the release still a draft.
+      # run again publishes only what is missing. The libraries go first, then the platform
+      # packages @kition/cli-<platform>, then @kition/cli, which depends on them.
       - name: Publish on npm in dependency order
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -443,9 +441,6 @@ jobs:
             publish "target/npm-pack/$p.tgz"
           done
           for archive in target/kition/packed/*.tgz; do publish "$archive"; done
-          if ! npm view kition version >/dev/null 2>&1; then
-            echo "::notice::kition is not on npm yet: its first publish needs an NPM_TOKEN that may create the unscoped package kition, not only @kition/* packages"
-          fi
           publish target/npm-pack/kition.tgz
       # Last: the draft becomes the release, and the latest one, once npm has every package it
       # tells people to install.

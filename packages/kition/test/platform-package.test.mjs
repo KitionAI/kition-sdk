@@ -63,7 +63,7 @@ describe('linking the launcher', () => {
     }
     const stage = scratch()
     fs.mkdirSync(path.join(stage, 'package'))
-    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: 'kition', version: '0.1.0' }))
+    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: '@kition/cli', version: '0.1.0' }))
     const archive = path.join(stage, 'kition.tgz')
     execFileSync('tar', ['-czf', archive, '-C', stage, 'package'])
     execFileSync(process.execPath, [script, 'link', '--launcher', archive, '--out', out], { stdio: 'pipe' })
@@ -91,7 +91,7 @@ describe('linking the launcher', () => {
     execFileSync('tar', ['-czf', path.join(out, `kition-cli-${platform}-0.1.0.tgz`), '-C', stage, 'package'])
     const launcherStage = scratch()
     fs.mkdirSync(path.join(launcherStage, 'package'))
-    fs.writeFileSync(path.join(launcherStage, 'package', 'package.json'), JSON.stringify({ name: 'kition', version: '0.1.0' }))
+    fs.writeFileSync(path.join(launcherStage, 'package', 'package.json'), JSON.stringify({ name: '@kition/cli', version: '0.1.0' }))
     const archive = path.join(launcherStage, 'kition.tgz')
     execFileSync('tar', ['-czf', archive, '-C', launcherStage, 'package'])
     execFileSync(process.execPath, [script, 'link', '--launcher', archive, '--out', out, '--local'], { stdio: 'pipe' })

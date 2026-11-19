@@ -2,19 +2,20 @@
 //! registers with an agent and what `kition doctor` looks for on the PATH.
 //!
 //! Run directly (installed by `install.sh`, or a build), that command is this executable's own
-//! path. Started by the npm package `kition`, a Node launcher, the executable lives inside
+//! path. Started by the npm package `@kition/cli`, a Node launcher, the executable lives inside
 //! `node_modules`, and for `npx` inside npm's cache, which npm may clear. The launcher says how it
 //! was started in `KITION_LAUNCHER`, a JSON object (packages/kition/src/resolve.ts):
 //!
 //! ```json
-//! { "via": "npx", "command": ["npx", "-y", "kition"], "executable": "/…/@kition/cli-darwin-arm64/bin/kition" }
+//! { "via": "npx", "command": ["npx", "-y", "@kition/cli"], "executable": "/…/@kition/cli-darwin-arm64/bin/kition" }
 //! { "via": "npm", "command": ["/opt/homebrew/bin/kition"], "executable": "/…/bin/kition" }
 //! ```
 //!
-//! `command` starts this kition again, its arguments to follow: `npx -y kition`, or npm's `kition`
-//! command (the global one, `<prefix>/bin/kition` or `<prefix>\kition.cmd`, or a project's
-//! `node_modules/.bin/kition`). `executable` is the program the launcher started: the variable is
-//! taken only when that is this executable, so a value inherited by another kition is ignored.
+//! `command` starts this kition again, its arguments to follow: `npx -y @kition/cli`, or npm's
+//! `kition` command (the global one, `<prefix>/bin/kition` or `<prefix>\kition.cmd`, or a
+//! project's `node_modules/.bin/kition`). `executable` is the program the launcher started: the
+//! variable is taken only when that is this executable, so a value inherited by another kition is
+//! ignored.
 
 use std::path::{Path, PathBuf};
 
@@ -28,7 +29,7 @@ pub const LAUNCHER_VARIABLE: &str = "KITION_LAUNCHER";
 pub enum Started {
     /// Directly, from its own path.
     Itself(PathBuf),
-    /// Through npx, from npm's cache: `command` is `npx -y kition`.
+    /// Through npx, from npm's cache: `command` is `npx -y @kition/cli`.
     Npx { command: Vec<String> },
     /// Through npm's `kition` command, global or a project's.
     Npm { command: PathBuf },
@@ -119,8 +120,8 @@ mod tests {
 
         assert_eq!(Started::from_launcher(None, &exe), Started::Itself(exe.clone()));
         assert_eq!(Started::from_launcher(Some("not json"), &exe), Started::Itself(exe.clone()));
-        let npx = launcher("npx", &["npx", "-y", "kition"], &exe);
-        assert_eq!(Started::from_launcher(Some(&npx), &exe), Started::Npx { command: vec!["npx".into(), "-y".into(), "kition".into()] });
+        let npx = launcher("npx", &["npx", "-y", "@kition/cli"], &exe);
+        assert_eq!(Started::from_launcher(Some(&npx), &exe), Started::Npx { command: vec!["npx".into(), "-y".into(), "@kition/cli".into()] });
         assert_eq!(Started::from_launcher(Some(&npx), &other), Started::Itself(other.clone()), "inherited by another kition");
         let shim = dir.path().join("bin").join("kition");
         let npm = launcher("npm", &[&shim.display().to_string()], &exe);
@@ -131,9 +132,9 @@ mod tests {
 
     #[test]
     fn the_command_goes_through_cmd_on_windows_for_batch_files() {
-        let npx = Started::Npx { command: vec!["npx".into(), "-y".into(), "kition".into()] };
-        assert_eq!(npx.command(false), ("npx".to_owned(), vec!["-y".to_owned(), "kition".to_owned()]));
-        assert_eq!(npx.command(true), ("cmd".to_owned(), vec!["/c".to_owned(), "npx".to_owned(), "-y".to_owned(), "kition".to_owned()]));
+        let npx = Started::Npx { command: vec!["npx".into(), "-y".into(), "@kition/cli".into()] };
+        assert_eq!(npx.command(false), ("npx".to_owned(), vec!["-y".to_owned(), "@kition/cli".to_owned()]));
+        assert_eq!(npx.command(true), ("cmd".to_owned(), vec!["/c".to_owned(), "npx".to_owned(), "-y".to_owned(), "@kition/cli".to_owned()]));
         let global = Started::Npm { command: PathBuf::from("/opt/npm/bin/kition") };
         assert_eq!(global.command(false), ("/opt/npm/bin/kition".to_owned(), Vec::new()));
         let windows = Started::Npm { command: PathBuf::from(r"C:\Users\me\AppData\Roaming\npm\kition.cmd") };

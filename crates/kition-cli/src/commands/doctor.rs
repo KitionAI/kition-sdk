@@ -152,7 +152,7 @@ fn check_path() -> Check {
         Ok(started) => started,
         Err(_) => return Check::new("PATH", Status::Warn, "cannot tell where this kition is", None),
     };
-    let global = Some("npm install -g kition   (or install.sh: docs/sdk/cli.md)".to_owned());
+    let global = Some("npm install -g @kition/cli   (or install.sh: docs/sdk/cli.md)".to_owned());
     let (folder, what) = match &started {
         Started::Npx { command } => {
             let detail = format!("kition runs through npx ({}), from npm's cache: no `kition` command is on the PATH", command.join(" "));

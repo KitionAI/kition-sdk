@@ -31,8 +31,8 @@ claude plugin install kition-kits@kition
 ```
 
 The plugin needs the server. It uses, in this order: the plugin's `kition-kits-mcp` option;
-`kition` on the `PATH` (from `npm install -g kition` or `install.sh`), started as `kition mcp`;
-`kition-kits-mcp` on the `PATH`; otherwise `npx -y kition mcp`, the npm package that brings
+`kition` on the `PATH` (from `npm install -g @kition/cli` or `install.sh`), started as `kition mcp`;
+`kition-kits-mcp` on the `PATH`; otherwise `npx -y @kition/cli mcp`, the npm package that brings
 `kition` for your platform (Node.js needed). `kition` holds no kit: it downloads each kit of the kit index into `~/.kition/kits` the
 first time Claude opens a file of it (kition-sdk's `docs/sdk/cli.md`). Without Node.js,
 install `kition` and put `~/.kition/bin` on the `PATH`:
@@ -51,7 +51,7 @@ Claude Code then asks for the plugin's options (change them later with `/plugin`
 
 | Option | What it is |
 | --- | --- |
-| `kition-kits-mcp` | The server executable: `kition` (such as `target/debug/kition` from the build above) or a `kition-kits-mcp`. Empty: `kition` on the `PATH`, else `kition-kits-mcp` on the `PATH`, else `npx -y kition mcp` |
+| `kition-kits-mcp` | The server executable: `kition` (such as `target/debug/kition` from the build above) or a `kition-kits-mcp`. Empty: `kition` on the `PATH`, else `kition-kits-mcp` on the `PATH`, else `npx -y @kition/cli mcp` |
 | Installed kits | A folder with one folder per kit, each holding its `kit.json` and headless executable. Empty: the kits `kition` installs in `~/.kition/kits` |
 | Kit repositories (development) | A folder of kit checkouts, `kition-<kit>/`. Every kit built there with `cargo build -p kition-<kit>` is served from `target/debug/kition-<kit>` with its repository's `kit.json`. With the kits checked out next to kition-sdk, this is kition-sdk's parent folder |
 | One tool set for all kits | On (the default): `kit_<action>` tools routed by file extension. Off: `<prefix>_<action>` tools per installed kit, such as `note_run` and `note_check` |
@@ -76,7 +76,7 @@ server started; if it didn't, its message names the missing executable.
 ## Limits
 
 - The launcher is a POSIX shell script: macOS and Linux. On Windows, configure the server yourself
-  in `.mcp.json` with `npx -y kition mcp --workspace <folder> --unified`, or
+  in `.mcp.json` with `npx -y @kition/cli mcp --workspace <folder> --unified`, or
   `kition mcp --workspace <folder> --unified` (`kition` from `install.ps1`, docs/sdk/cli.md).
 - The server is free on any machine and needs no licence key.
 - One server serves every kit, so its MCP `serverInfo.version` is the server's own; each kit's

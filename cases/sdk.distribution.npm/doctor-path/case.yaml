@@ -6,7 +6,7 @@ intent: >-
   commands (which holds npm's kition command) is on the PATH and fails with the line that adds
   that folder, not the node_modules folder holding the executable, when it is not; through npx,
   or from a project's node_modules, it says there is no kition command on the PATH, for
-  information, with npm install -g kition as the fix, and does not fail.
+  information, with npm install -g @kition/cli as the fix, and does not fail.
 layer: gate
 dimension: platform
 source:

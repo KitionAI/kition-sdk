@@ -59,8 +59,8 @@ curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/insta
 ```
 
 The npm package `@kition/cli-<platform>` carries the same `kition` as `bin/kition`, and the npm
-package `kition`, which depends on every one of them as an optional dependency, gives the
-`kition` command that starts it (`npm install -g kition`, `npx -y kition <command>`;
+package `@kition/cli`, which depends on every one of them as an optional dependency, gives the
+`kition` command that starts it (`npm install -g @kition/cli`, `npx -y @kition/cli <command>`;
 [cli.md](cli.md#installing-it)). The executables a release ships, `kition` among them,
 are built with the workspace's `dist` profile (LTO, one code unit, symbols stripped).
 
@@ -147,7 +147,7 @@ and refuses any other `kits-index*.json` beside it; kit archives are still refus
 ## Getting one
 
 ```sh
-v=0.5.1 p=darwin-arm64
+v=0.5.2 p=darwin-arm64
 base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
 curl -fsSLO "$base/SHA256SUMS"
 curl -fsSLO "$base/kition-sdk-$v.json"
@@ -209,7 +209,7 @@ undone), and publishes the draft last. On npm the scoped `@kition/*` packages go
 ## Making one locally
 
 `node packages/kition/scripts/platform-package.mjs` writes `@kition/cli-<platform>` from a built
-`kition`, and `link --local` makes a packed `kition` depend on such packed packages by their
+`kition`, and `link --local` makes a packed `@kition/cli` depend on such packed packages by their
 files, so `npm install -g --prefix <folder> kition.tgz` installs both as npm installs them from the
 registry, with nothing published:
 
@@ -229,7 +229,7 @@ archives from a folder of `bin-<platform>/` folders, each holding `kition`; `--v
 rehearsal's own version:
 
 ```sh
-node tools/release-archives.mjs --bin <folder> --out <release folder> --version 0.5.1
+node tools/release-archives.mjs --bin <folder> --out <release folder> --version 0.5.2
 ```
 
 Served over HTTP as `<url>/releases/download/sdk-v<version>/` and `<url>/releases/latest/download/`,

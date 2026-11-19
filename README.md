@@ -126,9 +126,9 @@ Connecting Claude Code, Claude Desktop, Cursor or Codex: [docs/sdk/agent.md](doc
 time an agent opens a file of it. With Node.js 20 or later, from npm:
 
 ```sh
-npm install -g kition
+npm install -g @kition/cli
 kition agent add claude          # in your project folder; or codex, cursor
-# or, without installing: claude mcp add kition -- npx -y kition mcp --workspace "$PWD"
+# or, without installing: claude mcp add kition -- npx -y @kition/cli mcp --workspace "$PWD"
 ```
 
 Without Node.js, from the SDK release:
@@ -163,13 +163,13 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.5.1, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`kition`](https://www.npmjs.com/package/kition).
+The packages are version 0.5.2, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`@kition/cli`](https://www.npmjs.com/package/@kition/cli).
 
 | Package | What |
 | --- | --- |
 | [`@kition/embed`](packages/embed) | Embed kit editors in any web page, over your storage and identity |
 | [`@kition/embed-server`](packages/embed-server) | Serve single-user kit editor pages for embedding by URL |
-| [`kition`](packages/kition) | The `kition` command line from npm: `npm install -g kition`, or `npx -y kition mcp --workspace <folder>` for agents; it installs each kit on first use |
+| [`@kition/cli`](packages/kition) | The `kition` command line from npm: `npm install -g @kition/cli`, or `npx -y @kition/cli mcp --workspace <folder>` for agents; it installs each kit on first use |
 | [`@kition/script`](packages/script) | The object model for scripts and extensions, in browsers and Node |
 | [`@kition/extensions`](packages/extensions) | The extension host: manifests, sandboxed workers, declared permissions |
 | [`@kition/sync`](packages/sync) | Client for the open sync protocol `kition-sync/1` |

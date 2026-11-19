@@ -1,6 +1,6 @@
 {
   "name": "@kition/embed-server",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Serves Kition kit editors to iframes: opens a kit's editor for a URL carrying a signed open token and reads and writes the file through your server's signed HTTP callbacks.",
   "license": "Apache-2.0",
   "type": "module",

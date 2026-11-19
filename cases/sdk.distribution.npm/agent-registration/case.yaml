@@ -3,7 +3,7 @@ id: sdk.distribution.npm/agent-registration
 feature: sdk.distribution.npm
 intent: >-
   Started by the npm launcher, kition agent add registers what will still start it later:
-  through npx, `npx -y kition mcp ...` with Claude Code, Codex and Cursor (not the executable in
+  through npx, `npx -y @kition/cli mcp ...` with Claude Code, Codex and Cursor (not the executable in
   npm's cache); from a global npm install, npm's kition command (<prefix>/bin/kition), not the
   executable inside node_modules. A KITION_LAUNCHER naming another executable is not taken: the
   running kition's own path is registered. On Windows, npx and npm's kition.cmd are registered

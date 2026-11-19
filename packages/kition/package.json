@@ -1,7 +1,7 @@
 {
-  "name": "kition",
-  "version": "0.5.1",
-  "description": "Kition's command line from npm: `npm install -g kition` gives the `kition` command, and `npx -y kition mcp --workspace <folder>` serves the kits' tools to any agent over MCP. It downloads each published kit on first use.",
+  "name": "@kition/cli",
+  "version": "0.5.2",
+  "description": "Kition's command line from npm: `npm install -g @kition/cli` gives the `kition` command, and `npx -y @kition/cli mcp --workspace <folder>` serves the kits' tools to any agent over MCP. It downloads each published kit on first use.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

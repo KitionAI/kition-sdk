@@ -1,4 +1,4 @@
-# kition
+# @kition/cli
 
 Kition's command line, from npm. `kition` holds no kit: it downloads each published kit the first
 time you or your agent need it, into `~/.kition/kits`, and serves the kits' tools to any agent
@@ -6,7 +6,7 @@ over MCP (Claude Code, Claude Desktop, Cursor, Codex, or your own MCP client). N
 to run, nothing is compiled on your machine, and no licence key is needed.
 
 ```sh
-npm install -g kition
+npm install -g @kition/cli
 kition --version
 kition kit install note
 kition agent add claude        # in your project folder: Claude Code runs `kition mcp` there
@@ -15,8 +15,8 @@ kition agent add claude        # in your project folder: Claude Code runs `kitio
 or, without installing:
 
 ```sh
-npx -y kition kit list
-npx -y kition mcp --workspace <folder>
+npx -y @kition/cli kit list
+npx -y @kition/cli mcp --workspace <folder>
 ```
 
 Node.js 20 or later, on macOS (arm64, x64), Linux with glibc (arm64, x64) or Windows (x64). The
@@ -34,12 +34,12 @@ Every command (`kit`, `agent`, `mcp`, `serve`, `doctor`) is in
 ## Connect your agent
 
 `kition agent add claude` (or `codex`, `cursor`) registers `kition mcp` with the agent and prints
-what it ran or wrote. Installed with `npm install -g kition`, it registers npm's `kition` command;
-run through `npx -y kition agent add ...`, it registers `npx -y kition mcp`, so the agent can
+what it ran or wrote. Installed with `npm install -g @kition/cli`, it registers npm's `kition` command;
+run through `npx -y @kition/cli agent add ...`, it registers `npx -y @kition/cli mcp`, so the agent can
 start it again after npm clears its cache. By hand:
 
 ```sh
-claude mcp add kition -- npx -y kition mcp --workspace "$PWD"
+claude mcp add kition -- npx -y @kition/cli mcp --workspace "$PWD"
 ```
 
 **Claude Desktop, Cursor, and any client with an `mcpServers` file** (`claude_desktop_config.json`,
@@ -51,7 +51,7 @@ servers in your project folder (Claude Desktop); Cursor fills in `${workspaceFol
   "mcpServers": {
     "kition": {
       "command": "npx",
-      "args": ["-y", "kition", "mcp", "--workspace", "/absolute/path/to/folder"]
+      "args": ["-y", "@kition/cli", "mcp", "--workspace", "/absolute/path/to/folder"]
     }
   }
 }
@@ -62,11 +62,11 @@ servers in your project folder (Claude Desktop); Cursor fills in `${workspaceFol
 ```toml
 [mcp_servers.kition]
 command = "npx"
-args = ["-y", "kition", "mcp", "--workspace", "/absolute/path/to/folder"]
+args = ["-y", "@kition/cli", "mcp", "--workspace", "/absolute/path/to/folder"]
 ```
 
-With `kition` installed globally, put `kition` as the command and drop `-y` and `kition` from the
-arguments. On Windows, an agent starts `npx` (a batch file) as `cmd /c npx -y kition mcp ...`.
+With `kition` installed globally, put `kition` as the command and drop `-y` and `@kition/cli`
+from the arguments. On Windows, an agent starts `npx` (a batch file) as `cmd /c npx -y @kition/cli mcp ...`.
 
 The server's tools, the workspace and its sandbox, drafts and kits installed on first use are in
 [docs/sdk/agent.md](https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/agent.md) and
@@ -97,7 +97,7 @@ The launcher tells `kition` how it was started in `KITION_LAUNCHER`, a JSON obje
 Programs that start kition themselves can use the same lookup:
 
 ```js
-import { launchedAs, resolveKition, thisMachine } from 'kition'
+import { launchedAs, resolveKition, thisMachine } from '@kition/cli'
 // resolveKition(thisMachine(file)) -> { ok, command } or { ok: false, message }
 ```
 

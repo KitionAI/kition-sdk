@@ -13,10 +13,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 const packageDir = fileURLToPath(new URL('..', import.meta.url))
 const sdkRoot = path.resolve(packageDir, '../..')
 const scratch = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kition-launcher-')))
-// The launcher as `npm install -g` lays it out: <prefix>/lib/node_modules/kition/dist/cli.js, its
+// The launcher as `npm install -g` lays it out: <prefix>/lib/node_modules/@kition/cli/dist/cli.js, its
 // platform package beside it, and npm's command <prefix>/bin/kition, a link to it.
 const modules = path.join(scratch, 'lib', 'node_modules')
-const cli = path.join(modules, 'kition', 'dist', 'cli.js')
+const cli = path.join(modules, '@kition', 'cli', 'dist', 'cli.js')
 const shim = path.join(scratch, 'bin', 'kition')
 const platform = `${process.platform}-${process.arch}`
 const platformDir = path.join(modules, '@kition', `cli-${platform}`)
@@ -54,6 +54,17 @@ describe('the kition command', () => {
       expect(run(['--version'], {}).stdout.split('\n')[0]).toBe('--version')
     } finally {
       fs.rmSync(platformDir, { recursive: true, force: true })
+    }
+  })
+
+  it('starts the platform package npm nests inside @kition/cli rather than beside it', () => {
+    const nested = path.join(modules, '@kition', 'cli', 'node_modules', '@kition', `cli-${platform}`)
+    script(path.join(nested, 'bin', 'kition'), `exec ${echo} "$@"`)
+    fs.writeFileSync(path.join(nested, 'package.json'), `{"name":"@kition/cli-${platform}"}\n`)
+    try {
+      expect(run(['kit', 'list'], {}).stdout.split('\n').slice(0, 2)).toEqual(['kit', 'list'])
+    } finally {
+      fs.rmSync(path.join(modules, '@kition', 'cli', 'node_modules'), { recursive: true, force: true })
     }
   })
 

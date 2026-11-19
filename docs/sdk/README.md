@@ -1,6 +1,6 @@
 # Kition SDK
 
-Version **0.5.1** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
+Version **0.5.2** (`sdk.json`; changes in [CHANGELOG.md](../../CHANGELOG.md)).
 
 The [platform documentation](../platform/index.md) describes the SDK contracts.
 A distribution may additionally include a separately supplied KHP specification.
@@ -14,7 +14,7 @@ app and your agent work on the same file with the same engine:
 | **Embed** | put a kit's editor in your web page, over your storage and your users | `@kition/embed` | [embed.md](embed.md) | [`KitEmbed 1.8`](../platform/sets/embed.md) (`@kition/embed` serves `KitEmbed 1.3`, with EM25's opening and EM28–EM31); [Kit UI protocol](../platform/reference/ui-protocol.md) (UI-H1–H7, UI-K1–K7); [kit editors](../platform/kits/ui.md) |
 | **Script** | read and edit documents from code, in a page or in Node | `@kition/script` | [script.md](script.md) | [`KitObjectModel 1.0`](../platform/sets/object-model.md); exchange in [`KitModel 1.1`](../platform/sets/model.md) |
 | **Headless** | run a kit without a page, from any language: servers, desktop apps, batch jobs, tests | `kition-kits serve`, `kition-<kit>` executables | [headless.md](headless.md), [hosts.md](hosts.md) | [engine contract](../platform/kits/engine.md); [`KitAgent 1.4`](../platform/sets/agent.md) (A1–A4, headless Kit Process Protocol) |
-| **Agent** | give an AI agent a kit's tools, including checking its own output | `kition-kits-mcp` (MCP over stdio; `kition mcp`, with `kition` on npm), agent skill | [agent.md](agent.md) | [`KitAgent 1.4`](../platform/sets/agent.md) (A1–A23, D1) |
+| **Agent** | give an AI agent a kit's tools, including checking its own output | `kition-kits-mcp` (MCP over stdio; `kition mcp`, with `@kition/cli` on npm), agent skill | [agent.md](agent.md) | [`KitAgent 1.4`](../platform/sets/agent.md) (A1–A23, D1) |
 
 Co-editing: [collab.md](collab.md) (Kition Cloud for your tenant: sync tokens from your server,
 or Kition Server on your own machines).

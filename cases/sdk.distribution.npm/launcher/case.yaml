@@ -2,7 +2,7 @@ format: 1
 id: sdk.distribution.npm/launcher
 feature: sdk.distribution.npm
 intent: >-
-  The kition command of the npm package kition starts KITION_BINARY when it names a file (and
+  The kition command of the npm package @kition/cli starts KITION_BINARY when it names a file (and
   stops when it names none), else the bin/kition of the optional package @kition/cli-<platform>,
   never a kition on the PATH; passes arguments, stdin and stdout through untouched; ends with
   kition's exit status or signal; hands a client's SIGTERM to kition; names the supported

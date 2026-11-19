@@ -137,8 +137,8 @@ usage: kition agent add <claude|codex|cursor> [--workspace <folder>] [--scope us
 
 Registers this kition as the MCP server named kition, and prints what it ran or wrote. Running it
 again replaces the registration. The agent runs this kition by its absolute path, so it finds it
-off the PATH; installed with npm, by npm's kition command (npm install -g kition), or as
-npx -y kition (run through npx), which outlive npm's cache and upgrades.
+off the PATH; installed with npm, by npm's kition command (npm install -g @kition/cli), or as
+npx -y @kition/cli (run through npx), which outlive npm's cache and upgrades.
 
   --scope project   (default for claude and cursor) for one folder: --workspace, else the current
                     folder, which is also the folder the server edits. Claude Code: its local

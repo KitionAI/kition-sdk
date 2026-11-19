@@ -14,18 +14,18 @@ Nothing has to be compiled, and Rust is not needed. Pick one:
 
 ```sh
 # with Node.js 20 or later: npm installs kition for this platform and the `kition` command
-npm install -g kition
+npm install -g @kition/cli
 kition --version
 # or run it without installing; npx keeps it in npm's cache
-npx -y kition kit install note
-npx -y kition mcp --workspace <folder>
+npx -y @kition/cli kit install note
+npx -y @kition/cli mcp --workspace <folder>
 ```
 
 ```sh
 # without Node.js, macOS and Linux (glibc): the latest release, into ~/.kition/bin/kition
 curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
 # a given SDK version
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.5.1
+curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.5.2
 ```
 
 ```powershell
@@ -33,13 +33,13 @@ curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/insta
 irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex
 ```
 
-The npm package `kition` (`packages/kition` in kition-sdk) is a small Node launcher: its
+The npm package `@kition/cli` (`packages/kition` in kition-sdk) is a small Node launcher: its
 `kition` command starts the `kition` of the optional package `@kition/cli-<platform>`, which npm
 installs beside it on `darwin-arm64`, `darwin-x64`, `linux-arm64` and `linux-x64` (glibc) and
 `win32-x64`, with the same arguments, standard input, output and error, and exits as it does. It
 is the same `kition` as the release's archives. Installed with `--omit=optional` (or
 `--no-optional`), on another platform, or on Linux with musl (Alpine), there is no `kition` for
-it, and the command says so on standard error and names `install.sh`. `npm install -g kition`
+it, and the command says so on standard error and names `install.sh`. `npm install -g @kition/cli`
 again upgrades it; the kits in the store stay.
 
 The scripts take the `kition-<version>-<platform>.tar.gz` of this machine's platform from the SDK
@@ -52,7 +52,7 @@ another address laid out like `https://github.com/KitionAI/kition-sdk/releases` 
 hand:
 
 ```sh
-v=0.5.1 p=darwin-arm64
+v=0.5.2 p=darwin-arm64
 base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
 curl -fsSLO "$base/SHA256SUMS" && curl -fsSLO "$base/kition-$v-$p.tar.gz"
 grep " kition-$v-$p.tar.gz\$" SHA256SUMS | shasum -a 256 -c
@@ -101,7 +101,7 @@ run `kition --help` for the commands
 $ kition kit list
 KIT    NAME   INSTALLED  LATEST  FILES
 note   Note   0.3.0      0.3.0   .md .markdown
-table  Table  -          0.5.1   .ktable
+table  Table  -          0.5.2   .ktable
 html   HTML   -          0.1.0   .html .htm
 ```
 
@@ -183,13 +183,13 @@ registers is the one that will still start this `kition` later:
 | How `kition` runs | `<kition>` in the registration |
 | --- | --- |
 | Installed by `install.sh` or `install.ps1`, or built | its absolute path, so the agent finds it even when `~/.kition/bin` is not on its PATH |
-| `npm install -g kition` | npm's `kition` command, by its absolute path (`<prefix>/bin/kition`; `<prefix>\kition.cmd` on Windows, through `cmd /c`), not the executable inside `node_modules`: npm puts the command back at the same place on every upgrade |
-| `npx -y kition agent add ...` | `npx -y kition` (`cmd /c npx -y kition` on Windows): npx runs `kition` from npm's cache, which npm may clear |
-| A project's `npm install kition` | the project's `node_modules/.bin/kition` |
+| `npm install -g @kition/cli` | npm's `kition` command, by its absolute path (`<prefix>/bin/kition`; `<prefix>\kition.cmd` on Windows, through `cmd /c`), not the executable inside `node_modules`: npm puts the command back at the same place on every upgrade |
+| `npx -y @kition/cli agent add ...` | `npx -y @kition/cli` (`cmd /c npx -y @kition/cli` on Windows): npx runs `kition` from npm's cache, which npm may clear |
+| A project's `npm install @kition/cli` | the project's `node_modules/.bin/kition` |
 
 The npm package's launcher tells `kition` how it was started in the environment variable
 `KITION_LAUNCHER`, a JSON object: `via` (`npx` or `npm`), `command` (the words that start this
-`kition` again: `["npx", "-y", "kition"]`, or the absolute path of npm's `kition` command) and
+`kition` again: `["npx", "-y", "@kition/cli"]`, or the absolute path of npm's `kition` command) and
 `executable` (the `kition` it started). `kition` takes it only when `executable` is itself, so a
 value another program inherited changes nothing. The launcher sets it only when it can tell; a
 launcher installed another way (pnpm, yarn) leaves it out, and `kition` registers its own path.
@@ -275,10 +275,10 @@ server again; by then the kit is installed.
 - the Kition home, and whether a file can be written in it (or, when it is not made yet, in the
   folder it would be made in);
 - whether the folder holding this `kition` is on the `PATH`, with the line to add when it is not.
-  Installed with `npm install -g kition`, the folder checked is npm's folder of commands, which
+  Installed with `npm install -g @kition/cli`, the folder checked is npm's folder of commands, which
   holds npm's `kition` command, not the folder inside `node_modules` that holds the executable.
   Run through `npx`, or from a project's `node_modules`, there is no `kition` command on the `PATH`
-  to check: the check says so, for information, with `npm install -g kition` as the way to one;
+  to check: the check says so, for information, with `npm install -g @kition/cli` as the way to one;
 - whether the kit index can be read now; when it cannot, how old the copy kept from the last read
   is (a warning), or that there is none (a failure);
 - each installed kit in use, started as a host starts it and asked `kit.initialize`: the version
@@ -289,7 +289,7 @@ server again; by then the kit is installed.
 
 ```text
 $ kition doctor
-kition 0.5.1 (kit protocol kition-kit/2, index format 1) on darwin-arm64
+kition 0.5.2 (kit protocol kition-kit/2, index format 1) on darwin-arm64
 ok    home          /Users/me/.kition (writable)
 fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)

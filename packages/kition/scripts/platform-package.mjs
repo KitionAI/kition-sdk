@@ -15,7 +15,7 @@
 //
 //   node packages/kition/scripts/platform-package.mjs link --launcher <kition.tgz> [--out <folder>] [--local]
 //
-//     makes the packed `kition` (the launcher) depend on every platform package in <out>, as
+//     makes the packed `@kition/cli` (the launcher) depend on every platform package in <out>, as
 //     folders or as the archives `npm pack` makes of them (its optionalDependencies), rewriting
 //     the archive in place. Every platform in src/platforms.json must be there, at the launcher's
 //     version, so a release never lacks one silently.

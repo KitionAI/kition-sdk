@@ -135,10 +135,10 @@ fn doctor_checks_the_npm_command_on_the_path() {
     assert_eq!(lost["status"], "fail", "{lost}");
     assert!(lost["fix"].as_str().unwrap().contains(&npm_bin.display().to_string()), "the fix names npm's folder, not node_modules: {lost}");
 
-    let npx = path_check(serde_json::json!({ "via": "npx", "command": ["npx", "-y", "kition"], "executable": exe }), &bare);
+    let npx = path_check(serde_json::json!({ "via": "npx", "command": ["npx", "-y", "@kition/cli"], "executable": exe }), &bare);
     assert_eq!(npx["status"], "info", "{npx}");
-    assert!(npx["detail"].as_str().unwrap().contains("npx -y kition"), "{npx}");
-    assert!(npx["fix"].as_str().unwrap().contains("npm install -g kition"), "{npx}");
+    assert!(npx["detail"].as_str().unwrap().contains("npx -y @kition/cli"), "{npx}");
+    assert!(npx["fix"].as_str().unwrap().contains("npm install -g @kition/cli"), "{npx}");
 
     let project = dir.path().join("app/node_modules/.bin/kition");
     let local = path_check(serde_json::json!({ "via": "npm", "command": [project], "executable": exe }), &bare);

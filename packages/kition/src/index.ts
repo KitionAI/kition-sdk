@@ -1,5 +1,5 @@
 /**
- * `kition` on npm: the `kition` command, a launcher that starts Kition's command line for this
+ * `@kition/cli` on npm: the `kition` command, a launcher that starts Kition's command line for this
  * platform (from the optional package `@kition/cli-<platform>`). This module is how it finds
  * kition, for programs that start kition themselves.
  */

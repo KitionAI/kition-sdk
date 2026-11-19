@@ -161,26 +161,27 @@ fn registers_with_cursor_by_merging_its_mcp_json() {
     assert!(!ok && err.contains("claude, codex and cursor"), "{err}");
 }
 
-/// Started by the npm package, kition registers what will still start it next week: `npx -y kition`
-/// (npx runs it from npm's cache, which npm may clear) or npm's global `kition` command (not the
-/// executable inside node_modules). A `KITION_LAUNCHER` naming another executable is not taken.
+/// Started by the npm package, kition registers what will still start it next week:
+/// `npx -y @kition/cli` (npx runs it from npm's cache, which npm may clear) or npm's global `kition`
+/// command (not the executable inside node_modules). A `KITION_LAUNCHER` naming another executable
+/// is not taken.
 #[test]
 fn registers_the_npm_command_that_started_it() {
     let scene = Scene::new();
     let project = scene.project.display().to_string();
     let kition = kition_path();
-    let npx = json!({ "via": "npx", "command": ["npx", "-y", "kition"], "executable": kition });
+    let npx = json!({ "via": "npx", "command": ["npx", "-y", "@kition/cli"], "executable": kition });
 
     let (ok, out, err) = scene.agent_launched(&["add", "claude"], true, Some(&npx));
     assert!(ok, "{out}{err}");
-    assert_eq!(scene.logged(), vec![format!("{project}|mcp add -s local kition -- npx -y kition mcp --workspace {project}")]);
+    assert_eq!(scene.logged(), vec![format!("{project}|mcp add -s local kition -- npx -y @kition/cli mcp --workspace {project}")]);
     let (ok, out, err) = scene.agent_launched(&["add", "codex"], true, Some(&npx));
     assert!(ok, "{out}{err}");
-    assert!(scene.logged()[1].ends_with("|mcp add kition -- npx -y kition mcp"), "{:?}", scene.logged());
+    assert!(scene.logged()[1].ends_with("|mcp add kition -- npx -y @kition/cli mcp"), "{:?}", scene.logged());
     let (ok, out, err) = scene.agent_launched(&["add", "cursor", "--scope", "project"], false, Some(&npx));
     assert!(ok, "{out}{err}");
     let file = scene.project.join(".cursor/mcp.json");
-    assert_eq!(read(&file)["mcpServers"]["kition"], json!({ "command": "npx", "args": ["-y", "kition", "mcp", "--workspace", project] }));
+    assert_eq!(read(&file)["mcpServers"]["kition"], json!({ "command": "npx", "args": ["-y", "@kition/cli", "mcp", "--workspace", project] }));
 
     // npm install -g: <prefix>/bin/kition, npm's link to the launcher.
     let shim = scene.root.join("npm/bin/kition").display().to_string();
@@ -193,7 +194,7 @@ fn registers_the_npm_command_that_started_it() {
     assert!(scene.logged()[2].ends_with(&format!("|mcp add -s user kition -- {shim} mcp")), "{:?}", scene.logged());
 
     // A KITION_LAUNCHER inherited from another kition (another executable) is not this one's.
-    let other = json!({ "via": "npx", "command": ["npx", "-y", "kition"], "executable": scene.root.join("other/kition") });
+    let other = json!({ "via": "npx", "command": ["npx", "-y", "@kition/cli"], "executable": scene.root.join("other/kition") });
     let (ok, out, err) = scene.agent_launched(&["add", "cursor", "--scope", "project"], false, Some(&other));
     assert!(ok, "{out}{err}");
     assert_eq!(read(&file)["mcpServers"]["kition"]["command"], json!(kition));
