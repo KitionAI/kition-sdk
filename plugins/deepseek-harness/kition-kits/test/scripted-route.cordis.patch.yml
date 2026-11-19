@@ -1,0 +1,16 @@
+# A scripted model on 127.0.0.1:$SCRIPTED_PORT (test/scripted-model.mjs) as a pi-ai route and the
+# default model of new agents, so the test needs no model account.
+- id: llm-pi-ai
+  config:
+    providers:
+      scripted:
+        api: openai-completions
+        baseURL: !!js "`http://127.0.0.1:${process.env.SCRIPTED_PORT}/v1`"
+        apiKeyEnv: SCRIPTED_API_KEY
+        models:
+          - id: scripted
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: scripted
+    model: scripted

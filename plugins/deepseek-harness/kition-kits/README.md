@@ -121,9 +121,11 @@ dsh --profile <profile> --patch <the plugin's folder>/kition-kits.http.cordis.pa
 
 ## Limits
 
-- One server serves one workspace folder for the whole `dsh` process. A session in another folder
-  (the `web` profile lets you open several) gets refusals for its files; set `KITION_WORKSPACE`
-  to a folder that holds them all.
+- One server serves one workspace folder for the whole `dsh` process, while a session has a folder
+  of its own: a `web` profile session starts in `~/Documents/deepseek-harness/default-workspace`
+  unless you open another, not in the folder `dsh` started in. The server resolves paths in its
+  own folder and refuses paths outside it, and the draft skills use `KITION_WORKSPACE`, else the
+  session's folder. Set `KITION_WORKSPACE` to the folder your sessions work in.
 - DeepSeek Harness 0.2.2-rc.5 sends every tool definition with every request; the kits' tools are
   large (with Note and Table installed, about 93,000 characters of definitions).
 - The skill catalog shows at most 500 characters of a skill's description; the Scene kit's is

@@ -11,7 +11,8 @@
 //                        use when no kits are given here
 //   KITION_KITS_DIR      a folder with one folder per installed kit (kit.json beside its executable)
 //   KITION_KIT_REPOS     a folder of kit repository checkouts, kition-<kit>/, whose debug builds
-//                        (target/debug/kition-<kit>) are served with the kit.json above them
+//                        (target/debug/kition-<kit>) are served with the kit.json above them; a
+//                        kition-* folder without a kit.json is no kit and is passed over
 //   KITION_KITS_UNIFIED  "true" (the default): one tool set for every kit (kit_<action>);
 //                        anything else: <prefix>_<action> per kit
 //
@@ -88,7 +89,7 @@ if (!unset(env.KITION_KIT_REPOS)) {
   for (const repo of entries) {
     const kit = repo.slice('kition-'.length)
     const built = path.join(repos, repo, 'target', 'debug', `kition-${kit}${windows ? '.exe' : ''}`)
-    if (executable(built)) options.push('--kit', built)
+    if (fs.existsSync(path.join(repos, repo, 'kit.json')) && executable(built)) options.push('--kit', built)
   }
 }
 if (serving && (unset(env.KITION_KITS_UNIFIED) ? 'true' : env.KITION_KITS_UNIFIED) === 'true') options.push('--unified')
