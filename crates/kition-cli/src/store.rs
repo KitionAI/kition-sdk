@@ -169,17 +169,7 @@ impl Store {
     /// speaks another protocol.
     pub fn choose(name: &str, kit: &IndexKit, wanted: Option<&Version>, platform: &str) -> Result<Version, String> {
         let ours = crate::protocol();
-        let speaks = |protocol: &str| -> Result<(), String> {
-            if protocol == ours {
-                return Ok(());
-            }
-            match (protocol_number(protocol), protocol_number(&ours)) {
-                (Some(theirs), Some(mine)) if theirs > mine => {
-                    Err(format!("it speaks {protocol}, and this kition {} speaks {ours}: upgrade kition, then install it again", crate::VERSION))
-                }
-                _ => Err(format!("it speaks {protocol}, and this kition speaks {ours}: install a newer version of the kit (`kition kit install {name}`)")),
-            }
-        };
+        let speaks = |protocol: &str| speaks(name, protocol);
         if let Some(wanted) = wanted {
             let entry = kit.versions.iter().find(|(version, _)| Version::parse(version).ok().as_ref() == Some(wanted)).map(|(_, entry)| entry);
             let Some(entry) = entry else {
@@ -208,6 +198,18 @@ impl Store {
     /// Installs version `wanted` of the kit `name` (or the newest that this program can run) from
     /// the index `loaded`, for this machine's platform.
     pub fn install(&self, loaded: &Loaded, name: &str, wanted: Option<&Version>) -> Result<(String, Outcome), String> {
+        self.install_reporting(loaded, name, wanted, &mut |_, _| {})
+    }
+
+    /// [`Store::install`], telling `progress` the bytes downloaded and the archive's size as the
+    /// download goes.
+    pub fn install_reporting(
+        &self,
+        loaded: &Loaded,
+        name: &str,
+        wanted: Option<&Version>,
+        progress: &mut dyn FnMut(u64, u64),
+    ) -> Result<(String, Outcome), String> {
         let Some((name, kit)) = loaded.index.kit(name) else {
             let known: Vec<&str> = loaded.index.kits.keys().map(String::as_str).collect();
             return Err(format!("no kit named `{name}` is in the kit index; it lists {}", if known.is_empty() { "none".to_owned() } else { known.join(", ") }));
@@ -224,7 +226,7 @@ impl Store {
         self.sweep();
         let work = crate::fetch::scratch(&self.home.tmp(), &format!("install-{name}-{version}"));
         std::fs::create_dir_all(&work).map_err(|error| format!("cannot write {}: {error}", work.display()))?;
-        let done = self.install_in(&work, name, kit, &version, entry, archive, &location);
+        let done = self.install_in(&work, name, kit, &version, entry, archive, &location, progress);
         let _ = std::fs::remove_dir_all(&work);
         done.map(|outcome| (name.to_owned(), outcome))
     }
@@ -239,16 +241,23 @@ impl Store {
         entry: &crate::index::IndexVersion,
         archive: &crate::index::Archive,
         location: &str,
+        progress: &mut dyn FnMut(u64, u64),
     ) -> Result<Outcome, String> {
         let file = work.join("archive.tar.gz");
-        let sha256 = crate::fetch::download(location, archive.size, &file)?;
+        let size = archive.size;
+        let sha256 = crate::fetch::download(location, size, &file, &mut |done| progress(done, size))?;
         if sha256 != archive.sha256 {
             return Err(format!("{location}: its SHA-256 is {sha256}, and the kit index gives {}: refused", archive.sha256));
         }
         let unpacked = work.join(version.to_string());
         std::fs::create_dir_all(&unpacked).map_err(|error| error.to_string())?;
         unpack(&file, &unpacked).map_err(|why| format!("{location}: {why}: refused"))?;
-        check_unpacked(&unpacked, kit, version, &entry.protocol).map_err(|why| format!("{location}: {why}: refused"))?;
+        check_unpacked(&unpacked, &kit.id, version, &entry.protocol).map_err(|why| format!("{location}: {why}: refused"))?;
+        self.place(&unpacked, name, version)
+    }
+
+    /// Moves the checked version folder `unpacked` into `kits/<name>/<version>/` with one rename.
+    fn place(&self, unpacked: &Path, name: &str, version: &Version) -> Result<Outcome, String> {
         let target_folder = self.kit_folder(name);
         std::fs::create_dir_all(&target_folder).map_err(|error| format!("cannot write {}: {error}", target_folder.display()))?;
         let target = target_folder.join(version.to_string());
@@ -259,7 +268,7 @@ impl Store {
             let _ = std::fs::rename(&target, &aside);
             let _ = std::fs::remove_dir_all(&aside);
         }
-        match std::fs::rename(&unpacked, &target) {
+        match std::fs::rename(unpacked, &target) {
             Ok(()) => Ok(Outcome::Installed(version.clone())),
             Err(_) if read_version(&target, name).is_some() => Ok(Outcome::Present(version.clone())),
             Err(error) => Err(format!("cannot move {name} {version} into {}: {error}", target.display())),
@@ -292,6 +301,93 @@ impl Store {
             }
         }
         removed
+    }
+
+    /// Puts a kit built or copied here into the store, with the checks and the one-rename move of
+    /// an install from the index. `path` is a kit archive laid out like the index's (a `.tar.gz`
+    /// with `kit.json` and the executable at its top), a folder holding `kit.json` and the
+    /// executable, or a kit executable whose `kit.json` is the nearest one above it naming it
+    /// (`headless.executable`), as `--kit` finds it. A kit of another Kit Process Protocol is
+    /// refused as an install from the index is.
+    pub fn add(&self, path: &Path) -> Result<(String, Outcome), String> {
+        std::fs::create_dir_all(self.home.tmp()).map_err(|error| format!("cannot write {}: {error}", self.home.tmp().display()))?;
+        self.sweep();
+        let work = crate::fetch::scratch(&self.home.tmp(), "add");
+        std::fs::create_dir_all(&work).map_err(|error| format!("cannot write {}: {error}", work.display()))?;
+        let done = self.add_in(&work, path);
+        let _ = std::fs::remove_dir_all(&work);
+        done
+    }
+
+    fn add_in(&self, work: &Path, path: &Path) -> Result<(String, Outcome), String> {
+        let shown = path.display();
+        let staged = work.join("kit");
+        std::fs::create_dir_all(&staged).map_err(|error| error.to_string())?;
+        let copy =
+            |from: &Path, name: &str| std::fs::copy(from, staged.join(name)).map(|_| ()).map_err(|error| format!("cannot copy {}: {error}", from.display()));
+        if path.is_dir() {
+            let text = std::fs::read_to_string(path.join("kit.json")).map_err(|_| format!("{shown}: it has no kit.json"))?;
+            let executable = executable_name(&manifest_executable(&text).map_err(|why| format!("{shown}: {why}"))?);
+            if !path.join(&executable).is_file() {
+                return Err(format!("{shown}: it has no {executable} beside its kit.json"));
+            }
+            copy(&path.join("kit.json"), "kit.json")?;
+            copy(&path.join(&executable), &executable)?;
+        } else if path.is_file() {
+            if gzip(path) {
+                unpack(path, &staged).map_err(|why| format!("{shown}: {why}: refused"))?;
+            } else {
+                let text = kition_kits::definitions::manifest_beside(path).ok_or_else(|| {
+                    format!("{shown}: no kit.json above it names it (`headless.executable`); give the kit's archive or the folder holding kit.json and the executable")
+                })?;
+                let executable = executable_name(&manifest_executable(&text).map_err(|why| format!("{shown}: {why}"))?);
+                std::fs::write(staged.join("kit.json"), &text).map_err(|error| error.to_string())?;
+                copy(path, &executable)?;
+            }
+        } else {
+            return Err(format!("{shown}: no such file or folder"));
+        }
+        let text = std::fs::read_to_string(staged.join("kit.json")).map_err(|_| format!("{shown}: it has no kit.json at its top: refused"))?;
+        let manifest: Value = serde_json::from_str(&text).map_err(|error| format!("{shown}: its kit.json is not JSON: {error}: refused"))?;
+        let field = |pointer: &str| manifest.pointer(pointer).and_then(Value::as_str).unwrap_or_default().to_owned();
+        let id = field("/id");
+        let name = id
+            .strip_prefix("kit.")
+            .filter(|name| crate::index::short_name(name))
+            .map(str::to_owned)
+            .ok_or_else(|| format!("{shown}: its kit.json's id `{id}` is not kit.<name>, the name lowercase letters and digits: refused"))?;
+        let version = Version::parse(&field("/version"))
+            .map_err(|_| format!("{shown}: its kit.json's version `{}` is not a version (semver): refused", field("/version")))?;
+        let protocol = field("/headless/protocol");
+        if protocol.is_empty() {
+            return Err(format!("{shown}: its kit.json names no protocol (`headless.protocol`): refused"));
+        }
+        speaks(&name, &protocol).map_err(|why| format!("{name} {version} cannot be installed: {why}"))?;
+        check_unpacked(&staged, &id, &version, &protocol).map_err(|why| format!("{shown}: {why}: refused"))?;
+        if self.kit(&name).is_some_and(|stored| stored.versions.iter().any(|installed| installed.version == version)) {
+            return Ok((name, Outcome::Present(version)));
+        }
+        self.place(&staged, &name, &version).map(|outcome| (name, outcome))
+    }
+
+    /// Writes the version in use of `name` into the folder `out` as a kit archive laid out like the
+    /// index's, `kition-<kit>-<version>-<platform>.tar.gz` (kit.json and the executable at its
+    /// top), for [`Store::add`] on another machine; answers its path.
+    pub fn pack(&self, name: &str, out: &Path) -> Result<PathBuf, String> {
+        let kit = self.kit(name).ok_or_else(|| format!("{name} is not installed: install it with `kition kit install {name}` or `kition kit add <path>`"))?;
+        let installed = kit.in_use().ok_or_else(|| format!("{name} has no version in use"))?;
+        let manifest: Value = serde_json::from_str(&installed.manifest).map_err(|error| format!("{name}: its kit.json is not JSON: {error}"))?;
+        let executable = executable_name(manifest.pointer("/headless/executable").and_then(Value::as_str).unwrap_or_default());
+        std::fs::create_dir_all(out).map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+        let file = out.join(format!("kition-{name}-{}-{}.tar.gz", installed.version, crate::home::platform()));
+        let scratch = crate::fetch::scratch(out, ".kition-pack");
+        let written = write_archive(&scratch, &[("kit.json", &installed.folder.join("kit.json"), 0o644), (&executable, &installed.executable, 0o755)])
+            .and_then(|()| std::fs::rename(&scratch, &file).map_err(|error| error.to_string()));
+        if let Err(error) = written {
+            let _ = std::fs::remove_file(&scratch);
+            return Err(format!("cannot write {}: {error}", file.display()));
+        }
+        Ok(file)
     }
 
     /// Clears what installs and removals left in `tmp/` more than a day ago (a process that was
@@ -369,14 +465,63 @@ pub fn unpack(archive: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Checks a kit unpacked into `folder` against the index: its `kit.json` is the kit and version
-/// the index lists, speaks the protocol the index gives, and its executable is there.
-fn check_unpacked(folder: &Path, kit: &IndexKit, version: &Version, protocol: &str) -> Result<(), String> {
+/// Whether this program speaks `protocol`, a kit's (`name`); else why not and what to do.
+pub fn speaks(name: &str, protocol: &str) -> Result<(), String> {
+    let ours = crate::protocol();
+    if protocol == ours {
+        return Ok(());
+    }
+    match (protocol_number(protocol), protocol_number(&ours)) {
+        (Some(theirs), Some(mine)) if theirs > mine => {
+            Err(format!("it speaks {protocol}, and this kition {} speaks {ours}: upgrade kition, then install it again", crate::VERSION))
+        }
+        _ => Err(format!("it speaks {protocol}, and this kition speaks {ours}: install a newer version of the kit (`kition kit install {name}`)")),
+    }
+}
+
+/// The executable a kit.json names (`headless.executable`), without a folder.
+fn manifest_executable(text: &str) -> Result<String, String> {
+    let manifest: Value = serde_json::from_str(text).map_err(|error| format!("its kit.json is not JSON: {error}"))?;
+    match manifest.pointer("/headless/executable").and_then(Value::as_str) {
+        Some(executable) if !executable.is_empty() && !executable.contains(['/', '\\']) => Ok(executable.to_owned()),
+        _ => Err("its kit.json names no executable (`headless.executable`)".to_owned()),
+    }
+}
+
+/// Whether `path` starts as a gzip stream does.
+fn gzip(path: &Path) -> bool {
+    let mut magic = [0u8; 2];
+    std::fs::File::open(path).and_then(|mut file| file.read_exact(&mut magic)).is_ok() && magic == [0x1f, 0x8b]
+}
+
+/// Writes the `.tar.gz` `archive` holding `files` (name in the archive, the file, its mode) at its
+/// top.
+fn write_archive(archive: &Path, files: &[(&str, &Path, u32)]) -> Result<(), String> {
+    let out = std::fs::File::create(archive).map_err(|error| error.to_string())?;
+    let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(out, flate2::Compression::default()));
+    for (name, from, mode) in files {
+        let mut file = std::fs::File::open(from).map_err(|error| format!("cannot read {}: {error}", from.display()))?;
+        let meta = file.metadata().map_err(|error| error.to_string())?;
+        let mut header = tar::Header::new_gnu();
+        header.set_size(meta.len());
+        header.set_mode(*mode);
+        header.set_mtime(meta.modified().ok().and_then(|at| at.duration_since(SystemTime::UNIX_EPOCH).ok()).map_or(0, |since| since.as_secs()));
+        header.set_cksum();
+        builder.append_data(&mut header, name, &mut file).map_err(|error| error.to_string())?;
+    }
+    let encoder = builder.into_inner().map_err(|error| error.to_string())?;
+    let file = encoder.finish().map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())
+}
+
+/// Checks a kit unpacked into `folder` against what it must be: its `kit.json` is the kit `id`
+/// at `version`, speaks `protocol`, and its executable is there.
+fn check_unpacked(folder: &Path, id: &str, version: &Version, protocol: &str) -> Result<(), String> {
     let text = std::fs::read_to_string(folder.join("kit.json")).map_err(|_| "it has no kit.json at its top".to_owned())?;
     let manifest: Value = serde_json::from_str(&text).map_err(|error| format!("its kit.json is not JSON: {error}"))?;
     let field = |pointer: &str| manifest.pointer(pointer).and_then(Value::as_str).unwrap_or_default().to_owned();
-    if field("/id") != kit.id {
-        return Err(format!("its kit.json is {}, and the index lists {}", field("/id"), kit.id));
+    if field("/id") != id {
+        return Err(format!("its kit.json is {}, and the index lists {id}", field("/id")));
     }
     if field("/version") != version.to_string() {
         return Err(format!("its kit.json is version {}, and the index lists {version}", field("/version")));

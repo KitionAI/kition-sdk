@@ -73,7 +73,8 @@ pub struct Archive {
     pub sha256: String,
 }
 
-fn short_name(name: &str) -> bool {
+/// Whether `name` is a kit's short name or an extension: lowercase letters and digits, a letter first.
+pub fn short_name(name: &str) -> bool {
     name.starts_with(|c: char| c.is_ascii_lowercase()) && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
 }
 
@@ -178,6 +179,12 @@ impl Source {
     fn cache_file(&self, home: &Home) -> PathBuf {
         let key = hex::encode(&Sha256::digest(self.location.as_bytes())[..8]);
         home.cache().join(format!("kits-index-{key}.json"))
+    }
+
+    /// How long ago the copy of this index kept in `home` was read; `None` when none is kept.
+    pub fn kept_age(&self, home: &Home) -> Option<Duration> {
+        let at = std::fs::metadata(self.cache_file(home)).and_then(|meta| meta.modified()).ok()?;
+        Some(SystemTime::now().duration_since(at).unwrap_or_default())
     }
 }
 

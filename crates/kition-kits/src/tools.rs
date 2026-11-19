@@ -553,6 +553,12 @@ fn offers(kit: &KitDefinition, name: &str) -> bool {
         && (kit.agent.object_model || !(is(Action::Query) || is(Action::Batch)))
 }
 
+/// The tools `kit` offers the agent once installed, by name (`<prefix>_inspect`, ...), as its
+/// manifest declares them (KHP A3, A35, A41).
+pub fn tool_names(kit: &KitDefinition) -> Vec<String> {
+    Action::ALL.into_iter().map(|action| tool_name(kit, action)).filter(|name| offers(kit, name)).collect()
+}
+
 /// The action of a unified tool name (`kit_export`).
 fn parse_unified(name: &str) -> Option<Action> {
     let suffix = name.strip_prefix("kit_")?;

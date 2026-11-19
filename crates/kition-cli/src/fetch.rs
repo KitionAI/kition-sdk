@@ -65,8 +65,9 @@ pub fn read_text(location: &str, limit: u64) -> Result<String, String> {
 }
 
 /// Downloads `location` to `to`, which must be exactly `size` bytes; answers its SHA-256,
-/// lowercase hex. Stops as soon as it reads more than `size` bytes.
-pub fn download(location: &str, size: u64, to: &Path) -> Result<String, String> {
+/// lowercase hex. Stops as soon as it reads more than `size` bytes. `progress` hears the bytes
+/// read so far after each read.
+pub fn download(location: &str, size: u64, to: &Path, progress: &mut dyn FnMut(u64)) -> Result<String, String> {
     let mut reader = open(location)?.take(size + 1);
     let mut file = std::fs::File::create(to).map_err(|error| format!("cannot write {}: {error}", to.display()))?;
     let mut hash = Sha256::new();
@@ -83,6 +84,7 @@ pub fn download(location: &str, size: u64, to: &Path) -> Result<String, String> 
         }
         hash.update(&buffer[..n]);
         file.write_all(&buffer[..n]).map_err(|error| format!("cannot write {}: {error}", to.display()))?;
+        progress(read);
     }
     if read != size {
         return Err(format!("{location} is {read} bytes, and the index gives {size}: refused"));
