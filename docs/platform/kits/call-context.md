@@ -766,9 +766,12 @@ presentation, video and 3D kits followed, with what the SDK added after them.
    `inspect()` that are the editing session, not the file (`/slide`,
    `/selection`, `/sequence/playhead`, `/view`, `/mode`), or a name for a key
    that is editor state wherever it is. Pass it to kition-headless as the
-   volatile keys and to `testing::check_context`. A key you leave out is
-   reported as document content; a document field you list (a keyframe's
-   `time`) disappears from what the agent reads.
+   volatile keys and to `testing::check_context`, and declare the same list,
+   in the same order, as `engine.editorState` in `kit.json` (`[]` when
+   `inspect()` reports none; [manifest](manifest.md) K23), where a host that
+   does not run the kit's Rust code reads it; a test compares the two. A key
+   you leave out is reported as document content; a document field you list
+   (a keyframe's `time`) disappears from what the agent reads.
 3. **Implement the three hooks** on `KitDocument`, as an engine API that is no
    edit (no revision, no dirty state, no undo step):
    - `editor_state`: everything a command may read besides its parameters:

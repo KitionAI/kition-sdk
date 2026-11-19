@@ -1,6 +1,6 @@
 format: 1
 kit: sdk
-updated: "2026-11-18"
+updated: "2026-11-19"
 gate_budget_s: 600
 features:
   - id: sdk.agent.close-completion
@@ -1203,6 +1203,25 @@ features:
       - regressions/issue-export-command-optional
       - regressions/issue-export-command-sources
     since: "2026-11-16"
+  - id: sdk.platform.editor-state-declared
+    title: kit.json declares the engine's editor state (engine.editorState, platform K23); the manifest check checks its shape, kition-headless refuses a manifest whose list is not the engine's, and hosts read inspect() without it
+    dimension: [ai, platform]
+    priority: P1
+    status: has
+    paths:
+      - schemas/kit.schema.json
+      - tools/check-manifest.mjs
+      - tools/check-manifest.test.mjs
+      - crates/kition-headless/src/lib.rs
+      - crates/kition-headless/src/tests.rs
+      - examples/grid-kit/kit.json
+      - docs/platform/kits/manifest.md
+      - docs/platform/kits/call-context.md
+      - docs/platform/reference/contract.md
+      - docs/platform/reference/ui-protocol.md
+    cases:
+      - sdk.platform.editor-state-declared/manifest-matches-engine
+    since: "2026-11-19"
   - id: sdk.agent.manifest-links
     title: The manifest check accepts agent.links as a boolean only and, when it is true, needs the links-outside conformance fixture beside kit.json (KHP K21)
     dimension: [ai, security]

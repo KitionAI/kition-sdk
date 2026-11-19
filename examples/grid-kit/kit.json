@@ -9,7 +9,8 @@
     "module": "grid_kit",
     "class": "GridDocument",
     "contract": 1,
-    "crate": "grid-kit"
+    "crate": "grid-kit",
+    "editorState": []
   },
   "formats": [
     {

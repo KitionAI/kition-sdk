@@ -56,7 +56,8 @@ optional native executables. The manifest is validated by
   "engine": {
     "module": "example_video",
     "class": "VideoDocument",
-    "contract": 1
+    "contract": 1,
+    "editorState": ["/playhead", "/selection", "/view"]
   },
   "formats": [
     { "id": "video", "extensions": ["examplevideo"], "mime": "application/vnd.example.video+json", "role": "edit" }
@@ -306,6 +307,27 @@ Requirements:
   executable answers `document.text` with the document's words (T1). A kit
   lists it when its words live outside its object model; it is never a
   `headless.features` entry.
+- **K23** *(Kition platform)* `engine.editorState` lists the editor state
+  the engine's `inspect()` reports: the places that are the person's editing
+  session, not the document (the selection, the current part or page, the
+  view, the playhead, the tool), each a JSON Pointer (`/selection`,
+  `/view/zoom`) for that place only or a name (`selected`) for a key that is
+  editor state wherever it is. It is exactly the kit's editor-state list
+  ([call context](call-context.md), step 2), in its order: the list the kit
+  gives kition-headless as its volatile keys and
+  `kition_kit::testing::check_context`; `[]` for an engine that reports
+  none. It publishes that list to hosts that do not run the kit's Rust code:
+  a host reads `inspect()` (and `ai/inspect`'s `details`) without these
+  places and without the session's bookkeeping as the document's content
+  (`kition_kit::document_content`), which is what it hands an agent and
+  what it compares to tell whether the document changed
+  ([Kit UI protocol](../reference/ui-protocol.md) `ai/inspect` and section
+  7d). The two lists cannot drift: `kition_headless::KitInfo::from_manifest`
+  refuses a manifest whose list is not the engine's, and a kit tests the same
+  against its `EDITOR_STATE`. `tools/check-manifest.mjs` checks the
+  shape and warns when an engine declares none, which leaves a host reading
+  every key as the document. It is a platform field: KHP's manifest has no
+  `engine`.
 
 ## Manifest for engine contract 2
 

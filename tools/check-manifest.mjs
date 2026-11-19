@@ -148,6 +148,11 @@ if (agentReady) {
 }
 // document.text is a platform capability, not a protocol feature (K22, KitText 1.0).
 if (serves('document.text')) fail('headless.features', `document.text is declared as the capability document-text in headless.capabilities ${PLATFORM('K22')}`)
+// The editor state inspect() reports (K23): hosts leave it out of what an agent reads as the
+// document. The schema checks its shape; the kit's own test checks that it is the engine's list.
+if (manifest.engine && !Array.isArray(manifest.engine.editorState)) {
+  warn('engine.editorState', `not declared, so a host reads every key of inspect() as the document: list the engine's editor state, [] when it reports none ${PLATFORM('K23')}`)
+}
 // An embedded UI names its entry (K8).
 if (manifest.ui?.mode === 'embedded' && !manifest.ui.entry) fail('ui.entry', `an embedded UI names its HTML entry ${PLATFORM('K8')}`)
 

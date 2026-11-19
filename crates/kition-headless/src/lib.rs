@@ -92,7 +92,9 @@ pub struct KitInfo {
     /// out wherever it is; a JSON Pointer (`/time`) only at that place, so a document field of the
     /// same name elsewhere (a keyframe's `time`) stays. Beyond these, only the session's
     /// bookkeeping at the top (`canUndo`, `dirty`, `revision`, `path`, …) is left out; nothing is
-    /// taken for editor state by its name alone.
+    /// taken for editor state by its name alone. `kit.json` publishes the same list to hosts as
+    /// `engine.editorState` (platform K23); [`KitInfo::from_manifest`] refuses a manifest whose
+    /// list is another.
     pub volatile: Vec<String>,
     /// The platform capabilities of the executable (`kit.json` `headless.capabilities`), which
     /// `kit.initialize` answers in `capabilities.capabilities`. With
@@ -109,6 +111,8 @@ pub struct KitInfo {
 impl KitInfo {
     /// The kit as its Kit Harness Protocol (KHP) manifest (`kit.json`) declares it: id, version, and
     /// formats, the `edit` formats first (the first is the native one), then those it reads.
+    /// `volatile` is the engine's editor-state list; a manifest that declares
+    /// `engine.editorState` must declare exactly it (platform K23).
     pub fn from_manifest(manifest: &str, sandboxed: &[&str], volatile: &[&str]) -> Result<Self, String> {
         let manifest: Value = serde_json::from_str(manifest).map_err(|error| format!("kit.json: {error}"))?;
         let text = |key: &str| manifest[key].as_str().map(str::to_owned).ok_or_else(|| format!("kit.json has no `{key}`"));
@@ -125,6 +129,15 @@ impl KitInfo {
         formats.sort_by_key(|(_, _, edit)| !*edit);
         if !formats.first().is_some_and(|(_, _, edit)| *edit) {
             return Err("kit.json declares no `edit` format".into());
+        }
+        // The editor state the manifest publishes to hosts (platform K23) is the engine's list.
+        if let Some(declared) = manifest["engine"].get("editorState") {
+            let declared: Vec<&str> = declared.as_array().map(|keys| keys.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+            if declared != volatile {
+                return Err(format!(
+                    "kit.json declares the editor state {declared:?} (`engine.editorState`), but the engine gives {volatile:?}: they are one list, in the same order (platform K23)"
+                ));
+            }
         }
         Ok(Self {
             id: text("id")?,

@@ -433,3 +433,39 @@ describe('check-manifest export commands (platform K21)', () => {
     expect(unlisted.code).toBe(0)
   })
 })
+
+// The editor state a kit's inspect() reports, published to hosts (platform K23).
+describe('check-manifest engine.editorState (platform K23)', () => {
+  const declaring = (editorState) => ({ ...example, engine: { ...example.engine, editorState } })
+
+  it('accepts JSON Pointers, names, and an empty list', () => {
+    for (const editorState of [[], ['/selection', '/view/zoom', '/a~1b', 'selected'], ['keyedNow']]) {
+      const result = checkManifest(declaring(editorState))
+      expect(result.out).not.toContain('engine.editorState')
+      expect(result.code).toBe(0)
+    }
+  })
+
+  it('refuses a list that is not of pointers and names', () => {
+    for (const [editorState, where] of [
+      ['/view', 'engine.editorState: must be an array'],
+      [['/view', '/view'], 'engine.editorState: has duplicates'],
+      [[''], 'engine.editorState[0]'],
+      [['/bad~2escape'], 'engine.editorState[0]'],
+      [['view/zoom'], 'engine.editorState[0]'],
+      [[3], 'engine.editorState[0]: must be a string'],
+    ]) {
+      const result = checkManifest(declaring(editorState))
+      expect(result.code, JSON.stringify(editorState)).toBe(1)
+      expect(result.out).toContain(`FAIL ${where}`)
+    }
+  })
+
+  it('warns when an engine declares none, since a host then reads all of inspect() as the document', () => {
+    const { editorState: _declared, ...engine } = example.engine
+    const result = checkManifest({ ...example, engine })
+    expect(result.code).toBe(0)
+    expect(result.out).toContain('WARN engine.editorState: not declared, so a host reads every key of inspect() as the document')
+    expect(result.out).toContain('(platform K23)')
+  })
+})

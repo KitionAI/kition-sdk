@@ -577,6 +577,31 @@ fn reads_the_kit_from_its_manifest() {
     assert!(KitInfo::from_manifest(r#"{"id":"kit.x","version":"1","formats":[]}"#, &[], &[]).is_err());
 }
 
+/// The editor state `kit.json` publishes to hosts (`engine.editorState`, platform K23) is the
+/// engine's own list: a kit whose two lists differ does not start, so they cannot drift apart. A
+/// manifest without the field leaves the engine's list as the only one.
+#[test]
+fn the_manifest_editor_state_is_the_engines() {
+    let manifest = |declared: Option<Value>| {
+        let mut manifest: Value = serde_json::from_str(include_str!("../../../examples/grid-kit/kit.json")).unwrap();
+        match declared {
+            Some(declared) => manifest["engine"]["editorState"] = declared,
+            None => _ = manifest["engine"].as_object_mut().unwrap().remove("editorState"),
+        }
+        manifest.to_string()
+    };
+    let volatile = ["/selection", "playhead"];
+    let kit = KitInfo::from_manifest(&manifest(Some(json!(volatile))), &[], &volatile).unwrap();
+    assert_eq!(kit.volatile, volatile);
+    assert!(KitInfo::from_manifest(&manifest(None), &[], &volatile).is_ok(), "a manifest without the field");
+    for declared in [json!([]), json!(["/selection"]), json!(["playhead", "/selection"]), json!(["/selection", "playhead", "/view"])] {
+        let error = KitInfo::from_manifest(&manifest(Some(declared.clone())), &[], &volatile).unwrap_err();
+        assert!(error.contains("engine.editorState") && error.contains("platform K23"), "{declared}: {error}");
+    }
+    let error = KitInfo::from_manifest(&manifest(Some(json!(["/view"]))), &[], &[]).unwrap_err();
+    assert!(error.contains("[\"/view\"]"), "{error}");
+}
+
 #[test]
 fn turns_harness_schemas_into_json_schema() {
     let spec = json!({
@@ -1636,6 +1661,7 @@ impl KitDocument for Track {
 fn track_kit(volatile: &[&str]) -> KitInfo {
     let mut manifest: serde_json::Value = serde_json::from_str(include_str!("../../../examples/grid-kit/kit.json")).unwrap();
     manifest["formats"] = json!([{ "id": "track", "extensions": ["track"], "role": "edit" }]);
+    manifest["engine"]["editorState"] = json!(volatile);
     KitInfo::from_manifest(&manifest.to_string(), &[], volatile).unwrap()
 }
 

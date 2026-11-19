@@ -232,6 +232,23 @@ so an agent edits the live document the person sees:
 | `ai/version` | `{}` | (2.9, capability `changes`) `{ version }`, the replica's version, base64 |
 | `ai/changes` | `{ since, schema? }` | (2.9, capability `changes`) `{ changes, version }`, or `{ changes: null, unavailable, version }` |
 
+`ai/inspect`'s `details` is the engine's `inspect()` (at the part and in
+the context the request gives, when it gives them) as the engine answers it,
+so it includes the editor state the engine reports: the person's selection,
+current part, view or playhead, which change as the person works and as the
+editor's canvas resizes. The kit does not filter it. The host does: what it
+hands an agent as the document, and what it compares to tell whether the
+document changed, is `details` without the editor state the kit declares in
+`kit.json` `engine.editorState` and without the session's bookkeeping at the
+top (`canUndo`, `canRedo`, `dirty`, `revision`, `history`, `undo`, `redo`,
+`path`, `title`, which the answer's own members carry), exactly as a headless
+kit's `view.describe` leaves them out (`kition_kit::document_content`;
+[manifest](../kits/manifest.md) K23, [engine contract](contract.md)). A kit
+whose manifest declares no `engine.editorState` has all of `details` read as
+the document. The person's selection reaches an agent through
+`ai/selection` (section 7h), and an agent's step acts in an editor state of
+its own (2.9, below), so the agent needs none of it in the document.
+
 With `draft: true` (capability `draft`, section 7d) they work on the agent's
 draft instead of the live document. Minor version 1.11 adds `ai/selection`,
 `ai/select`, and `ai/hitTest` (section 7h).
@@ -710,7 +727,12 @@ it or discards it. A kit that keeps drafts lists `draft` in its
   (the agent asked for review); `revision` is the draft engine's.
 - The kit opens the draft on a fork of the document's replica, in a second
   engine. A draft's `ai/run` never saves and never touches the document,
-  its undo history, or its file; the host's UI configuration (section 9) and
+  its undo history, or its file: after it, the live document's `ai/inspect`
+  answers the same content (`details` without the declared editor state and
+  the session's bookkeeping, as `ai/inspect` above says), the same `dirty`,
+  `canUndo` and `canRedo`, and the file the same bytes. The editor state may
+  change meanwhile (the draft bar takes room from the canvas, so a view that
+  follows the canvas changes); the host's UI configuration (section 9) and
   read-only rules apply to it as to the document, and a read-only document
   has no draft (reason `read-only`).
 - `draft/compare` answers the object-level comparison (`KitAgent 1.4` A13,

@@ -1,0 +1,20 @@
+format: 1
+id: sdk.platform.editor-state-declared/manifest-matches-engine
+feature: sdk.platform.editor-state-declared
+intent: >-
+  kit.json publishes the editor state the engine's inspect() reports as engine.editorState
+  (platform K23), so a host that does not run the kit's Rust code can read inspect() without it.
+  tools/check-manifest.mjs takes JSON Pointers, names and [] and refuses anything else, and warns
+  when an engine declares none; kition_headless::KitInfo::from_manifest refuses a manifest whose
+  list is not the engine's (another order, one key more or less), so the two lists cannot drift,
+  and still starts a kit whose manifest omits the field.
+layer: gate
+source: { kind: synthetic, from: tools/check-manifest.test.mjs and kition-headless tests, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/check-manifest.test.mjs, -t, engine.editorState] }
+  - exec: { cmd: [cargo, test, -p, kition-headless, --lib, the_manifest_editor_state_is_the_engines] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 300
