@@ -116,14 +116,14 @@ rendering.
 
 <img src="assets/readme/agent-mcp.png" alt="The agent example's output: it edits Notes.md over MCP, adding a section with a task, and note_check finds nothing wrong; then the file as saved." width="70%" />
 
-`kition-kits-mcp` serves every kit in a folder as MCP tools (`note_inspect`, `note_run`,
+`kition mcp` serves every kit in a folder as MCP tools (`note_inspect`, `note_run`,
 `note_check`, ...) for any MCP client. Agents edit the same files people do, with the same engine,
 and can ask the kit to check their own work. Edits can go to a draft that the person reviews and
 merges. [`examples/agent-mcp`](examples/agent-mcp) is the agent's side, in a few dozen lines.
 Connecting Claude Code, Claude Desktop, Cursor or Codex: [docs/sdk/agent.md](docs/sdk/agent.md#connect-your-agent).
 
-`kition`, the command line, brings the server without the kits and downloads each kit the first
-time an agent opens a file of it. With Node.js 20 or later, from npm:
+`kition mcp` is a command of `kition`, the command line, which comes without the kits and downloads
+each kit the first time an agent opens a file of it. With Node.js 20 or later, from npm:
 
 ```sh
 npm install -g @kition/cli

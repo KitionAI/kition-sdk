@@ -3,7 +3,7 @@
 A Claude Code plugin that lets Claude create, inspect, edit and check files in your project with
 published Kition kits through their Kit Harness Protocol (KHP) tools. The published kits are
 Note, for Markdown documents; Table, for `.ktable` tables; and HTML, for `.html` pages. No Kition app needs to run: the
-plugin starts kition-sdk's `kition-kits-mcp`, which drives each kit's headless executable on the
+plugin starts `kition mcp` (`@kition/cli`), which drives each kit's headless executable on the
 files in your project folder.
 
 What it adds:

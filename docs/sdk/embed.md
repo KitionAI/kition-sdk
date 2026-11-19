@@ -78,7 +78,7 @@ discardButton.onclick = () => editor.draft.discard() // the document stays as it
 ## Your agent in the open editor (`editor.agentPort`, `KitEmbed 1.3`)
 
 Your agent (on your server) can work in the document the person has open, with the same MCP tools
-`kition-kits-mcp` offers on files (`<prefix>_inspect`, `_commands`, `_run`, `_query`, `_batch`,
+`kition mcp` offers on files (`<prefix>_inspect`, `_commands`, `_run`, `_query`, `_batch`,
 `_check`, `_draft_ready`, `_draft_reopen`). `editor.agentPort()` is an MCP server for one editor;
 your page relays its messages to your server, and your server hands them to the agent:
 
@@ -105,7 +105,7 @@ const relay = createAgentRelay()
 - It edits no more than the person may (`view` and `comment` refuse writes with `read-only`), and
   only the open document (`path` must be its name, else `not-open`).
 - Authenticate both sides yourself: relay only to the page of the person who asked for the agent.
-- Without a relay, an agent works **headless** on the file (`kition-kits-mcp`, [agent.md](agent.md))
+- Without a relay, an agent works **headless** on the file (`kition mcp`, [agent.md](agent.md))
   and the page sees its save as a new version (`storage.stamp` changes; the editor offers to
   reload), never as a draft.
 

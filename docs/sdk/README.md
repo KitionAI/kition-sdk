@@ -14,7 +14,7 @@ app and your agent work on the same file with the same engine:
 | **Embed** | put a kit's editor in your web page, over your storage and your users | `@kition/embed` | [embed.md](embed.md) | [`KitEmbed 1.8`](../platform/sets/embed.md) (`@kition/embed` serves `KitEmbed 1.3`, with EM25's opening and EM28–EM31); [Kit UI protocol](../platform/reference/ui-protocol.md) (UI-H1–H7, UI-K1–K7); [kit editors](../platform/kits/ui.md) |
 | **Script** | read and edit documents from code, in a page or in Node | `@kition/script` | [script.md](script.md) | [`KitObjectModel 1.0`](../platform/sets/object-model.md); exchange in [`KitModel 1.1`](../platform/sets/model.md) |
 | **Headless** | run a kit without a page, from any language: servers, desktop apps, batch jobs, tests | `kition-kits serve`, `kition-<kit>` executables | [headless.md](headless.md), [hosts.md](hosts.md) | [engine contract](../platform/kits/engine.md); [`KitAgent 1.4`](../platform/sets/agent.md) (A1–A4, headless Kit Process Protocol) |
-| **Agent** | give an AI agent a kit's tools, including checking its own output | `kition-kits-mcp` (MCP over stdio; `kition mcp`, with `@kition/cli` on npm), agent skill | [agent.md](agent.md) | [`KitAgent 1.4`](../platform/sets/agent.md) (A1–A23, D1) |
+| **Agent** | give an AI agent a kit's tools, including checking its own output | `kition mcp` (MCP over stdio; `npm install -g @kition/cli`; the SDK bundle's `kition-kits-mcp`), agent skill | [agent.md](agent.md) | [`KitAgent 1.4`](../platform/sets/agent.md) (A1–A23, D1) |
 
 Co-editing: [collab.md](collab.md) (Kition Cloud for your tenant: sync tokens from your server,
 or Kition Server on your own machines).
@@ -28,7 +28,7 @@ Licence: every form is free and needs no key; only collaboration does (see [lice
 ## The path a customer takes
 
 1. **Embed** Note in the web app with its own `StorageProvider` (files on its server).
-2. **Agent**: the customer's agent edits the same files with `kition-kits-mcp --workspace <folder>`
+2. **Agent**: the customer's agent edits the same files with `kition mcp --workspace <folder>`
    (`note_run`, `note_query`, `note_batch`) and calls `note_check`.
 3. The person sees the agent's edits as new versions of the files; the agent reads the person's.
 
@@ -56,7 +56,7 @@ pnpm test:sdk:exit                                   # both, end to end
 Every form is free, open source (Apache-2.0), and needs no licence key, in development and in
 production: editors embedded in a web page (`@kition/embed`) and single-user URL embedding,
 `@kition/script` scripts, the headless executables on any machine (your servers included), and
-`kition-kits-mcp`. Nothing shows a mark or prints a warning.
+`kition mcp` (the bundle's `kition-kits-mcp`). Nothing shows a mark or prints a warning.
 
 Only collaboration is paid: running Kition Server yourself (free for companies of up
 to 8 people; Business and Enterprise plans are paid) or co-editing on Kition Cloud (hosted by

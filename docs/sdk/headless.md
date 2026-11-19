@@ -18,7 +18,8 @@ yourself:
 - **From Node**: `openHeadless(binary, file, options)` in `@kition/script/node`
   ([script.md](script.md)), on `kition-kits serve`: the object model, `commands()`, `execute()`,
   `save()`, `saveAs()`.
-- **From an agent**: `kition-kits-mcp` launches the executables for you ([agent.md](agent.md)).
+- **From an agent**: `kition mcp` (`npm install -g @kition/cli`) launches the executables for you
+  ([agent.md](agent.md)); a product shipping the SDK bundle runs the bundle's `kition-kits-mcp`.
 - **As your own host**: a host that keeps files elsewhere than a folder speaks the protocol to each
   kit and serves its `files.*` ([hosts.md](hosts.md#hosts-that-serve-files-themselves)).
 

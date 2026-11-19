@@ -1,41 +1,45 @@
 # Agent: kit tools over MCP
 
-`kition-kits-mcp` is a stdio MCP server. It gives any MCP client (Claude Code, Claude Desktop,
-Cursor, Codex, DeepSeek Harness, your own agent) the kits' tools on one workspace folder. The
-agent creates, inspects, edits and checks files there through each kit's headless executable. No
-Kition app has to run, and the server is free on any machine with no licence key. The published
-kits are Note, for Markdown; Table, for `.ktable` tables; and HTML, for `.html` pages.
+`kition mcp` is a stdio MCP server, a command of `kition`, the Kition command line (`@kition/cli`
+on npm). It gives any MCP client (Claude Code, Claude Desktop, Cursor, Codex, DeepSeek Harness,
+your own agent) the kits' tools on one workspace folder. The agent creates, inspects, edits and
+checks files there through each kit's headless executable; `kition` downloads each kit into
+`~/.kition/kits` the first time the agent opens a file of it. No Kition app has to run, and the
+server is free on any machine with no licence key. The published kits are Note, for Markdown;
+Table, for `.ktable` tables; and HTML, for `.html` pages.
 
 ## Connect your agent
 
-Pick one way to get the server:
+With Node.js 20 or later, in your project folder:
 
-- **npm**: `npx -y @kition/cli mcp --workspace <folder>` downloads `kition` for your platform
-  (macOS arm64 and x64, Linux arm64 and x64 with glibc, Windows x64) and starts `kition mcp`,
-  which downloads each kit of the kit index into `~/.kition/kits` the first time the agent opens
-  a file of it. Node.js 20 or later. `npm install -g @kition/cli` installs it as the command `kition`;
-  `kition agent add claude` (or `codex`, `cursor`) then registers it
-  ([cli.md](cli.md#your-agent)).
-- **`kition`**: the same server without Node.js. Install `kition` with the install script and
-  register it with `kition agent add claude` (or `codex`, `cursor`), which registers
-  `kition mcp --workspace <folder>` ([cli.md](cli.md#your-agent)).
-- **Installed binary**: take `bin/<platform>/kition-kits-mcp` from the SDK release's bundle for
-  your platform ([distribution.md](distribution.md)), or build it from kition-sdk with
-  `cargo build --release -p kition-kits --bin kition-kits-mcp`. It then needs the kits: give
-  `--kits-dir <folder>` (the bundle's `kits/`, whose executables are in `bin/<platform>/`, or one
-  folder per kit holding its `kit.json` and its `kition-<kit>` executable) or
-  `--kit <kition-note>`; see [The server](#the-server).
+```sh
+npm install -g @kition/cli
+kition agent add claude          # or codex, cursor
+```
 
+`kition agent add` registers `kition mcp --workspace <folder>` with the agent as the MCP server
+named `kition`, and prints what it ran or wrote; `kition agent list` shows where it is registered
+([cli.md](cli.md#your-agent): scopes, and where each agent keeps it). Without Node.js, install
+`kition` with `install.sh` (macOS, Linux with glibc) or `install.ps1` (Windows) and run the same
+`kition agent add` ([cli.md](cli.md#installing-it)). `kition` runs on macOS arm64 and x64, Linux
+arm64 and x64 (glibc) and Windows x64.
+
+### By hand
+
+Every client starts the same command: `kition mcp --workspace <folder>`, or, with nothing
+installed, `npx -y @kition/cli mcp --workspace <folder>` (npx keeps `kition` in npm's cache).
 `--workspace` is the only folder the server reads or writes. A relative path is resolved against
 the folder the client starts the server in. Replace `<folder>` with an absolute path where the
-client does not start servers in your project (Claude Desktop, Codex).
+client does not start servers in your project (Claude Desktop, Codex). When the client does not
+find `kition` on its `PATH`, give its absolute path (`~/.kition/bin/kition` from `install.sh`);
+`kition agent add` does that for you.
 
 **Claude Code**: in the project folder,
 
 ```sh
+claude mcp add kition -- kition mcp --workspace "$PWD"
+# with nothing installed:
 claude mcp add kition -- npx -y @kition/cli mcp --workspace "$PWD"
-# installed binary:
-claude mcp add kition -- kition-kits-mcp --workspace "$PWD" --kits-dir <kits-folder>
 ```
 
 Add `--scope project` to share it through the project's `.mcp.json`. `/mcp` shows whether the
@@ -50,8 +54,8 @@ same server.
 {
   "mcpServers": {
     "kition": {
-      "command": "npx",
-      "args": ["-y", "@kition/cli", "mcp", "--workspace", "/absolute/path/to/folder"]
+      "command": "kition",
+      "args": ["mcp", "--workspace", "/absolute/path/to/folder"]
     }
   }
 }
@@ -63,8 +67,8 @@ same server.
 {
   "mcpServers": {
     "kition": {
-      "command": "npx",
-      "args": ["-y", "@kition/cli", "mcp", "--workspace", "${workspaceFolder}"]
+      "command": "kition",
+      "args": ["mcp", "--workspace", "${workspaceFolder}"]
     }
   }
 }
@@ -74,12 +78,12 @@ same server.
 
 ```toml
 [mcp_servers.kition]
-command = "npx"
-args = ["-y", "@kition/cli", "mcp", "--workspace", "/absolute/path/to/folder"]
+command = "kition"
+args = ["mcp", "--workspace", "/absolute/path/to/folder"]
 ```
 
-With the installed binary, the command is `kition-kits-mcp` (its path, if it is not on the
-`PATH`), and the arguments are `["--workspace", "<folder>", "--kits-dir", "<kits-folder>"]`.
+With npx instead, the command is `npx` and the arguments start with `-y`, `@kition/cli`:
+`["-y", "@kition/cli", "mcp", "--workspace", "<folder>"]`.
 
 Options for every form:
 
@@ -89,8 +93,10 @@ Options for every form:
   tools or tool-definition tokens; with Note alone, both give ten tools.
 - `--drafts`: the agent's edits go to drafts the person reviews ([Drafts](#drafts)).
 - `--sandbox`: run every kit process in the operating system's sandbox.
-- `--list-kits` prints the kits the server found and exits. `--schemas` prints every tool's
-  argument and result JSON Schema. `--help` lists every option.
+- `--no-install`: install no kit on first use; `--index <address or file>`: another kit index
+  ([cli.md](cli.md#kits-installed-on-first-use)).
+- `kition mcp --list-kits` prints the kits the server found and exits. `kition mcp --schemas`
+  prints every tool's argument and result JSON Schema. `kition mcp --help` lists every option.
 
 Other clients:
 
@@ -102,27 +108,26 @@ Other clients:
 ## The server
 
 ```sh
-# from the unpacked SDK bundle
-bin/<platform>/kition-kits-mcp --workspace <folder> --kits-dir kits
-# or one kit: --kit bin/<platform>/kition-note (repeatable)
+kition mcp --workspace <folder>          # the kits of the kit store, installed on first use
+kition mcp                               # the same, on the folder it starts in
 ```
 
-`--kits-dir` names the bundle's `kits/`, where each kit's `kit.json` is; the server finds each
-kit's executable in the bundle's `bin/<platform>/`, beside itself, through
-`KITION_KIT_<KIT>_BINARY`, or on the PATH, and says on standard error which kit it found no
-executable for (`--list-kits` gives the same reason).
-
-`kition mcp` (and `npx -y @kition/cli mcp`, the same through npm) takes the same options; with neither
-`--kits-dir` nor `--kit`, its kits are those of the kit store, installed on first use
-([cli.md](cli.md)).
+With neither `--kits-dir` nor `--kit`, its kits are those of the kit store (`~/.kition/kits`, or
+`KITION_HOME`'s): the version in use of each installed kit, and each kit of the kit index
+installed the first time the agent names a file of it ([cli.md](cli.md#kits-installed-on-first-use)).
+`--kit <path>` (repeatable) or `--kits-dir <folder>` names the kits instead, and the store is not
+used; `KITION_KIT_<KIT>_BINARY` names a kit executable to use instead of the store's (a
+development build). Without `--workspace`, it serves the folder it starts in and names it on
+standard error.
 
 Options: `--unified` (one `kit_<action>` set for every kit), `--drafts` (the agent's edits are
 drafts unless a call says `draft: false`; a kit whose `kit.json` declares no `agent.drafts`
 refuses them, see [Drafts](#drafts)), `--guard premise|epoch|off` and `--require-basis` (see
 [What others changed](#what-others-changed)), `--sandbox`, `--help`.
 The server is free on any machine and takes no licence key: only collaboration is paid.
-`kition-kits-mcp --schemas` prints every tool's argument and result JSON Schema (`input`,
-`output`; the same as Kition's `contracts/kit/mcp-tools.schema.json`).
+`kition mcp --schemas` prints every tool's argument and result JSON Schema (`input`,
+`output`; the same as Kition's `contracts/kit/mcp-tools.schema.json`). A product shipping the SDK
+bundle runs the bundle's `kition-kits-mcp` instead ([In the SDK bundle](#in-the-sdk-bundle-kition-kits-mcp)).
 
 Each kit whose executable is set adds its tools (prefix = the kit, such as `note`):
 
@@ -503,13 +508,15 @@ the person and `drafts list` does not show, and no file is edited against the se
 without the call saying so. `@kition/embed`'s agent port answers the same in a page whose kit
 keeps no drafts.
 
-The person, through your page's server, reviews and merges with `kition-kits-mcp drafts` or
-`workspaceDrafts` in `@kition/script/node`:
+The person, or your page's server for them, reviews and merges with `kition mcp drafts`
+(`kition mcp drafts list --workspace <folder>`, `kition mcp drafts merge <path> --workspace
+<folder>`, ...) or `workspaceDrafts` in `@kition/script/node`:
 
 ```ts
 import { workspaceDrafts } from '@kition/script/node'
 
-const drafts = workspaceDrafts({ server: 'bin/<platform>/kition-kits-mcp', workspace, kitsDir: 'kits' }) // the SDK bundle's
+const drafts = workspaceDrafts({ server: 'kition', serverArgs: ['mcp'], workspace })
+// with the SDK bundle: { server: 'bin/<platform>/kition-kits-mcp', workspace, kitsDir: 'kits' }
 const [draft] = await drafts.list() // { path, state: 'ready', stale, mode, … }
 const comparison = await drafts.compare(draft.path, { previews: true }) // { diff, summary, previews }
 await drafts.merge(draft.path) // the person approved: the draft becomes the file
@@ -541,11 +548,34 @@ and server relay the messages ([embed.md](embed.md), `relayAgentPort`, `createAg
   `<prefix>_draft_ready` and the person merges or discards it in the page;
 - `path` is the open document's name; only the tools the kit's editor supports are listed
   (`<prefix>_query`/`_batch` with an object model, `_check` with checks, the draft tools with drafts);
-- the answers and error codes are those of `kition-kits-mcp`.
+- the answers and error codes are those of `kition mcp`.
 
 Without a relay, the agent works headless on the file as above, and the page reloads when the
 file's version changes. [examples/agent-mcp/live.mjs](../../examples/agent-mcp/live.mjs) drafts in
 an open note through the example page.
+
+## In the SDK bundle: `kition-kits-mcp`
+
+This section is for a product that ships the SDK bundle ([distribution.md](distribution.md)) and
+starts the server itself, on the kits the bundle carries rather than on a kit store. An agent
+user does not need it: `kition mcp` is the same server ([Connect your agent](#connect-your-agent)).
+
+The bundle's `bin/<platform>/` holds `kition-kits-mcp`, the same server without the kit store:
+
+```sh
+# from the unpacked SDK bundle
+bin/<platform>/kition-kits-mcp --workspace <folder> --kits-dir kits
+# or one kit: --kit bin/<platform>/kition-note (repeatable)
+```
+
+`--kits-dir` names the bundle's `kits/`, where each kit's `kit.json` is; the server finds each
+kit's executable in the bundle's `bin/<platform>/`, beside itself, through
+`KITION_KIT_<KIT>_BINARY`, or on the PATH, and says on standard error which kit it found no
+executable for (`--list-kits` gives the same reason). It takes `kition mcp`'s options and its
+`drafts` commands (`kition-kits-mcp drafts list --workspace <folder> --kits-dir kits`), with these
+differences: `--workspace` is required, there is no store, and it installs no kit (no
+`--no-install`, no `--index`). In an `mcpServers` file, the command is its path and the
+arguments are `["--workspace", "<folder>", "--kits-dir", "<bundle>/kits"]`.
 
 Kition kit platform: [`KitAgent 1.4`](../platform/sets/agent.md): tools (A1–A6), object-model tools (A16), error
 codes (A18), resources (A19), Verify (A21–A23), DeepSeek Harness (D1).

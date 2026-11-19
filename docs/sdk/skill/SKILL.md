@@ -1,16 +1,19 @@
 ---
 name: kition-kits
-description: Create, edit and check files with Kition's kit tools over MCP (kition-kits-mcp). Markdown notes (md) with the published Note kit, and the file types of any other Kition kit the server has installed. Use when a task asks to create, change, or verify such a file in the workspace and the server's `kit_*` or `<prefix>_*` tools are available.
+description: Create, edit and check files with Kition's kit tools over MCP (kition mcp, from @kition/cli). Markdown notes (md, markdown) with the published Note kit, tables (ktable) with Table, HTML pages (html, htm) with HTML, and the file types of any other Kition kit the server has installed. Use when a task asks to create, change, or verify such a file in the workspace and the server's `kit_*` or `<prefix>_*` tools are available.
 ---
 
 # Kition kits
 
-Kition's kits MCP server (`kition-kits-mcp --workspace <folder>`, or `npx -y @kition/cli mcp
---workspace <folder>`) edits files in the workspace folder that you should not write as plain
-text. Each installed kit's tools start with its prefix. The published kits are Note, `note` (md,
-markdown), and Table, `table` (ktable). The prefixes of Kition's other kits, which are not
-published yet, are `doc` (docx), `sheet` (xlsx), `slide` (pptx), `pdf`, `photo` (psd), `vector`
-(svg), `film`, `motion`, `board`, `cad` (dxf), `layout` (idml), `design`, `html` and `scene`. With `--unified` (the Claude Code plugin's default) one set serves every
+Kition's kits MCP server (`kition mcp --workspace <folder>`, from `@kition/cli`: `npm install -g
+@kition/cli` and `kition agent add <agent>`, or `npx -y @kition/cli mcp --workspace <folder>`)
+edits files in the workspace folder that you should not write as plain text. Each installed kit's
+tools start with its prefix. The published kits are Note, `note` (md, markdown); Table, `table`
+(ktable); and HTML, `html` (html, htm). `kition mcp` installs a kit the first time you name a
+file of it (`kit_inspect`), and its tools appear then. The prefixes of Kition's other kits,
+which are not published yet, are `doc` (docx), `sheet` (xlsx), `slide` (pptx), `pdf`, `photo`
+(psd), `vector` (svg), `film`, `motion`, `board`, `cad` (dxf), `layout` (idml), `design` and
+`scene`. With `--unified` (the Claude Code plugin's default) one set serves every
 kit, chosen by the file's extension: read `kit` for `<prefix>` below (`kit_inspect`, `kit_run`,
 ...).
 
