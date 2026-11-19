@@ -222,7 +222,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
           cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
-          git clone --depth 1 https://github.com/kitharness/khp "$GITHUB_WORKSPACE/../khp"
+          git clone --depth 1 https://github.com/kitharness/kitharness "$GITHUB_WORKSPACE/../khp"
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@v4
         with:
