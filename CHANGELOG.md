@@ -4,6 +4,12 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+## 0.5.1 (2026-11-19)
+
+Contracts: KHP 1.0, the Kit Process Protocol `kition-kit/2`, the kit engine contract 1
+(`CONTRACT_VERSION`), the Kit UI protocol `kition-kit-ui/1` and KDM 1, as in 0.5.0. The published kits
+are those of 0.5.0.
+
 - **`kition` on npm.** `npm install -g kition` gives the `kition` command, and
   `npx -y kition <command>` runs it (`npx -y kition mcp --workspace <folder>` for an agent). The
   package `kition` (`packages/kition`) is a Node launcher; the executable comes in the optional

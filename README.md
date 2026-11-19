@@ -163,7 +163,7 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.5.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`kition`](https://www.npmjs.com/package/kition).
+The packages are version 0.5.1, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`kition`](https://www.npmjs.com/package/kition).
 
 | Package | What |
 | --- | --- |
