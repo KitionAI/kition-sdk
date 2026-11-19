@@ -135,8 +135,10 @@ kition agent <command> --help for one command.
 const AGENT_ADD: &str = "\
 usage: kition agent add <claude|codex|cursor> [--workspace <folder>] [--scope user|project]
 
-Registers this kition (by its absolute path, so the agent finds it off the PATH) as the MCP server
-named kition, and prints what it ran or wrote. Running it again replaces the registration.
+Registers this kition as the MCP server named kition, and prints what it ran or wrote. Running it
+again replaces the registration. The agent runs this kition by its absolute path, so it finds it
+off the PATH; installed with npm, by npm's kition command (npm install -g kition), or as
+npx -y kition (run through npx), which outlive npm's cache and upgrades.
 
   --scope project   (default for claude and cursor) for one folder: --workspace, else the current
                     folder, which is also the folder the server edits. Claude Code: its local
@@ -166,10 +168,10 @@ const DOCTOR: &str = "\
 usage: kition doctor [--json] [--index <address or file>]
 
 Checks kition: its version and protocol; the Kition home and whether it can be written; whether
-the folder holding this kition is on the PATH; whether the kit index can be read now (or how old
-the kept copy is); each installed kit in use, started and asked kit.initialize; and which agents
-have kition registered. Each failed check ends with the command that fixes it; the exit status
-is 1 when any check failed.
+the folder holding this kition (installed with npm: npm's kition command) is on the PATH; whether
+the kit index can be read now (or how old the kept copy is); each installed kit in use, started
+and asked kit.initialize; and which agents have kition registered. Each failed check ends with
+the command that fixes it; the exit status is 1 when any check failed.
 
   --json    the same as JSON: version, protocol, platform, ok, and checks (name, status ok, warn,
             fail or info, detail, fix)

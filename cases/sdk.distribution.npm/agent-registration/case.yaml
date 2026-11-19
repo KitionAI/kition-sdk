@@ -1,0 +1,27 @@
+format: 1
+id: sdk.distribution.npm/agent-registration
+feature: sdk.distribution.npm
+intent: >-
+  Started by the npm launcher, kition agent add registers what will still start it later:
+  through npx, `npx -y kition mcp ...` with Claude Code, Codex and Cursor (not the executable in
+  npm's cache); from a global npm install, npm's kition command (<prefix>/bin/kition), not the
+  executable inside node_modules. A KITION_LAUNCHER naming another executable is not taken: the
+  running kition's own path is registered. On Windows, npx and npm's kition.cmd are registered
+  through cmd /c. Stand-ins for claude and codex and a home of the test's own: no real agent
+  configuration is touched.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/agent.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: agent, filter: registers_the_npm_command_that_started_it }
+  - cargo-test: { package: kition-cli, filter: "launcher::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

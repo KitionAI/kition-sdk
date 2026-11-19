@@ -3,8 +3,8 @@
 // .github/workflows/release.yml), from the executables each platform built and checked:
 //
 //   kition-<version>-<platform>.tar.gz   `kition` (`kition.exe` on Windows) and LICENSE, at the
-//                                        top: what install.sh, install.ps1 and the npm package
-//                                        @kition/kits-mcp-<platform> install
+//                                        top: what install.sh and install.ps1 install (the npm
+//                                        package @kition/cli-<platform> carries the same kition)
 //
 //   node tools/release-archives.mjs --bin <folder> --out <folder> [--version <sdk version>]
 //
@@ -24,7 +24,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-export const PLATFORMS = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kits-mcp/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
+export const PLATFORMS = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
 
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 const exeOf = (platform) => (platform.startsWith('win32') ? '.exe' : '')

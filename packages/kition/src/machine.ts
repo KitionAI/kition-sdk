@@ -10,7 +10,15 @@ function glibc(): boolean | undefined {
   return Boolean(header?.glibcVersionRuntime)
 }
 
-/** This machine, as `resolveServer` looks at it; `self` is the launcher's own file. */
+const realPath = (file: string) => {
+  try {
+    return fs.realpathSync(file)
+  } catch {
+    return file
+  }
+}
+
+/** This machine, as `resolveKition` and `launchedAs` look at it; `self` is the launcher's own file. */
 export function thisMachine(self: string): Machine {
   const require = createRequire(self)
   return {
@@ -26,15 +34,10 @@ export function thisMachine(self: string): Machine {
       }
     },
     isFile: (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false,
-    realPath(file) {
-      try {
-        return fs.realpathSync(file)
-      } catch {
-        return file
-      }
-    },
-    self,
-    delimiter: path.delimiter,
+    realPath,
+    self: realPath(self),
     join: path.join,
+    dirname: path.dirname,
+    basename: path.basename,
   }
 }

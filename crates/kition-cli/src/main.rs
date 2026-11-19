@@ -98,6 +98,7 @@ mod tests {
         let sdk: Value = serde_json::from_str(include_str!("../../../sdk.json")).unwrap();
         let cli = &sdk["binaries"]["cli"];
         assert_eq!(cli["name"], "kition");
+        assert_eq!(cli["launcher"], kition_cli::launcher::LAUNCHER_VARIABLE);
         assert_eq!(cli["home"], HOME_VARIABLE);
         assert_eq!(cli["index"], INDEX_VARIABLE);
         assert_eq!(cli["defaultIndex"], DEFAULT_INDEX);

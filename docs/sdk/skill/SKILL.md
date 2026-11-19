@@ -5,7 +5,7 @@ description: Create, edit and check files with Kition's kit tools over MCP (kiti
 
 # Kition kits
 
-Kition's kits MCP server (`kition-kits-mcp --workspace <folder>`, or `npx -y @kition/kits-mcp
+Kition's kits MCP server (`kition-kits-mcp --workspace <folder>`, or `npx -y kition mcp
 --workspace <folder>`) edits files in the workspace folder that you should not write as plain
 text. Each installed kit's tools start with its prefix. The published kits are Note, `note` (md,
 markdown), and Table, `table` (ktable). The prefixes of Kition's other kits, which are not

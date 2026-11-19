@@ -11,6 +11,8 @@ use std::process::{Command, ExitCode, Output};
 
 use serde_json::{Map, Value, json};
 
+use kition_cli::launcher::Started;
+
 use super::{Args, help, shell_quote};
 
 /// The name the server is registered under.
@@ -168,10 +170,11 @@ fn folder(text: &str) -> Result<PathBuf, String> {
     Ok(std::fs::canonicalize(&path).unwrap_or(path))
 }
 
-/// This kition's absolute path: the agent starts it so, whatever its PATH.
-fn this_kition() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|error| format!("cannot tell where this kition is: {error}"))?;
-    Ok(std::path::absolute(&exe).unwrap_or(exe))
+/// The command that starts this kition, as the agent is to run it: its absolute path (so the
+/// agent finds it whatever its PATH), or, started by the npm package, `npx -y kition` or npm's
+/// `kition` command, which outlive the npm cache and upgrades (`kition_cli::launcher`).
+fn this_kition() -> Result<(String, Vec<String>), String> {
+    Ok(Started::detect()?.command(cfg!(windows)))
 }
 
 /// What the agent runs: `kition mcp`, with `--workspace` when one is fixed.
@@ -204,7 +207,7 @@ fn program_of(agent: Agent) -> Result<PathBuf, String> {
 
 /// Registers this kition with `agent`. `Ok(false)` when the agent's command refused.
 fn add(agent: Agent, scope: Scope, workspace: Option<&Path>, here: &Path) -> Result<bool, String> {
-    let kition = this_kition()?.display().to_string();
+    let (kition, mut start) = this_kition()?;
     let project = workspace.unwrap_or(here);
     // A project registration serves its folder; a user one the folder the agent works in, unless
     // --workspace fixes one.
@@ -218,6 +221,7 @@ fn add(agent: Agent, scope: Scope, workspace: Option<&Path>, here: &Path) -> Res
             let program = program_of(agent)?;
             let scope_name = if scope == Scope::Project { "local" } else { "user" };
             let mut args: Vec<String> = ["mcp", "add", "-s", scope_name, SERVER, "--", &kition].map(str::to_owned).to_vec();
+            args.extend(start);
             args.extend(server_args(fixed.as_deref()));
             let mut output = run_tool(&program, &args, project)?;
             let said = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
@@ -233,6 +237,7 @@ fn add(agent: Agent, scope: Scope, workspace: Option<&Path>, here: &Path) -> Res
         Agent::Codex => {
             let program = program_of(agent)?;
             let mut args: Vec<String> = ["mcp", "add", SERVER, "--", &kition].map(str::to_owned).to_vec();
+            args.extend(start);
             args.extend(server_args(fixed.as_deref()));
             Ok(run_tool(&program, &args, project)?.status.success())
         }
@@ -240,7 +245,8 @@ fn add(agent: Agent, scope: Scope, workspace: Option<&Path>, here: &Path) -> Res
             let file = cursor_file(scope, project)?;
             // Cursor fills in ${workspaceFolder} with the folder open in it.
             let workspace = fixed.unwrap_or_else(|| "${workspaceFolder}".to_owned());
-            let entry = json!({ "command": kition, "args": server_args(Some(&workspace)) });
+            start.extend(server_args(Some(&workspace)));
+            let entry = json!({ "command": kition, "args": start });
             let mut config = read_cursor(&file)?;
             let servers = servers_of(&mut config, &file)?;
             servers.insert(SERVER.to_owned(), entry.clone());

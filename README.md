@@ -123,15 +123,23 @@ merges. [`examples/agent-mcp`](examples/agent-mcp) is the agent's side, in a few
 Connecting Claude Code, Claude Desktop, Cursor or Codex: [docs/sdk/agent.md](docs/sdk/agent.md#connect-your-agent).
 
 `kition`, the command line, brings the server without the kits and downloads each kit the first
-time an agent opens a file of it:
+time an agent opens a file of it. With Node.js 20 or later, from npm:
+
+```sh
+npm install -g kition
+kition agent add claude          # in your project folder; or codex, cursor
+# or, without installing: claude mcp add kition -- npx -y kition mcp --workspace "$PWD"
+```
+
+Without Node.js, from the SDK release:
 
 ```sh
 curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
-claude mcp add kition -- ~/.kition/bin/kition mcp --workspace "$PWD"
+~/.kition/bin/kition agent add claude
 ```
 
-On Windows, `irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex`;
-with Node.js, `npx -y @kition/kits-mcp --workspace <folder>`. See [docs/sdk/cli.md](docs/sdk/cli.md).
+On Windows, `irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex`.
+See [docs/sdk/cli.md](docs/sdk/cli.md).
 
 ## Scripts and extensions
 
@@ -155,13 +163,13 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.5.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
+The packages are version 0.5.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`kition`](https://www.npmjs.com/package/kition).
 
 | Package | What |
 | --- | --- |
 | [`@kition/embed`](packages/embed) | Embed kit editors in any web page, over your storage and identity |
 | [`@kition/embed-server`](packages/embed-server) | Serve single-user kit editor pages for embedding by URL |
-| [`@kition/kits-mcp`](packages/kits-mcp) | `kition` from npm, for agents: `npx -y @kition/kits-mcp --workspace <folder>` starts `kition mcp`, which installs each kit on first use |
+| [`kition`](packages/kition) | The `kition` command line from npm: `npm install -g kition`, or `npx -y kition mcp --workspace <folder>` for agents; it installs each kit on first use |
 | [`@kition/script`](packages/script) | The object model for scripts and extensions, in browsers and Node |
 | [`@kition/extensions`](packages/extensions) | The extension host: manifests, sandboxed workers, declared permissions |
 | [`@kition/sync`](packages/sync) | Client for the open sync protocol `kition-sync/1` |

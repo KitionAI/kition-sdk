@@ -10,12 +10,12 @@ import { optionalDependencies, platformManifest, writePlatformPackage } from '..
 
 const platforms = Object.keys(JSON.parse(fs.readFileSync(new URL('../src/platforms.json', import.meta.url), 'utf8'))).filter((key) => !key.startsWith('$'))
 const script = fileURLToPath(new URL('../scripts/platform-package.mjs', import.meta.url))
-const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'kits-mcp-platform-'))
+const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'kition-platform-'))
 
 describe('platform packages', () => {
   it('install only on their platform, as npm reads os, cpu and libc', () => {
     expect(platformManifest('linux-x64', '0.1.0')).toMatchObject({
-      name: '@kition/kits-mcp-linux-x64', version: '0.1.0', os: ['linux'], cpu: ['x64'], libc: ['glibc'], files: ['bin'],
+      name: '@kition/cli-linux-x64', version: '0.1.0', os: ['linux'], cpu: ['x64'], libc: ['glibc'], files: ['bin'],
     })
     expect(platformManifest('darwin-arm64', '0.1.0')).not.toHaveProperty('libc')
     expect(() => platformManifest('sunos-x64', '0.1.0')).toThrow(/no platform sunos-x64/)
@@ -28,7 +28,7 @@ describe('platform packages', () => {
     const written = writePlatformPackage({ platform: 'win32-x64', kition, out: path.join(dir, 'npm') })
     const files = fs.readdirSync(written, { recursive: true }).map((file) => file.split(path.sep).join('/')).sort()
     expect(files).toEqual(['LICENSE', 'README.md', 'bin', 'bin/kition.exe', 'package.json'])
-    expect(JSON.parse(fs.readFileSync(path.join(written, 'package.json'), 'utf8')).name).toBe('@kition/kits-mcp-win32-x64')
+    expect(JSON.parse(fs.readFileSync(path.join(written, 'package.json'), 'utf8')).name).toBe('@kition/cli-win32-x64')
     expect(fs.readFileSync(path.join(written, 'README.md'), 'utf8')).toContain('~/.kition/kits')
     if (process.platform !== 'win32') expect(fs.statSync(path.join(written, 'bin/kition.exe')).mode & 0o111).toBeTruthy()
   })
@@ -47,11 +47,11 @@ describe('linking the launcher', () => {
     const out = scratch()
     for (const platform of platforms.slice(1)) {
       fs.mkdirSync(path.join(out, platform), { recursive: true })
-      fs.writeFileSync(path.join(out, platform, 'package.json'), JSON.stringify({ name: `@kition/kits-mcp-${platform}`, version: '0.1.0' }))
+      fs.writeFileSync(path.join(out, platform, 'package.json'), JSON.stringify({ name: `@kition/cli-${platform}`, version: '0.1.0' }))
     }
     expect(() => optionalDependencies(out, '0.1.0')).toThrow(`no platform package for ${platforms[0]}`)
     fs.mkdirSync(path.join(out, platforms[0]))
-    fs.writeFileSync(path.join(out, platforms[0], 'package.json'), JSON.stringify({ name: `@kition/kits-mcp-${platforms[0]}`, version: '0.0.9' }))
+    fs.writeFileSync(path.join(out, platforms[0], 'package.json'), JSON.stringify({ name: `@kition/cli-${platforms[0]}`, version: '0.0.9' }))
     expect(() => optionalDependencies(out, '0.1.0')).toThrow(/is 0.0.9; the launcher is 0.1.0/)
   })
 
@@ -59,16 +59,16 @@ describe('linking the launcher', () => {
     const out = scratch()
     for (const platform of platforms) {
       fs.mkdirSync(path.join(out, platform), { recursive: true })
-      fs.writeFileSync(path.join(out, platform, 'package.json'), JSON.stringify({ name: `@kition/kits-mcp-${platform}`, version: '0.1.0' }))
+      fs.writeFileSync(path.join(out, platform, 'package.json'), JSON.stringify({ name: `@kition/cli-${platform}`, version: '0.1.0' }))
     }
     const stage = scratch()
     fs.mkdirSync(path.join(stage, 'package'))
-    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: '@kition/kits-mcp', version: '0.1.0' }))
-    const archive = path.join(stage, 'kits-mcp.tgz')
+    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: 'kition', version: '0.1.0' }))
+    const archive = path.join(stage, 'kition.tgz')
     execFileSync('tar', ['-czf', archive, '-C', stage, 'package'])
     execFileSync(process.execPath, [script, 'link', '--launcher', archive, '--out', out], { stdio: 'pipe' })
     const linked = JSON.parse(execFileSync('tar', ['-xzOf', archive, 'package/package.json'], { encoding: 'utf8' }))
-    expect(linked.optionalDependencies).toEqual(Object.fromEntries(platforms.map((platform) => [`@kition/kits-mcp-${platform}`, '0.1.0'])))
+    expect(linked.optionalDependencies).toEqual(Object.fromEntries(platforms.map((platform) => [`@kition/cli-${platform}`, '0.1.0'])))
   })
 
   it('reads platform packages packed by npm pack as well as their folders', () => {
@@ -76,9 +76,27 @@ describe('linking the launcher', () => {
     for (const platform of platforms) {
       const stage = scratch()
       fs.mkdirSync(path.join(stage, 'package'))
-      fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: `@kition/kits-mcp-${platform}`, version: '0.1.0' }))
-      execFileSync('tar', ['-czf', path.join(out, `kition-kits-mcp-${platform}-0.1.0.tgz`), '-C', stage, 'package'])
+      fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: `@kition/cli-${platform}`, version: '0.1.0' }))
+      execFileSync('tar', ['-czf', path.join(out, `kition-cli-${platform}-0.1.0.tgz`), '-C', stage, 'package'])
     }
-    expect(Object.keys(optionalDependencies(out, '0.1.0'))).toEqual(platforms.map((platform) => `@kition/kits-mcp-${platform}`))
+    expect(Object.keys(optionalDependencies(out, '0.1.0'))).toEqual(platforms.map((platform) => `@kition/cli-${platform}`))
+  })
+
+  it('makes a rehearsal’s launcher depend on the archives there by file: path, for an install with no registry', () => {
+    const out = scratch()
+    const [platform] = platforms
+    const stage = scratch()
+    fs.mkdirSync(path.join(stage, 'package'))
+    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: `@kition/cli-${platform}`, version: '0.1.0' }))
+    execFileSync('tar', ['-czf', path.join(out, `kition-cli-${platform}-0.1.0.tgz`), '-C', stage, 'package'])
+    const launcherStage = scratch()
+    fs.mkdirSync(path.join(launcherStage, 'package'))
+    fs.writeFileSync(path.join(launcherStage, 'package', 'package.json'), JSON.stringify({ name: 'kition', version: '0.1.0' }))
+    const archive = path.join(launcherStage, 'kition.tgz')
+    execFileSync('tar', ['-czf', archive, '-C', launcherStage, 'package'])
+    execFileSync(process.execPath, [script, 'link', '--launcher', archive, '--out', out, '--local'], { stdio: 'pipe' })
+    const linked = JSON.parse(execFileSync('tar', ['-xzOf', archive, 'package/package.json'], { encoding: 'utf8' }))
+    expect(linked.optionalDependencies).toEqual({ [`@kition/cli-${platform}`]: `file:${path.join(out, `kition-cli-${platform}-0.1.0.tgz`).split(path.sep).join('/')}` })
+    expect(() => execFileSync(process.execPath, [script, 'link', '--launcher', archive, '--out', scratch(), '--local'], { stdio: 'pipe' })).toThrow(/no platform package archive/)
   })
 })

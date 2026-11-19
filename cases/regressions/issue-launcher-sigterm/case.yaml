@@ -1,6 +1,6 @@
 format: 1
 id: regressions/issue-launcher-sigterm
-feature: sdk.distribution.kits-mcp
+feature: sdk.distribution.npm
 intent: >-
   A client's SIGTERM reaches the stand-in server once after its handler is ready; the handler
   runs and the launcher exits with the server's exit code rather than a signal.
@@ -10,7 +10,7 @@ source: { kind: issue, from: Public Ubuntu CI launcher SIGTERM failure, license:
 input: []
 steps:
   - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kits-mcp/test/launcher.test.ts, --pool=forks]
+      cmd: [pnpm, exec, vitest, run, packages/kition/test/launcher.test.ts, --pool=forks]
 expected:
   - { actual: out:exec, compare: exit, value: 0 }
 since: "2026-11-16"

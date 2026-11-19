@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const INDEX = 'kits-index.json'
 export const MODULES_URL = 'https://raw.githubusercontent.com/KitionAI/kition/main/kits/modules.json'
-export const PLATFORMS = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kits-mcp/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
+export const PLATFORMS = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
 const SCHEMA = JSON.parse(fs.readFileSync(path.join(root, 'schemas', 'kits-index.schema.json'), 'utf8'))
 const API = 'https://api.github.com'
 const TAG_PREFIX = 'package-v'

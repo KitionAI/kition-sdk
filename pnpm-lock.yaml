@@ -158,7 +158,7 @@ importers:
 
   packages/kit-ui-protocol: {}
 
-  packages/kits-mcp: {}
+  packages/kition: {}
 
   packages/script:
     dependencies:

@@ -446,20 +446,27 @@ features:
     cases:
       - sdk.distribution.container/context
     since: "2026-11-16"
-  - id: sdk.distribution.kits-mcp
-    title: "@kition/kits-mcp starts kition mcp for this platform from npm (kition from its platform package, which carries no kit), passing stdio, exit status and signals through"
+  - id: sdk.distribution.npm
+    title: "npm install -g kition gives the kition command and npx -y kition <command> runs it: the npm package kition is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y kition or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform"
     dimension: [platform, ai]
     priority: P1
     status: has
     paths:
-      - packages/kits-mcp/**
+      - packages/kition/**
+      - crates/kition-cli/src/launcher.rs
+      - crates/kition-cli/src/commands/agent.rs
+      - crates/kition-cli/src/commands/doctor.rs
       - .github/workflows/release.yml
       - plugins/claude-code/kition-kits/scripts/kits-mcp.sh
+      - docs/sdk/cli.md
       - docs/sdk/agent.md
+      - docs/sdk/distribution.md
     cases:
-      - sdk.distribution.kits-mcp/launcher
+      - sdk.distribution.npm/agent-registration
+      - sdk.distribution.npm/doctor-path
+      - sdk.distribution.npm/launcher
       - regressions/issue-launcher-sigterm
-    since: "2026-11-16"
+    since: "2026-11-19"
   - id: sdk.distribution.release
     title: "Each SDK version is a GitHub Release with a bundle per platform holding every executable, a manifest naming each file's SHA-256 and the kit version each kit executable answers, the schemas, a snapshot of the gathered kit index (kits-index.json, schema checked, for kition 0.3.0 and 0.4.0), and SHA-256 sums"
     dimension: [platform]
@@ -1783,7 +1790,7 @@ features:
       - regressions/issue-kit-newer-than-index
     since: "2026-11-18"
   - id: sdk.cli.agents
-    title: "kition agent add/remove/list registers kition mcp, by the running kition's absolute path, as the MCP server kition with Claude Code and Codex through their own commands and with Cursor by merging its mcp.json through a temporary file and a rename, printing what it ran or wrote"
+    title: "kition agent add/remove/list registers kition mcp, by the running kition's absolute path (installed with npm: npm's kition command, or npx -y kition), as the MCP server kition with Claude Code and Codex through their own commands and with Cursor by merging its mcp.json through a temporary file and a rename, printing what it ran or wrote"
     dimension: [ai, platform]
     priority: P1
     status: has

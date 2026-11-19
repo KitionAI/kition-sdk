@@ -1,0 +1,31 @@
+format: 1
+id: sdk.distribution.npm/launcher
+feature: sdk.distribution.npm
+intent: >-
+  The kition command of the npm package kition starts KITION_BINARY when it names a file (and
+  stops when it names none), else the bin/kition of the optional package @kition/cli-<platform>,
+  never a kition on the PATH; passes arguments, stdin and stdout through untouched; ends with
+  kition's exit status or signal; hands a client's SIGTERM to kition; names the supported
+  platforms, the missing optional package (--omit=optional) or musl, and install.sh on stderr
+  with nothing on stdout when there is no kition; tells kition in KITION_LAUNCHER that it runs
+  through npx (npm's cache) or through npm's kition command (global <prefix>/bin/kition,
+  <prefix>\kition.cmd on Windows, or a project's node_modules/.bin/kition), replacing an
+  inherited value; and, with the real kition, answers initialize and tools/list and exits by
+  itself with only JSON-RPC on stdout when the client closes stdin. The platform packages carry
+  kition and no kit; a rehearsal's launcher depends on their packed archives by file: path.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: packages/kition/test
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kition]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 60

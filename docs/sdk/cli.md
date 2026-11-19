@@ -13,22 +13,34 @@ It is free on any machine, servers included, and needs no licence key.
 Nothing has to be compiled, and Rust is not needed. Pick one:
 
 ```sh
-# macOS and Linux (glibc): the latest release, into ~/.kition/bin/kition
+# with Node.js 20 or later: npm installs kition for this platform and the `kition` command
+npm install -g kition
+kition --version
+# or run it without installing; npx keeps it in npm's cache
+npx -y kition kit install note
+npx -y kition mcp --workspace <folder>
+```
+
+```sh
+# without Node.js, macOS and Linux (glibc): the latest release, into ~/.kition/bin/kition
 curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
 # a given SDK version
 curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.5.0
 ```
 
 ```powershell
-# Windows (x64; Windows 11 on Arm runs it by emulation): into %USERPROFILE%\.kition\bin\kition.exe
+# without Node.js, Windows (x64; Windows 11 on Arm runs it by emulation): into %USERPROFILE%\.kition\bin\kition.exe
 irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex
 ```
 
-```sh
-# with Node.js 20 or later: the same kition, started as kition mcp (packages/kits-mcp)
-npx -y @kition/kits-mcp --workspace <folder>
-npx -y @kition/kits-mcp kit install note     # the kit commands, through the same package
-```
+The npm package `kition` (`packages/kition` in kition-sdk) is a small Node launcher: its
+`kition` command starts the `kition` of the optional package `@kition/cli-<platform>`, which npm
+installs beside it on `darwin-arm64`, `darwin-x64`, `linux-arm64` and `linux-x64` (glibc) and
+`win32-x64`, with the same arguments, standard input, output and error, and exits as it does. It
+is the same `kition` as the release's archives. Installed with `--omit=optional` (or
+`--no-optional`), on another platform, or on Linux with musl (Alpine), there is no `kition` for
+it, and the command says so on standard error and names `install.sh`. `npm install -g kition`
+again upgrades it; the kits in the store stay.
 
 The scripts take the `kition-<version>-<platform>.tar.gz` of this machine's platform from the SDK
 release ([distribution.md](distribution.md)), check it against the release's `SHA256SUMS`, check
@@ -164,9 +176,25 @@ kition agent list                 # where kition is registered
 kition agent remove cursor
 ```
 
-`agent add` registers this `kition`, by its absolute path (so the agent finds it even when
-`~/.kition/bin` is not on its PATH), as the MCP server named `kition`, running `kition mcp`. It
-prints exactly what it ran or wrote; running it again replaces the registration.
+`agent add` registers this `kition` as the MCP server named `kition`, running `kition mcp`. It
+prints exactly what it ran or wrote; running it again replaces the registration. The command it
+registers is the one that will still start this `kition` later:
+
+| How `kition` runs | `<kition>` in the registration |
+| --- | --- |
+| Installed by `install.sh` or `install.ps1`, or built | its absolute path, so the agent finds it even when `~/.kition/bin` is not on its PATH |
+| `npm install -g kition` | npm's `kition` command, by its absolute path (`<prefix>/bin/kition`; `<prefix>\kition.cmd` on Windows, through `cmd /c`), not the executable inside `node_modules`: npm puts the command back at the same place on every upgrade |
+| `npx -y kition agent add ...` | `npx -y kition` (`cmd /c npx -y kition` on Windows): npx runs `kition` from npm's cache, which npm may clear |
+| A project's `npm install kition` | the project's `node_modules/.bin/kition` |
+
+The npm package's launcher tells `kition` how it was started in the environment variable
+`KITION_LAUNCHER`, a JSON object: `via` (`npx` or `npm`), `command` (the words that start this
+`kition` again: `["npx", "-y", "kition"]`, or the absolute path of npm's `kition` command) and
+`executable` (the `kition` it started). `kition` takes it only when `executable` is itself, so a
+value another program inherited changes nothing. The launcher sets it only when it can tell; a
+launcher installed another way (pnpm, yarn) leaves it out, and `kition` registers its own path.
+`KITION_BINARY` names another `kition` executable for the launcher to start (a development
+build).
 
 | Agent | `--scope project` (default, except Codex) | `--scope user` |
 | --- | --- | --- |
@@ -246,7 +274,11 @@ server again; by then the kit is installed.
 - `kition`'s version, its Kit Process Protocol and the index format it reads;
 - the Kition home, and whether a file can be written in it (or, when it is not made yet, in the
   folder it would be made in);
-- whether the folder holding this `kition` is on the `PATH`, with the line to add when it is not;
+- whether the folder holding this `kition` is on the `PATH`, with the line to add when it is not.
+  Installed with `npm install -g kition`, the folder checked is npm's folder of commands, which
+  holds npm's `kition` command, not the folder inside `node_modules` that holds the executable.
+  Run through `npx`, or from a project's `node_modules`, there is no `kition` command on the `PATH`
+  to check: the check says so, for information, with `npm install -g kition` as the way to one;
 - whether the kit index can be read now; when it cannot, how old the copy kept from the last read
   is (a warning), or that there is none (a failure);
 - each installed kit in use, started as a host starts it and asked `kit.initialize`: the version

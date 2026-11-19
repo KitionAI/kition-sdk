@@ -102,7 +102,7 @@ describe('the launcher', () => {
     fs.mkdirSync(bin, { recursive: true })
     fs.writeFileSync(path.join(bin, 'npx'), '#!/bin/sh\nprintf "%s\\n" "$@"\nprintf "env=%s\\n" "${KITION_KITS_MCP-unset}"\n', { mode: 0o755 })
     const env = { PATH: `${bin}:/usr/bin:/bin`, KITION_KITS_MCP: '${user_config.kits_mcp}', KITION_KITS_DIR: '' }
-    expect(run(['--workspace', '/w'], env)).toEqual(['-y', '@kition/kits-mcp', '--workspace', '/w', '--unified', 'env=unset'])
-    expect(run(['drafts', 'list', '--workspace', '/w'], env)).toEqual(['-y', '@kition/kits-mcp', 'drafts', 'list', '--workspace', '/w', 'env=unset'])
+    expect(run(['--workspace', '/w'], env)).toEqual(['-y', 'kition', 'mcp', '--workspace', '/w', '--unified', 'env=unset'])
+    expect(run(['drafts', 'list', '--workspace', '/w'], env)).toEqual(['-y', 'kition', 'mcp', 'drafts', 'list', '--workspace', '/w', 'env=unset'])
   })
 })

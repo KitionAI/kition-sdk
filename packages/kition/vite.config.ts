@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 
-// The shipped package's modules, for Node: the library (`index`) and the `kition-kits-mcp` command
+// The shipped package's modules, for Node: the library (`index`) and the `kition` command
 // (`cli`), with platforms.json inlined. Declarations: tools/package-types.mjs.
 const entry = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 export default defineConfig({

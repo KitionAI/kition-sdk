@@ -97,3 +97,51 @@ fn doctor_reports_each_check_and_how_to_fix_a_failed_one() {
     let (ok, out, _) = run(kition(&home).arg("doctor").env("PATH", &bare).env("HOME", &person).env("KITION_INDEX", &missing));
     assert!(!ok && out.contains("fail") && out.contains("fix: ") && out.contains("checks failed"), "{out}");
 }
+
+/// Started by the npm package, the PATH check looks for npm's `kition` command, not the folder in
+/// node_modules that holds the executable; through npx there is no command to look for, and that
+/// is information, not a failure.
+#[test]
+fn doctor_checks_the_npm_command_on_the_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("home");
+    let person = dir.path().join("person");
+    std::fs::create_dir_all(&person).unwrap();
+    let missing = dir.path().join("no-index.json").display().to_string();
+    let exe = std::path::absolute(env!("CARGO_BIN_EXE_kition")).unwrap();
+    let npm_bin = dir.path().join("npm").join("bin");
+    std::fs::create_dir_all(&npm_bin).unwrap();
+    let shim = npm_bin.join("kition");
+    std::fs::write(&shim, "").unwrap();
+    let path_check = |launcher: serde_json::Value, path: &str| {
+        let (_, out, err) = run(kition(&home)
+            .args(["doctor", "--json"])
+            .env("PATH", path)
+            .env("HOME", &person)
+            .env("KITION_INDEX", &missing)
+            .env("KITION_LAUNCHER", launcher.to_string())
+            .current_dir(&person));
+        let report: Value = serde_json::from_str(&out).unwrap_or_else(|_| panic!("{out}{err}"));
+        check(&report, "PATH").clone()
+    };
+    let global = serde_json::json!({ "via": "npm", "command": [shim], "executable": exe });
+    let bare = "/usr/bin:/bin".to_owned();
+    let with_npm = std::env::join_paths([npm_bin.as_path(), Path::new("/usr/bin"), Path::new("/bin")]).unwrap().to_string_lossy().into_owned();
+
+    let found = path_check(global.clone(), &with_npm);
+    assert_eq!(found["status"], "ok", "npm's command folder on the PATH is enough: {found}");
+    assert!(found["detail"].as_str().unwrap().contains("npm's folder of global commands"), "{found}");
+    let lost = path_check(global, &bare);
+    assert_eq!(lost["status"], "fail", "{lost}");
+    assert!(lost["fix"].as_str().unwrap().contains(&npm_bin.display().to_string()), "the fix names npm's folder, not node_modules: {lost}");
+
+    let npx = path_check(serde_json::json!({ "via": "npx", "command": ["npx", "-y", "kition"], "executable": exe }), &bare);
+    assert_eq!(npx["status"], "info", "{npx}");
+    assert!(npx["detail"].as_str().unwrap().contains("npx -y kition"), "{npx}");
+    assert!(npx["fix"].as_str().unwrap().contains("npm install -g kition"), "{npx}");
+
+    let project = dir.path().join("app/node_modules/.bin/kition");
+    let local = path_check(serde_json::json!({ "via": "npm", "command": [project], "executable": exe }), &bare);
+    assert_eq!(local["status"], "info", "{local}");
+    assert!(local["detail"].as_str().unwrap().contains("a project's node_modules"), "{local}");
+}

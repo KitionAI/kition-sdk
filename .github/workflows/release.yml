@@ -7,16 +7,24 @@ name: release
 #   a snapshot of the kit index gathered when the release is made (tools/kits-index.mjs); install.sh
 #   and install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
 #   (tools/sdk-release.mjs), with build provenance attestations;
-# - the public @kition/* packages on npm, with @kition/kits-mcp and @kition/kits-mcp-<platform>
-#   (which carries kition).
+# - the public @kition/* packages on npm, with kition (the `kition` command, a Node launcher) and
+#   @kition/cli-<platform> (which carries the kition executable).
 # Each published kit's executable is built from the tag that Kition's kits/kits.lock.json pins for
 # its package, and must answer kit.initialize with that package's version. A release publishes no
 # kit archive: each kit repository publishes its own archives, and .github/workflows/kits-index.yml
 # gathers the index `kition` reads, on the branch kits-index (docs/sdk/distribution.md). The
 # release's kits-index.json is only a snapshot of it, for kition 0.3.0 and 0.4.0, which read
 # releases/latest/download/kits-index.json.
-# Run it by hand from the Actions tab. A release is never replaced: a version already released
-# stops the run, and an npm version already published is skipped; bump sdk.json to publish again.
+# Run it by hand from the Actions tab. A release is never replaced, and an npm version already
+# published is skipped; bump sdk.json to publish a change.
+# Order: everything is built and checked first; then the GitHub Release is made as a draft (no
+# tag yet, and it can still be deleted); then the npm packages are published (a version published
+# on npm can never be used again: the least reversible step); then the draft is published. A run
+# that stops in between is run again from the same commit ("Re-run failed jobs"): it replaces the
+# draft, skips what npm has, and publishes the rest. A version whose release is published already
+# is not released again: a run from its tag (sdk-v<version>) publishes only the npm packages still
+# missing, with the released kition executables (docs/sdk/distribution.md, "When a release stops
+# half-way").
 on:
   workflow_dispatch:
     inputs:
@@ -31,18 +39,36 @@ concurrency:
 jobs:
   lock:
     runs-on: ubuntu-24.04
+    outputs:
+      released: ${{ steps.release.outputs.released }}
     steps:
       - uses: actions/checkout@v4
-      - name: The version is not released yet
+      # Not released yet (no release, or a draft left by a run that stopped, which the publish job
+      # checks): the whole release. Released already: only the npm packages still missing, from
+      # the released commit.
+      - name: The version's release
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version=$(node -p 'require("./sdk.json").version')
-          if gh release view "sdk-v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "sdk-v$version is released already; bump sdk.json to publish a change" >&2
+          if ! state=$(gh release view "sdk-v$version" --repo "$GITHUB_REPOSITORY" --json isDraft 2>/dev/null); then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$(node -p 'JSON.parse(process.argv[1]).isDraft' "$state")" = true ]; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tagged=$(git ls-remote origin "refs/tags/sdk-v$version^{}" | cut -f1)
+          [ -n "$tagged" ] || tagged=$(git ls-remote origin "refs/tags/sdk-v$version" | cut -f1)
+          if [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::sdk-v$version is released from $tagged; bump sdk.json to publish a change, or run this workflow from the tag sdk-v$version to publish its npm packages still missing"
             exit 1
           fi
+          echo "::notice::sdk-v$version is released: this run publishes only its npm packages still missing"
+          echo "released=true" >> "$GITHUB_OUTPUT"
       - name: Kition's kit lock at the commit given
         env:
           KITION_COMMIT: ${{ inputs.kition_commit }}
@@ -64,9 +90,34 @@ jobs:
           path: target/lock/kits.lock.json
           if-no-files-found: error
 
-  # Every executable, built and checked on its own platform (packages/kits-mcp/src/platforms.json).
-  executables:
+  # The npm package kition, packed once: every platform installs this archive in its smoke test,
+  # and the publish job publishes it.
+  launcher:
     needs: lock
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - name: Check out Kition Tessera beside the SDK
+        run: |
+          git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
+          cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: node tools/pack-public-packages.mjs kition
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kition-launcher
+          path: target/npm-pack/kition.tgz
+          if-no-files-found: error
+
+  # Every executable, built and checked on its own platform (packages/kition/src/platforms.json).
+  executables:
+    needs: [lock, launcher]
     strategy:
       # Every platform runs to its end, so one run shows every platform's failure.
       fail-fast: false
@@ -160,39 +211,75 @@ jobs:
           node tools/kit-handshake.mjs --record "$out"
           version=$(node -p 'require("./sdk.json").version')
           "$out/kition$exe" --version | grep -F "kition $version "
-      - name: Write @kition/kits-mcp-${{ matrix.platform }}
+      # A version released already: npm gets the kition the release's archive holds, checked
+      # against its SHA256SUMS, rather than this run's build of it.
+      - name: The released kition
+        if: needs.lock.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
-          node packages/kits-mcp/scripts/platform-package.mjs platform --platform "$PLATFORM" \
-            --kition "target/release-bin/$PLATFORM/kition$exe" --out target/kits-mcp/npm
-      # The package's kition adds every published kit built here (its kit.json and executable, in a
-      # folder of their own) into a Kition home of its own, with the checks of an install; each kit
-      # is then in use with its executable.
-      - name: Smoke test the package with the published kits
+          version=$(node -p 'require("./sdk.json").version')
+          archive="kition-$version-$PLATFORM.tar.gz"
+          mkdir -p target/released
+          gh release download "sdk-v$version" --repo "$GITHUB_REPOSITORY" --pattern "$archive" --pattern SHA256SUMS --dir target/released
+          (cd target/released && node -e '
+            const fs = require("fs"), crypto = require("crypto")
+            const [archive] = process.argv.slice(1)
+            const listed = fs.readFileSync("SHA256SUMS", "utf8").split("\n").find((line) => line.endsWith(` ${archive}`) || line.endsWith(` *${archive}`))
+            const actual = crypto.createHash("sha256").update(fs.readFileSync(archive)).digest("hex")
+            if (!listed || listed.split(/\s+/)[0] !== actual) { console.error(`${archive}: not the SHA-256 SHA256SUMS lists`); process.exit(1) }' "$archive" && tar -xzf "$archive" "kition$exe")
+          cp "target/released/kition$exe" "target/release-bin/$PLATFORM/kition$exe"
+          "target/release-bin/$PLATFORM/kition$exe" --version | grep -F "kition $version "
+      - name: Write @kition/cli-${{ matrix.platform }}
         run: |
           set -euo pipefail
           exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
-          smoke="target/smoke"
-          kition="target/kits-mcp/npm/$PLATFORM/bin/kition$exe"
-          export KITION_HOME="$smoke/home" KITION_INDEX="$smoke/no-index.json"
+          node packages/kition/scripts/platform-package.mjs platform --platform "$PLATFORM" \
+            --kition "target/release-bin/$PLATFORM/kition$exe" --out target/kition/npm
+      - name: Pack it
+        run: mkdir -p target/kition/packed && npm pack "./target/kition/npm/$PLATFORM" --pack-destination target/kition/packed
+      - uses: actions/download-artifact@v4
+        with:
+          name: kition-launcher
+          path: target/kition/launcher
+      # The packed launcher, depending on the packed platform package by its file (as the
+      # published one depends on it by version), installed with npm install -g into a prefix of
+      # its own; its `kition` command, on the PATH, then shows its version, adds every published
+      # kit built here (its kit.json and executable, in a folder of their own) into a Kition home
+      # of its own, with the checks of an install, and lists them, each in use with its executable.
+      - name: Smoke test kition installed from the packed packages, with the published kits
+        run: |
+          set -euo pipefail
+          exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
+          version=$(node -p 'require("./sdk.json").version')
+          smoke="$(pwd)/target/smoke"
+          mkdir -p "$smoke"
+          cp target/kition/launcher/kition.tgz "$smoke/kition.tgz"
+          node packages/kition/scripts/platform-package.mjs link --local --launcher "$smoke/kition.tgz" --out target/kition/packed
+          npm install -g --prefix "$smoke/npm" "$smoke/kition.tgz"
+          # npm puts global commands in <prefix>/bin, and on Windows in <prefix> itself.
+          if [ "$RUNNER_OS" = Windows ]; then bin="$smoke/npm"; else bin="$smoke/npm/bin"; fi
+          export PATH="$bin:$PATH" KITION_HOME="$smoke/home" KITION_INDEX="$smoke/no-index.json"
+          [ "$(command -v kition)" = "$bin/kition" ] || { echo "kition on the PATH is $(command -v kition), not npm's $bin/kition" >&2; exit 1; }
+          kition --version | grep -F "kition $version "
           for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
             mkdir -p "$smoke/kits/$kit"
             cp "target/release-bin/$PLATFORM/kits/$kit/kit.json" "target/release-bin/$PLATFORM/kition-$kit$exe" "$smoke/kits/$kit/"
-            "$kition" kit add "$smoke/kits/$kit"
+            kition kit add "$smoke/kits/$kit"
           done
-          "$kition" kit list --json | node -e '
+          kition kit list
+          kition kit list --json | node -e '
             const kits = JSON.parse(require("fs").readFileSync(0, "utf8")).kits
             const published = require("./published-kits.json")
             const missing = published.filter((kit) => !kits.some((found) => found.name === kit && found.inUse && found.executable))
             if (missing.length) { console.error(`not installed: ${missing.join(", ")}`, kits); process.exit(1) }
             console.log(kits.map((kit) => `${kit.id} ${kit.inUse} ${kit.executable}`).join("\n"))'
-      - name: Pack it
-        run: mkdir -p target/kits-mcp/packed && npm pack "./target/kits-mcp/npm/$PLATFORM" --pack-destination target/kits-mcp/packed
       - uses: actions/upload-artifact@v4
         with:
-          name: kits-mcp-${{ matrix.platform }}
-          path: target/kits-mcp/packed/*.tgz
+          name: kition-cli-${{ matrix.platform }}
+          path: target/kition/packed/*.tgz
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
@@ -201,7 +288,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: executables
+    needs: [lock, executables]
     runs-on: ubuntu-24.04  # Playwright supports 24.04, not 26.04 yet
     permissions:
       contents: write
@@ -237,6 +324,7 @@ jobs:
       # 0.4.0, which read releases/latest/download/kits-index.json; later kition read the branch.
       # A failure, or an index with no kit (exit 3), stops the run: no release goes without it.
       - name: The kit index snapshot
+        if: needs.lock.outputs.released != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -246,6 +334,7 @@ jobs:
           if [ "$status" -eq 3 ]; then echo "::error::the gathered kit index holds no kit; a release does not go without kits-index.json"; fi
           exit "$status"
       - name: The SDK bundle of each platform, and the release files
+        if: needs.lock.outputs.released != 'true'
         run: |
           set -euo pipefail
           version=$(node -p 'require("./sdk.json").version')
@@ -262,45 +351,35 @@ jobs:
           node tools/sdk-release.mjs --dir target/sdk-release
           (cd target/sdk-release && sha256sum -c SHA256SUMS)
       - run: node tools/pack-public-packages.mjs
+      # kition: the archive every platform installed in its smoke test, not a second packing.
       - uses: actions/download-artifact@v4
         with:
-          pattern: kits-mcp-*
-          path: target/kits-mcp/packed
+          name: kition-launcher
+          path: target/kition/launcher
+      - run: cp target/kition/launcher/kition.tgz target/npm-pack/kition.tgz
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kition-cli-*
+          path: target/kition/packed
           merge-multiple: true
-      # @kition/kits-mcp depends on every platform package, optionally: npm installs the one for its platform.
-      - run: node packages/kits-mcp/scripts/platform-package.mjs link --launcher target/npm-pack/kits-mcp.tgz --out target/kits-mcp/packed
+      # kition depends on every platform package, optionally: npm installs the one for its platform.
+      - run: node packages/kition/scripts/platform-package.mjs link --launcher target/npm-pack/kition.tgz --out target/kition/packed
       - run: pnpm exec playwright install --with-deps chromium
       - run: node tools/smoke-public-packages.mjs
       - uses: actions/attest-build-provenance@v2
+        if: needs.lock.outputs.released != 'true'
         with:
           subject-path: |
             target/sdk-release/*.tar.gz
             target/sdk-release/*.json
             target/sdk-release/install.sh
             target/sdk-release/install.ps1
-      - name: Publish on npm in dependency order
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          publish() {
-            name=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')
-            version=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')
-            if npm view "$name@$version" version >/dev/null 2>&1; then
-              echo "$name@$version is already published"
-            else
-              npm publish "$1" --access public --provenance
-            fi
-          }
-          # The platform packages before @kition/kits-mcp, which depends on them.
-          for archive in target/kits-mcp/packed/*.tgz; do publish "$archive"; done
-          cd target/npm-pack
-          for p in kdm kit-ui-protocol embed kit-engine sync convergence script extensions embed-server kit-host kit-dev-host kit-editor kits-mcp; do
-            publish "./$p.tgz"
-          done
-      # Last, so a run that failed earlier can run again. gh uploads every asset to a draft and
-      # then publishes it, so the release never shows without its files.
-      - name: The GitHub Release
+      # A draft first: it can still be deleted, and it has no tag until it is published. A draft
+      # left by a run that stopped is replaced when it is this commit's; one from another commit
+      # stops the run, since npm may hold packages that run published from its commit. gh uploads
+      # every asset to the draft, so the release never shows without its files.
+      - name: The GitHub Release, as a draft
+        if: needs.lock.outputs.released != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -316,7 +395,7 @@ jobs:
               "Install kition (kits download on first use into ~/.kition/kits):",
               "- macOS, Linux: curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh",
               "- Windows: irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex",
-              "- npm: npx -y @kition/kits-mcp --workspace <folder>", "",
+              "- npm (Node.js 20 or later): npm install -g kition, or npx -y kition <command>", "",
               "kition:", cli, "",
               "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.",
               `The kits-index.json of this release is a snapshot of that index as of the release (sha256 ${m.index.sha256}), for kition 0.3.0 and 0.4.0, which read releases/latest/download/kits-index.json.`, "",
@@ -325,5 +404,56 @@ jobs:
               `Every executable with its SHA-256 and the kit version it answers: kition-sdk-${m.version}.json. All assets: SHA256SUMS. Provenance: gh attestation verify <file> --repo ${m.repository}.`,
               "See docs/sdk/distribution.md.",
             ].join("\n"))' "$version" > target/release-notes.md
+          if state=$(gh release view "sdk-v$version" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish 2>/dev/null); then
+            target=$(node -p 'JSON.parse(process.argv[1]).targetCommitish' "$state")
+            if [ "$(node -p 'JSON.parse(process.argv[1]).isDraft' "$state")" != true ]; then
+              echo "::error::sdk-v$version was published while this run was going"
+              exit 1
+            fi
+            if [ "$target" != "$GITHUB_SHA" ]; then
+              echo "::error::a run from $target stopped after drafting sdk-v$version, and npm may hold packages it published from that commit; run again from $target, or delete the draft if npm has no package of $version"
+              exit 1
+            fi
+            gh release delete "sdk-v$version" --repo "$GITHUB_REPOSITORY" --yes
+          fi
           gh release create "sdk-v$version" target/sdk-release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Kition SDK $version" --notes-file target/release-notes.md
+            --title "Kition SDK $version" --notes-file target/release-notes.md --draft
+      # A version on npm can never be published again: this is the step that cannot be undone,
+      # so it comes after every check and after the draft. What npm has already is skipped, so a
+      # run again publishes only what is missing. The scoped @kition packages go first, then the
+      # platform packages, then kition, which depends on them: the first publish of the unscoped
+      # name kition is the one an npm token scoped to @kition refuses, and it then stops the run
+      # with everything else published and the release still a draft.
+      - name: Publish on npm in dependency order
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm whoami
+          publish() {
+            name=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')
+            version=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published"
+            else
+              npm publish "$1" --access public --provenance
+            fi
+          }
+          for p in kdm kit-ui-protocol embed kit-engine sync convergence script extensions embed-server kit-host kit-dev-host kit-editor; do
+            publish "target/npm-pack/$p.tgz"
+          done
+          for archive in target/kition/packed/*.tgz; do publish "$archive"; done
+          if ! npm view kition version >/dev/null 2>&1; then
+            echo "::notice::kition is not on npm yet: its first publish needs an NPM_TOKEN that may create the unscoped package kition, not only @kition/* packages"
+          fi
+          publish target/npm-pack/kition.tgz
+      # Last: the draft becomes the release, and the latest one, once npm has every package it
+      # tells people to install.
+      - name: Publish the GitHub Release
+        if: needs.lock.outputs.released != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(node -p 'require("./sdk.json").version')
+          gh release edit "sdk-v$version" --repo "$GITHUB_REPOSITORY" --draft=false --latest

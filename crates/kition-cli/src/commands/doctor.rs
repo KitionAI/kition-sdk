@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use kition_cli::home::Home;
 use kition_cli::index::{self, Freshness, INDEX_VARIABLE, Source};
+use kition_cli::launcher::Started;
 use kition_cli::store::Store;
 use kition_kit_host::{HeadlessKit, LaunchOptions};
 use serde_json::{Value, json};
@@ -141,25 +142,43 @@ fn check_home(home: &Home) -> Check {
     }
 }
 
-/// Whether the folder holding this kition is on the PATH, so `kition` runs from any shell.
+/// Whether `kition` runs from any shell: the folder of the command that starts this kition is on
+/// the PATH. Run directly, that is this kition's own folder; from a global npm install, npm's
+/// folder of commands, which holds `kition` (npm's link or `kition.cmd`), not the folder inside
+/// node_modules that holds the executable. Through npx, or from a project's node_modules, there
+/// is no `kition` command to put on the PATH: that is said, with the install that gives one.
 fn check_path() -> Check {
-    let Ok(exe) = std::env::current_exe() else {
-        return Check::new("PATH", Status::Warn, "cannot tell where this kition is", None);
+    let started = match Started::detect() {
+        Ok(started) => started,
+        Err(_) => return Check::new("PATH", Status::Warn, "cannot tell where this kition is", None),
     };
-    let Some(folder) = exe.parent().map(Path::to_path_buf) else {
+    let global = Some("npm install -g kition   (or install.sh: docs/sdk/cli.md)".to_owned());
+    let (folder, what) = match &started {
+        Started::Npx { command } => {
+            let detail = format!("kition runs through npx ({}), from npm's cache: no `kition` command is on the PATH", command.join(" "));
+            return Check::new("PATH", Status::Info, detail, global);
+        }
+        Started::Npm { command } if Started::is_project_command(command) => {
+            let detail = format!("kition runs from a project's node_modules ({}): no `kition` command is on the PATH", command.display());
+            return Check::new("PATH", Status::Info, detail, global);
+        }
+        Started::Npm { command } => (command.parent().map(Path::to_path_buf), "npm's folder of global commands, holding kition"),
+        Started::Itself(exe) => (exe.parent().map(Path::to_path_buf), "this kition's folder"),
+    };
+    let Some(folder) = folder else {
         return Check::new("PATH", Status::Warn, "cannot tell where this kition is", None);
     };
     let same = |a: &Path, b: &Path| std::fs::canonicalize(a).ok().zip(std::fs::canonicalize(b).ok()).is_some_and(|(a, b)| a == b);
     let on_path = std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|entry| same(&entry, &folder)));
     if on_path {
-        return Check::new("PATH", Status::Ok, format!("{} is on the PATH", folder.display()), None);
+        return Check::new("PATH", Status::Ok, format!("{} ({what}) is on the PATH", folder.display()), None);
     }
     let fix = if cfg!(windows) {
         format!("setx PATH \"%PATH%;{}\"   (then open a new terminal)", folder.display())
     } else {
         format!("export PATH=\"{}:$PATH\"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)", folder.display())
     };
-    Check::new("PATH", Status::Fail, format!("{} (this kition's folder) is not on the PATH", folder.display()), Some(fix))
+    Check::new("PATH", Status::Fail, format!("{} ({what}) is not on the PATH", folder.display()), Some(fix))
 }
 
 /// Whether the index can be read now; else how old the copy kept from the last read is.

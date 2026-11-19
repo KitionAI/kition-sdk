@@ -11,6 +11,7 @@
 pub mod fetch;
 pub mod home;
 pub mod index;
+pub mod launcher;
 pub mod store;
 pub mod supply;
 

@@ -2,9 +2,9 @@
 
 Each Kition SDK version is a GitHub Release of
 [KitionAI/kition-sdk](https://github.com/KitionAI/kition-sdk/releases), tagged
-`sdk-v<version>`, and the same version of every public `@kition/*` package on npm. Both come from
-one build in the repository's release workflow (`.github/workflows/release.yml`). Downloading
-them needs no account, no token and no Rust.
+`sdk-v<version>`, and the same version of every public `@kition/*` package and of `kition` on
+npm. Both come from one build in the repository's release workflow
+(`.github/workflows/release.yml`). Downloading them needs no account, no token and no Rust.
 
 ## What a release holds
 
@@ -58,8 +58,10 @@ it as `~/.kition/bin/kition` ([cli.md](cli.md#installing-it)):
 curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
 ```
 
-The npm package `@kition/kits-mcp-<platform>` carries the same `kition` as `bin/kition`, and
-`@kition/kits-mcp` starts it as `kition mcp`. The executables a release ships, `kition` among them,
+The npm package `@kition/cli-<platform>` carries the same `kition` as `bin/kition`, and the npm
+package `kition`, which depends on every one of them as an optional dependency, gives the
+`kition` command that starts it (`npm install -g kition`, `npx -y kition <command>`;
+[cli.md](cli.md#installing-it)). The executables a release ships, `kition` among them,
 are built with the workspace's `dist` profile (LTO, one code unit, symbols stripped).
 
 ## Linux: the glibc floor
@@ -183,7 +185,43 @@ kit's repository), their archives and index fragments, and the npm packages. A c
 new version. The repositories turn on GitHub's immutable releases, which enforces this for
 releases. The kit index on the branch `kits-index` is the one exception (above).
 
+## When a release stops half-way
+
+The release workflow builds and checks everything before it publishes anything. It then makes
+the GitHub Release as a draft (no tag yet; it can still be deleted), publishes the npm packages
+(a version published on npm can never be published again, so this is the step that cannot be
+undone), and publishes the draft last. On npm the scoped `@kition/*` packages go first, then
+`@kition/cli-<platform>`, then `kition`, which depends on them.
+
+- **It stopped before npm, or part-way through npm** (a refused token, the registry down): run it
+  again from the same commit, best with "Re-run failed jobs", which keeps the executables already
+  built. The draft is replaced, every npm version already published is skipped, and the rest is
+  published. A draft from another commit stops the run: npm may hold packages published from that
+  commit; run again from it, or delete the draft when npm holds no package of the version.
+- **The release is published, and npm lacks packages of its version** (`kition`'s first publish
+  refused by an `NPM_TOKEN` that may only publish `@kition/*`, for example): give the token the
+  right, then run the workflow from the tag `sdk-v<version>` ("Use workflow from", the tag) with
+  the same `kition_commit`. The run sees the release published from that commit and publishes
+  only what npm lacks: no draft, no bundle, no new release. The `@kition/cli-<platform>` packages
+  carry the `kition` of the release's own `kition-<version>-<platform>.tar.gz`, checked against
+  its `SHA256SUMS`, not a new build. From any other commit the run stops.
+
 ## Making one locally
+
+`node packages/kition/scripts/platform-package.mjs` writes `@kition/cli-<platform>` from a built
+`kition`, and `link --local` makes a packed `kition` depend on such packed packages by their
+files, so `npm install -g --prefix <folder> kition.tgz` installs both as npm installs them from the
+registry, with nothing published:
+
+```sh
+cargo build --release -p kition-cli
+node packages/kition/scripts/platform-package.mjs platform --platform darwin-arm64 --kition target/release/kition --out target/kition/npm
+mkdir -p target/kition/packed && npm pack target/kition/npm/darwin-arm64 --pack-destination target/kition/packed
+node tools/pack-public-packages.mjs kition         # target/npm-pack/kition.tgz
+node packages/kition/scripts/platform-package.mjs link --local --launcher target/npm-pack/kition.tgz --out target/kition/packed
+npm install -g --prefix /tmp/kition-npm target/npm-pack/kition.tgz && /tmp/kition-npm/bin/kition --version
+```
+
 
 `node tools/sdk-bundle.mjs` (`pnpm sdk:bundle`) assembles a bundle on a developer machine with the
 executables built there; it publishes nothing. `tools/release-archives.mjs` makes the `kition`

@@ -2,6 +2,31 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
+## Unreleased
+
+- **`kition` on npm.** `npm install -g kition` gives the `kition` command, and
+  `npx -y kition <command>` runs it (`npx -y kition mcp --workspace <folder>` for an agent). The
+  package `kition` (`packages/kition`) is a Node launcher; the executable comes in the optional
+  package `@kition/cli-<platform>` (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`,
+  `win32-x64`), the same `kition` as the release's archives. Without it (`--omit=optional`,
+  another platform, musl) the command says why and names `install.sh`.
+- **`@kition/kits-mcp` is replaced by `kition`**, and `@kition/kits-mcp-<platform>` by
+  `@kition/cli-<platform>`: `npx -y @kition/kits-mcp ...` becomes `npx -y kition mcp ...`,
+  `npx -y @kition/kits-mcp kit install note` becomes `npx -y kition kit install note`, and the
+  launcher's variable `KITION_KITS_MCP` becomes `KITION_BINARY` (a `kition` executable only).
+  `@kition/kits-mcp` gets no new version. The Claude Code plugin falls back to `npx -y kition mcp`.
+- **`kition agent add` registers a command that keeps working**: started through npx, it registers
+  `npx -y kition` rather than the executable in npm's cache; from `npm install -g kition`, npm's
+  `kition` command rather than the executable inside `node_modules` (on Windows, `npx` and npm's
+  `kition.cmd` through `cmd /c`). The launcher says how it was started in `KITION_LAUNCHER`
+  (`docs/sdk/cli.md`). `kition doctor`'s PATH check looks for npm's `kition` command's folder, and
+  through npx says there is no command on the PATH, for information.
+- **The release workflow** smoke-tests `kition` from the packed launcher and platform package,
+  installed with `npm install -g` on every platform; drafts the GitHub Release before publishing
+  on npm and publishes it after; and, run again for a version already released, from its tag,
+  publishes only the npm packages missing, with the released `kition` executables
+  (`docs/sdk/distribution.md`).
+
 ## 0.5.0 (2026-11-19)
 
 Contracts: KHP 1.0, the Kit Process Protocol `kition-kit/2`, the kit engine contract 1

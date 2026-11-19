@@ -10,11 +10,12 @@ kits are Note, for Markdown; Table, for `.ktable` tables; and HTML, for `.html` 
 
 Pick one way to get the server:
 
-- **npm**: `npx -y @kition/kits-mcp --workspace <folder>` downloads `kition` for your platform
+- **npm**: `npx -y kition mcp --workspace <folder>` downloads `kition` for your platform
   (macOS arm64 and x64, Linux arm64 and x64 with glibc, Windows x64) and starts `kition mcp`,
   which downloads each kit of the kit index into `~/.kition/kits` the first time the agent opens
-  a file of it. Node.js 20 or later. `npm install -g @kition/kits-mcp` installs it as the command
-  `kition-kits-mcp`.
+  a file of it. Node.js 20 or later. `npm install -g kition` installs it as the command `kition`;
+  `kition agent add claude` (or `codex`, `cursor`) then registers it
+  ([cli.md](cli.md#your-agent)).
 - **`kition`**: the same server without Node.js. Install `kition` with the install script and
   register it with `kition agent add claude` (or `codex`, `cursor`), which registers
   `kition mcp --workspace <folder>` ([cli.md](cli.md#your-agent)).
@@ -32,7 +33,7 @@ client does not start servers in your project (Claude Desktop, Codex).
 **Claude Code**: in the project folder,
 
 ```sh
-claude mcp add kition -- npx -y @kition/kits-mcp --workspace "$PWD"
+claude mcp add kition -- npx -y kition mcp --workspace "$PWD"
 # installed binary:
 claude mcp add kition -- kition-kits-mcp --workspace "$PWD" --kits-dir <kits-folder>
 ```
@@ -50,7 +51,7 @@ same server.
   "mcpServers": {
     "kition": {
       "command": "npx",
-      "args": ["-y", "@kition/kits-mcp", "--workspace", "/absolute/path/to/folder"]
+      "args": ["-y", "kition", "mcp", "--workspace", "/absolute/path/to/folder"]
     }
   }
 }
@@ -63,7 +64,7 @@ same server.
   "mcpServers": {
     "kition": {
       "command": "npx",
-      "args": ["-y", "@kition/kits-mcp", "--workspace", "${workspaceFolder}"]
+      "args": ["-y", "kition", "mcp", "--workspace", "${workspaceFolder}"]
     }
   }
 }
@@ -74,7 +75,7 @@ same server.
 ```toml
 [mcp_servers.kition]
 command = "npx"
-args = ["-y", "@kition/kits-mcp", "--workspace", "/absolute/path/to/folder"]
+args = ["-y", "kition", "mcp", "--workspace", "/absolute/path/to/folder"]
 ```
 
 With the installed binary, the command is `kition-kits-mcp` (its path, if it is not on the
@@ -111,10 +112,9 @@ kit's executable in the bundle's `bin/<platform>/`, beside itself, through
 `KITION_KIT_<KIT>_BINARY`, or on the PATH, and says on standard error which kit it found no
 executable for (`--list-kits` gives the same reason).
 
-`kition mcp` (and `@kition/kits-mcp`, which starts it) takes the same options; with neither
+`kition mcp` (and `npx -y kition mcp`, the same through npm) takes the same options; with neither
 `--kits-dir` nor `--kit`, its kits are those of the kit store, installed on first use
-([cli.md](cli.md)). `KITION_KITS_MCP` names another `kition`, or a `kition-kits-mcp`, for
-`@kition/kits-mcp` to start.
+([cli.md](cli.md)).
 
 Options: `--unified` (one `kit_<action>` set for every kit), `--drafts` (the agent's edits are
 drafts unless a call says `draft: false`; a kit whose `kit.json` declares no `agent.drafts`

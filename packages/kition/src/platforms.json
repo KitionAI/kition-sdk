@@ -1,5 +1,5 @@
 {
-  "$comment": "The platforms @kition/kits-mcp ships kition for, each as the optional package @kition/kits-mcp-<platform> (scripts/platform-package.mjs). The key is Node's `${process.platform}-${process.arch}`, which is also the SDK release's platform name.",
+  "$comment": "The platforms the npm package kition ships kition for, each as the optional package @kition/cli-<platform> (scripts/platform-package.mjs). The key is Node's `${process.platform}-${process.arch}`, which is also the SDK release's platform name.",
   "darwin-arm64": { "os": "darwin", "cpu": "arm64", "rustTarget": "aarch64-apple-darwin" },
   "darwin-x64": { "os": "darwin", "cpu": "x64", "rustTarget": "x86_64-apple-darwin" },
   "linux-arm64": { "os": "linux", "cpu": "arm64", "libc": "glibc", "rustTarget": "aarch64-unknown-linux-gnu" },

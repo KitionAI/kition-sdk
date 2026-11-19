@@ -19,6 +19,6 @@
     "packages/sync/src", "packages/sync/test", "packages/embed-server/src", "packages/embed-server/test", "packages/embed/src", "packages/embed/test",
     "packages/script/src", "packages/script/test", "packages/script/kits",
     "packages/extensions/src", "packages/extensions/test",
-    "packages/kits-mcp/src", "packages/kits-mcp/test"
+    "packages/kition/src", "packages/kition/test"
   ]
 }

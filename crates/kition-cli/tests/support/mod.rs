@@ -197,7 +197,7 @@ impl IndexBuilder {
 /// development variable of the person's.
 pub fn kition(home: &Path) -> std::process::Command {
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_kition"));
-    command.env("KITION_HOME", home).env_remove("KITION_INDEX");
+    command.env("KITION_HOME", home).env_remove("KITION_INDEX").env_remove("KITION_LAUNCHER");
     for (key, _) in std::env::vars_os() {
         let key = key.to_string_lossy().into_owned();
         if key.starts_with("KITION_KIT_") || key.to_ascii_lowercase().ends_with("_proxy") {

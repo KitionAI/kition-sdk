@@ -53,14 +53,18 @@ impl Scene {
     /// `kition agent <args>` in the project folder, with the stand-ins on the PATH (`with_agents`)
     /// or not.
     fn agent(&self, args: &[&str], with_agents: bool) -> (bool, String, String) {
+        self.agent_launched(args, with_agents, None)
+    }
+
+    /// The same, as the npm launcher starts kition: with `KITION_LAUNCHER` set to `launcher`.
+    fn agent_launched(&self, args: &[&str], with_agents: bool, launcher: Option<&Value>) -> (bool, String, String) {
         let path = if with_agents { format!("{}:/usr/bin:/bin", self.stubs.display()) } else { "/usr/bin:/bin".to_owned() };
-        run(kition(&self.root.join("home"))
-            .arg("agent")
-            .args(args)
-            .current_dir(&self.project)
-            .env("PATH", path)
-            .env("HOME", &self.person)
-            .env("STUB_LOG", &self.log))
+        let mut command = kition(&self.root.join("home"));
+        command.arg("agent").args(args).current_dir(&self.project).env("PATH", path).env("HOME", &self.person).env("STUB_LOG", &self.log);
+        if let Some(launcher) = launcher {
+            command.env("KITION_LAUNCHER", launcher.to_string());
+        }
+        run(&mut command)
     }
 
     fn logged(&self) -> Vec<String> {
@@ -155,4 +159,42 @@ fn registers_with_cursor_by_merging_its_mcp_json() {
     assert!(!ok && err.contains("no such folder"), "{err}");
     let (ok, _, err) = scene.agent(&["add", "vim"], false);
     assert!(!ok && err.contains("claude, codex and cursor"), "{err}");
+}
+
+/// Started by the npm package, kition registers what will still start it next week: `npx -y kition`
+/// (npx runs it from npm's cache, which npm may clear) or npm's global `kition` command (not the
+/// executable inside node_modules). A `KITION_LAUNCHER` naming another executable is not taken.
+#[test]
+fn registers_the_npm_command_that_started_it() {
+    let scene = Scene::new();
+    let project = scene.project.display().to_string();
+    let kition = kition_path();
+    let npx = json!({ "via": "npx", "command": ["npx", "-y", "kition"], "executable": kition });
+
+    let (ok, out, err) = scene.agent_launched(&["add", "claude"], true, Some(&npx));
+    assert!(ok, "{out}{err}");
+    assert_eq!(scene.logged(), vec![format!("{project}|mcp add -s local kition -- npx -y kition mcp --workspace {project}")]);
+    let (ok, out, err) = scene.agent_launched(&["add", "codex"], true, Some(&npx));
+    assert!(ok, "{out}{err}");
+    assert!(scene.logged()[1].ends_with("|mcp add kition -- npx -y kition mcp"), "{:?}", scene.logged());
+    let (ok, out, err) = scene.agent_launched(&["add", "cursor", "--scope", "project"], false, Some(&npx));
+    assert!(ok, "{out}{err}");
+    let file = scene.project.join(".cursor/mcp.json");
+    assert_eq!(read(&file)["mcpServers"]["kition"], json!({ "command": "npx", "args": ["-y", "kition", "mcp", "--workspace", project] }));
+
+    // npm install -g: <prefix>/bin/kition, npm's link to the launcher.
+    let shim = scene.root.join("npm/bin/kition").display().to_string();
+    let global = json!({ "via": "npm", "command": [shim], "executable": kition });
+    let (ok, out, err) = scene.agent_launched(&["add", "cursor", "--scope", "project"], false, Some(&global));
+    assert!(ok, "{out}{err}");
+    assert_eq!(read(&file)["mcpServers"]["kition"], json!({ "command": shim, "args": ["mcp", "--workspace", project] }));
+    let (ok, out, err) = scene.agent_launched(&["add", "claude", "--scope", "user"], true, Some(&global));
+    assert!(ok, "{out}{err}");
+    assert!(scene.logged()[2].ends_with(&format!("|mcp add -s user kition -- {shim} mcp")), "{:?}", scene.logged());
+
+    // A KITION_LAUNCHER inherited from another kition (another executable) is not this one's.
+    let other = json!({ "via": "npx", "command": ["npx", "-y", "kition"], "executable": scene.root.join("other/kition") });
+    let (ok, out, err) = scene.agent_launched(&["add", "cursor", "--scope", "project"], false, Some(&other));
+    assert!(ok, "{out}{err}");
+    assert_eq!(read(&file)["mcpServers"]["kition"]["command"], json!(kition));
 }
