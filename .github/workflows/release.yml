@@ -351,6 +351,8 @@ jobs:
           node tools/sdk-release.mjs --dir target/sdk-release
           (cd target/sdk-release && sha256sum -c SHA256SUMS)
       - run: node tools/pack-public-packages.mjs
+      # @kition/dsh-kits, the DeepSeek Harness plugin: patches, skills and a Node launcher, nothing built.
+      - run: npm pack ./plugins/deepseek-harness/kition-kits --pack-destination target/npm-pack && mv target/npm-pack/kition-dsh-kits-*.tgz target/npm-pack/dsh-kits.tgz
       # kition: the archive every platform installed in its smoke test, not a second packing.
       - uses: actions/download-artifact@v4
         with:
@@ -421,7 +423,8 @@ jobs:
       # A version on npm can never be published again: this is the step that cannot be undone,
       # so it comes after every check and after the draft. What npm has already is skipped, so a
       # run again publishes only what is missing. The libraries go first, then the platform
-      # packages @kition/cli-<platform>, then @kition/cli, which depends on them.
+      # packages @kition/cli-<platform>, then @kition/cli, which depends on them. The DeepSeek
+      # Harness plugin @kition/dsh-kits depends on none of them.
       - name: Publish on npm in dependency order
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -440,6 +443,7 @@ jobs:
           for p in kdm kit-ui-protocol embed kit-engine sync convergence script extensions embed-server kit-host kit-dev-host kit-editor; do
             publish "target/npm-pack/$p.tgz"
           done
+          publish target/npm-pack/dsh-kits.tgz
           for archive in target/kition/packed/*.tgz; do publish "$archive"; done
           publish target/npm-pack/kition.tgz
       # Last: the draft becomes the release, and the latest one, once npm has every package it

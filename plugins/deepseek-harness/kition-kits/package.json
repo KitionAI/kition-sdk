@@ -1,0 +1,28 @@
+{
+  "name": "@kition/dsh-kits",
+  "version": "0.5.2",
+  "description": "The Kition kits in DeepSeek Harness: their KHP tools through Kition's MCP server, an editing skill per kit, and the person's draft review.",
+  "license": "Apache-2.0",
+  "homepage": "https://kition.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "plugins/deepseek-harness/kition-kits"
+  },
+  "keywords": ["deepseek-harness", "dsh", "dsh-plugin", "kition", "khp", "kits", "mcp"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": ["cordis.patch.yml", "kition-kits.http.cordis.patch.yml", "bin/kits-mcp.mjs", "skills", "README.md"],
+  "engines": {
+    "dsh": ">=0.2.2-rc.5 <0.3.0-0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "target": "0.2.2-rc.5",
+    "commit": "2e39e704",
+    "tested": "0.2.2-rc.5"
+  }
+}

@@ -2,7 +2,7 @@
 
 The package manifests keep TypeScript checkout exports for kit development. `pnpm pack`
 replaces them with `publishConfig.exports`, which points at built JavaScript and declarations.
-Run `pnpm -r --filter '!@kition/dsh-kits' build` before packing; the `prepack` hook also builds
+Run `pnpm -r build` before packing; the `prepack` hook also builds
 each package. Only `dist` and npm's mandatory metadata and README files are included.
 
 The workspace root's `pnpm.overrides` links the sibling Tessera checkout for development.

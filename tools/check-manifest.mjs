@@ -338,8 +338,9 @@ console.log(
 )
 
 // Kition platform conformance levels (docs/platform/kits/levels.md), not KHP tiers, as far as a
-// manifest shows them. L1 needs check_contract and tools/check-sdk.mjs too, L4 the kit's
-// registration in @kition/dsh-kits, and L5 the kit's import/export round trip tests.
+// manifest shows them. L1 needs check_contract and tools/check-sdk.mjs too, L4 the kit in
+// @kition/dsh-kits (plugins/deepseek-harness/kition-kits, which serves every published kit:
+// published-kits.json), and L5 the kit's import/export round trip tests.
 let convergence = null
 if (convergenceFile) {
   try {
@@ -359,7 +360,7 @@ if (manifest.ui && (manifest.creates ?? []).length) levels.push('L2')
 else notes.push('L2 needs ui and creates')
 if (levels.includes('L2') && manifest.agent) levels.push('L3')
 else if (levels.includes('L2')) notes.push('L3 needs agent')
-if (levels.includes('L3')) notes.push('L4 needs registration in @kition/dsh-kits (not checked here)')
+if (levels.includes('L3')) notes.push('L4 needs the kit published in @kition/dsh-kits (published-kits.json; not checked here)')
 // The object model's typings are generated from the schema into @kition/script's kits/ (L5).
 const typings = manifest.objectModel ? path.join(root, 'packages', 'script', 'kits', `${manifest.objectModel.namespace.toLowerCase()}.ts`) : null
 if (contract === 2 && modelSchema && typings && !fs.existsSync(typings)) {

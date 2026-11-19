@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url)
 const read = (file) => JSON.parse(readFileSync(new URL(file, root), 'utf8'))
 const sdk = read('sdk.json')
 
-for (const directory of readdirSync(new URL('packages/', root)).filter((name) => name !== 'dsh-kits')) {
+for (const directory of readdirSync(new URL('packages/', root))) {
   test(`${directory} publishes built modules and portable dependencies`, () => {
     const manifest = read(`packages/${directory}/package.json`)
     assert.equal(manifest.private, undefined)

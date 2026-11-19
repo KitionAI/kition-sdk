@@ -99,7 +99,10 @@ Options for every form:
 
 Other clients:
 
-- **DeepSeek Harness**: `@kition/dsh-kits` (`kition-kits.stdio.cordis.patch.yml`).
+- **DeepSeek Harness**: the plugin `@kition/dsh-kits`
+  ([plugins/deepseek-harness/kition-kits](../../plugins/deepseek-harness/kition-kits)), installed with
+  `dsh plugin --profile <profile> add <the plugin's folder>`: the tools, an editing skill per kit and
+  the person's draft review.
 - **Kition running**: its loopback endpoint `POST /v1/mcp/kits` also edits files open in kit
   editors live.
 - **Agent skill**: [skill/SKILL.md](skill/SKILL.md) tells a coding agent how to use the tools.
