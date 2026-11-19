@@ -3,15 +3,18 @@ name: release
 # - the GitHub Release sdk-v<version> of this repository: the SDK bundle of each platform
 #   (tools/sdk-bundle.mjs: npm tarballs, kit packages, bin/<platform>/ with kition-kits,
 #   kition-kits-mcp and each published kit's headless executable, docs, schemas, manifest.json,
-#   SHA256SUMS); kition-<version>-<platform>.tar.gz (tools/release-archives.mjs); install.sh and
-#   install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
+#   SHA256SUMS); kition-<version>-<platform>.tar.gz (tools/release-archives.mjs); kits-index.json,
+#   a snapshot of the kit index gathered when the release is made (tools/kits-index.mjs); install.sh
+#   and install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
 #   (tools/sdk-release.mjs), with build provenance attestations;
 # - the public @kition/* packages on npm, with @kition/kits-mcp and @kition/kits-mcp-<platform>
 #   (which carries kition).
 # Each published kit's executable is built from the tag that Kition's kits/kits.lock.json pins for
 # its package, and must answer kit.initialize with that package's version. A release publishes no
-# kit archive and no kit index: each kit repository publishes its own archives, and
-# .github/workflows/kits-index.yml gathers the index `kition` reads (docs/sdk/distribution.md).
+# kit archive: each kit repository publishes its own archives, and .github/workflows/kits-index.yml
+# gathers the index `kition` reads, on the branch kits-index (docs/sdk/distribution.md). The
+# release's kits-index.json is only a snapshot of it, for kition 0.3.0 and 0.4.0, which read
+# releases/latest/download/kits-index.json.
 # Run it by hand from the Actions tab. A release is never replaced: a version already released
 # stops the run, and an npm version already published is skipped; bump sdk.json to publish again.
 on:
@@ -229,6 +232,19 @@ jobs:
         with:
           pattern: bin-*
           path: target/release-bin
+      # The kit index snapshot: gathered here by the aggregator itself, not copied from the branch
+      # kits-index, so the release does not depend on the branch. It is for kition 0.3.0 and
+      # 0.4.0, which read releases/latest/download/kits-index.json; later kition read the branch.
+      # A failure, or an index with no kit (exit 3), stops the run: no release goes without it.
+      - name: The kit index snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          status=0
+          node tools/kits-index.mjs --out target/sdk-release/kits-index.json || status=$?
+          if [ "$status" -eq 3 ]; then echo "::error::the gathered kit index holds no kit; a release does not go without kits-index.json"; fi
+          exit "$status"
       - name: The SDK bundle of each platform, and the release files
         run: |
           set -euo pipefail
@@ -302,7 +318,8 @@ jobs:
               "- Windows: irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex",
               "- npm: npx -y @kition/kits-mcp --workspace <folder>", "",
               "kition:", cli, "",
-              "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.", "",
+              "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.",
+              `This release's kits-index.json is a snapshot of that index as of the release (sha256 ${m.index.sha256}), for kition 0.3.0 and 0.4.0, which read releases/latest/download/kits-index.json.`, "",
               "Kits:", kits, "",
               "SDK bundles (bin/<platform>/ holds kition-kits, kition-kits-mcp and each kit executable):", platforms, "",
               `Every executable with its SHA-256 and the kit version it answers: kition-sdk-${m.version}.json. All assets: SHA256SUMS. Provenance: gh attestation verify <file> --repo ${m.repository}.`,

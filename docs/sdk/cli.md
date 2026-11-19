@@ -358,7 +358,10 @@ an index fragment, and kition-sdk's `kits-index` workflow merges every kit's fra
 file, at the archives' addresses in the kit repositories. Every kit and every version a kit
 repository has published with its archives is in it, whether or not an SDK release bundles that
 kit, and a new kit version is in it within the hour
-([distribution.md](distribution.md#kit-archives-and-the-kit-index)).
+([distribution.md](distribution.md#kit-archives-and-the-kit-index)). Each SDK release's
+`kits-index.json` is only a snapshot of it as of the release, for `kition` 0.3.0 and 0.4.0, whose
+default was `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`
+([distribution.md](distribution.md#the-snapshot-in-each-release)).
 `KITION_INDEX` or `--index` name another: an address, or a file on this machine (an index you made,
 a mirror on a shared drive). Each good read is kept in `cache/`, so the installed kits and the last
 known index stay visible without a network.

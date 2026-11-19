@@ -461,7 +461,7 @@ features:
       - regressions/issue-launcher-sigterm
     since: "2026-11-16"
   - id: sdk.distribution.release
-    title: Each SDK version is a GitHub Release with a bundle per platform holding every executable, a manifest naming each file's SHA-256 and the kit version each kit executable answers, the schemas, and SHA-256 sums
+    title: "Each SDK version is a GitHub Release with a bundle per platform holding every executable, a manifest naming each file's SHA-256 and the kit version each kit executable answers, the schemas, a snapshot of the gathered kit index (kits-index.json, schema checked, for kition 0.3.0 and 0.4.0), and SHA-256 sums"
     dimension: [platform]
     priority: P1
     status: has
@@ -471,9 +471,11 @@ features:
       - tools/sdk-release.test.mjs
       - tools/kit-handshake.mjs
       - tools/sdk-bundle.mjs
+      - tools/kits-index.mjs
       - docs/sdk/distribution.md
     cases:
       - sdk.distribution.release/manifest
+      - sdk.distribution.release/index-snapshot
     since: "2026-11-17"
   - id: sdk.distribution.glibc-floor
     title: The Linux executables a release ships (kition, kition-kits, kition-kits-mcp, each kit's) run on glibc 2.17 and later; the release fails a Linux build that needs a newer GLIBC symbol version
@@ -489,7 +491,7 @@ features:
       - sdk.distribution.glibc-floor/needs
     since: "2026-11-18"
   - id: sdk.distribution.kition
-    title: "Each SDK release carries kition for every platform, and no kit archive or kit index (the kit repositories publish those); install.sh and install.ps1 install kition from it, checked against SHA256SUMS"
+    title: "Each SDK release carries kition for every platform, and no kit archive (the kit repositories publish those); install.sh and install.ps1 install kition from it, checked against SHA256SUMS"
     dimension: [platform, security]
     priority: P1
     status: has

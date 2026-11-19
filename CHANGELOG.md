@@ -15,10 +15,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   repository has published with archives, not only the kits in `published-kits.json`, installable
   as soon as the kit's Release has them. It is the one mutable thing this repository publishes
   (`docs/sdk/distribution.md`).
-- **An SDK release no longer publishes kit archives or `kits-index.json`**, and no longer
-  carries an index forward: `tools/release-archives.mjs` writes the `kition` archives only, and
-  the release manifest has no `index` or `kitArchives`. The bundle still carries the published
-  kits' executables in `bin/<platform>/`.
+- **An SDK release no longer publishes kit archives**, and no longer carries an index forward:
+  `tools/release-archives.mjs` writes the `kition` archives only, and the release manifest has no
+  `kitArchives`. The bundle still carries the published kits' executables in `bin/<platform>/`.
+- **An SDK release's `kits-index.json` is a snapshot.** The index `kition` reads is the one on the
+  branch `kits-index`; each release carries the same index as gathered when it is made
+  (`tools/kits-index.mjs` in the release workflow, not a copy of the branch), for `kition` 0.3.0
+  and 0.4.0, which read `releases/latest/download/kits-index.json`. It is schema checked and named
+  in the release manifest (`index`) and `SHA256SUMS`; a gathered index with no kit stops the
+  release. Those versions see kit versions published up to the latest SDK release; upgrading
+  `kition`, or `KITION_INDEX` set to the branch address, shows every version.
 - `kition kit upgrade` and `kition kit install <kit>`, when the version installed is newer than
   every version in the index (Note went from 0.3.0 back to 0.1.0), leave it in use and say so,
   instead of downloading the older version, reporting "upgraded 0.3.0 -> 0.1.0" and removing it

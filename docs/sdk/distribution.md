@@ -13,7 +13,8 @@ them needs no account, no token and no Rust.
 | `kition-sdk-<version>-<platform>.tar.gz` | The SDK bundle for one platform: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc 2.17 or later), `win32-x64` |
 | `kition-<version>-<platform>.tar.gz` | The `kition` command line for one platform: `kition` (`kition.exe` on Windows) and `LICENSE` ([cli.md](cli.md)) |
 | `install.sh`, `install.ps1` | The `kition` installers for macOS and Linux, and for Windows |
-| `kition-sdk-<version>.json` | The release manifest: the SDK commit; each kit's version, package URL and SHA-256, and the tag and commit its executable was built from; each platform's bundle and every executable in it, with its size, SHA-256 and the kit version it answers `kit.initialize` with; each platform's `kition` archive (`cli`) and the installers, each with its size, SHA-256 and URL; each schema with its URL |
+| `kits-index.json` | A snapshot of the kit index as of the release, for the `kition` versions released before the branch `kits-index` existed (0.3.0, 0.4.0); not the index `kition` reads ([below](#the-snapshot-in-each-release)) |
+| `kition-sdk-<version>.json` | The release manifest: the SDK commit; each kit's version, package URL and SHA-256, and the tag and commit its executable was built from; each platform's bundle and every executable in it, with its size, SHA-256 and the kit version it answers `kit.initialize` with; each platform's `kition` archive (`cli`), the kit index snapshot (`index`) and the installers, each with its size, SHA-256 and URL; each schema with its URL |
 | `<name>.schema.json` | The SDK's schemas (`kit.schema.json`, `mcp-tools.schema.json`, `kit-process-protocol.schema.json`, `kits-service.schema.json`, `kits-index.schema.json`), each at a versioned address |
 | `SHA256SUMS` | Every asset above, in `sha256sum -c` form |
 
@@ -43,7 +44,8 @@ Process Protocol version, or there is no release.
 The `kition` command line takes kits one at a time instead: it downloads each kit's archive
 from a kit index into a store under `~/.kition` when it is needed ([cli.md](cli.md)). Its own
 archives are assets of the release; the kit archives are assets of each kit's repository, and the
-index is gathered from them (below). A release holds no kit archive and no kit index.
+index is gathered from them (below). A release holds no kit archive; its `kits-index.json` is
+only a snapshot of that index (below).
 
 ## `kition` and its installers
 
@@ -121,6 +123,24 @@ node tools/kits-index.mjs --dry-run                       # what the index would
 node tools/kits-index.mjs --out kits-index.json \
   --previous <published kits-index.json>                  # write it; name what enters and leaves
 ```
+
+### The snapshot in each release
+
+The index `kition` reads is the one on the branch `kits-index`, above. Each SDK release also
+carries `kits-index.json`: the same index, gathered by `tools/kits-index.mjs` in the release
+workflow when the release is made, and never changed afterwards. It is there for the `kition`
+versions released before the branch existed, 0.3.0 and 0.4.0, whose default index is
+`https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`: through it
+they find the kit versions published up to the latest release, not those published since. Upgrade
+`kition`, or point one of them at the branch with
+`KITION_INDEX=https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json`,
+to see every version.
+
+The release workflow gathers the snapshot itself rather than copying the branch's file, so a
+release does not depend on the branch. A failure, or a gathered index with no kit, stops the
+release: none goes without it. `tools/sdk-release.mjs` checks it against
+`schemas/kits-index.schema.json`, names it in the release manifest (`index`) and in `SHA256SUMS`,
+and refuses any other `kits-index*.json` beside it; kit archives are still refused.
 
 ## Getting one
 

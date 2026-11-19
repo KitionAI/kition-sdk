@@ -53,6 +53,24 @@ function writeArchives(dir, platforms) {
   for (const platform of platforms) fs.writeFileSync(path.join(dir, `kition-9.9.9-${platform}.tar.gz`), `kition ${platform}`)
 }
 
+/** A kit index as tools/kits-index.mjs gathers it, at a kit repository's addresses. */
+const gatheredIndex = () => ({
+  schemaVersion: 1,
+  kits: {
+    note: {
+      id: 'kit.note',
+      name: 'Note',
+      extensions: ['md'],
+      versions: { '0.3.0': { protocol: 'kition-kit/2', platforms: { 'linux-x64': { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.3.0/kition-note-0.3.0-linux-x64.tar.gz', size: 10, sha256: '9'.repeat(64) } } } },
+    },
+  },
+})
+
+/** What tools/kits-index.mjs --out writes beside them: kits-index.json, the snapshot. */
+function writeIndex(dir, body = gatheredIndex()) {
+  fs.writeFileSync(path.join(dir, 'kits-index.json'), typeof body === 'string' ? body : `${JSON.stringify(body, null, 2)}\n`)
+}
+
 describe('sdk-release: the release manifest of one SDK version', () => {
   it('finds one bundle per platform, of this version only', () => {
     const dir = tempDir()
@@ -68,6 +86,7 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     writeBundle(dir, 'darwin-arm64', manifest('darwin-arm64'))
     writeBundle(dir, 'win32-x64', manifest('win32-x64'))
     writeArchives(dir, ['darwin-arm64', 'win32-x64'])
+    writeIndex(dir)
     const written = writeRelease(dir, '9.9.9')
     expect(written.tag).toBe('sdk-v9.9.9')
     expect(written.commit).toBe('d'.repeat(40))
@@ -82,14 +101,15 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     expect(schema.sha256).toBe(sha256(path.join(dir, 'mcp-tools.schema.json')))
 
     expect(written.cli['win32-x64']).toEqual({ file: 'kition-9.9.9-win32-x64.tar.gz', size: fs.statSync(path.join(dir, 'kition-9.9.9-win32-x64.tar.gz')).size, sha256: sha256(path.join(dir, 'kition-9.9.9-win32-x64.tar.gz')), url: assetUrl('9.9.9', 'kition-9.9.9-win32-x64.tar.gz') })
-    // No kit archive and no kit index: the kit repositories publish those.
-    expect(Object.keys(written)).not.toContain('index')
+    // No kit archive: the kit repositories publish those. The kit index gathered from them, as a
+    // snapshot at release time, for the kition versions that read releases/latest/download.
     expect(Object.keys(written)).not.toContain('kitArchives')
+    expect(written.index).toEqual({ file: 'kits-index.json', size: fs.statSync(path.join(dir, 'kits-index.json')).size, sha256: sha256(path.join(dir, 'kits-index.json')), url: assetUrl('9.9.9', 'kits-index.json') })
     expect(written.installers.map(({ file }) => file)).toEqual(['install.ps1', 'install.sh'])
     expect(fs.readFileSync(path.join(dir, 'install.sh'), 'utf8')).toMatch(/^#!\/bin\/sh/)
 
     const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').trim().split('\n').map((line) => line.split('  '))
-    for (const file of ['kition-sdk-9.9.9.json', 'kition-sdk-9.9.9-win32-x64.tar.gz', 'kition-9.9.9-darwin-arm64.tar.gz', 'install.sh', 'install.ps1', 'kits-index.schema.json']) {
+    for (const file of ['kition-sdk-9.9.9.json', 'kition-sdk-9.9.9-win32-x64.tar.gz', 'kition-9.9.9-darwin-arm64.tar.gz', 'install.sh', 'install.ps1', 'kits-index.schema.json', 'kits-index.json']) {
       expect(sums.map(([, name]) => name)).toContain(file)
     }
     for (const [sum, file] of sums) expect(sum).toBe(sha256(path.join(dir, file)))
@@ -107,12 +127,43 @@ describe('sdk-release: the release manifest of one SDK version', () => {
       writeBundle(dir, 'darwin-arm64', manifest('darwin-arm64'))
       writeBundle(dir, 'linux-x64', manifest('linux-x64'))
       writeArchives(dir, ['darwin-arm64', 'linux-x64'])
+      writeIndex(dir)
       prepare(dir)
       return () => writeRelease(dir, '9.9.9')
     }
     expect(release((dir) => fs.rmSync(path.join(dir, 'kition-9.9.9-linux-x64.tar.gz')))).toThrow(/no kition-9\.9\.9-linux-x64\.tar\.gz/)
     expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-note-0.3.0-linux-x64.tar.gz'), 'kit'))).toThrow(/kition-note-0\.3\.0-linux-x64\.tar\.gz: neither a bundle nor a kition archive/)
     expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-9.9.8-linux-x64.tar.gz'), 'old'))).toThrow(/kition-9\.9\.8-linux-x64\.tar\.gz: neither/)
+  })
+
+  it('refuses a release without its kit index snapshot, with one that is not a valid index or holds no kit, or with another index file', () => {
+    const release = (prepare) => {
+      const dir = tempDir()
+      writeBundle(dir, 'linux-x64', manifest('linux-x64'))
+      writeArchives(dir, ['linux-x64'])
+      writeIndex(dir)
+      prepare(dir)
+      return () => writeRelease(dir, '9.9.9')
+    }
+    expect(release(() => {})).not.toThrow()
+    expect(release((dir) => fs.rmSync(path.join(dir, 'kits-index.json')))).toThrow(/no kits-index\.json/)
+    expect(release((dir) => writeIndex(dir, '{"schemaVersion": 1, "kits": '))).toThrow(/kits-index\.json is not JSON/)
+    const invalid = gatheredIndex()
+    invalid.kits.note.versions['0.3.0'].platforms['linux-x64'].sha256 = 'not a digest'
+    expect(release((dir) => writeIndex(dir, invalid))).toThrow(/kits-index\.json is not valid against kits-index\.schema\.json: .*sha256/)
+    expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), schemaVersion: 2 }))).toThrow(/not valid against kits-index\.schema\.json/)
+    expect(release((dir) => writeIndex(dir, { schemaVersion: 1, kits: {} }))).toThrow(/kits-index\.json holds no kit/)
+    expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), kits: { note: { ...gatheredIndex().kits.note, extensions: [] } } }))).toThrow(/not valid/)
+    expect(release((dir) => fs.writeFileSync(path.join(dir, 'kits-index-note-0.3.0.json'), '{}'))).toThrow(/kits-index-note-0\.3\.0\.json: a release carries one kit index/)
+    // A kit archive the snapshot names is still not a release asset.
+    expect(release((dir) => fs.writeFileSync(path.join(dir, 'kition-note-0.3.0-linux-x64.tar.gz'), 'kit'))).toThrow(/kition-note-0\.3\.0-linux-x64\.tar\.gz: neither/)
+    // Nothing is written when the snapshot is refused.
+    const dir = tempDir()
+    writeBundle(dir, 'linux-x64', manifest('linux-x64'))
+    writeArchives(dir, ['linux-x64'])
+    expect(() => writeRelease(dir, '9.9.9')).toThrow(/no kits-index\.json/)
+    expect(fs.existsSync(path.join(dir, 'SHA256SUMS'))).toBe(false)
+    expect(fs.existsSync(path.join(dir, 'kition-sdk-9.9.9.json'))).toBe(false)
   })
 
   it('refuses bundles that disagree or a kit executable that answers another version', () => {
