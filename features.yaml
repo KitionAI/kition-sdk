@@ -692,6 +692,17 @@ features:
     cases:
       - regressions/issue-agent-cube-guide
     since: "2026-11-16"
+  - id: sdk.agent.dsh-plugin
+    title: The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add and gives agents the kits' tools, an editing skill per published kit and the person's draft review
+    dimension: [ai, platform]
+    priority: P1
+    status: has
+    paths:
+      - plugins/deepseek-harness/kition-kits/**
+      - tools/dsh-plugin.test.mjs
+    cases:
+      - sdk.agent.dsh-plugin/bundle
+    since: "2026-11-19"
   - id: sdk.agent.headless-drafts
     title: An agent's headless drafts through kition-kits-mcp, which only the person reviews, merges or discards
     dimension: [ai, data-safety]

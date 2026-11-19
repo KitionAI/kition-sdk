@@ -549,7 +549,7 @@ tools are DeepSeek Harness tools as they stand.
   drive it.
 - **D4** DeepSeek Harness is a developer preview without protocol
   versioning. Conforming implementations MUST pin the DeepSeek Harness
-  version they target (today 0.2.1-alpha.2, commit `d7432673`) and record it
+  version they target (today 0.2.2-rc.5, commit `2e39e704`) and record it
   in their conformance report.
 
 ## 9. Conformance

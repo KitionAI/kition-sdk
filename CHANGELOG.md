@@ -11,6 +11,21 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `kition-kits` test fixtures (in place of the reduced stand-ins), and their Claude Code plugin
   skills (`<kit>-editing`). `@kition/script/kits/note` gains `view.scheme`, from the pinned Note
   0.1.2 package. The release builds every published kit's headless executable.
+- **The DeepSeek Harness plugin `@kition/dsh-kits`** moves from `packages/dsh-kits` to
+  `plugins/deepseek-harness/kition-kits` and becomes an installable DeepSeek Harness bundle
+  (`dsh plugin --profile <profile> add ./plugins/deepseek-harness/kition-kits`), for DeepSeek
+  Harness 0.2.2-rc.5 and later 0.2.x (`engines.dsh` `>=0.2.2-rc.5 <0.3.0-0`): `kition mcp` as MCP
+  server `kition` (tools `mcp__kition__kit_<action>`), found by the Node launcher
+  `bin/kits-mcp.mjs` as the Claude Code plugin finds it; an editing skill per published kit; and
+  the person's draft review (`/drafts-list`, `/drafts-compare`, `/drafts-merge`,
+  `/drafts-discard`, the last two only from the person). Its second patch reaches a running
+  Kition. It is no longer private; the release packs and publishes it. The old
+  `kition-kits.stdio.cordis.patch.yml`, which started `kition-kits-mcp` with one variable per kit,
+  is gone.
+- **One skill generator for both agent plugins**: `tools/agent-plugin-skills.mjs` (was
+  `tools/claude-plugin-skills.mjs`) writes and checks the Claude Code and DeepSeek Harness skills
+  (`--target claude-code|deepseek-harness`, both by default); its test is
+  `tools/agent-plugin.test.mjs`.
 
 ## 0.5.2 (2026-11-19)
 
