@@ -2,8 +2,15 @@
 
 The Kition SDK's versions (`sdk.json`). Each entry names the contract versions it carries.
 
-## Unreleased
+## 0.5.0 (2026-11-19)
 
+Contracts: KHP 1.0, the Kit Process Protocol `kition-kit/2`, the kit engine contract 1
+(`CONTRACT_VERSION`), the Kit UI protocol `kition-kit-ui/1` and KDM 1, as in 0.4.0.
+
+- **Published kits**: `kit.note` 0.1.2 and `kit.table` 0.5.5, each built from its
+  `package-v<version>` tag, with `kit.html` 0.1.0 as before
+  (`crates/kition-kits/tests/fixtures/kits/`). Note's versions start again from 0.1: 0.1.2
+  follows 0.3.0.
 - **The kit index comes from the kit repositories.** Each kit repository publishes its own
   archives (`kition-<kit>-<version>-<platform>.tar.gz`) and an index fragment
   (`kits-index-<kit>-<version>.json`) in its `package-v<version>` Release;
@@ -50,6 +57,14 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   - Each command and kit command has its own `--help`; a mistyped command names the closest one
     instead of printing the whole usage, and the usage is grouped (kits, agents, servers,
     troubleshooting).
+- **KDM undo of large writes**: a transaction that only writes register fields and keys of map
+  fields of existing objects is undone and redone by the replica itself, which writes back the
+  values it replaced, instead of by Loro's undo, which looked each overwritten key up in the
+  document's history; every other transaction stays a step of the scope's Loro `UndoManager`.
+  An engine undo or redo releases the history index it read
+  (`LoroDoc::release_parsed_history`, Loro from KitionPkg/loro `b7e6dfea`), which also reads a
+  large write with less copying. Undoing a cleared column of a 100,000-record table, alone or
+  after older steps, no longer runs a page out of memory (`docs/platform/undo-across-remote-edits.md`).
 
 ## 0.4.0
 

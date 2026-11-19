@@ -155,7 +155,7 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.4.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
+The packages are version 0.5.0, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition).
 
 | Package | What |
 | --- | --- |

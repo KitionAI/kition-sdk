@@ -1,6 +1,6 @@
 {
   "name": "@kition/extensions",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The Kition extension host (KitExtensions 1.0): extension.json manifests, a sandboxed worker per extension on an opaque origin with declared permissions, and the object model gated by them.",
   "license": "Apache-2.0",
   "type": "module",

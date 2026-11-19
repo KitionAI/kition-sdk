@@ -145,7 +145,7 @@ and refuses any other `kits-index*.json` beside it; kit archives are still refus
 ## Getting one
 
 ```sh
-v=0.4.0 p=darwin-arm64
+v=0.5.0 p=darwin-arm64
 base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
 curl -fsSLO "$base/SHA256SUMS"
 curl -fsSLO "$base/kition-sdk-$v.json"
@@ -191,7 +191,7 @@ archives from a folder of `bin-<platform>/` folders, each holding `kition`; `--v
 rehearsal's own version:
 
 ```sh
-node tools/release-archives.mjs --bin <folder> --out <release folder> --version 0.4.0
+node tools/release-archives.mjs --bin <folder> --out <release folder> --version 0.5.0
 ```
 
 Served over HTTP as `<url>/releases/download/sdk-v<version>/` and `<url>/releases/latest/download/`,

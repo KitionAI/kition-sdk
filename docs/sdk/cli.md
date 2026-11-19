@@ -16,7 +16,7 @@ Nothing has to be compiled, and Rust is not needed. Pick one:
 # macOS and Linux (glibc): the latest release, into ~/.kition/bin/kition
 curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
 # a given SDK version
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.4.0
+curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.5.0
 ```
 
 ```powershell
@@ -40,7 +40,7 @@ another address laid out like `https://github.com/KitionAI/kition-sdk/releases` 
 hand:
 
 ```sh
-v=0.4.0 p=darwin-arm64
+v=0.5.0 p=darwin-arm64
 base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
 curl -fsSLO "$base/SHA256SUMS" && curl -fsSLO "$base/kition-$v-$p.tar.gz"
 grep " kition-$v-$p.tar.gz\$" SHA256SUMS | shasum -a 256 -c
@@ -257,7 +257,7 @@ server again; by then the kit is installed.
 
 ```text
 $ kition doctor
-kition 0.4.0 (kit protocol kition-kit/2, index format 1) on darwin-arm64
+kition 0.5.0 (kit protocol kition-kit/2, index format 1) on darwin-arm64
 ok    home          /Users/me/.kition (writable)
 fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)

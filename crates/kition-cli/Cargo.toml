@@ -2,7 +2,7 @@
 name = "kition-cli"
 description = "kition, the Kition command line: a kit store under ~/.kition filled from a kit index, and the kits' MCP server and Kits Service on the store's kits."
 # The SDK version (sdk.json `version`), which `kition --version` states; a test keeps them equal.
-version = "0.4.0"
+version = "0.5.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

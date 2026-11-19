@@ -1,6 +1,6 @@
 {
   "name": "@kition/kit-dev-host",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A development host for embedded kit UIs: mounts the editor over the Kit UI protocol with an in-memory workspace, to run and test a kit without Kition.",
   "license": "Apache-2.0",
   "type": "module",

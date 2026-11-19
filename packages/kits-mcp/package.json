@@ -1,6 +1,6 @@
 {
   "name": "@kition/kits-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Kition's kit tools as a stdio MCP server for any agent: `npx -y @kition/kits-mcp --workspace <folder>` starts `kition mcp` for this platform, which downloads each published kit on first use.",
   "license": "Apache-2.0",
   "type": "module",

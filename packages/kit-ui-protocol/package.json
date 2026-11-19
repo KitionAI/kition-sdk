@@ -1,6 +1,6 @@
 {
   "name": "@kition/kit-ui-protocol",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The Kit UI protocol (kition-kit-ui/1): message types and JSON-RPC over a MessagePort, for hosts and embedded kit UIs.",
   "license": "Apache-2.0",
   "type": "module",
