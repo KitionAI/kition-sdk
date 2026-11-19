@@ -180,7 +180,7 @@ describe('sync-community', () => {
     expect(out).toContain('### Why Design\n')
     expect(out).toContain('| Opens | Creates | Exports |\n| --- | --- | --- |\n| `.kfilm`, `.srt` | `.kfilm` | `.mp4`, `.webm` |\n')
     expect(out).toContain('Version 0.4.0 · KHP 1.0, conformance level `agent-ready`.')
-    expect(out).toContain('[![KHP 1.0](https://img.shields.io/badge/KHP-1.0-5645d4)](https://github.com/kitharness/khp)')
+    expect(out).toContain('[![KHP 1.0](https://img.shields.io/badge/KHP-1.0-5645d4)](https://github.com/kitharness/kitharness)')
     expect(out).toContain('(https://github.com/KitionAI/kition-showcase/tree/main/design)')
     expect(out).toContain('[CONTRIBUTING.md](.github/CONTRIBUTING.md)')
     // What to write in each part is said in HTML comments, which GitHub does not show.

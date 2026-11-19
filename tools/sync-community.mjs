@@ -36,7 +36,7 @@
 //                  https://developer.kition.ai unless the entry sets developerLink false; no
 //                  dev.kition.ai and no kition.one
 //   kit            H1 is the entry's title; links to https://kition.ai and
-//                  https://github.com/kitharness/khp; exactly the H2 sections "What it does",
+//                  https://github.com/kitharness/kitharness; exactly the H2 sections "What it does",
 //                  "Quick start", "Maturity", "Build and contribute", "License", in this order
 //                  ("Repository layout" and "Build and test" belong in docs/development.md, any
 //                  other part is an H3 under "What it does"); the hero picture
@@ -403,7 +403,7 @@ export function checkReadme(info, readme, manifest, repo = { size: () => null })
   }
 
   if (h1 !== info.values.title) say(`the H1 is ${h1 === null ? 'missing' : `"${h1}"`}; it should be "${info.values.title}"`)
-  for (const link of ['https://kition.ai', 'https://github.com/kitharness/khp']) {
+  for (const link of ['https://kition.ai', 'https://github.com/kitharness/kitharness']) {
     if (!readme.includes(link)) say(`no link to ${link}`)
   }
   for (const title of KIT_SECTIONS.slice(0, -1)) if (!titles.includes(title)) say(`no "## ${title}" section`)

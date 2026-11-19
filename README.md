@@ -9,12 +9,12 @@
 Embed a kit's editor in your page with `@kition/embed`, or by signed iframe URL with `@kition/embed-server`.<br />
 Your storage, your users; agents edit the same files with the same engine.
 
-[Kition](https://kition.ai) · [Developer docs](https://developer.kition.ai) · [Embed guide](docs/sdk/embed.md) · [SDK guide](docs/sdk/README.md) · [Platform contracts](docs/platform/index.md) · [Kition Note](https://github.com/KitionAI/kition-note) · [Kition Tessera](https://github.com/KitionAI/kition-tessera) · [KHP](https://github.com/kitharness/khp)
+[Kition](https://kition.ai) · [Developer docs](https://developer.kition.ai) · [Embed guide](docs/sdk/embed.md) · [SDK guide](docs/sdk/README.md) · [Platform contracts](docs/platform/index.md) · [Kition Note](https://github.com/KitionAI/kition-note) · [Kition Tessera](https://github.com/KitionAI/kition-tessera) · [KHP](https://github.com/kitharness/kitharness)
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-5645d4)](LICENSE)
 [![npm: @kition/embed](https://img.shields.io/npm/v/@kition/embed?label=%40kition%2Fembed&color=5645d4)](https://www.npmjs.com/package/@kition/embed)
 [![npm: @kition/embed-server](https://img.shields.io/npm/v/@kition/embed-server?label=%40kition%2Fembed-server&color=5645d4)](https://www.npmjs.com/package/@kition/embed-server)
-[![KHP 1.0](https://img.shields.io/badge/KHP-1.0-5645d4)](https://github.com/kitharness/khp)
+[![KHP 1.0](https://img.shields.io/badge/KHP-1.0-5645d4)](https://github.com/kitharness/kitharness)
 
 </div>
 
@@ -22,7 +22,7 @@ A **kit** is everything one kind of document needs: an engine that opens, edits,
 it, the editor people work in, and the tools agents call. The Kition SDK puts kits in your product:
 embed a kit's editor in your app, let your agents work on the same files, or build a kit of your
 own. [Kition](https://kition.ai) is built on it. Kits follow the
-[Kit Harness Protocol (KHP)](https://github.com/kitharness/khp), so any host that speaks it can run
+[Kit Harness Protocol (KHP)](https://github.com/kitharness/kitharness), so any host that speaks it can run
 them.
 
 ## Embed a kit's editor in your app

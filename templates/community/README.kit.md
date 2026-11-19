@@ -9,10 +9,10 @@ Ability · Ability · Ability
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-5645d4)](LICENSE)
 [![npm: @kition/embed](https://img.shields.io/npm/v/@kition/embed?label=%40kition%2Fembed&color=5645d4)](https://www.npmjs.com/package/@kition/embed)
-[![KHP {{khp}}](https://img.shields.io/badge/KHP-{{khpBadge}}-5645d4)](https://github.com/kitharness/khp)
+[![KHP {{khp}}](https://img.shields.io/badge/KHP-{{khpBadge}}-5645d4)](https://github.com/kitharness/kitharness)
 [![Engine: Rust](https://img.shields.io/badge/engine-Rust%20%2B%20WebAssembly-5645d4)](bindings/wasm)
 
-[Use it in Kition](https://kition.ai) · [Embed it](#embed-it-in-your-app) · [Give it to your agent](#give-it-to-your-agent) · [Showcase](https://github.com/KitionAI/kition-showcase/tree/main/{{kit}}) · [Developer docs]({{docs}}) · [KHP](https://github.com/kitharness/khp)
+[Use it in Kition](https://kition.ai) · [Embed it](#embed-it-in-your-app) · [Give it to your agent](#give-it-to-your-agent) · [Showcase](https://github.com/KitionAI/kition-showcase/tree/main/{{kit}}) · [Developer docs]({{docs}}) · [KHP](https://github.com/kitharness/kitharness)
 
 </div>
 

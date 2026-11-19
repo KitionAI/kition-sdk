@@ -237,7 +237,7 @@ such a folder is a release `install.sh` installs from (`KITION_RELEASES_URL=<url
 `kition` installs kits from any index named with `KITION_INDEX` or `--index`: a kit's fragment, or
 one `tools/kits-index.mjs --out` wrote. Supply a KHP specification with
 `--standard <folder>` (or `KIT_STANDARD_DIR`; a clone of
-[kitharness/khp](https://github.com/kitharness/khp)) and a kit lock with `--lock <file>` (or
+[kitharness/kitharness](https://github.com/kitharness/kitharness)) and a kit lock with `--lock <file>` (or
 `KITION_KITS_LOCK`; Kition's `kits/kits.lock.json`). The kit packages are downloaded from their
 public release URLs and checked against the size and SHA-256 the lock pins.
 
