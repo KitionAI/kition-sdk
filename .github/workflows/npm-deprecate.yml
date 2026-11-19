@@ -1,0 +1,33 @@
+name: npm-deprecate
+# Marks npm packages this repository published as deprecated, with a message naming what replaces
+# them. Run by hand; npm shows the message at every install. An empty message lifts a deprecation.
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: The package names, separated by spaces
+        required: true
+      message:
+        description: The message npm shows at install
+        required: true
+permissions:
+  contents: read
+jobs:
+  deprecate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      - env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGES: ${{ inputs.packages }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          set -euo pipefail
+          for package in $PACKAGES; do
+            case "$package" in @kition/*) ;; *) echo "::error::$package is not an @kition package"; exit 1 ;; esac
+            npm deprecate "$package" "$MESSAGE"
+            echo "$package: $(npm view "$package" deprecated)"
+          done

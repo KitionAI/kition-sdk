@@ -206,6 +206,17 @@ undone), and publishes the draft last. On npm the scoped `@kition/*` packages go
   carry the `kition` of the release's own `kition-<version>-<platform>.tar.gz`, checked against
   its `SHA256SUMS`, not a new build. From any other commit the run stops.
 
+## After a release
+
+`.github/workflows/npm-smoke.yml`, run by hand with the version, installs `@kition/cli` from the npm
+registry on macOS (arm64, x64), Linux (x64, arm64) and Windows, installs a kit, and starts the
+command that `kition agent add` registers (from the global install, and through `npx`) as an agent
+does, asking it for its tools over MCP. On Alpine it checks that the command names musl as the
+reason it does not run. It publishes nothing.
+
+`.github/workflows/npm-deprecate.yml`, run by hand with package names and a message, marks
+`@kition` packages that a release replaced as deprecated on npm.
+
 ## Making one locally
 
 `node packages/kition/scripts/platform-package.mjs` writes `@kition/cli-<platform>` from a built

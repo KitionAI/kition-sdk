@@ -1,0 +1,104 @@
+name: npm-smoke
+# The command line as people get it: @kition/cli installed from the npm registry on every
+# platform, then used. Run by hand after a release (docs/sdk/distribution.md); it publishes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The @kition/cli version on npm to check (empty for the latest)
+        required: false
+        default: ''
+permissions:
+  contents: read
+jobs:
+  installed:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel, ubuntu-24.04, ubuntu-24.04-arm, windows-2025]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: The script that talks MCP to a registered command
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke/ws"
+          cat > "$RUNNER_TEMP/smoke/registered.cjs" <<'SCRIPT'
+          // Starts the command a .cursor/mcp.json registers, as an agent does, and asks for its tools.
+          const { spawn } = require("node:child_process")
+          const fs = require("node:fs")
+          const entry = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).mcpServers.kition
+          console.log("registered:", JSON.stringify(entry))
+          const expected = process.argv[3]
+          const first = process.platform === "win32" ? "cmd" : expected
+          const named = entry.command === first || entry.command.replace(/\\/g, "/").endsWith("/" + first) || entry.command.toLowerCase().endsWith("cmd.exe")
+          if (!named) { console.error(`the registered command is ${entry.command}, expected ${first}`); process.exit(1) }
+          if (!JSON.stringify(entry).includes(expected)) { console.error(`the registration does not name ${expected}`); process.exit(1) }
+          const child = spawn(entry.command, entry.args, { stdio: ["pipe", "pipe", "inherit"] })
+          let out = ""
+          const timer = setTimeout(() => { console.error("no answer in 240 s"); child.kill(); process.exit(1) }, 240000)
+          child.stdout.on("data", (chunk) => {
+            out += chunk
+            if (out.split("\n").filter(Boolean).length >= 2) child.stdin.end()
+          })
+          child.on("error", (error) => { console.error(error); process.exit(1) })
+          child.on("exit", (code) => {
+            clearTimeout(timer)
+            const answers = out.split("\n").filter(Boolean).map((line) => JSON.parse(line))
+            const tools = answers.find((answer) => answer.id === 2)?.result?.tools?.map((tool) => tool.name) ?? []
+            console.log("exit", code, "tools:", tools.join(", "))
+            if (code !== 0 || !tools.includes("note_inspect") || !tools.includes("kit_inspect")) process.exit(1)
+          })
+          const send = (message) => child.stdin.write(JSON.stringify(message) + "\n")
+          send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "npm-smoke", version: "0" } } })
+          send({ jsonrpc: "2.0", method: "notifications/initialized" })
+          send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
+          SCRIPT
+      - name: npm install -g @kition/cli
+        run: |
+          set -euo pipefail
+          npm install -g "@kition/cli${VERSION:+@$VERSION}"
+          command -v kition
+          kition --version
+          if [ -n "$VERSION" ]; then kition --version | grep -F "kition $VERSION "; fi
+      - name: Install a kit and list
+        run: |
+          set -euo pipefail
+          kition kit install note
+          kition kit list
+      - name: kition agent add, from the global install, registers a command that serves MCP
+        working-directory: ${{ runner.temp }}/smoke/ws
+        run: |
+          set -euo pipefail
+          kition agent add cursor --scope project
+          node ../registered.cjs .cursor/mcp.json kition
+          kition agent list
+          kition agent remove cursor --scope project
+      - name: kition agent add, through npx, registers npx -y @kition/cli, which serves MCP
+        working-directory: ${{ runner.temp }}/smoke/ws
+        run: |
+          set -euo pipefail
+          npx -y "@kition/cli${VERSION:+@$VERSION}" agent add cursor --scope project
+          node ../registered.cjs .cursor/mcp.json npx
+      - name: kition doctor
+        run: kition doctor
+
+  # Alpine has musl, which the kition executable does not run on: the command says so and names install.sh.
+  musl:
+    runs-on: ubuntu-24.04
+    container: node:22-alpine
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - run: |
+          set -eu
+          npm install -g "@kition/cli${VERSION:+@$VERSION}"
+          if kition --version 2> message; then echo "kition ran on musl" >&2; exit 1; fi
+          cat message
+          grep -i musl message
