@@ -1,5 +1,5 @@
-/** The table of the extensions each published kit edits, made by build-client.mjs. */
+/** The extensions each published kit opens, and whether it only views them; made by build-client.mjs. */
 declare module 'virtual:kit-extensions' {
-  const table: Record<string, string>
+  const table: Record<string, { kit: string; view: boolean }>
   export default table
 }

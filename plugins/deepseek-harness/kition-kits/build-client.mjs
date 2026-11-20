@@ -2,7 +2,7 @@
 // Builds the plugin's browser module, lib/client.js, from src/client/: one script DeepSeek
 // Harness's module loader runs (`window.__ModuleLoader__.load({ id, factory })`), with React from
 // the loader's `require` and everything else, @kition/gateway-page's protocol included, inside.
-// The table of the extensions each published kit edits is made here, from published-kits.json and
+// The table of the extensions each published kit opens is made here, from published-kits.json and
 // the kits' committed manifests (crates/kition-kits/tests/fixtures/kits/<kit>.json), never by hand.
 // lib/client.js is committed: the package is installed from its archive with nothing built.
 //
@@ -19,18 +19,21 @@ const sdk = path.resolve(here, '../../..')
 export const MODULE_ID = '@kition/dsh-kits'
 
 /**
- * Each extension a published kit edits, and the kit: `{ md: 'note', ... }`, sorted. A kit's
- * view-only formats are left out (the gateway's page opens edit formats only); an extension two
- * kits edit goes to the first in published-kits.json, as the page chooses.
+ * Each extension a published kit opens, and the kit: `{ md: { kit: 'note', view: false }, ... }`,
+ * sorted. An extension a kit edits goes to the first kit in published-kits.json that edits it, as
+ * the gateway's page chooses; one no kit edits but some kit only views (`view` formats: Vector's
+ * .svg, Sheet's .csv) goes to the first that views it, and opens read-only.
  */
 export function extensionTable() {
   const published = JSON.parse(fs.readFileSync(path.join(sdk, 'published-kits.json'), 'utf8'))
+  const manifests = published.map((kit) => [kit, JSON.parse(fs.readFileSync(path.join(sdk, 'crates/kition-kits/tests/fixtures/kits', `${kit}.json`), 'utf8'))])
   const table = {}
-  for (const kit of published) {
-    const manifest = JSON.parse(fs.readFileSync(path.join(sdk, 'crates/kition-kits/tests/fixtures/kits', `${kit}.json`), 'utf8'))
-    for (const format of manifest.formats ?? []) {
-      if (format.role !== 'edit') continue
-      for (const extension of format.extensions) table[extension.toLowerCase()] ??= kit
+  for (const role of ['edit', 'view']) {
+    for (const [kit, manifest] of manifests) {
+      for (const format of manifest.formats ?? []) {
+        if (format.role !== role) continue
+        for (const extension of format.extensions) table[extension.toLowerCase()] ??= { kit, view: role === 'view' }
+      }
     }
   }
   return Object.fromEntries(Object.entries(table).sort(([a], [b]) => a.localeCompare(b)))

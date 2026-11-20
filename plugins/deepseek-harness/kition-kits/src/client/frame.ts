@@ -15,6 +15,7 @@ export type PageState = {
   kit: string | null
   status: string | null
   dirty: boolean
+  readOnly: boolean
   draft: GatewayPageDraft
   progress?: { done: number; total: number }
   detail?: string
@@ -29,6 +30,8 @@ export type FrameEvents = {
   requestClose: (dirty: boolean) => void
   /** The answer to `save()`. */
   saved: (saved: boolean, error?: string) => void
+  /** The person merged or discarded the draft in the page's review. */
+  reviewed: (outcome: 'merged' | 'discarded') => void
 }
 
 /**
@@ -53,7 +56,7 @@ export function makeFrame(tabId: string, src: string, title: string): HTMLIFrame
 
 /** The host's side of the protocol with one page frame. */
 export class PageFrame {
-  readonly state: PageState = { ready: false, title: null, kit: null, status: null, dirty: false, draft: null }
+  readonly state: PageState = { ready: false, title: null, kit: null, status: null, dirty: false, readOnly: false, draft: null }
   private readonly listener: (event: MessageEvent) => void
 
   constructor(
@@ -80,13 +83,14 @@ export class PageFrame {
         this.send({ kitionGatewayPage: GATEWAY_PAGE_PROTOCOL, type: 'locale', locale: this.language })
         break
       case 'state':
-        Object.assign(this.state, { title: message.title, kit: message.kit, status: message.status, dirty: message.dirty, progress: message.progress, detail: message.detail })
+        Object.assign(this.state, { title: message.title, kit: message.kit, status: message.status, dirty: message.dirty, readOnly: message.readOnly === true, progress: message.progress, detail: message.detail })
         break
       case 'draft':
         this.state.draft = message.draft
         break
       case 'reviewed':
         this.state.draft = null
+        this.events.reviewed?.(message.outcome)
         break
       case 'shortcut':
         // Cmd+W comes as request-close as well, which asks first when there are unsaved edits.
@@ -125,6 +129,11 @@ export class PageFrame {
 
   focus() {
     this.send({ kitionGatewayPage: GATEWAY_PAGE_PROTOCOL, type: 'focus' })
+  }
+
+  /** Opens the review of the agent's draft in the page. */
+  review() {
+    this.send({ kitionGatewayPage: GATEWAY_PAGE_PROTOCOL, type: 'review' })
   }
 
   dispose() {

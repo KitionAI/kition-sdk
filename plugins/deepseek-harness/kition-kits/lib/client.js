@@ -78,7 +78,7 @@ class PageFrame {
     this.listener = (event) => this.receive(event);
     window.addEventListener("message", this.listener);
   }
-  state = { ready: false, title: null, kit: null, status: null, dirty: false, draft: null };
+  state = { ready: false, title: null, kit: null, status: null, dirty: false, readOnly: false, draft: null };
   listener;
   /** The page's origin is the host's (a same-origin proxy): its messages come from there. */
   receive(event) {
@@ -93,13 +93,14 @@ class PageFrame {
         this.send({ kitionGatewayPage: GATEWAY_PAGE_PROTOCOL, type: "locale", locale: this.language });
         break;
       case "state":
-        Object.assign(this.state, { title: message.title, kit: message.kit, status: message.status, dirty: message.dirty, progress: message.progress, detail: message.detail });
+        Object.assign(this.state, { title: message.title, kit: message.kit, status: message.status, dirty: message.dirty, readOnly: message.readOnly === true, progress: message.progress, detail: message.detail });
         break;
       case "draft":
         this.state.draft = message.draft;
         break;
       case "reviewed":
         this.state.draft = null;
+        this.events.reviewed?.(message.outcome);
         break;
       case "shortcut":
         if (!(message.key.code === "KeyW" && (message.key.meta || message.key.ctrl))) this.events.shortcut?.(message.key);
@@ -133,17 +134,172 @@ class PageFrame {
   focus() {
     this.send({ kitionGatewayPage: GATEWAY_PAGE_PROTOCOL, type: "focus" });
   }
+  /** Opens the review of the agent's draft in the page. */
+  review() {
+    this.send({ kitionGatewayPage: GATEWAY_PAGE_PROTOCOL, type: "review" });
+  }
   dispose() {
     window.removeEventListener("message", this.listener);
   }
 }
+const route = (path) => new URL(path, document.baseURI).href;
+async function openFile(sessionId, path) {
+  try {
+    const response = await fetch(route(`kition/api/open?${new URLSearchParams({ session: sessionId, path })}`), { credentials: "same-origin", cache: "no-store" });
+    const answer = await response.json().catch(() => ({}));
+    if (response.ok && typeof answer.page === "string") return { phase: "open", page: answer.page, key: answer.key, path: answer.path };
+    return { phase: "failed", error: String(answer.error ?? `http-${response.status}`), message: String(answer.message ?? response.statusText) };
+  } catch (error) {
+    return { phase: "failed", error: "unreachable", message: error.message };
+  }
+}
+class GatewayError extends Error {
+  constructor(message, status, reason) {
+    super(message);
+    this.status = status;
+    this.reason = reason;
+  }
+}
+async function gatewayJson(key, path, init = {}) {
+  let response;
+  try {
+    response = await fetch(route(`kition/w/${key}/${path}`), { credentials: "same-origin", cache: "no-store", ...init });
+  } catch (error) {
+    throw new GatewayError(error.message, 0, "unreachable");
+  }
+  const envelope = await response.json().catch(() => null);
+  if (!response.ok) throw new GatewayError(envelope?.message ?? `the gateway answered ${response.status}`, response.status, envelope?.data?.reason ?? envelope?.error ?? null);
+  return envelope?.data ?? null;
+}
+const post = (key, path, body) => gatewayJson(key, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const compare = (key, path) => gatewayJson(key, `api/v1/kits/drafts/compare?${new URLSearchParams({ path, previews: "true" })}`);
+const merge = (key, path, overwrite = false) => post(key, "api/v1/kits/drafts/merge", { path, overwrite });
+const discard = (key, path) => post(key, "api/v1/kits/drafts/discard", { path });
+async function exists(key, path) {
+  const response = await fetch(route(`kition/w/${key}/kit-files/${path.split("/").map(encodeURIComponent).join("/")}`), { method: "HEAD", credentials: "same-origin", cache: "no-store" }).catch(() => null);
+  return response ? response.status !== 404 : true;
+}
+class DraftsWatch {
+  constructor(key) {
+    this.key = key;
+  }
+  drafts = null;
+  failed = null;
+  listeners = /* @__PURE__ */ new Set();
+  stream = null;
+  timer = null;
+  subscribe(listener) {
+    this.listeners.add(listener);
+    if (this.listeners.size === 1) this.start();
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size === 0) this.stop();
+    };
+  }
+  async refresh() {
+    try {
+      const listed = await gatewayJson(this.key, "api/v1/kits/drafts");
+      this.drafts = new Map(listed.drafts.map((draft) => [draft.path, draft]));
+      this.failed = null;
+    } catch (error) {
+      this.failed = error.message;
+    }
+    for (const listener of [...this.listeners]) listener();
+  }
+  start() {
+    void this.refresh();
+    this.timer = setInterval(() => void this.refresh(), 1e4);
+    this.stream = new AbortController();
+    void this.listen(this.stream.signal);
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.stream?.abort();
+    this.stream = null;
+  }
+  /** The gateway's bridge stream, as a window with no editor: it hears the drafts change. */
+  async listen(signal) {
+    for (let attempt = 0; !signal.aborted; attempt++) {
+      try {
+        const response = await fetch(route(`kition/w/${this.key}/api/v1/kits/bridge`), { credentials: "same-origin", headers: { Accept: "text/event-stream" }, signal });
+        if (!response.ok || !response.body) throw new Error(String(response.status));
+        const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+        let buffer = "";
+        let session = null;
+        for (; ; ) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += value.replace(/\r\n/g, "\n");
+          for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+            const frame = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const data = frame.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
+            if (!data) continue;
+            let message;
+            try {
+              message = JSON.parse(data);
+            } catch {
+              continue;
+            }
+            attempt = 0;
+            if (message.method === "bridge.ready") session = Number(message.params?.session);
+            else if (message.id != null && session != null) {
+              const answer = message.method === "kit/documents" ? { result: { documents: [] } } : { error: { code: -32e3, message: "no editor is open here" } };
+              void fetch(route(`kition/w/${this.key}/api/v1/kits/bridge?session=${session}`), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: message.id, ...answer }) }).catch(() => void 0);
+            } else if (message.method === "kit/draftsChanged") void this.refresh();
+          }
+        }
+      } catch {
+        if (signal.aborted) return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1e4, 500 * 2 ** attempt)));
+    }
+  }
+}
+const watches = /* @__PURE__ */ new Map();
+function draftsOf(key) {
+  let watch = watches.get(key);
+  if (!watch) watches.set(key, watch = new DraftsWatch(key));
+  return watch;
+}
+const outcomeKey = (sessionId, path, turn) => `kition-dsh:outcome:${sessionId}:${turn}:${path}`;
+function rememberOutcome(sessionId, path, turn, outcome2) {
+  try {
+    localStorage.setItem(outcomeKey(sessionId, path, turn), outcome2);
+  } catch {
+  }
+}
+function outcomeOf(sessionId, path, turn) {
+  try {
+    const kept = localStorage.getItem(outcomeKey(sessionId, path, turn));
+    return kept === "merged" || kept === "discarded" ? kept : null;
+  } catch {
+    return null;
+  }
+}
+const draftingTurns = /* @__PURE__ */ new Map();
+const draftingListeners = /* @__PURE__ */ new Set();
+function noteDraftingTurn(sessionId, path, turn) {
+  const key = `${sessionId}:${path}`;
+  if ((draftingTurns.get(key) ?? -1) >= turn) return;
+  draftingTurns.set(key, turn);
+  queueMicrotask(() => {
+    for (const listener of [...draftingListeners]) listener();
+  });
+}
+function subscribeDraftingTurns(listener) {
+  draftingListeners.add(listener);
+  return () => draftingListeners.delete(listener);
+}
+const draftingTurnOf = (sessionId, path) => draftingTurns.get(`${sessionId}:${path}`) ?? null;
 const NAMESPACE = "kitionKits";
 const en = {
   openWith: "Kition {kit}",
   starting: "Starting Kition…",
   startingDetail: "Kition is starting for this folder.",
   missingTitle: "Kition is not installed",
-  missingDetail: "Install Kition, then restart DeepSeek Harness:",
+  missingDetail: "Install Kition, then try again:",
   missingOr: "or",
   unreachableTitle: "Kition does not answer",
   unreachableDetail: "Kition could not open this file.",
@@ -153,14 +309,46 @@ const en = {
   noSession: "Open a session to edit this file with Kition.",
   closeDirty: "{name} has unsaved changes in Kition. Close it and lose them?",
   draft: "Draft",
-  draftTitle: "An agent drafted changes to this file"
+  draftTitle: "An agent drafted changes to this file",
+  readOnly: "Read-only",
+  // The review cards at the end of an agent's turn.
+  cardsLabel: "Kition files this turn",
+  statePending: "The agent is editing…",
+  stateFailed: "The agent’s edit failed",
+  stateLive: "Edited live in the open editor",
+  stateSaved: "Edited",
+  stateCreated: "Created",
+  stateDraftOpen: "Draft, for your review",
+  stateDraftReady: "Draft ready for your review",
+  stateStale: "Draft — the file changed since it began",
+  stateMerged: "Merged",
+  stateDiscarded: "Discarded",
+  stateDraftGone: "The draft is no longer there",
+  stateMissing: "The file was deleted",
+  stateKitionMissing: "Kition is not installed: npm install -g @kition/cli",
+  stateGatewayDown: "Kition does not answer",
+  actionOpen: "Open",
+  actionReview: "Review",
+  actionMerge: "Merge",
+  actionDiscard: "Discard",
+  actionOverwrite: "Merge and overwrite",
+  confirmDiscard: "Discard the agent’s draft of {name}?",
+  changes: "{created} created, {changed} changed, {deleted} deleted",
+  failedAction: "Kition could not do that: {message}",
+  settingsTitle: "Kition",
+  settingLiveFloat: "Show an agent’s edit of a file that is not open in a floating window, as it happens",
+  settingAutoOpen: "Open a file in the right sidebar after an agent’s first edit of it in a turn",
+  settingOpenWith: "Open Markdown, HTML, PDF, Word, Excel, PowerPoint, CSV and SVG files first in",
+  settingOpenWithDsh: "DeepSeek Harness’s preview",
+  settingOpenWithKition: "the Kition editor",
+  settingsUnavailable: "These settings need DeepSeek Harness’s settings service."
 };
 const zh = {
   openWith: "Kition {kit}",
   starting: "正在启动 Kition…",
   startingDetail: "Kition 正在为这个文件夹启动。",
   missingTitle: "没有安装 Kition",
-  missingDetail: "安装 Kition，然后重启 DeepSeek Harness：",
+  missingDetail: "安装 Kition，然后重试：",
   missingOr: "或",
   unreachableTitle: "Kition 没有响应",
   unreachableDetail: "Kition 无法打开这个文件。",
@@ -170,11 +358,43 @@ const zh = {
   noSession: "打开一个会话，才能用 Kition 编辑这个文件。",
   closeDirty: "{name} 在 Kition 里有未保存的修改。关闭并丢弃这些修改吗？",
   draft: "草稿",
-  draftTitle: "Agent 起草了对这个文件的修改"
+  draftTitle: "Agent 起草了对这个文件的修改",
+  readOnly: "只读",
+  cardsLabel: "本轮的 Kition 文件",
+  statePending: "Agent 正在编辑…",
+  stateFailed: "Agent 的修改失败了",
+  stateLive: "已在打开的编辑器里实时修改",
+  stateSaved: "已修改",
+  stateCreated: "已创建",
+  stateDraftOpen: "草稿，等你审阅",
+  stateDraftReady: "草稿已就绪，等你审阅",
+  stateStale: "草稿：文件在起草之后又改过",
+  stateMerged: "已合入",
+  stateDiscarded: "已丢弃",
+  stateDraftGone: "草稿已经不在了",
+  stateMissing: "文件已被删除",
+  stateKitionMissing: "没有安装 Kition：npm install -g @kition/cli",
+  stateGatewayDown: "Kition 没有响应",
+  actionOpen: "打开",
+  actionReview: "审阅",
+  actionMerge: "合入",
+  actionDiscard: "丢弃",
+  actionOverwrite: "合入并覆盖",
+  confirmDiscard: "丢弃 Agent 对 {name} 的草稿吗？",
+  changes: "新增 {created}，修改 {changed}，删除 {deleted}",
+  failedAction: "Kition 没能完成：{message}",
+  settingsTitle: "Kition",
+  settingLiveFloat: "Agent 编辑一个没有打开的文件时，在浮动窗口里实时显示",
+  settingAutoOpen: "Agent 在一轮里第一次编辑一个文件后，在右侧栏打开它",
+  settingOpenWith: "Markdown、HTML、PDF、Word、Excel、PowerPoint、CSV 和 SVG 文件先用",
+  settingOpenWithDsh: "DeepSeek Harness 的预览",
+  settingOpenWithKition: "Kition 编辑器",
+  settingsUnavailable: "这些设置需要 DeepSeek Harness 的设置服务。"
 };
 const fill = (text, params = {}) => text.replace(/\{(\w+)\}/g, (whole, name2) => params[name2] ?? whole);
-const table = { "docx": "doc", "dxf": "cad", "htm": "html", "html": "html", "kboard": "board", "kdesign": "design", "kfilm": "film", "klayout": "layout", "kmotion": "motion", "kphoto": "photo", "kscene": "scene", "kslide": "slide", "ktable": "table", "kvector": "vector", "markdown": "note", "md": "note", "pdf": "pdf", "pptx": "slide", "psb": "photo", "psd": "photo", "xlsm": "sheet", "xlsx": "sheet" };
-const KIT_EXTENSIONS = table;
+const table = { "ai": { "kit": "vector", "view": true }, "csv": { "kit": "sheet", "view": true }, "docx": { "kit": "doc", "view": false }, "dxf": { "kit": "cad", "view": false }, "eps": { "kit": "vector", "view": true }, "et": { "kit": "sheet", "view": true }, "ett": { "kit": "sheet", "view": true }, "fig": { "kit": "design", "view": true }, "htm": { "kit": "html", "view": false }, "html": { "kit": "html", "view": false }, "idml": { "kit": "layout", "view": true }, "kboard": { "kit": "board", "view": false }, "kdesign": { "kit": "design", "view": false }, "kfilm": { "kit": "film", "view": false }, "klayout": { "kit": "layout", "view": false }, "kmotion": { "kit": "motion", "view": false }, "kphoto": { "kit": "photo", "view": false }, "kscene": { "kit": "scene", "view": false }, "kslide": { "kit": "slide", "view": false }, "ktable": { "kit": "table", "view": false }, "kvector": { "kit": "vector", "view": false }, "markdown": { "kit": "note", "view": false }, "md": { "kit": "note", "view": false }, "ods": { "kit": "sheet", "view": true }, "pdf": { "kit": "pdf", "view": false }, "pptx": { "kit": "slide", "view": false }, "psb": { "kit": "photo", "view": false }, "psd": { "kit": "photo", "view": false }, "sketch": { "kit": "design", "view": true }, "svg": { "kit": "vector", "view": true }, "xls": { "kit": "sheet", "view": true }, "xlsb": { "kit": "sheet", "view": true }, "xlsm": { "kit": "sheet", "view": false }, "xlsx": { "kit": "sheet", "view": false }, "xlt": { "kit": "sheet", "view": true }, "xltm": { "kit": "sheet", "view": true }, "xltx": { "kit": "sheet", "view": true } };
+const KIT_FORMATS = table;
+const KIT_EXTENSIONS = Object.fromEntries(Object.entries(table).map(([extension, entry]) => [extension, entry.kit]));
 const DSH_PREVIEWS = /* @__PURE__ */ new Set([
   ...["md", "markdown", "html", "htm", "pdf", "doc", "docx", "ppt", "pptx", "xlsx", "xls", "csv", "tsv"],
   ...["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg"],
@@ -186,22 +406,142 @@ const PREVIEW_EXTENSIONS = Object.entries(KIT_EXTENSIONS).filter(([extension]) =
   return byKit;
 }, {});
 const kitName = (kit) => kit === "html" || kit === "pdf" || kit === "cad" ? kit.toUpperCase() : kit.charAt(0).toUpperCase() + kit.slice(1);
+const TOOL_PREFIX = "mcp__kition__";
+const WRITES = /* @__PURE__ */ new Set(["run", "batch", "create", "draft_ready", "draft_reopen"]);
+const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+function actionOf(name2) {
+  if (typeof name2 !== "string" || !name2.startsWith(TOOL_PREFIX)) return null;
+  const raw = name2.slice(TOOL_PREFIX.length);
+  const at = raw.indexOf("_");
+  return at > 0 ? raw.slice(at + 1) : null;
+}
+function argumentsOf(data) {
+  const value = data.arguments;
+  if (isRecord(value)) return value;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+const normalPath = (path) => path.replace(/\\/g, "/").replace(/^(\.\/)+/, "");
+function withOperation(files, path, kit, operation) {
+  const next = files.map((file) => ({ ...file, operations: file.operations.filter((entry) => entry.callId !== operation.callId) }));
+  const at = next.findIndex((file) => file.path === path);
+  if (at < 0) next.push({ path, kit, operations: [operation] });
+  else next[at] = { path, kit: kit ?? next[at].kit, operations: [...next[at].operations, operation] };
+  return next.filter((file) => file.operations.length > 0);
+}
+function addCall(state, data) {
+  const action = actionOf(data.name);
+  const args = argumentsOf(data);
+  if (!action || typeof args.path !== "string" || !args.path || typeof data.callId !== "string") return state;
+  const operation = { callId: data.callId, action, phase: "pending", writes: WRITES.has(action), live: false, draft: args.draft === true, created: action === "create" };
+  return { ...state, files: withOperation(state.files, normalPath(args.path), null, operation) };
+}
+function outcome(data) {
+  const meta = [data.meta, isRecord(data.message) ? data.message.meta : void 0, isRecord(data.result) ? data.result.meta : void 0].find((value) => isRecord(value) && value.kition === 1);
+  if (isRecord(meta)) return { live: meta.live === true, draft: meta.draft === true, kit: typeof meta.kit === "string" ? meta.kit : null, path: typeof meta.path === "string" ? meta.path : null };
+  const message = isRecord(data.message) ? data.message : {};
+  const text = (Array.isArray(message.content) ? message.content : []).map((block) => isRecord(block) && typeof block.text === "string" ? block.text : "").join("\n");
+  if (!text) return null;
+  return { live: /"live":true/.test(text), draft: /"draft":true/.test(text), kit: /"kit":"(kit\.[a-z0-9-]+)"/.exec(text)?.[1] ?? null, path: null };
+}
+function applyResult(state, data) {
+  const message = isRecord(data.message) ? data.message : {};
+  const callId = typeof message.toolCallId === "string" ? message.toolCallId : typeof data.callId === "string" ? data.callId : null;
+  if (!callId) return state;
+  const file = state.files.find((entry) => entry.operations.some((operation2) => operation2.callId === callId));
+  if (!file) return state;
+  const before = file.operations.find((operation2) => operation2.callId === callId);
+  const failed = message.isError === true || data.error !== void 0;
+  const said = failed ? null : outcome(data);
+  const operation = { ...before, phase: failed ? "failed" : "done", live: said?.live ?? false, draft: said?.draft ?? before.draft };
+  return { ...state, files: withOperation(state.files, file.path, said?.kit ?? file.kit, operation) };
+}
+const kitTurnDefinition = {
+  kind: "kitionTurn",
+  match(event) {
+    const turn = event.data?.turn;
+    if (typeof turn !== "number") return null;
+    if (event.type === "turn/start") return { id: String(turn), role: "start" };
+    if (event.type === "tool/call" || event.type === "tool/result") return { id: String(turn), role: "update" };
+    return null;
+  },
+  start(_context, match) {
+    return { turn: Number(match.event.data?.turn), files: [] };
+  },
+  update(context, match) {
+    const data = match.event.data ?? {};
+    if (match.event.type === "tool/call") return addCall(context.state, data);
+    if (match.event.type === "tool/result") return applyResult(context.state, data);
+    return context.state;
+  },
+  buildLocationData(context, scope, previous) {
+    const state = context.state;
+    if (scope !== "turn" || !state || state.files.length === 0) return null;
+    if (previous?.value && previous.value.files === state.files) return previous;
+    return { kind: "turn", turn: state.turn, key: "kitionTurn", value: { files: state.files } };
+  }
+};
+function cardState(file, now) {
+  const writes = file.operations.filter((operation) => operation.writes);
+  if (writes.length === 0) return null;
+  if (writes.some((operation) => operation.phase === "pending")) return "pending";
+  const done = writes.filter((operation) => operation.phase === "done");
+  if (done.length === 0) return "failed";
+  if (done.some((operation) => operation.draft)) {
+    if (now.draft) return now.draft.stale ? "stale" : now.draft.state === "ready" ? "draft-ready" : "draft-open";
+    if (now.draft === void 0) return "draft-open";
+    if (now.outcome) return now.outcome;
+    return now.exists === false ? "missing" : "draft-gone";
+  }
+  if (now.exists === false) return "missing";
+  if (done.some((operation) => operation.created)) return "created";
+  return done.some((operation) => operation.live) ? "live" : "saved";
+}
+function cardActions(state) {
+  switch (state) {
+    case "draft-open":
+    case "draft-ready":
+      return ["open", "review", "merge", "discard"];
+    case "stale":
+      return ["open", "review", "overwrite", "discard"];
+    case "missing":
+    case "pending":
+      return [];
+    default:
+      return ["open"];
+  }
+}
 const h = React__namespace.createElement;
 const name = "@kition/dsh-kits";
 const inject = ["slots"];
 const TAB_TYPE = "kition";
+const TEXT_TYPE = "@deepseek-ai/dsh-client-ui-sidebar-documentpreview";
+const TEXT_KIND = "text";
+const HOST_ENTRY = "kition-kits-host";
 const previewId = (kit) => `kition/${kit}`;
+const DEFAULTS = { liveFloat: true, openWith: "dsh", autoOpen: false };
 class Environment {
   listeners = /* @__PURE__ */ new Set();
   scheme = "light";
   language = "en";
+  settings = DEFAULTS;
+  /** DeepSeek Harness's own shortcuts the editor hands back (the web UI's; Desktop routes them itself). */
+  keys = [];
   translate = null;
+  sidebar = null;
+  version = 0;
   subscribe = (listener) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
   set(changes) {
     Object.assign(this, changes);
+    this.version++;
     for (const listener of [...this.listeners]) listener();
   }
   t(key, params = {}) {
@@ -222,27 +562,34 @@ const subscribePages = (listener) => {
   pageListeners.add(listener);
   return () => pageListeners.delete(listener);
 };
+const openPage = (sessionId, path) => [...pages.values()].find((page) => page.path === path && (page.sessionId === null || page.sessionId === sessionId));
+const pendingReview = /* @__PURE__ */ new Set();
 const schemeOf = (snapshot) => snapshot?.active?.colorScheme === "dark" ? "dark" : "light";
 const languageOf = (active) => typeof active === "string" && active.toLowerCase().startsWith("zh") ? "zh" : "en";
-const route = (path) => new URL(path, document.baseURI).href;
-async function open(sessionId, path) {
+function useEnvironment() {
+  React__namespace.useSyncExternalStore(environment.subscribe, () => environment.version);
+  return environment;
+}
+function fileAddress(sessionId, path) {
+  const segment = (text) => encodeURIComponent(text).replace(/%3A/gi, ":");
+  return `dsh-resource://file/session/${segment(sessionId)}/${path.split("/").map(segment).join("/")}`;
+}
+function openInSidebar(sessionId, path, destination = "sidebar") {
+  const sidebar = environment.sidebar;
+  if (typeof sidebar?.openResource !== "function") return false;
+  const active = document.activeElement;
   try {
-    const response = await fetch(route(`kition/api/open?${new URLSearchParams({ session: sessionId, path })}`), { credentials: "same-origin", cache: "no-store" });
-    const answer = await response.json().catch(() => ({}));
-    if (response.ok && typeof answer.page === "string") return { phase: "open", page: answer.page };
-    return { phase: "failed", error: String(answer.error ?? `http-${response.status}`), message: String(answer.message ?? response.statusText) };
-  } catch (error) {
-    return { phase: "failed", error: "unreachable", message: error.message };
+    sidebar.openResource(fileAddress(sessionId, path), { kind: TAB_TYPE, revealIfOpened: true, ...destination === "float" ? { destination: "float", params: { float: true } } : {} });
+  } catch {
+    return false;
   }
+  if (destination === "float" && active && active !== document.body) requestAnimationFrame(() => active.focus({ preventScroll: true }));
+  return true;
 }
 function forwardShortcut(key) {
   const init = { key: key.key, code: key.code, metaKey: !!key.meta, ctrlKey: !!key.ctrl, shiftKey: !!key.shift, altKey: !!key.alt, bubbles: true, cancelable: true };
   document.body.dispatchEvent(new KeyboardEvent("keydown", init));
   document.body.dispatchEvent(new KeyboardEvent("keyup", init));
-}
-function useEnvironment() {
-  React__namespace.useSyncExternalStore(environment.subscribe, () => `${environment.scheme}:${environment.language}`);
-  return environment;
 }
 function Panel(props) {
   const env = useEnvironment();
@@ -265,14 +612,13 @@ function KitionView(props) {
   const [attempt, setAttempt] = React__namespace.useState(0);
   const [opened, setOpened] = React__namespace.useState({ phase: "opening" });
   const host = React__namespace.useRef(null);
-  const frameRef = React__namespace.useRef(null);
   const latest = React__namespace.useRef(props);
   latest.current = props;
   React__namespace.useEffect(() => {
     if (!sessionId || !path) return;
     let current = true;
     setOpened({ phase: "opening" });
-    void open(sessionId, path).then((result) => current && setOpened(result));
+    void openFile(sessionId, path).then((result) => current && setOpened(result));
     return () => {
       current = false;
     };
@@ -282,25 +628,35 @@ function KitionView(props) {
     const url = new URL(opened.page, document.baseURI);
     url.searchParams.set("theme", environment.scheme);
     url.searchParams.set("locale", environment.language);
+    if (environment.keys.length) url.searchParams.set("keys", environment.keys.join(" "));
+    if (props.watching) url.searchParams.set("focus", "no");
     const frame = makeFrame(props.tabId, url.href, `Kition ${fileName}`);
+    const reviewKey = `${sessionId}:${opened.path}`;
+    const remember = (state) => setPage(props.tabId, { ...state, name: fileName, path: opened.path, sessionId: sessionId ?? null, frame: page });
     const page = new PageFrame(
       frame,
       {
         change: (state) => {
-          setPage(props.tabId, { ...state, name: fileName });
+          remember(state);
           if (state.status === "open") latest.current.onOpen?.();
+          if (state.status === "open" && pendingReview.delete(reviewKey)) page.review();
+          void draftsOf(opened.key).refresh();
         },
         shortcut: forwardShortcut,
         requestClose: (dirty) => {
-          if (latest.current.guardClose && dirty && !window.confirm(environment.t("closeDirty", { name: fileName }))) return;
+          if (latest.current.guardClose() && dirty && !window.confirm(environment.t("closeDirty", { name: fileName }))) return;
           latest.current.close?.();
+        },
+        reviewed: (outcome2) => {
+          const turn = sessionId ? draftingTurnOf(sessionId, opened.path) : null;
+          if (sessionId && turn !== null) rememberOutcome(sessionId, opened.path, turn, outcome2);
+          void draftsOf(opened.key).refresh();
         }
       },
       environment.scheme,
       environment.language
     );
-    frameRef.current = page;
-    setPage(props.tabId, { ...page.state, name: fileName });
+    remember(page.state);
     const stop = environment.subscribe(() => {
       page.setTheme(environment.scheme);
       page.setLanguage(environment.language);
@@ -309,7 +665,6 @@ function KitionView(props) {
     return () => {
       stop();
       page.dispose();
-      frameRef.current = null;
       frame.remove();
       setPage(props.tabId, null);
     };
@@ -334,20 +689,37 @@ function KitionView(props) {
 }
 function TabBody(props) {
   const info = props.useTabInfo();
-  return h(KitionView, { address: info.tab.contentId, sessionId: props.sessionId, tabId: info.tab.id, close: () => info.tab.actions?.close?.(), guardClose: false });
+  const params = info.tab.navigation?.params ?? {};
+  return h(KitionView, {
+    address: info.tab.contentId,
+    sessionId: props.sessionId,
+    tabId: info.tab.id,
+    close: () => info.tab.actions?.close?.(),
+    guardClose: () => !guards.kition,
+    watching: params.float === true || info.panel?.isFloating === true
+  });
+}
+function marks(page, env) {
+  return [
+    page?.dirty ? h("span", { key: "dirty", "data-kition-dirty": "", "aria-label": "unsaved", style: { marginLeft: "4px" } }, "●") : null,
+    page?.readOnly ? h("span", { key: "ro", "data-kition-readonly": "", style: { marginLeft: "6px", fontSize: "10px", opacity: 0.7, whiteSpace: "nowrap" } }, env.t("readOnly")) : null,
+    page?.draft ? h("span", { key: "draft", "data-kition-draft": page.draft.state, title: env.t("draftTitle"), style: { marginLeft: "6px", fontSize: "10px", padding: "0 4px", borderRadius: "6px", whiteSpace: "nowrap", background: "rgba(255,170,0,0.25)" } }, env.t("draft")) : null
+  ];
 }
 function TabTitle(props) {
   const env = useEnvironment();
   const info = props.useTabInfo();
   React__namespace.useSyncExternalStore(subscribePages, () => pages.get(info.tab.id));
-  const page = pages.get(info.tab.id);
-  return h(
-    React__namespace.Fragment,
-    null,
-    info.tab.title,
-    page?.dirty ? h("span", { "data-kition-dirty": "", "aria-label": "unsaved", style: { marginLeft: "4px" } }, "●") : null,
-    page?.draft ? h("span", { "data-kition-draft": page.draft.state, title: env.t("draftTitle"), style: { marginLeft: "6px", fontSize: "10px", padding: "0 4px", borderRadius: "6px", whiteSpace: "nowrap", background: "rgba(255,170,0,0.25)" } }, env.t("draft")) : null
-  );
+  return h(React__namespace.Fragment, null, info.tab.title, ...marks(pages.get(info.tab.id), env));
+}
+function textTitle(primitives2) {
+  return function TextTabTitle(props) {
+    const env = useEnvironment();
+    const info = props.useTabInfo();
+    React__namespace.useSyncExternalStore(subscribePages, () => pages.get(info.tab.id));
+    const icon = primitives2?.FileTypeIcon && primitives2.classifyFileType ? h(primitives2.FileTypeIcon, { kind: primitives2.classifyFileType(info.tab.title), size: 16, style: { flex: "none" } }) : null;
+    return h(React__namespace.Fragment, null, icon, info.tab.title, ...marks(pages.get(info.tab.id), env));
+  };
 }
 function PreviewBody(props) {
   const info = props.useTabInfo?.();
@@ -361,13 +733,257 @@ function PreviewBody(props) {
     sessionId: props.sessionId,
     tabId: info?.tab?.id ?? props.resourceAddress,
     close: () => info?.tab?.actions?.close?.(),
-    guardClose: true,
+    guardClose: () => !guards.text,
     onOpen: () => {
       if (loaded.current || content?.kind !== "renderer") return;
       loaded.current = true;
       content.loaded(String(content.revision));
     }
   });
+}
+const guards = { kition: false, text: false };
+function closeGuard(_session, tab) {
+  const page = pages.get(tab.id);
+  if (page?.dirty && !window.confirm(environment.t("closeDirty", { name: page.name }))) throw new Error("Kition: the tab keeps its unsaved edits");
+}
+const keys = /* @__PURE__ */ new Map();
+function workspaceOf(sessionId, path) {
+  const cached = keys.get(sessionId);
+  if (cached) return cached;
+  const asked = openFile(sessionId, path);
+  keys.set(sessionId, asked);
+  void asked.then((answer) => answer.phase !== "open" && keys.delete(sessionId));
+  return asked;
+}
+function useWatch(subscribe, read) {
+  const [, setTick] = React__namespace.useState(0);
+  React__namespace.useEffect(() => subscribe ? subscribe(() => setTick((n) => n + 1)) : void 0, [subscribe]);
+  return read();
+}
+const STATE_WORDS = {
+  pending: "statePending",
+  failed: "stateFailed",
+  live: "stateLive",
+  saved: "stateSaved",
+  created: "stateCreated",
+  "draft-open": "stateDraftOpen",
+  "draft-ready": "stateDraftReady",
+  stale: "stateStale",
+  merged: "stateMerged",
+  discarded: "stateDiscarded",
+  "draft-gone": "stateDraftGone",
+  missing: "stateMissing"
+};
+const button = (label, action, onClick, busy, primary = false) => h(
+  "button",
+  {
+    key: action,
+    type: "button",
+    "data-kition-card-action": action,
+    disabled: busy,
+    onClick,
+    style: { padding: "2px 10px", borderRadius: "6px", border: "1px solid rgba(127,127,127,0.35)", background: primary ? "rgba(80,90,255,0.12)" : "transparent", color: "inherit", cursor: busy ? "default" : "pointer", font: "inherit", fontSize: "12px" }
+  },
+  label
+);
+function FileCard(props) {
+  const env = useEnvironment();
+  const { sessionId, file, turn } = props;
+  const [workspace, setWorkspace] = React__namespace.useState({ phase: "opening" });
+  const [attempt, setAttempt] = React__namespace.useState(0);
+  const [busy, setBusy] = React__namespace.useState(false);
+  const [problem, setProblem] = React__namespace.useState(null);
+  const [fileThere, setFileThere] = React__namespace.useState(void 0);
+  const [comparison, setComparison] = React__namespace.useState(null);
+  React__namespace.useEffect(() => {
+    let current = true;
+    void workspaceOf(sessionId, file.path).then((answer) => current && setWorkspace(answer));
+    return () => {
+      current = false;
+    };
+  }, [sessionId, file.path, attempt]);
+  const key = workspace.phase === "open" ? workspace.key : null;
+  const watch = React__namespace.useMemo(() => key ? draftsOf(key) : null, [key]);
+  const subscribe = React__namespace.useMemo(() => watch ? (listener) => watch.subscribe(listener) : null, [watch]);
+  const listed = useWatch(subscribe, () => watch?.drafts ? watch.drafts.get(file.path) ?? null : void 0);
+  React__namespace.useSyncExternalStore(subscribePages, () => pages.size);
+  const drafted = file.operations.some((operation) => operation.writes && operation.draft && operation.phase === "done");
+  if (drafted) noteDraftingTurn(sessionId, file.path, turn);
+  const listedKey = listed ? `${listed.state}:${listed.stale}:${listed.updated ?? ""}` : String(listed);
+  React__namespace.useEffect(() => {
+    if (!key) return;
+    let current = true;
+    void exists(key, file.path).then((there) => current && setFileThere(there));
+    if (listed && drafted) void compare(key, file.path).then((answer) => current && setComparison(answer), () => current && setComparison(null));
+    else setComparison(null);
+    return () => {
+      current = false;
+    };
+  }, [key, file.path, listedKey, drafted]);
+  const latest = React__namespace.useSyncExternalStore(subscribeDraftingTurns, () => draftingTurnOf(sessionId, file.path)) === turn;
+  const kept = outcomeOf(sessionId, file.path, turn);
+  const state = cardState(file, { draft: kept ? null : watch?.drafts ? latest ? listed : null : void 0, outcome: kept, exists: fileThere });
+  if (state === null) return null;
+  const kit = file.kit?.replace(/^kit\./, "") ?? KIT_EXTENSIONS[extensionOf(file.path)] ?? null;
+  let words = env.t(STATE_WORDS[state]);
+  let shown = state;
+  if (workspace.phase === "failed") {
+    shown = workspace.error === "kition-missing" || workspace.error === "kition-invalid" ? "kition-missing" : "gateway-down";
+    words = env.t(shown === "kition-missing" ? "stateKitionMissing" : "stateGatewayDown");
+  }
+  const act = (run, outcome2) => async () => {
+    if (!key) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      await run();
+      if (outcome2) rememberOutcome(sessionId, file.path, turn, outcome2);
+    } catch (error) {
+      setProblem(env.t("failedAction", { message: error.message }));
+    } finally {
+      setBusy(false);
+      void watch?.refresh();
+    }
+  };
+  const actions = workspace.phase === "failed" ? [] : cardActions(state);
+  const counts = comparison?.diff ? { created: String(comparison.diff.created?.length ?? 0), changed: String(comparison.diff.changed?.length ?? 0), deleted: String(comparison.diff.deleted?.length ?? 0) } : null;
+  const picture = comparison?.previews?.draft;
+  return h(
+    "div",
+    {
+      "data-kition-card": file.path,
+      "data-state": shown,
+      style: { display: "flex", gap: "10px", alignItems: "flex-start", padding: "8px 10px", border: "1px solid rgba(127,127,127,0.25)", borderRadius: "8px", margin: "6px 0", fontSize: "13px" }
+    },
+    picture ? h("img", { src: `data:image/png;base64,${picture}`, alt: "", "data-kition-card-picture": "", style: { width: "64px", height: "48px", objectFit: "contain", borderRadius: "4px", background: "rgba(127,127,127,0.1)", flex: "none" } }) : null,
+    h(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1 } },
+      h(
+        "div",
+        { style: { display: "flex", gap: "8px", alignItems: "baseline", flexWrap: "wrap" } },
+        h("strong", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: file.path }, baseName(file.path)),
+        kit ? h("span", { style: { opacity: 0.7, fontSize: "12px" } }, `Kition ${kitName(kit)}`) : null,
+        h("span", { "data-kition-card-state": shown, style: { fontSize: "12px", opacity: 0.85 } }, words)
+      ),
+      counts ? h("div", { "data-kition-card-changes": "", style: { fontSize: "12px", opacity: 0.75 } }, env.t("changes", counts)) : comparison?.diffUnavailable ? h("div", { style: { fontSize: "12px", opacity: 0.75 } }, comparison.diffUnavailable) : null,
+      problem ? h("div", { role: "alert", style: { fontSize: "12px", color: "#c0392b" } }, problem) : null,
+      workspace.phase === "failed" ? h("div", null, button(env.t("retry"), "retry", () => setAttempt((n) => n + 1), false)) : null,
+      actions.length ? h(
+        "div",
+        { style: { display: "flex", gap: "6px", flexWrap: "wrap" } },
+        ...actions.map((action) => {
+          switch (action) {
+            case "open":
+              return button(env.t("actionOpen"), action, () => props.open(file.path), false);
+            case "review":
+              return button(env.t("actionReview"), action, () => {
+                const page = openPage(sessionId, file.path);
+                if (page && page.status === "open") page.frame.review();
+                else {
+                  pendingReview.add(`${sessionId}:${file.path}`);
+                  props.open(file.path);
+                }
+              }, false);
+            case "merge":
+              return button(env.t("actionMerge"), action, act(() => merge(key, file.path), "merged"), busy, true);
+            case "overwrite":
+              return button(env.t("actionOverwrite"), action, act(() => merge(key, file.path, true), "merged"), busy, true);
+            case "discard":
+              return button(env.t("actionDiscard"), action, () => {
+                if (window.confirm(env.t("confirmDiscard", { name: baseName(file.path) }))) void act(() => discard(key, file.path), "discarded")();
+              }, busy);
+          }
+        })
+      ) : null
+    )
+  );
+}
+function TurnCards(props) {
+  const data = props.turn?.data?.get?.("kitionTurn");
+  const sessionId = props.sessionId;
+  if (!data || !sessionId) return null;
+  const files = data.files.filter((file) => cardState(file, {}) !== null);
+  if (files.length === 0) return null;
+  const open = (path) => {
+    if (!openInSidebar(sessionId, path)) props.openFile?.(path);
+  };
+  return h(
+    "div",
+    { "data-kition-cards": props.turn.turn, "aria-label": environment.t("cardsLabel") },
+    ...files.map((file) => h(FileCard, { key: file.path, sessionId, turn: props.turn.turn, file, open }))
+  );
+}
+function LiveWatcher(props) {
+  const timeline = props.useChat?.((snapshot) => snapshot.timeline);
+  useEnvironment();
+  const seen = React__namespace.useRef(/* @__PURE__ */ new Set());
+  const sessionId = props.sessionId;
+  React__namespace.useEffect(() => {
+    if (!timeline || !sessionId) return;
+    const { liveFloat, autoOpen } = environment.settings;
+    for (const turnNumber of timeline.turnOrder ?? []) {
+      const turn = timeline.turns.get(turnNumber);
+      if (!turn || turn.status !== "open") continue;
+      const data = turn.data?.get?.("kitionTurn");
+      for (const file of data?.files ?? []) {
+        if (!file.operations.some((operation) => operation.writes && operation.phase !== "failed")) continue;
+        const once = `${sessionId}:${turnNumber}:${file.path}`;
+        if (seen.current.has(once)) continue;
+        seen.current.add(once);
+        if (openPage(sessionId, file.path) || !(extensionOf(file.path) in KIT_EXTENSIONS)) continue;
+        if (autoOpen) openInSidebar(sessionId, file.path, "sidebar");
+        else if (liveFloat) openInSidebar(sessionId, file.path, "float");
+      }
+    }
+  }, [timeline, sessionId, environment.version]);
+  return null;
+}
+let settingsForm = null;
+function SettingsCard() {
+  const env = useEnvironment();
+  const writable = settingsForm?.getSnapshot?.()?.writable === true;
+  const set = (field, value) => void settingsForm?.set?.(field, value);
+  const row = (children) => h("label", { style: { display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" } }, ...children);
+  if (!settingsForm) return h("div", { "data-kition-settings": "unavailable" }, env.t("settingsUnavailable"));
+  return h(
+    "div",
+    { "data-kition-settings": "", style: { display: "flex", flexDirection: "column", gap: "10px", padding: "8px 0" } },
+    h("strong", null, env.t("settingsTitle")),
+    row([h("input", { type: "checkbox", "data-kition-setting": "liveFloat", checked: env.settings.liveFloat, disabled: !writable, onChange: (event) => set("liveFloat", event.target.checked) }), env.t("settingLiveFloat")]),
+    row([h("input", { type: "checkbox", "data-kition-setting": "autoOpen", checked: env.settings.autoOpen, disabled: !writable, onChange: (event) => set("autoOpen", event.target.checked) }), env.t("settingAutoOpen")]),
+    row([
+      env.t("settingOpenWith"),
+      h(
+        "select",
+        { "data-kition-setting": "openWith", value: env.settings.openWith, disabled: !writable, onChange: (event) => set("openWith", event.target.value) },
+        h("option", { value: "dsh" }, env.t("settingOpenWithDsh")),
+        h("option", { value: "kition" }, env.t("settingOpenWithKition"))
+      )
+    ])
+  );
+}
+function webKeys(shortcuts, mac) {
+  if (shortcuts?.runtime !== "web") return [];
+  const names = { Comma: ",", Period: ".", Slash: "/", Backslash: "\\", BracketLeft: "[", BracketRight: "]", Minus: "-", Equal: "=", Semicolon: ";", Quote: "'", Backquote: "`", Enter: "Enter", Backspace: "Backspace", Delete: "Delete" };
+  const out = [];
+  for (const entry of shortcuts.catalog?.getSnapshot?.() ?? []) {
+    const binding = entry?.binding;
+    if (!binding || binding.secondCode) continue;
+    const key = /^Key[A-Z]$/.test(binding.code) ? binding.code.slice(3) : /^Digit[0-9]$/.test(binding.code) ? binding.code.slice(5) : /^F[0-9]{1,2}$/.test(binding.code) ? binding.code : names[binding.code];
+    if (!key) continue;
+    const modifiers = [];
+    for (const modifier of binding.modifiers) {
+      if (modifier === "meta") {
+        if (!mac) modifiers.length = 0;
+        modifiers.push("Cmd");
+      } else if (modifier === "control") modifiers.push(mac ? "Ctrl" : "Cmd");
+      else if (modifier === "alt") modifiers.push("Alt");
+      else if (modifier === "shift") modifiers.push("Shift");
+    }
+    if (modifiers.some((modifier) => modifier === "Cmd" || modifier === "Ctrl" || modifier === "Alt")) out.push([...modifiers, key].join("+"));
+  }
+  return [...new Set(out)].slice(0, 32);
 }
 function apply(ctx) {
   ctx.inject(["theme"], (inner) => {
@@ -383,6 +999,29 @@ function apply(ctx) {
     read();
     inner.on("locale/change", read);
   });
+  ctx.inject(["configForms"], (inner) => {
+    const form = inner.configForms.get(HOST_ENTRY);
+    settingsForm = form;
+    const read = () => {
+      const value = form?.getSnapshot?.()?.value ?? {};
+      environment.set({
+        settings: {
+          liveFloat: typeof value.liveFloat === "boolean" ? value.liveFloat : DEFAULTS.liveFloat,
+          openWith: value.openWith === "kition" ? "kition" : "dsh",
+          autoOpen: typeof value.autoOpen === "boolean" ? value.autoOpen : DEFAULTS.autoOpen
+        }
+      });
+    };
+    read();
+    if (typeof form?.subscribe === "function") inner.effect(() => form.subscribe(read), "kition: settings");
+    inner.effect(() => inner.slots.inject("plugins.bundle.config", () => inner.slots.register({ name: "plugins.bundle.config", key: name }, SettingsCard)), "kition: settings card");
+  });
+  ctx.inject(["shortcuts"], (inner) => {
+    const mac = /Mac|iPhone|iPad/i.test(navigator.platform);
+    const read = () => environment.set({ keys: webKeys(inner.shortcuts, mac) });
+    read();
+    if (typeof inner.shortcuts.catalog?.subscribe === "function") inner.effect(() => inner.shortcuts.catalog.subscribe(read), "kition: shortcuts");
+  });
   ctx.inject(["sidebarRightTabs"], (inner) => {
     inner.effect(() => {
       const disposeBody = inner.slots.inject("sidebar.right.pane.tab", () => inner.slots.register({ name: "sidebar.right.pane.tab", key: TAB_TYPE }, TabBody));
@@ -394,7 +1033,7 @@ function apply(ctx) {
         priority: "extension",
         canOpen: (address) => {
           const parsed = parseFileAddress(address);
-          return parsed !== null && extensionOf(parsed.path) in KIT_EXTENSIONS;
+          return parsed !== null && extensionOf(parsed.path) in KIT_FORMATS;
         },
         title: (address) => baseName(parseFileAddress(address)?.path ?? address)
       });
@@ -404,33 +1043,69 @@ function apply(ctx) {
         disposeBody();
       };
     }, "kition: sidebar tab type");
+    inner.effect(() => inner.slots.inject("sidebar.right.pane.tab.title", () => inner.slots.register({ name: "sidebar.right.pane.tab.title", key: TEXT_TYPE, priority: -10 }, textTitle(primitives()))), "kition: preview title");
   });
   ctx.inject(["sidebarRight"], (inner) => {
+    environment.sidebar = inner.sidebarRight;
     if (typeof inner.sidebarRight.registerCloseHandler !== "function") return;
-    inner.effect(
-      () => inner.sidebarRight.registerCloseHandler(TAB_TYPE, (_session, tab) => {
-        const page = pages.get(tab.id);
-        if (page?.dirty && !window.confirm(environment.t("closeDirty", { name: page.name }))) throw new Error("Kition: the tab keeps its unsaved edits");
-      }),
-      "kition: close guard"
-    );
+    for (const kind of [TAB_TYPE, TEXT_KIND]) {
+      inner.effect(() => {
+        try {
+          const dispose = inner.sidebarRight.registerCloseHandler(kind, closeGuard);
+          guards[kind === TAB_TYPE ? "kition" : "text"] = true;
+          return () => {
+            guards[kind === TAB_TYPE ? "kition" : "text"] = false;
+            dispose();
+          };
+        } catch {
+          return () => void 0;
+        }
+      }, `kition: close guard (${kind})`);
+    }
   });
   ctx.inject(["documentPreviews"], (inner) => {
     for (const [kit, extensions] of Object.entries(PREVIEW_EXTENSIONS)) {
       const id = previewId(kit);
-      inner.effect(
-        () => inner.documentPreviews.register({
-          id,
-          extensions,
-          priority: "builtin",
-          loading: "renderer",
-          title: () => environment.t("openWith", { kit: kitName(kit) })
-        }),
-        `kition: ${kit} preview`
-      );
       inner.effect(() => inner.slots.inject("sidebar.right.tab.document", () => inner.slots.register({ name: "sidebar.right.tab.document", key: id }, PreviewBody)), `kition: ${kit} preview body`);
     }
+    let registered = [];
+    let priority = null;
+    const register = () => {
+      const next = environment.settings.openWith === "kition" ? "extension" : "builtin";
+      if (next === priority) return;
+      priority = next;
+      for (const dispose of registered) dispose();
+      registered = Object.entries(PREVIEW_EXTENSIONS).map(
+        ([kit, extensions]) => inner.documentPreviews.register({ id: previewId(kit), extensions, priority: next, loading: "renderer", title: () => environment.t("openWith", { kit: kitName(kit) }) })
+      );
+    };
+    register();
+    inner.effect(() => {
+      const stop = environment.subscribe(register);
+      return () => {
+        stop();
+        for (const dispose of registered) dispose();
+        registered = [];
+        priority = null;
+      };
+    }, "kition: previews");
   });
+  ctx.inject(["uiConversation"], (inner) => {
+    try {
+      inner.uiConversation.events.register(kitTurnDefinition);
+    } catch (error) {
+      if (!(error instanceof Error) || !/already registered/.test(error.message)) throw error;
+    }
+    inner.effect(() => inner.slots.inject("conversation.chat.turnTail", () => inner.slots.register({ name: "conversation.chat.turnTail", id: "kition-cards" }, TurnCards)), "kition: review cards");
+    inner.effect(() => inner.slots.inject("conversation.input.dock", () => inner.slots.register({ name: "conversation.input.dock", id: "kition-live", order: 900 }, LiveWatcher)), "kition: live window");
+  });
+}
+function primitives() {
+  try {
+    return require("@deepseek-ai/dsh-client-ui-primitives") ?? null;
+  } catch {
+    return null;
+  }
 }
 exports.TAB_TYPE = TAB_TYPE;
 exports.apply = apply;

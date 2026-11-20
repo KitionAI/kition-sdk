@@ -1,6 +1,7 @@
 /**
  * Which kit opens which file, and how DeepSeek Harness is told. The table of the extensions each
- * published kit edits is generated at build time (build-client.mjs) from the kits' manifests.
+ * published kit opens is generated at build time (build-client.mjs) from the kits' manifests: those
+ * it edits, and those it only views (opened read-only).
  *
  * DeepSeek Harness previews some of these types itself (its document previews, the same in
  * 0.2.2-rc.2 and rc.5: Markdown md, markdown; HTML html, htm; PDF pdf; Office doc, docx, ppt,
@@ -11,8 +12,10 @@
  */
 import table from 'virtual:kit-extensions'
 
-/** Each extension a published kit edits, and the kit. */
-export const KIT_EXTENSIONS: Readonly<Record<string, string>> = table
+/** Each extension a published kit opens, the kit, and whether it only views it. */
+export const KIT_FORMATS: Readonly<Record<string, { kit: string; view: boolean }>> = table
+/** Each extension a published kit opens, and the kit. */
+export const KIT_EXTENSIONS: Readonly<Record<string, string>> = Object.fromEntries(Object.entries(table).map(([extension, entry]) => [extension, entry.kit]))
 
 /** The extensions DeepSeek Harness 0.2.2-rc.2 and rc.5 preview themselves (dsh-client-ui-sidebar-documentpreview, dsh-util-code-language). */
 export const DSH_PREVIEWS: ReadonlySet<string> = new Set([

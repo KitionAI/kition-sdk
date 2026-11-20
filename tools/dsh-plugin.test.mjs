@@ -76,24 +76,25 @@ describe('the browser module', async () => {
     expect(fs.readFileSync(path.join(plugin, 'lib/client.js'), 'utf8'), 'run node plugins/deepseek-harness/kition-kits/build-client.mjs').toBe(await buildClient())
   }, 60_000)
 
-  it('opens the extensions each published kit edits, from the kits’ manifests, HTML going to the HTML kit', () => {
+  it('opens the extensions each published kit edits, from the kits’ manifests, HTML going to the HTML kit, and those a kit only views read-only', () => {
     const table = extensionTable()
     const fixtures = path.join(root, 'crates/kition-kits/tests/fixtures/kits')
-    const edited = new Set()
+    const edited = new Map()
+    const viewed = new Map()
     for (const kit of PUBLISHED_KITS) {
       for (const format of JSON.parse(fs.readFileSync(path.join(fixtures, `${kit}.json`), 'utf8')).formats) {
-        if (format.role !== 'edit') continue
         for (const extension of format.extensions) {
-          edited.add(extension)
-          expect(table[extension], extension).toBeDefined()
+          const role = format.role === 'edit' ? edited : viewed
+          if (!role.has(extension)) role.set(extension, kit)
         }
       }
     }
-    // Only edit formats: the gateway's page opens no kit's view-only formats (Doc's .html, Vector's .svg, Sheet's .csv).
-    expect(Object.keys(table).filter((extension) => !edited.has(extension))).toEqual([])
-    for (const extension of ['csv', 'svg', 'xls', 'fig', 'idml']) expect(table[extension], extension).toBeUndefined()
-    expect(table).toMatchObject({ md: 'note', html: 'html', htm: 'html', docx: 'doc', xlsx: 'sheet', pptx: 'slide', pdf: 'pdf', ktable: 'table', kboard: 'board' })
-    expect(new Set(Object.values(table))).toEqual(new Set(PUBLISHED_KITS))
+    for (const [extension, kit] of edited) expect(table[extension], extension).toEqual({ kit, view: false })
+    // A format no kit edits opens read-only in the first kit that views it (Sheet's .csv, Vector's .svg).
+    for (const [extension, kit] of viewed) if (!edited.has(extension)) expect(table[extension], extension).toEqual({ kit, view: true })
+    expect(Object.keys(table).sort()).toEqual([...new Set([...edited.keys(), ...viewed.keys()])].sort())
+    expect(table).toMatchObject({ md: { kit: 'note' }, html: { kit: 'html', view: false }, htm: { kit: 'html' }, docx: { kit: 'doc' }, csv: { kit: 'sheet', view: true }, svg: { kit: 'vector', view: true }, ktable: { kit: 'table' } })
+    expect(new Set(Object.values(table).map((entry) => entry.kit))).toEqual(new Set(PUBLISHED_KITS))
   })
 })
 

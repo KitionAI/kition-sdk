@@ -9,11 +9,11 @@ intent: >-
   0.2.2-rc.2) admitting the pinned 0.2.2-rc.5 and no 0.3.0 prerelease; the host module imports
   only Node's modules and its own; the browser module is what its build makes from its sources,
   and opens the extensions each published kit edits (from the kits' manifests, HTML to the HTML
-  kit, no view-only format); the patch inserts the host module by the package's name and the
-  skills row, and no MCP server row bound to a folder; it has an editing skill per published kit
-  and the four draft skills, of which only the person starts merge and discard; and its launcher
-  finds the server (where install.sh puts kition too) and passes the options as the Claude Code
-  plugin's does.
+  kit) and, read-only, those a kit only views that no kit edits; the patch inserts the host module
+  by the package's name and the skills row, and no MCP server row bound to a folder; it has an
+  editing skill per published kit and the four draft skills, of which only the person starts merge
+  and discard; and its launcher finds the server (where install.sh puts kition too) and passes the
+  options as the Claude Code plugin's does.
 layer: gate
 source:
   kind: synthetic
