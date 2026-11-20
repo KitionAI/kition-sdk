@@ -161,6 +161,16 @@ export class Gateways {
     return gateway
   }
 
+  /** Stops the gateways this host started and keeps serving: the next request starts each again. */
+  async stopOwned(graceMs = 5000) {
+    const children = []
+    for (const entry of this.entries.values()) {
+      if (entry.child) children.push(entry.child)
+      entry.gateway = undefined
+    }
+    await Promise.all(children.map((child) => stopChild(child, graceMs)))
+  }
+
   /** Stops every gateway this host started (their stdin closes; SIGTERM after `graceMs`). */
   async stop(graceMs = 5000) {
     this.stopped = true

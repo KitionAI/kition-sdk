@@ -1,17 +1,63 @@
 // @kition/dsh-kits, the host module: a cordis plugin DeepSeek Harness loads on its host from the
 // bundle's patch (row `kition-kits-host`). It holds the workspaces' `kition gateway`s, registers
-// the kits' tools so each session's calls reach its own folder's gateway (lib/tools.mjs), and, in
-// a profile with the browser UI, serves the gateways' editor page and its files same-origin under
-// /kition/ behind DeepSeek Harness's own login (lib/routes.mjs). Every API it uses is the same in
-// DeepSeek Harness 0.2.2-rc.2 and rc.5; what a profile lacks (no web server in `headless`) is
-// left out by its injections, never by version.
-import { catalog, GatewayMcp } from './mcp.mjs'
+// the kits' tools and resources so each session's calls reach its own folder's gateway
+// (lib/tools.mjs), keeps them current (lib/freshness.mjs), and, in a profile with the browser UI,
+// serves the gateways' editor page and its files same-origin under /kition/ behind DeepSeek
+// Harness's own login (lib/routes.mjs). Its settings (the row's Config) are the person's, edited in
+// DeepSeek Harness's settings and read by the browser module. Every API it uses is the same in
+// DeepSeek Harness 0.2.2-rc.2 and rc.5; what a profile lacks (no web server in `headless`, no
+// resource tools) is left out by its injections, never by version.
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+
+import { Freshness } from './freshness.mjs'
+import { catalog, connectionId, GatewayMcp } from './mcp.mjs'
 import { Gateways } from './gateways.mjs'
 import { createRoutes, PREFIX } from './routes.mjs'
 import { KitTools, SERVER } from './tools.mjs'
 import { Workspaces } from './workspaces.mjs'
 
 export const name = '@kition/dsh-kits'
+
+/** The person's settings, with their defaults (the browser module reads them through `configForms`). */
+export const SETTINGS = {
+  liveFloat: true,
+  openWith: 'dsh',
+  autoOpen: false,
+}
+
+/**
+ * DeepSeek Harness's own schemastery, from the runtime that loads this module (a plugin installs
+ * none of its own): the settings form is made from a Config of it. Null where it is not found;
+ * the browser module then uses the defaults.
+ */
+function runtimeSchema() {
+  for (const entry of [process.argv[1], process.mainModule?.filename]) {
+    if (typeof entry !== 'string' || !entry) continue
+    try {
+      const schema = createRequire(fs.realpathSync(entry))('@deepseek-ai/schemastery')
+      return schema.default ?? schema
+    } catch {
+      // Not from this entry.
+    }
+  }
+  return null
+}
+
+const z = runtimeSchema()
+export const Config = z
+  ? z
+      .object({
+        liveFloat: z.boolean().default(SETTINGS.liveFloat).description('Show an agent’s edit of a Kition file that is not open in a floating window, as it happens.').volatile(),
+        openWith: z
+          .union([z.const('dsh').description('DeepSeek Harness’s preview'), z.const('kition').description('the Kition editor')])
+          .default(SETTINGS.openWith)
+          .description('What opens a Markdown, HTML, PDF, Word, Excel or PowerPoint file first.')
+          .volatile(),
+        autoOpen: z.boolean().default(SETTINGS.autoOpen).description('Open a file in the right sidebar after an agent’s first edit of it in a turn.').volatile(),
+      })
+      .description('Kition kits')
+  : undefined
 
 /** The working folders DeepSeek Harness knows: its projects, and its live and saved sessions'. */
 async function knownFolders(ctx) {
@@ -38,6 +84,10 @@ export function apply(ctx) {
   const log = (message) => (logger ? logger.info(message) : process.stderr.write(`kition: ${message}\n`))
   const gateways = new Gateways({ env: process.env, log })
   ctx.effect(() => () => gateways.stop(), 'kition: the workspaces’ gateways')
+  /** The kit tools, once registered: the web routes have them listed again when a file opens. */
+  let kitTools = null
+  let freshness = null
+  const opener = connectionId()
 
   ctx.plugin({
     name: `${name}/tools`,
@@ -52,16 +102,20 @@ export function apply(ctx) {
               name: `mcp:${SERVER}`,
               order: prompt.systemPrompt.getSectionOrder('MCP_SERVERS'),
               interpolate: false,
-              text: () => (tools.instructions ? `### MCP server: ${SERVER}\n\n${tools.instructions}` : ''),
+              text: () => (tools.missing ? '' : tools.instructions ? `### MCP server: ${SERVER}\n\n${tools.instructions}` : ''),
             }),
           'kition: the kits’ instructions',
         )
       })
-      try {
-        tools.update(await catalog(process.env))
-      } catch (error) {
-        log(`no kit tools: ${error.message}`)
-      }
+      // The kits' resources, as DeepSeek Harness's resource tools read an MCP server's.
+      inner.inject(['mcpResources'], (resources) => {
+        resources.effect(() => resources.mcpResources.register(SERVER, tools.resourceProvider()), 'kition: the kits’ resources')
+      })
+      const fresh = new Freshness({ env: process.env, tools, gateways, catalog, log })
+      inner.effect(() => () => fresh.stop(), 'kition: keeping the kit tools current')
+      kitTools = tools
+      freshness = fresh
+      await fresh.start()
     },
   })
 
@@ -76,7 +130,12 @@ export function apply(ctx) {
           : // Without DeepSeek Harness's own login check nothing is served.
             () => 401
       const workspaces = new Workspaces({ cwdOf: (id) => sessionFolder(inner, id), list: () => knownFolders(inner) })
-      const handle = createRoutes({ gateways, workspaces, rejection, log })
+      const opened = (gateway) => {
+        // A person opened a kit file: kition may be new, or the gateway may serve kits since installed.
+        if (!gateway) void freshness?.check()
+        else kitTools?.refresh(gateway, opener)
+      }
+      const handle = createRoutes({ gateways, workspaces, rejection, log, opened })
       inner.effect(() => inner.webServer.register({ kind: 'prefix', path: PREFIX, handler: handle }), 'kition: /kition/ routes')
     },
   })

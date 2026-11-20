@@ -79,10 +79,15 @@ export class GatewayMcp {
     return done
   }
 
-  /** `tools/call` of `name` on `gateway` for `connection`: the MCP result. */
-  async call(gateway, connection, name, args, signal) {
+  /** `method` with `params` on `gateway` for `connection`, initialized first: the result. */
+  async send(gateway, connection, method, params, signal) {
     await this.initialize(gateway, connection)
-    return this.request(gateway, connection, 'tools/call', { name, arguments: args }, signal)
+    return this.request(gateway, connection, method, params, signal)
+  }
+
+  /** `tools/call` of `name` on `gateway` for `connection`: the MCP result. */
+  call(gateway, connection, name, args, signal) {
+    return this.send(gateway, connection, 'tools/call', { name, arguments: args }, signal)
   }
 
   /** `tools/list` on `gateway`. */

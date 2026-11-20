@@ -57,7 +57,7 @@ describe('the bundle manifest', () => {
     const files = packed.files.map((file) => file.path).sort()
     const code = files.filter((file) => !file.startsWith('skills/'))
     expect(code).toEqual(
-      ['README.md', 'bin/kits-mcp.mjs', 'cordis.patch.yml', 'lib/client.js', 'lib/forward.mjs', 'lib/gateways.mjs', 'lib/host.mjs', 'lib/kition.mjs', 'lib/mcp.mjs', 'lib/routes.mjs', 'lib/tools.mjs', 'lib/workspaces.mjs', 'package.json'].sort(),
+      ['README.md', 'bin/kits-mcp.mjs', 'cordis.patch.yml', 'lib/client.js', 'lib/forward.mjs', 'lib/freshness.mjs', 'lib/gateways.mjs', 'lib/host.mjs', 'lib/kition.mjs', 'lib/mcp.mjs', 'lib/routes.mjs', 'lib/tools.mjs', 'lib/workspaces.mjs', 'package.json'].sort(),
     )
     expect(files).toContain('skills/drafts-merge/SKILL.md')
     for (const kit of PUBLISHED_KITS) expect(files).toContain(`skills/${kit}-editing/SKILL.md`)

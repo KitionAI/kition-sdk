@@ -36,9 +36,10 @@ export function relativeInside(workspace, file) {
  *   workspaces: import('./workspaces.mjs').Workspaces,
  *   rejection: (req: import('node:http').IncomingMessage) => number | undefined,
  *   log?: (message: string) => void,
- * }} options
+ *   opened?: (gateway: import('./gateways.mjs').Gateway | null) => void,
+ * }} options `opened` hears each file a person opens (with its gateway once it runs)
  */
-export function createRoutes({ gateways, workspaces, rejection, log = () => {} }) {
+export function createRoutes({ gateways, workspaces, rejection, log = () => {}, opened = () => {} }) {
   const failure = (res, error) => {
     if (error instanceof GatewayError) return answerJson(res, 503, { error: error.code, message: error.message })
     log(`error: ${error?.stack ?? error}`)
@@ -65,7 +66,8 @@ export function createRoutes({ gateways, workspaces, rejection, log = () => {} }
         const relative = relativeInside(workspace, url.searchParams.get('path'))
         if (!relative) return answerJson(res, 403, { error: 'outside-workspace', message: 'the file is not inside the session’s workspace folder' })
         const key = workspaceKey(workspace)
-        await gateways.get(workspace)
+        opened(null)
+        opened(await gateways.get(workspace))
         const page = `${PREFIX}/w/${key}/page/?${new URLSearchParams({ path: relative })}`
         return answerJson(res, 200, { key, workspace, path: relative, page })
       }

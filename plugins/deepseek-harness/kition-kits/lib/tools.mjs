@@ -19,6 +19,8 @@ import { GatewayError } from './gateways.mjs'
 import { connectionId, McpError } from './mcp.mjs'
 
 export const SERVER = 'kition'
+/** The one tool there is while kition is not installed. */
+export const SETUP_TOOL = 'kition_setup'
 export const TOOL_PREFIX = `mcp__${SERVER}__`
 /** A run of edits on a large document can take a while. */
 export const TOOL_TIMEOUT_MS = 180_000
@@ -33,6 +35,26 @@ const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 
 const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * What a kit tool call did to which file, as the session log keeps it (`presentationMeta`) for the
+ * browser module's review cards: `{ kition: 1, tool, path, kit, live, draft, saved, created }`.
+ */
+export function presentation(tool, args, value) {
+  const output = isRecord(value?.structuredContent) ? value.structuredContent : {}
+  const document = isRecord(output.document) ? output.document : {}
+  const path = typeof document.path === 'string' ? document.path : typeof args?.path === 'string' ? args.path : null
+  return {
+    kition: 1,
+    tool,
+    path,
+    kit: typeof document.kit === 'string' ? document.kit : null,
+    live: output.live === true,
+    draft: output.draft === true || args?.draft === true,
+    saved: output.saved === true,
+    created: tool === 'kit_create',
+  }
+}
 
 /** One MCP content block as text for the model. */
 function blockText(block, imageText) {
@@ -111,6 +133,7 @@ export class KitTools {
   dispose() {
     for (const entry of this.registered.values()) entry.dispose()
     this.registered.clear()
+    this.clearMissing()
   }
 
   /** The workspace folder of the session `exec` comes from: the folder the session was opened on. */
@@ -129,17 +152,66 @@ export class KitTools {
     return id
   }
 
-  /** Calls `name` on the gateway of `workspace`; again on a gateway started anew when nothing ran. */
-  async call(workspace, connection, name, args, signal) {
+  /** Sends `method` to the gateway of `workspace`; again to a gateway started anew when nothing ran. */
+  async request(workspace, connection, method, params, signal) {
     let gateway = await this.gateways.get(workspace)
     try {
-      return { gateway, result: await this.mcp.call(gateway, connection, name, args, signal) }
+      return { gateway, result: await this.mcp.send(gateway, connection, method, params, signal) }
     } catch (error) {
       if (!(error instanceof McpError) || !error.retry || signal?.aborted) throw error
       this.gateways.forget(workspace)
       gateway = await this.gateways.get(workspace)
-      return { gateway, result: await this.mcp.call(gateway, connection, name, args, signal) }
+      return { gateway, result: await this.mcp.send(gateway, connection, method, params, signal) }
     }
+  }
+
+  /** Calls the tool `name` on the gateway of `workspace`. */
+  call(workspace, connection, name, args, signal) {
+    return this.request(workspace, connection, 'tools/call', { name, arguments: args }, signal)
+  }
+
+  /**
+   * The kits' MCP resources (each kit's manifest, a document's objects and object model), as
+   * DeepSeek Harness's resource tools ask for them: from the gateway of the calling session's folder.
+   */
+  resourceProvider() {
+    return {
+      request: async (request, exec) => {
+        const workspace = this.workspaceOf(exec)
+        const { method, ...params } = request
+        try {
+          return (await this.request(workspace, this.connectionOf(exec?.agent), method, params, exec?.signal)).result
+        } catch (error) {
+          if (error instanceof GatewayError) throw new Error(`Kition: ${error.message}`)
+          throw error
+        }
+      },
+    }
+  }
+
+  /**
+   * kition is not installed: no kit tools, and one tool that says so and how to install it, so the
+   * agent can tell the person instead of finding no Kition tools at all.
+   */
+  setMissing(message) {
+    this.update({ tools: [] })
+    this.missing = message
+    if (this.setup) return
+    this.setup = this.registerTool({
+      name: SETUP_TOOL,
+      description:
+        'Kition is not installed on this computer, so the Kition kit tools (mcp__kition__kit_inspect, kit_run, ...) that edit notes, tables, documents, spreadsheets, slides and other kit files are not available. Call this when the person asks for work on such files: it answers how the person installs Kition. The kit tools appear by themselves once it is installed.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      output: { schema: OUTPUT_SCHEMA, render: (_args, value) => [{ type: 'text', text: contentText(value.content) }] },
+      execute: async () => ({ content: [{ type: 'text', text: this.missing ?? 'Kition is installed now; its kit tools are available.' }] }),
+    })
+  }
+
+  /** kition is there: the setup tool goes. */
+  clearMissing() {
+    this.missing = null
+    this.setup?.()
+    this.setup = null
   }
 
   /** Lists the tools again from a gateway that just answered (a kit installed on first use adds some). */
@@ -164,6 +236,8 @@ export class KitTools {
       output: {
         schema: OUTPUT_SCHEMA,
         render: (_args, value) => [{ type: 'text', text: contentText(Array.isArray(value?.content) ? value.content : []) }],
+        // Kept with the session log: what the browser module's turn projection reads back.
+        presentationMeta: (args, value) => presentation(raw, args, value),
       },
       execute: async (args, exec) => {
         const workspace = this.workspaceOf(exec)

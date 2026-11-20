@@ -32,6 +32,7 @@
     "bin/kits-mcp.mjs",
     "lib/client.js",
     "lib/forward.mjs",
+    "lib/freshness.mjs",
     "lib/gateways.mjs",
     "lib/host.mjs",
     "lib/kition.mjs",

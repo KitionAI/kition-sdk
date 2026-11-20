@@ -18,7 +18,19 @@ import path from 'node:path'
 
 const args = process.argv.slice(2)
 if (process.env.FAKE_KITION_LOG) fs.appendFileSync(process.env.FAKE_KITION_LOG, `${JSON.stringify(args)}\n`)
-if (args[0] !== 'gateway') process.exit(2)
+// `kition mcp` for the tool catalog: initialize and tools/list over stdio, the tools FAKE_KITION_TOOLS names.
+const toolList = () => (process.env.FAKE_KITION_TOOLS ?? 'kit_inspect').split(',').map((name) => ({ name, description: `the ${name} tool`, inputSchema: { type: 'object' } }))
+if (args[0] === 'mcp') {
+  const { createInterface } = await import('node:readline')
+  createInterface({ input: process.stdin }).on('line', (line) => {
+    const message = JSON.parse(line)
+    if (message.id === undefined) return
+    const result = message.method === 'initialize' ? { instructions: 'Stand-in kits.' } : { tools: toolList() }
+    process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n`)
+  })
+  process.stdin.on('end', () => process.exit(0))
+} else if (args[0] !== 'gateway') process.exit(2)
+else {
 const workspace = fs.realpathSync(args[args.indexOf('--workspace') + 1])
 const home = process.env.KITION_HOME
 const key = crypto.createHash('sha256').update(workspace).digest('hex').slice(0, 32)
@@ -76,7 +88,14 @@ const server = http.createServer(async (req, res) => {
     for await (const chunk of req) body += chunk
     const message = JSON.parse(body)
     if (message.id === undefined) return res.writeHead(202).end()
-    const result = message.method === 'tools/call' ? { content: [{ type: 'text', text: JSON.stringify({ workspace, tool: message.params.name, arguments: message.params.arguments }) }] } : { tools: [{ name: 'kit_inspect', inputSchema: { type: 'object' } }] }
+    const result =
+      message.method === 'tools/call'
+        ? { content: [{ type: 'text', text: JSON.stringify({ workspace, tool: message.params.name, arguments: message.params.arguments }) }] }
+        : message.method === 'resources/read'
+          ? { contents: [{ uri: message.params.uri, mimeType: 'application/json', text: JSON.stringify({ workspace }) }] }
+          : message.method === 'resources/list'
+            ? { resources: [{ uri: 'khp://kits/kit.note/kit.json', name: 'Note kit manifest' }] }
+            : { tools: toolList() }
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }))
   }
   res.writeHead(404).end()
@@ -98,3 +117,4 @@ if (args.includes('--stdin-lifetime')) {
   process.stdin.resume()
 }
 process.on('SIGTERM', stop)
+}

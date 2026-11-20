@@ -13,7 +13,10 @@ intent: >-
   the key, forwards with the gateway's Host and token and without Origin, Cookie, Referer or the
   browser's Kition-Token, streams an event stream event by event, passes ranges and an 8 MiB body
   through as they are, and answers 502 with a reason when the gateway does not answer; its kit tools
-  run each call on the gateway of the calling session's own workspace.
+  run each call on the gateway of the calling session's own workspace and keep each call's outcome
+  for the session log; while kition is missing the agent has one tool that says how to install it,
+  replaced by the kits' tools once kition is installed, and listed again (the old gateways stopped)
+  when its executable changes; the kits' resources are read from the calling session's gateway.
 layer: gate
 source:
   kind: synthetic

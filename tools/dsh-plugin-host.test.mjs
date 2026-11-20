@@ -367,3 +367,64 @@ describe('the kit tools (regressions/issue-dsh-session-workspace)', async () => 
     expect(tools.instructions).toBe('Kition kits edit files.')
   })
 })
+
+describe('keeping the kit tools current, without a restart', async () => {
+  const { KitTools, SETUP_TOOL, presentation } = await import('../plugins/deepseek-harness/kition-kits/lib/tools.mjs')
+  const { GatewayMcp, catalog } = await import('../plugins/deepseek-harness/kition-kits/lib/mcp.mjs')
+  const { Freshness } = await import('../plugins/deepseek-harness/kition-kits/lib/freshness.mjs')
+  const dirs = fresh('freshness')
+  const bin = path.join(dirs.fakeHome, '.kition/bin')
+  const env = { PATH: path.join(scratch, 'empty'), HOME: dirs.fakeHome, KITION_HOME: dirs.home }
+  const gateways = new Gateways({ env })
+  afterAll(() => gateways.stop())
+  const registered = new Map()
+  const tools = new KitTools({ ctx: { get: () => undefined }, register: (definition) => (registered.set(definition.name, definition), () => registered.delete(definition.name)), gateways, mcp: new GatewayMcp() })
+  const freshness = new Freshness({ env, tools, gateways, catalog, intervalMs: 60_000 })
+  const missing = findKition(env).missing
+
+  it('gives the agent one tool that says how to install kition while there is none', async () => {
+    if (!missing) return // a system folder of this machine has kition
+    await freshness.refresh()
+    expect([...registered.keys()]).toEqual([SETUP_TOOL])
+    const answer = await registered.get(SETUP_TOOL).execute({}, {})
+    expect(answer.content[0].text).toContain('npm install -g @kition/cli')
+  })
+
+  it('lists the kits’ tools once kition is installed, and drops the setup tool', async () => {
+    if (!missing) return
+    fs.mkdirSync(bin, { recursive: true })
+    fs.writeFileSync(path.join(bin, 'kition'), `#!${process.execPath}\nimport(${JSON.stringify(path.join(plugin, 'test/fake-kition.mjs'))})\n`, { mode: 0o755 })
+    await freshness.check()
+    expect([...registered.keys()]).toEqual(['mcp__kition__kit_inspect'])
+    expect(tools.instructions).toBe('Stand-in kits.')
+  })
+
+  it('lists them again when kition changes (an upgrade), and stops the gateways of the old one', async () => {
+    if (!missing) return
+    const before = await gateways.get(dirs.workspace)
+    env.FAKE_KITION_TOOLS = 'kit_inspect,kit_run'
+    // An upgrade replaces the executable: another size and time.
+    fs.appendFileSync(path.join(bin, 'kition'), '// 0.6.0\n')
+    fs.utimesSync(path.join(bin, 'kition'), new Date(), new Date(Date.now() + 5000))
+    await freshness.check()
+    expect([...registered.keys()].sort()).toEqual(['mcp__kition__kit_inspect', 'mcp__kition__kit_run'])
+    await expect.poll(() => fs.existsSync(before.lockfile)).toBe(false)
+    expect((await gateways.get(dirs.workspace)).pid).not.toBe(before.pid)
+  })
+
+  it('reads the kits’ resources from the gateway of the calling session’s folder', async () => {
+    if (!missing) return
+    const provider = tools.resourceProvider()
+    const exec = { agent: { session: { header: { cwd: dirs.workspace } } }, signal: new AbortController().signal }
+    expect(await provider.request({ method: 'resources/list' }, exec)).toEqual({ resources: [{ uri: 'khp://kits/kit.note/kit.json', name: 'Note kit manifest' }] })
+    const read = await provider.request({ method: 'resources/read', uri: 'khp://kits/kit.note/kit.json' }, exec)
+    expect(JSON.parse(read.contents[0].text).workspace).toBe(dirs.workspace)
+  })
+
+  it('keeps what each call did in the session log, for the review cards', () => {
+    expect(presentation('kit_run', { path: 'a.md' }, { structuredContent: { live: true, saved: true, document: { kit: 'kit.note', path: 'a.md' } } })).toEqual({ kition: 1, tool: 'kit_run', path: 'a.md', kit: 'kit.note', live: true, draft: false, saved: true, created: false })
+    expect(presentation('kit_run', { path: 'b.ktable', draft: true }, { structuredContent: { draft: true, saved: false } })).toMatchObject({ path: 'b.ktable', kit: null, live: false, draft: true })
+    expect(presentation('kit_create', { path: 'c.md' }, {})).toMatchObject({ path: 'c.md', created: true })
+    expect(registered.get('mcp__kition__kit_inspect').output.presentationMeta({ path: 'a.md' }, { content: [] })).toMatchObject({ kition: 1, path: 'a.md' })
+  })
+})
