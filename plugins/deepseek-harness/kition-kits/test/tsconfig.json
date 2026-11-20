@@ -1,0 +1,8 @@
+{
+  "extends": "../../../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["*.ts", "../../../../examples/gateway-page/e2e/helpers.ts", "../../../../examples/gateway-page/e2e/page.ts"]
+}

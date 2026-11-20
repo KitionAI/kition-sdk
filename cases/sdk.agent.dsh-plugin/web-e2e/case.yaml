@@ -1,0 +1,33 @@
+format: 1
+id: sdk.agent.dsh-plugin/web-e2e
+feature: sdk.agent.dsh-plugin
+intent: >-
+  In the published DeepSeek Harness 0.2.2-rc.5's web UI, with the packed plugin installed by dsh
+  plugin add into a profile from the web template, the real Table and Note kits (headless and editor
+  packages from the kit index's release assets; GATEWAY_E2E_INDEX names an index with editor
+  packages, kept in GATEWAY_E2E_CACHE), the real kition gateway the host module starts and a
+  scripted model, all under a HOME of its own: /kition/ answers 401 without DeepSeek Harness's
+  login and 403 to a foreign Host or a cross-site Origin, as DeepSeek Harness's own /api does; a
+  .ktable clicked in the file tree opens the real Table editor in the right sidebar in a frame named
+  dsh-sidebar-html-<tab> with data-html-preview; a cell edited marks the tab unsaved, closing the
+  tab then asks first and keeps it when declined, and Cmd+S saves the file on disk; a .md keeps
+  DeepSeek Harness's Markdown preview and offers Kition Note under Open with, which opens the real
+  Note editor and follows DeepSeek Harness's theme; the scripted agent's mcp__kition__kit_run (the
+  plugin's tool, on the session's gateway) arrives in the open editor without a reload and answers
+  that it ran there, the kits' instructions are the system prompt's MCP server section, its draft
+  leaves the file unchanged and shows the page's banner, and a draft of a file open in a Kition
+  tab marks the tab; the gateway's lockfile is gone once DeepSeek Harness stops.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: plugins/deepseek-harness/kition-kits/test/web.e2e.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, test:dsh:e2e]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 600

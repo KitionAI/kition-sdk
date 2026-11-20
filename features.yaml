@@ -717,6 +717,7 @@ features:
     cases:
       - sdk.agent.dsh-plugin/bundle
       - sdk.agent.dsh-plugin/host
+      - sdk.agent.dsh-plugin/web-e2e
       - regressions/issue-dsh-session-workspace
     since: "2026-11-19"
   - id: sdk.agent.headless-drafts
