@@ -88,21 +88,21 @@ describe('connectHost', () => {
     hostPeer.close()
   })
 
-  it('allows everything and draws no watermark when the host withholds nothing (protocol 2.6)', async () => {
+  it('allows everything and draws no watermark when the host withholds nothing', async () => {
     const { connectionPromise } = connectForTest({ id: 'kit.test', version: '2' }, [])
     const connection = await connectionPromise
     expect(connection.permissions).toEqual({ download: true, export: true, share: true })
     expect(connection.watermark).toBeNull()
   })
 
-  it("takes the open token's display permissions and watermark, checked (protocol 2.6, D2)", async () => {
+  it("takes the open token's display permissions and watermark, checked (D2)", async () => {
     const { connectionPromise } = connectForTest({ id: 'kit.test', version: '2' }, [], undefined, { permissions: { download: false, export: 'yes', share: true }, watermark: { text: '  Alice 2026-11-03 ' } })
     const connection = await connectionPromise
     expect(connection.permissions).toEqual({ download: false, export: false, share: true })
     expect(connection.watermark).toEqual({ text: 'Alice 2026-11-03' })
   })
 
-  it('asks the host only for the services it lists, and relays comment anchors (protocol 2.6, D4)', async () => {
+  it('asks the host only for the services it lists, and relays comment anchors (D4)', async () => {
     const { hostPeer, connectionPromise } = connectForTest({ id: 'kit.doc', version: '2' }, ['service:people.mention', 'comment-anchors'])
     const connection = await connectionPromise
     hostPeer.handle('host/service', (params) => ({ people: [{ id: 'u1', name: `found ${(params.params as { query: string }).query}` }] }) as never)

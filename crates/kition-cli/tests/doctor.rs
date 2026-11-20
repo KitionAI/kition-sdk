@@ -32,7 +32,7 @@ fn doctor_reports_each_check_and_how_to_fix_a_failed_one() {
     assert!(!ok, "{report}");
     assert_eq!(report["ok"], false);
     assert_eq!(report["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(report["protocol"], "kition-kit/2");
+    assert_eq!(report["protocol"], "kition-kit/1");
     assert_eq!(check(&report, "home")["status"], "ok", "a home not made yet can be: {report}");
     assert!(!home.exists(), "the doctor makes nothing");
     let path = check(&report, "PATH");
@@ -63,7 +63,7 @@ fn doctor_reports_each_check_and_how_to_fix_a_failed_one() {
     }
     #[cfg(unix)]
     {
-        let folder = kit_folder(dir.path(), "broken-build", &manifest("broken", "1.0.0", "kition-kit/2", "kbroken", "kition-broken"), b"#!/bin/sh\nexit 3\n");
+        let folder = kit_folder(dir.path(), "broken-build", &manifest("broken", "1.0.0", "kition-kit/1", "kbroken", "kition-broken"), b"#!/bin/sh\nexit 3\n");
         let (ok, _, err) = run(kition(&home).args(["kit", "add"]).arg(&folder));
         assert!(ok, "{err}");
         let (ok, report, _) = doctor(&home, &person, &path, &index);

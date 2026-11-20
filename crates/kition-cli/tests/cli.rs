@@ -40,14 +40,14 @@ fn mock_index(dir: &Path, mock: &Path) -> PathBuf {
     let program = std::fs::read(mock).unwrap();
     let exe = format!("kition-kit-mock{}", std::env::consts::EXE_SUFFIX);
     let bytes = archive(&[Entry::File("kit.json", &manifest, 0o644), Entry::File(&exe, &program, 0o755)]);
-    IndexBuilder::new().kit(dir, "mock", "mocktext", &[("0.0.0", "kition-kit/2", bytes)]).write(dir)
+    IndexBuilder::new().kit(dir, "mock", "mocktext", &[("0.0.0", "kition-kit/1", bytes)]).write(dir)
 }
 
 #[test]
 fn version_and_help() {
     let home = tempfile::tempdir().unwrap();
     let (ok, out, _) = run(kition(home.path()).arg("--version"));
-    assert!(ok && out.starts_with(&format!("kition {}", env!("CARGO_PKG_VERSION"))) && out.contains("kition-kit/2"), "{out}");
+    assert!(ok && out.starts_with(&format!("kition {}", env!("CARGO_PKG_VERSION"))) && out.contains("kition-kit/1"), "{out}");
     let (ok, out, _) = run(kition(home.path()).arg("--help"));
     assert!(ok && out.contains("kition kit install") && out.contains("KITION_HOME"), "{out}");
     let (ok, out, _) = run(kition(home.path()).args(["mcp", "--help"]));
@@ -68,7 +68,7 @@ fn list_works_offline_and_through_a_proxy() {
     std::fs::create_dir_all(&served).unwrap();
     let staged = home.join("kits").join("desk").join("1.0.0");
     std::fs::create_dir_all(&staged).unwrap();
-    std::fs::write(staged.join("kit.json"), support::manifest("desk", "1.0.0", "kition-kit/2", "kdesk", "kition-desk").to_string()).unwrap();
+    std::fs::write(staged.join("kit.json"), support::manifest("desk", "1.0.0", "kition-kit/1", "kdesk", "kition-desk").to_string()).unwrap();
     std::fs::write(staged.join(format!("kition-desk{}", std::env::consts::EXE_SUFFIX)), b"x").unwrap();
 
     let missing = dir.path().join("no-index.json").display().to_string();
@@ -83,7 +83,7 @@ fn list_works_offline_and_through_a_proxy() {
     assert!(ok && out.contains("desk") && out.contains("1.0.0") && err.contains("installed kits only"), "{out}{err}");
 
     IndexBuilder::new()
-        .kit(&served, "fake", "kfake", &[("0.1.0", "kition-kit/2", support::kit_archive("fake", "0.1.0", "kition-kit/2", "kfake", "kition-fake", b"x"))])
+        .kit(&served, "fake", "kfake", &[("0.1.0", "kition-kit/1", support::kit_archive("fake", "0.1.0", "kition-kit/1", "kfake", "kition-fake", b"x"))])
         .write(&served);
     let proxy = Server::start(&served);
     let (ok, out, err) = run(kition(&home).env("HTTP_PROXY", format!("http://127.0.0.1:{}", proxy.port)).env("NO_PROXY", "").args([

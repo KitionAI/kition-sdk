@@ -60,7 +60,7 @@ fn lifecycle_shapes_match_the_schema() {
     round_trip(
         "initializeParams",
         &InitializeParams {
-            protocol_version: 2,
+            protocol_version: 1,
             token: TOKEN.into(),
             role: Role::Host,
             client: ClientInfo { name: "Kition".into(), version: "0.2.0".into() },
@@ -72,7 +72,7 @@ fn lifecycle_shapes_match_the_schema() {
     round_trip(
         "initializeParams",
         &InitializeParams {
-            protocol_version: 2,
+            protocol_version: 1,
             token: TOKEN.into(),
             role: Role::Agent,
             client: ClientInfo { name: "Kition agent".into(), version: "0.2.0".into() },
@@ -84,7 +84,7 @@ fn lifecycle_shapes_match_the_schema() {
     round_trip(
         "initializeResult",
         &InitializeResult {
-            protocol_version: 2,
+            protocol_version: 1,
             kit: KitInfo { id: "kit.photo".into(), version: "0.1.0".into() },
             capabilities: Capabilities {
                 surfaces: vec![Surface::Headless],
@@ -279,10 +279,10 @@ fn schema_rejects_what_the_types_must_not_produce() {
     let mut bad = serde_json::to_value(state()).unwrap_or_else(|err| panic!("{err}"));
     bad["name"] = json!("/Users/someone/a.psd");
     assert!(!validator("documentState").is_valid(&bad), "a name is a last segment, never a path");
-    // Version 1's shapes are gone: no URI where a handle goes, no workspace roots.
+    // No URI where a handle goes, no workspace roots.
     assert!(!validator("documentOpenParams").is_valid(&json!({ "uri": "file:///tmp/a.psd" })));
     assert!(!validator("documentOpenParams").is_valid(&json!({ "file": "/tmp/a.psd" })));
-    let mut init = json!({ "protocolVersion": 2, "token": TOKEN, "role": "host", "client": { "name": "h", "version": "1" } });
+    let mut init = json!({ "protocolVersion": 1, "token": TOKEN, "role": "host", "client": { "name": "h", "version": "1" } });
     assert!(validator("initializeParams").is_valid(&init));
     init["workspaceRoots"] = json!(["file:///tmp"]);
     assert!(!validator("initializeParams").is_valid(&init));

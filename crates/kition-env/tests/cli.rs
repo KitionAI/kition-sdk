@@ -25,7 +25,7 @@ fn kits_dir(f: &Fixture) -> tempfile::TempDir {
         "khp": "1.0", "id": format!("kit.{name}"), "name": format!("Kition {name}"), "version": "0.0.0",
         "formats": [{ "id": name, "extensions": [name], "role": "edit" }],
         "agent": { "prefix": name, "tools": "document", "objectModel": true },
-        "headless": { "executable": format!("kition-{name}-mock"), "protocol": "kition-kit/2" }
+        "headless": { "executable": format!("kition-{name}-mock"), "protocol": "kition-kit/1" }
     });
     std::fs::write(kit.join("kit.json"), manifest.to_string()).unwrap_or_else(|err| panic!("{err}"));
     let mock = common::mock_binary().unwrap_or_else(|| panic!("the mock is built"));

@@ -27,7 +27,7 @@ impl Fixture {
             "khp": "1.0", "id": format!("kit.{name}"), "name": name, "version": "0.0.0",
             "formats": [{ "id": name, "extensions": [name], "role": "edit" }],
             "agent": { "prefix": name, "tools": "document", "drafts": true, "objectModel": model },
-            "headless": { "executable": "kition-kit-mock", "protocol": "kition-kit/2" }
+            "headless": { "executable": "kition-kit-mock", "protocol": "kition-kit/1" }
         });
         let kit = KitDefinition::from_manifest(&manifest).unwrap_or_else(|error| panic!("{error}"));
         let bin = tempfile::tempdir().unwrap_or_else(|error| panic!("{error}"));

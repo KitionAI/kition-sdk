@@ -1,4 +1,4 @@
-//! The host side of the Kit Process Protocol, version 2: launching kit
+//! The host side of the Kit Process Protocol, version 1: launching kit
 //! executables, private endpoints, a request client, the host's file services
 //! (`files`, [`KitFiles`]), and [`HeadlessKit`], a kit launched and initialized
 //! as the host in one call. Kits run only headless.

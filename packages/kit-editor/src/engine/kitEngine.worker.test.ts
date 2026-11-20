@@ -3,7 +3,7 @@
  * The worker's own replica helpers, tested directly against fake `KitModuleDocument`-shaped objects
  * (no real wasm engine, no real worker thread): `replicaDocId` reads the SDK's optional `docId`
  * getter, and `replicaBlobsSince` prefers the SDK's optional `blobsSince(since)` over its whole
- * `blobs()` bundle when the SDK offers it (protocol minor version 1.3).
+ * `blobs()` bundle when the SDK offers it.
  */
 import { describe, expect, it } from 'vitest'
 import type { KitModuleDocument } from './kitModule'

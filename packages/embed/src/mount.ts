@@ -206,7 +206,7 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
     const sentTheme = theme
     const sentLocale = locale
     const sentUi = ui
-    // Who comments, for a kit that keeps comment threads (Kit UI protocol 1.6), once the page names the person.
+    // Who comments, for a kit that keeps comment threads, once the page names the person.
     const comments = options.identity || openMode === 'comment' ? { me: user?.id ?? null, ...(user?.name ? { name: user.name } : {}), canComment: openMode !== 'view', othersReadOnly: !options.collaboration } : undefined
     const mounted = await dependencies.mountKit(next, {
       signal: abandon.signal,
@@ -220,7 +220,7 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
         ...(readOnly ? { readOnly: true } : {}),
         ...(lend ? { lend } : {}),
         ...(comments ? { comments } : {}),
-        // What a managed room's open token lets the person take out, and the watermark (Kit UI protocol 2.6).
+        // What a managed room's open token lets the person take out, and the watermark.
         ...(collab?.openDocument ?? displayOf(options.display)),
       },
       theme: sentTheme,

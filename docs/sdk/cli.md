@@ -136,7 +136,7 @@ in index:    0.3.0, 0.2.0
 newest here: 0.3.0
 folder:      /Users/me/.kition/kits/note/0.3.0
 executable:  /Users/me/.kition/kits/note/0.3.0/kition-note
-protocol:    kition-kit/2
+protocol:    kition-kit/1
 agent:       prefix note
 tools:       note_inspect note_commands note_run note_query note_batch ...
 ```
@@ -390,7 +390,7 @@ or the newest the index offers when none is installed. `kition kit list` shows i
 
 ```text
 $ kition doctor
-kition 0.5.2 (kit protocol kition-kit/2, index format 1) on darwin-arm64
+kition 0.5.2 (kit protocol kition-kit/1, index format 1) on darwin-arm64
 ok    home          /Users/me/.kition (writable)
 fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)
@@ -455,7 +455,7 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
       "extensions": ["md", "markdown"],
       "versions": {
         "0.3.0": {
-          "protocol": "kition-kit/2",
+          "protocol": "kition-kit/1",
           "platforms": {
             "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 11534336, "sha256": "<64 hex digits>" },
             "linux-x64": { "url": "https://example.com/kits/kition-note-0.3.0-linux-x64.tar.gz", "size": 12058624, "sha256": "<64 hex digits>" }

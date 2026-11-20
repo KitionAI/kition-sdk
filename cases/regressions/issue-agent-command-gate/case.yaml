@@ -23,7 +23,7 @@ steps:
   - exec:
       cmd: [cargo, test, -q, -p, kition-sdk, --test, nested_dispatch]
   - exec:
-      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol_v2, a_host_written_from_the_spec_drives_the_kit_on_version_2]
+      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol, a_host_written_from_the_spec_drives_the_kit]
 expected:
   - actual: out:exec
     compare: exit

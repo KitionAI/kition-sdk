@@ -19,7 +19,7 @@ createInterface({ input: process.stdin })
   .on('line', (line) => {
     const { id, method, params } = JSON.parse(line)
     if (method === 'kits.initialize') {
-      reply(id, { result: { serviceVersion: 1, protocolVersion: 2, workspace: flag('--workspace'), kits: [{ id: 'kit.fake', name: 'Fake', extensions: ['fake'], creates: ['fake'], installed: true, from: kits }] } })
+      reply(id, { result: { serviceVersion: 1, protocolVersion: 1, workspace: flag('--workspace'), kits: [{ id: 'kit.fake', name: 'Fake', extensions: ['fake'], creates: ['fake'], installed: true, from: kits }] } })
     } else if (method === 'documents.create' || method === 'documents.open') {
       reply(id, { result: state(params.path) })
     } else if (method === 'model.describe') {

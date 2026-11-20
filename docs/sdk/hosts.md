@@ -46,7 +46,7 @@ request at a time can simply read the next line.
 
 ```text
 → {"jsonrpc":"2.0","id":1,"method":"kits.initialize","params":{"client":{"name":"my-app","version":"1.0"}}}
-← {"jsonrpc":"2.0","id":1,"result":{"serviceVersion":1,"protocolVersion":2,"workspace":true,"kits":[{"id":"kit.note","name":"Note","extensions":["md","markdown"],"creates":["md"],"installed":true}]}}
+← {"jsonrpc":"2.0","id":1,"result":{"serviceVersion":1,"protocolVersion":1,"workspace":true,"kits":[{"id":"kit.note","name":"Note","extensions":["md","markdown"],"creates":["md"],"installed":true}]}}
 → {"jsonrpc":"2.0","id":2,"method":"documents.open","params":{"path":"Plan.md"}}
 ← {"jsonrpc":"2.0","id":2,"result":{"kitId":"kit.note","documentId":"82aab04c…:1","path":"Plan.md","format":"markdown","readOnly":false,"dirty":false,"canUndo":false,"canRedo":false,"conflict":false,"details":{…},…}}
 → {"jsonrpc":"2.0","id":3,"method":"commands.execute","params":{"kit":"kit.note","documentId":"82aab04c…:1","command":"block.append","params":{"markdown":"- [ ] Ship the plan"},"origin":"system"}}
@@ -59,7 +59,7 @@ it if your language likes them.
 
 | Method | Parameters | Answer |
 | --- | --- | --- |
-| `kits.initialize` | `client: { name, version }` | `serviceVersion` (1), `protocolVersion` (the kits', 2), `workspace`, `kits` |
+| `kits.initialize` | `client: { name, version }` | `serviceVersion` (1), `protocolVersion` (the kits', 1), `workspace`, `kits` |
 | `kits.list` | none | `kits`: each kit's `id`, `name`, `extensions`, `creates`, `installed` |
 | `kits.ping` | none | `{}` |
 | `documents.open` | `path` | a document |

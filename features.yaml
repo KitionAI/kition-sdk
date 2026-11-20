@@ -1389,7 +1389,7 @@ features:
       - sdk.ui.host-services/permissions
     since: "2026-11-16"
   - id: sdk.ui.fetch-image
-    title: Kits keep a pasted picture given by its web address through the host, which downloads public addresses only (Kit UI protocol 2.8, section 7l)
+    title: Kits keep a pasted picture given by its web address through the host, which downloads public addresses only (Kit UI protocol section 7l)
     dimension: [function, security]
     priority: P1
     status: has
@@ -1606,7 +1606,7 @@ features:
       - sdk.embed.page-comments/services-and-threads
     since: "2026-11-16"
   - id: sdk.embed.host-writes
-    title: A page writes through the person's open editor as itself (origin system), no undo step, and the editor says the app made the change (KitEmbed EM31, Kit UI protocol 2.7)
+    title: A page writes through the person's open editor as itself (origin system), no undo step, and the editor says the app made the change (KitEmbed EM31, Kit UI protocol)
     dimension: [function, security]
     priority: P1
     status: has
@@ -1713,7 +1713,7 @@ features:
       - crates/kition-headless/src/gate_tests.rs
       - crates/kition-kit-server/src/server.rs
       - crates/kition-kit-server/src/backend.rs
-      - examples/grid-kit-headless/tests/protocol_v2.rs
+      - examples/grid-kit-headless/tests/protocol.rs
       - docs/platform/kits/engine.md
     cases:
       - regressions/issue-agent-command-gate
@@ -1785,7 +1785,7 @@ features:
       - regressions/issue-host-files-only
     since: "2026-11-16"
   - id: sdk.host.headless-kit
-    title: One host crate launches a kit headless, initializes it as the host in one call, and serves it a workspace's files by handle (Kit Process Protocol 2)
+    title: One host crate launches a kit headless, initializes it as the host in one call, and serves it a workspace's files by handle (Kit Process Protocol)
     dimension: [function, robustness]
     priority: P1
     status: has
@@ -1795,7 +1795,7 @@ features:
       - crates/kition-kit-process-protocol/src/**
       - crates/kition-headless/src/**
       - examples/grid-kit-headless/tests/client.rs
-      - examples/grid-kit-headless/tests/protocol_v2.rs
+      - examples/grid-kit-headless/tests/protocol.rs
       - crates/kition-kit/src/lib.rs
       - schemas/kit-process-protocol.schema.json
     cases:

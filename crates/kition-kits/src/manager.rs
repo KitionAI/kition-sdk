@@ -2,7 +2,7 @@
 //!
 //! A kit starts on first use, headless; it serves previews and the agent (kit editors run in the
 //! page, `KitFrame`). Each kit process gets two connections: the `host` connection serves people
-//! and answers the kit's `files.*` from the workspace (Kit Process Protocol 2, section 5.1, through a
+//! and answers the kit's `files.*` from the workspace (Kit Process Protocol, section 5.1, through a
 //! grant session of its own, `kition_kit_host::KitFiles`), and an `agent` connection serves agent
 //! tools, so the kit itself enforces the agent's role. The kit never sees a path: the manager
 //! mints a handle for every file it names to the kit. Kits stop when the manager is dropped, which

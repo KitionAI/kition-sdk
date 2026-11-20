@@ -222,7 +222,7 @@ the last answer the agent was given:
 | --- | --- |
 | `others` | what others changed since `basis`, merged into one change set as `changes` reads (capped at 50 objects, `truncated` counting what each list left out; when it lists fewer than changed, parts created, deleted or moved come first, then the objects the pending call names, then the rest, so a slide another program duplicated is always named), with `by` (the other agents' names, `outside`, and in the open editor `person` or `other`), `unnamed` (changes made in the file to objects no tool id names, counted by type and list: `{ "Media": { "changed": 1 } }`; the root's own fields and derived values are named by its object id instead when the kit keeps it on every read), `renumbered` (one line naming the ids another program renumbered in the file) and `unknown: true` when part of it cannot be told object by object; left out when nothing |
 | `conflicts` | on a refused write: `[{ id?, reason, now? }]`, `reason` `deleted`, `relocated`, `changed` or `unknown`; `now` where the object is now (`{ parent, field, index }` and its `position` fields, one named like those three in `now.fields`; or a part as `{ "slide": n }`) |
-| `interface` | (`_inspect`) the protocol, the kit and its version, `khp/2 kit.slide@1.4.0`; `serverInfo.version` is the kit's |
+| `interface` | (`_inspect`) the protocol, the kit and its version, `khp/1 kit.slide@1.4.0`; `serverInfo.version` is the kit's |
 
 A write with `basis` is checked before anything runs against its premises: its targets (the ids
 in each step's `on` and in the parameter a command declares as its `targets`, the objects a batch

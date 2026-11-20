@@ -10,7 +10,7 @@ source:
 input: []
 steps:
   - exec:
-      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol_v2, a_kit_ends_when_its_host_connection_closes_without_shutdown]
+      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol, a_kit_ends_when_its_host_connection_closes_without_shutdown]
 expected:
   - actual: out:exec
     compare: exit

@@ -10,7 +10,7 @@ use std::path::Path;
 use serde_json::Value;
 use support::{IndexBuilder, kit_archive, kit_folder, kition, manifest, run};
 
-const P: &str = "kition-kit/2";
+const P: &str = "kition-kit/1";
 
 fn exe(name: &str) -> String {
     format!("kition-{name}{}", std::env::consts::EXE_SUFFIX)

@@ -68,7 +68,7 @@ function fakeGithub(repos, { fail = [] } = {}) {
               id: `kit.${kit}`,
               name: release.name ?? name,
               extensions: release.extensions ?? extensions,
-              versions: { [release.version]: { protocol: release.protocol ?? 'kition-kit/2', platforms: Object.fromEntries(listedPlatforms.map((p) => [p, archives[p]])) } },
+              versions: { [release.version]: { protocol: release.protocol ?? 'kition-kit/1', platforms: Object.fromEntries(listedPlatforms.map((p) => [p, archives[p]])) } },
             },
           },
         }
@@ -117,7 +117,7 @@ describe('kits-index: the kit index gathered from the kit repositories', () => {
     // The newest version's fragment names the kit.
     expect(index.kits.table).toMatchObject({ id: 'kit.table', name: 'Table', extensions: ['ktable', 'csv'] })
     expect(index.kits.note.versions['0.1.0']).toEqual({
-      protocol: 'kition-kit/2',
+      protocol: 'kition-kit/1',
       platforms: {
         'darwin-arm64': { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.1.0/kition-note-0.1.0-darwin-arm64.tar.gz', size: Buffer.from('note 0.1.0 darwin-arm64').length, sha256: sha256(Buffer.from('note 0.1.0 darwin-arm64')) },
         'linux-x64': expect.objectContaining({ url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.1.0/kition-note-0.1.0-linux-x64.tar.gz' }),
@@ -160,11 +160,11 @@ describe('kits-index: the kit index gathered from the kit repositories', () => {
   })
 
   it('takes the kit’s name from its newest version and each version’s own protocol', async () => {
-    const repos = { 'KitionAI/kition-note': { kit: 'note', releases: [{ version: '0.2.0', platforms: ['linux-x64'], name: 'Old', protocol: 'kition-kit/1' }, { version: '0.1.0', platforms: ['linux-x64'], name: 'Older' }, { version: '1.0.0', platforms: ['linux-x64'], name: 'Note' }] } }
+    const repos = { 'KitionAI/kition-note': { kit: 'note', releases: [{ version: '0.2.0', platforms: ['linux-x64'], name: 'Old', protocol: 'kition-kit/0' }, { version: '0.1.0', platforms: ['linux-x64'], name: 'Older' }, { version: '1.0.0', platforms: ['linux-x64'], name: 'Note' }] } }
     const { index } = await gatherIndex({ kits: kitsOf(repos), net: fakeGithub(repos).net })
     expect(index.kits.note.name).toBe('Note')
-    expect(index.kits.note.versions['0.2.0'].protocol).toBe('kition-kit/1')
-    expect(index.kits.note.versions['1.0.0'].protocol).toBe('kition-kit/2')
+    expect(index.kits.note.versions['0.2.0'].protocol).toBe('kition-kit/0')
+    expect(index.kits.note.versions['1.0.0'].protocol).toBe('kition-kit/1')
   })
 
   it('skips and names a Release without a fragment, drafts, and other tags; a kit with no fragment stays out', async () => {

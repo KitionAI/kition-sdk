@@ -1496,7 +1496,7 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
                 {t('agentEdited')}
               </span>
             ) : session.editedBy?.by === 'system' ? (
-              // The host's own change (Kit UI protocol 2.7): the app, named by its feature on hover.
+              // The host's own change: the app, named by its feature on hover.
               <span className="kui-host-edited" data-testid={`${testId}-host-edited`} title={session.editedBy.originLabel}>
                 {t('hostEdited')}
               </span>

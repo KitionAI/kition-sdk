@@ -57,17 +57,17 @@ export type HostConnection = {
    */
   readOnly?: boolean
   /**
-   * Where in the document to show first (`document.view`, protocol section 2, minor version 2.1),
+   * Where in the document to show first (`document.view`, protocol section 2),
    * checked; null when the host named none. The kit shows it once its document is open, or ignores it.
    */
   view: KitView | null
   /**
-   * What the person may take out of the document (`document.permissions`, protocol 2.6): the kit
+   * What the person may take out of the document (`document.permissions`): the kit
    * hides Download, Export and Print, and Share controls whose flag is false. All true when the
    * host sent none.
    */
   permissions: KitDocumentPermissions
-  /** The text to draw over the canvas (`document.watermark`, protocol 2.6), checked; null for none. */
+  /** The text to draw over the canvas (`document.watermark`), checked; null for none. */
   watermark: KitWatermark | null
   /**
    * Hears the host's `document/reveal` (section 7i, OP3): show `view` in the open document. The
@@ -107,7 +107,7 @@ export type HostConnection = {
    * existing files and may change the name to an unused one; answers the path it wrote.
    */
   exportFile: (path: string, bytes: Uint8Array) => Promise<string>
-  /** Whether the host serves `service` (capability `service:<id>`, protocol 2.6 section 7k). */
+  /** Whether the host serves `service` (capability `service:<id>`, protocol section 7k). */
   hasService: (service: KitHostService) => boolean
   /**
    * Asks the host for one of its services (`host/service`, section 7k; managed co-editing D4):

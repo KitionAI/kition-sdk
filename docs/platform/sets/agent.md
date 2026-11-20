@@ -312,8 +312,7 @@ trusting that its commands did what it meant.
   feature `document.check` in `kit.initialize`'s capabilities; the Kit UI
   protocol as the host request `document/check` `{ draft? }` →
   `{ diagnostics }`, from a kit that lists the capability `check`
-  ([Kit UI protocol](../reference/ui-protocol.md) section 2, minor version
-  1.9). An embed reaches it through its kit connection
+  ([Kit UI protocol](../reference/ui-protocol.md) section 2). An embed reaches it through its kit connection
   (`@kition/kit-host` `check()`).
 
 ## 6. Recover
@@ -471,10 +470,10 @@ serves it on loopback, where calls reach documents open in kit editors (A7).
 ### 8.2 Headless Kit Process Protocol
 
 A kit's headless executable serves one kit's documents over the Kit Process
-Protocol (`kition-kit/2`, JSON-RPC 2.0, one message per line on stdio), with
+Protocol (`kition-kit/1`, JSON-RPC 2.0, one message per line on stdio), with
 the object model (`model.describe`, `model.batch`) and `document.check`
-(A23). Harnesses use it when no editor has the file open (A7). In version 2
-the kit names files only by handles the host serves (`files.*`), so the
+(A23). Harnesses use it when no editor has the file open (A7). The
+kit names files only by handles the host serves (`files.*`), so the
 harness's host turns `path` arguments and `file` parameters into handles
 (A29). The protocol is specified in
 [the Kit Process Protocol reference](../reference/kit-process-protocol.md).

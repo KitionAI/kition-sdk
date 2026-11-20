@@ -1,6 +1,6 @@
 //! A host written from `docs/platform/reference/kit-process-protocol.md` alone, with no
-//! Kition crate, starts the reference grid kit on Kit Process Protocol version 2 and drives it: the
-//! ready line and `kit.initialize` say 2, the kit reads and writes its document only through the
+//! Kition crate, starts the reference grid kit on Kit Process Protocol version 1 and drives it: the
+//! ready line and `kit.initialize` say 1, the kit reads and writes its document only through the
 //! host's `files.*` on file handles, a save commits with the version it read, and a stale version
 //! is a `file_conflict`. This is the wire as a Go, Python or Swift host speaks it.
 #![cfg(unix)]
@@ -20,7 +20,7 @@ use serde_json::{Value, json};
 const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn folder(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("kit-host-v2-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("kit-host-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -234,14 +234,14 @@ fn initialize(connection: &mut Connection, role: &str, version: u32) -> Result<V
 }
 
 #[test]
-fn a_host_written_from_the_spec_drives_the_kit_on_version_2() {
+fn a_host_written_from_the_spec_drives_the_kit() {
     let dir = folder("drive");
-    let (kit, ready) = launch(&dir, "2");
-    assert_eq!(ready, Some(json!({ "type": "ready", "protocolVersion": 2 })), "the ready line (section 3)");
+    let (kit, ready) = launch(&dir, "1");
+    assert_eq!(ready, Some(json!({ "type": "ready", "protocolVersion": 1 })), "the ready line (section 3)");
     let files = Arc::new(Mutex::new(Files::default()));
     let mut host = Connection::open(&kit.endpoint, Arc::clone(&files));
-    let initialized = initialize(&mut host, "host", 2).unwrap();
-    assert_eq!(initialized["protocolVersion"], 2);
+    let initialized = initialize(&mut host, "host", 1).unwrap();
+    assert_eq!(initialized["protocolVersion"], 1);
     assert_eq!(initialized["kit"]["id"], "example.grid");
 
     // A new document: a handle on a file that does not exist yet (section 5, H3).
@@ -250,7 +250,7 @@ fn a_host_written_from_the_spec_drives_the_kit_on_version_2() {
     let opened = host.call("document.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
     assert_eq!(opened["name"], "plan.grid");
     assert_eq!(opened["dirty"], true);
-    assert!(opened.get("uri").is_none(), "version 2 names no URI: {opened}");
+    assert!(opened.get("uri").is_none(), "no URI: {opened}");
     let id = opened["documentId"].clone();
 
     // A host's own change on the person's behalf (origin `system`, section 6) is no undo step;
@@ -294,7 +294,7 @@ fn a_host_written_from_the_spec_drives_the_kit_on_version_2() {
 
     // An agent may not act as the system (section 6).
     let mut agent = Connection::open(&kit.endpoint, Arc::new(Mutex::new(Files::default())));
-    initialize(&mut agent, "agent", 2).unwrap();
+    initialize(&mut agent, "agent", 1).unwrap();
     let forbidden = agent.call("commands.execute", edit).unwrap_err();
     assert_eq!(forbidden["data"]["reason"], "role_forbidden", "{forbidden}");
     // regressions/issue-agent-command-gate: nor as the person, whose commands get no agent limits
@@ -316,10 +316,10 @@ fn a_host_written_from_the_spec_drives_the_kit_on_version_2() {
 #[test]
 fn view_screenshot_takes_scale_and_max_size_and_refuses_what_it_cannot_draw() {
     let dir = folder("screenshot");
-    let (kit, _) = launch(&dir, "2");
+    let (kit, _) = launch(&dir, "1");
     let files = Arc::new(Mutex::new(Files::default()));
     let mut host = Connection::open(&kit.endpoint, Arc::clone(&files));
-    initialize(&mut host, "host", 2).unwrap();
+    initialize(&mut host, "host", 1).unwrap();
     let handle = files.lock().unwrap().grant("fh_00000000000000000000000000000003", dir.join("shot.grid"), &["read", "create", "write"]);
     let opened = host.call("document.open", json!({ "file": handle, "create": { "format": "grid", "options": { "width": 320, "height": 200 } } })).unwrap();
     let id = opened["documentId"].clone();
@@ -350,13 +350,13 @@ fn view_screenshot_takes_scale_and_max_size_and_refuses_what_it_cannot_draw() {
 }
 
 #[test]
-fn version_1_is_gone_and_a_wrong_version_is_refused() {
+fn a_wrong_version_is_refused() {
     let dir = folder("version");
     // Launched with a version it does not speak, the kit says which one it does (section 3).
-    let (kit, ready) = launch(&dir, "1");
-    assert_eq!(ready, Some(json!({ "type": "ready", "protocolVersion": 2 })));
+    let (kit, ready) = launch(&dir, "2");
+    assert_eq!(ready, Some(json!({ "type": "ready", "protocolVersion": 1 })));
     let mut host = Connection::open(&kit.endpoint, Arc::new(Mutex::new(Files::default())));
-    let refused = initialize(&mut host, "host", 1).unwrap_err();
+    let refused = initialize(&mut host, "host", 2).unwrap_err();
     assert_eq!(refused["code"], -32004);
     assert_eq!(refused["data"]["reason"], "unsupported_protocol");
     drop(kit);
@@ -368,12 +368,12 @@ fn version_1_is_gone_and_a_wrong_version_is_refused() {
 #[test]
 fn a_kit_ends_when_its_host_connection_closes_without_shutdown() {
     let dir = folder("orphan");
-    let (mut kit, _) = launch(&dir, "2");
+    let (mut kit, _) = launch(&dir, "1");
     let files = Arc::new(Mutex::new(Files::default()));
     let mut host = Connection::open(&kit.endpoint, Arc::clone(&files));
-    initialize(&mut host, "host", 2).unwrap();
+    initialize(&mut host, "host", 1).unwrap();
     let mut agent = Connection::open(&kit.endpoint, Arc::new(Mutex::new(Files::default())));
-    initialize(&mut agent, "agent", 2).unwrap();
+    initialize(&mut agent, "agent", 1).unwrap();
     agent.close();
     std::thread::sleep(Duration::from_millis(500));
     assert!(kit.child.try_wait().unwrap().is_none(), "an agent's leaving does not end the kit");

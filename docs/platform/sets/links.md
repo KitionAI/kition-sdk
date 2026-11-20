@@ -15,7 +15,7 @@ described in RFC 2119.
 | | |
 | --- | --- |
 | Status | Specified in edition 2026.11; not yet implemented by any kit or host |
-| Bindings | [Kit UI protocol](../reference/ui-protocol.md) section 7i (protocol 2.1, `kition-kit-ui/2`); [Kit Process Protocol](../reference/kit-process-protocol.md) version 2, section 5.4; [`KitEmbed 1.5`](embed.md) EM25 to EM27; [`KitAgent 1.4`](agent.md) A42 and A43; [`KitFiles 1.1`](files.md) FA18 (the link grant flow) |
+| Bindings | [Kit UI protocol](../reference/ui-protocol.md) section 7i (`kition-kit-ui/1`); [Kit Process Protocol](../reference/kit-process-protocol.md) version 1, section 5.4; [`KitEmbed 1.5`](embed.md) EM25 to EM27; [`KitAgent 1.4`](agent.md) A42 and A43; [`KitFiles 1.1`](files.md) FA18 (the link grant flow) |
 | Kit side | HC-P1 to HC-P5, LR6, LK1 to LK6 below; engine rules E17 to E19 ([engine contract](../kits/engine.md)); manifest rule K18 ([manifest](../kits/manifest.md)); UI-K8 |
 | Host side | LR1 to LR5, PV1 to PV8, OP1 to OP9, LK7 to LK13, UI-N1; H15 to H17 ([host contract](../kits/host.md)); LR2 |
 
@@ -42,7 +42,7 @@ without it (section 7).
   document, with a reduced view, against a host that offers none of this set
   (section 7).
 - **HC-P4 One meaning, three bindings** (FA-P4): the page (Kit UI
-  protocol), headless (Kit Process Protocol 2), and the embed carry the same
+  protocol), headless (Kit Process Protocol), and the embed carry the same
   requests under the same rules.
 - **HC-P5 The engine stays IO-free** (E5, FA-P5): it reports its links and
   rewrites them; reading a target goes through the lent-file path; drawing
@@ -206,7 +206,7 @@ edits it.
 - **PV7 Privacy.** The image carries only what the target's kit draws. A
   host MUST NOT draw a file the person cannot open, and answers `not-found`
   for it exactly as for a missing file, so a kit cannot probe for files.
-- **PV8 Headless (optional).** A Kit Process Protocol 2 host MAY serve
+- **PV8 Headless (optional).** A Kit Process Protocol host MAY serve
   `links.preview` with the same params, answering an `Image`; without it,
   headless renders and exports draw such cards as titled placeholders.
 
@@ -400,7 +400,7 @@ See [`KitAgent 1.4`](agent.md) section 2.2.
 
 ## 9. Bindings
 
-| Meaning | Kit UI protocol 2.1 (page) | Kit Process Protocol 2 (headless) | `KitEmbed 1.5` |
+| Meaning | Kit UI protocol (page) | Kit Process Protocol (headless) | `KitEmbed 1.5` |
 | --- | --- | --- | --- |
 | Resolve | `links/resolve` | `links.resolve { documentId, links }`, served by the host; `file` always a handle | EM25 `resolveLink` |
 | Read a target | the link handle (FA18), read by the engine through `kition_kit::host` (LR6) | `files.read` on the link handle; `files.resolve` also resolves link targets (section 5.4 there) | the embed's handles (EM23) |
@@ -437,7 +437,7 @@ before it installs a plugin kit.
 The Kit UI protocol and the embed carry a refusal as `-32000` with
 `error.data.reason`; the Kit Process Protocol has a code per reason.
 
-| Reason (Kit UI, embed) | Kit Process Protocol 2 | Meaning |
+| Reason (Kit UI, embed) | Kit Process Protocol | Meaning |
 | --- | --- | --- |
 | `not-found` | `-32040 link_not_found` | No such target, or one the person may not see (LR2, PV7) |
 | `not-linked` | `-32041 link_not_linked` | The target is not in the document's link set (LR1) |
@@ -457,8 +457,8 @@ The Kit UI protocol and the embed carry a refusal as `-32000` with
 | `open-url` | Host, Kit UI `capabilities` | Serves `host/openUrl` |
 | `links` | Kit, `ui/initialize` answer and manifest (K18) | Reports links and answers `links/retarget` |
 | `render` | Kit, `ui/initialize` answer | Answers `view/render` in a preview frame (PV1) |
-| `links`, `links.preview` | Host, Kit Process Protocol 2 `hostServices` | Serves `links.resolve` (and `links.backlinks` when it has an index), and `links.preview` |
-| `document.links` | Kit, Kit Process Protocol 2 `capabilities.features` and `headless.features` | Answers `document.links` |
+| `links`, `links.preview` | Host, Kit Process Protocol `hostServices` | Serves `links.resolve` (and `links.backlinks` when it has an index), and `links.preview` |
+| `document.links` | Kit, Kit Process Protocol `capabilities.features` and `headless.features` | Answers `document.links` |
 
 ## 12. Security considerations
 

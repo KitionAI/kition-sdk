@@ -54,7 +54,7 @@ async function fakeService() {
   const state = () => ({ kitId: 'kit.test', documentId: '7', path, title: 'Page', format: 'test', readOnly: false, dirty, canUndo: false, canRedo: false, conflict, version: 0, summary: '', details: {} })
   const handle = async (method: string, params: Record<string, unknown>): Promise<unknown> => {
     calls.push({ method, params })
-    if (method === 'kits.initialize') return { serviceVersion: 1, protocolVersion: 2, workspace: true, kits: [{ id: 'kit.test', name: 'Test', extensions: ['test'], creates: [], installed: true }] }
+    if (method === 'kits.initialize') return { serviceVersion: 1, protocolVersion: 1, workspace: true, kits: [{ id: 'kit.test', name: 'Test', extensions: ['test'], creates: [], installed: true }] }
     if (method === 'documents.open' || method === 'documents.create') {
       path = params.path as string
       return state()

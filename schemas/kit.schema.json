@@ -551,7 +551,7 @@
           "type": "string"
         },
         "protocol": {
-          "const": "kition-kit/2"
+          "const": "kition-kit/1"
         },
         "features": {
           "type": "array",

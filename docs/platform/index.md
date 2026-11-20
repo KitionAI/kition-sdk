@@ -101,7 +101,7 @@ set, never for a product version.
   released with the SDK. Edition 2026.11: `KitModel 1.0`, `KitAgent 1.4`,
   `KitFiles 1.1`, `KitLinks 1.0`, `KitPointer 1.0`, `KitEmbed 1.5`,
   `KitObjectModel 1.0`, `KitCollab 1.3`, `KitExtensions 1.0`; the Kit UI
-  protocol 2.1 (`kition-kit-ui/2`) and the Kit Process Protocol version 2. Its
+  protocol version 1 (`kition-kit-ui/1`) and the Kit Process Protocol version 1. Its
   kits conform to KHP 1.0.
 - A kit's manifest names the KHP version in `khp` (`1.0`) and the tier it
   claims in `level`; the platform's own versions are in its platform fields

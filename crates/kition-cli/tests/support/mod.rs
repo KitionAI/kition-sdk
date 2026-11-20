@@ -76,7 +76,7 @@ pub fn archive(entries: &[Entry]) -> Vec<u8> {
 /// An editor package of `kit.<name>` `version` as a kit's Package workflow publishes it: one
 /// folder `<name>-ui/` with `index.html`, the kit's kit.json, a script, an engine and a font.
 pub fn editor_archive(name: &str, version: &str) -> Vec<u8> {
-    let manifest = serde_json::to_vec_pretty(&manifest(name, version, "kition-kit/2", &format!("k{name}"), &format!("kition-{name}"))).unwrap();
+    let manifest = serde_json::to_vec_pretty(&manifest(name, version, "kition-kit/1", &format!("k{name}"), &format!("kition-{name}"))).unwrap();
     let top = format!("{name}-ui");
     let index = format!("<!doctype html><title>{name} {version}</title><script type=\"module\" src=\"./assets/main.js\"></script>");
     archive(&[

@@ -57,6 +57,6 @@
   },
   "headless": {
     "executable": "kit-grid",
-    "protocol": "kition-kit/2"
+    "protocol": "kition-kit/1"
   }
 }

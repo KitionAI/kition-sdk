@@ -4,7 +4,7 @@
 | --- | --- |
 | Package | `@kition/embed` 0.5.2, in the Kition SDK 0.5.2 ([getting the SDK](../getting-the-sdk.md)) |
 | Capability set | [`KitEmbed 1.3`](../sets/embed.md), with EM25's opening (1.5), EM28 (1.6), EM29 and EM30 (1.7), and EM31 (1.8); every member a minor version added is optional, so an older page works unchanged |
-| Protocols | [Kit UI protocol](ui-protocol.md) `kition-kit-ui/2` to the kit; [sync protocol](sync-protocol.md) `kition-sync/1` to a collaboration server |
+| Protocols | [Kit UI protocol](ui-protocol.md) `kition-kit-ui/1` to the kit; [sync protocol](sync-protocol.md) `kition-sync/1` to a collaboration server |
 | License | Apache-2.0 |
 
 `@kition/embed` puts a kit's editor (Slide, Sheet, and every other kit with

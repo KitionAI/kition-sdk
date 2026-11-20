@@ -1,6 +1,6 @@
 //! # kition-kit-server
 //!
-//! The kit side of the Kition Kit Process Protocol, version 2: the host launches the kit executable with
+//! The kit side of the Kition Kit Process Protocol, version 1: the host launches the kit executable with
 //! `--kition-kit` and four `KITION_KIT_*` environment variables, the kit listens on a local socket
 //! (a named pipe on Windows), prints one ready line, and serves newline-delimited JSON-RPC 2.0. The
 //! host connection is two-way: the kit reads and writes files only through the host's `files.*`,

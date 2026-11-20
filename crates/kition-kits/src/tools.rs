@@ -2039,7 +2039,7 @@ pub(crate) fn current_agent() -> Option<String> {
     CALL.try_with(|call| call.agent.clone()).ok()
 }
 
-/// One line on the protocol and the kit an inspect answers (`khp/2 kit.slide@1.4.0`): the
+/// One line on the protocol and the kit an inspect answers (`khp/1 kit.slide@1.4.0`): the
 /// interface the tools' ids and commands are of, as `serverInfo` reports its version.
 fn interface(kit: &KitDefinition) -> String {
     format!("khp/{} {}@{}", kition_kit_process_protocol::PROTOCOL_VERSION, kit.id, kit.version)

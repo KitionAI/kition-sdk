@@ -92,7 +92,7 @@ optional native executables. The manifest is validated by
     "include": ["edit.*", "timeline.*", "sequence.*", "file.import", "file.exportMedia"],
     "exclude": ["file.open", "file.save*"]
   },
-  "headless": { "executable": "example-video", "protocol": "kition-kit/2", "features": ["model.describe", "model.batch"] }
+  "headless": { "executable": "example-video", "protocol": "kition-kit/1", "features": ["model.describe", "model.batch"] }
 }
 ```
 

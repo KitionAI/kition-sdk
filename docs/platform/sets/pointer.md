@@ -12,7 +12,7 @@ described in RFC 2119.
 | | |
 | --- | --- |
 | Status | Specified in edition 2026.11; not yet implemented by any kit or host. Behaviour rules for touch input come after the first release (section 2.3) |
-| Bindings | [Kit UI protocol](../reference/ui-protocol.md) section 7h (protocol 2.1, `kition-kit-ui/2`; selection and hit testing since 1.11) and UI-K7; engine tools U8b and editor tools U10 ([kit editors](../kits/ui.md)); [Kit Process Protocol](../reference/kit-process-protocol.md) `view.hitTest`; [`KitAgent 1.4`](agent.md) A31 to A33 |
+| Bindings | [Kit UI protocol](../reference/ui-protocol.md) section 7h (`kition-kit-ui/1`) and UI-K7; engine tools U8b and editor tools U10 ([kit editors](../kits/ui.md)); [Kit Process Protocol](../reference/kit-process-protocol.md) `view.hitTest`; [`KitAgent 1.4`](agent.md) A31 to A33 |
 | Kit side | PT1 to PT11, PT13, PT14 below; U8b, U10; the engine tools members ([engine contract reference](../reference/contract.md#engine-tools)) |
 | Host side | PT2 (read-only), PT9, PT12; UI-S1 to UI-S4 |
 

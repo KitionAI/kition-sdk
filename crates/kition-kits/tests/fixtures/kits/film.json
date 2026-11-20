@@ -384,7 +384,7 @@
   },
   "headless": {
     "executable": "kition-film",
-    "protocol": "kition-kit/2",
+    "protocol": "kition-kit/1",
     "capabilities": [
       "document-text"
     ],

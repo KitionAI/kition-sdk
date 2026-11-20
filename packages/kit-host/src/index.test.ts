@@ -1054,7 +1054,7 @@ describe('mountKit with files', () => {
     connection.close()
   })
 
-  it('serves the host services it lists and refuses the others, and relays comment anchors (protocol 2.6, D4)', async () => {
+  it('serves the host services it lists and refuses the others, and relays comment anchors (D4)', async () => {
     let offered: string[] = []
     let kit: KitSidePeer | null = null
     const frame = fakeFrame((port) => {

@@ -47,7 +47,7 @@ pub struct KitDefinition {
     /// The executable `kit.json` names (`headless.executable`), for example `kition-note`.
     pub executable: Option<&'static str>,
     /// The Kit Process Protocol the executable speaks (`headless.protocol`), for example
-    /// `kition-kit/2`; a host launches only a kit that speaks its own.
+    /// `kition-kit/1`; a host launches only a kit that speaks its own.
     pub protocol: Option<&'static str>,
     /// `kit.json` `version`, which a server of this one kit reports as its own (KHP A34).
     pub version: &'static str,

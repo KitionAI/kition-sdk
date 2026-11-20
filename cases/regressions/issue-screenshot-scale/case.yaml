@@ -17,7 +17,7 @@ source:
 input: []
 steps:
   - exec:
-      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol_v2, view_screenshot_takes_scale_and_max_size_and_refuses_what_it_cannot_draw]
+      cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol, view_screenshot_takes_scale_and_max_size_and_refuses_what_it_cannot_draw]
 expected:
   - actual: out:exec
     compare: exit

@@ -13,7 +13,7 @@ use kition_cli::store::{Outcome, Store};
 use semver::Version;
 use support::{Entry, IndexBuilder, Server, archive, kit_archive, manifest};
 
-const P: &str = "kition-kit/2";
+const P: &str = "kition-kit/1";
 
 fn load(home: &Home, location: String) -> Loaded {
     index::load(home, &Source { location }, Freshness::Now).unwrap()
@@ -130,7 +130,7 @@ fn refuses_kits_of_another_protocol_and_says_what_to_do() {
             &[
                 ("1.0.0", P, kit_archive("mixed", "1.0.0", P, "kmixed", "kition-mixed", b"x")),
                 ("2.0.0", "kition-kit/99", kit_archive("mixed", "2.0.0", "kition-kit/99", "kmixed", "kition-mixed", b"x")),
-                ("0.1.0", "kition-kit/1", kit_archive("mixed", "0.1.0", "kition-kit/1", "kmixed", "kition-mixed", b"x")),
+                ("0.1.0", "kition-kit/0", kit_archive("mixed", "0.1.0", "kition-kit/0", "kmixed", "kition-mixed", b"x")),
             ],
         )
         .write(dir.path());

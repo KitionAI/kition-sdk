@@ -243,7 +243,7 @@ export type EmbedOptions = {
   model?: boolean
   /**
    * What the kit lets the person take out of the document and the watermark it draws (Kit UI
-   * protocol 2.6 `document.permissions`, `document.watermark`), for a page that decided them
+   * `document.permissions`, `document.watermark`), for a page that decided them
    * itself (the embed server, from its open token). A managed room's open token decides
    * them instead.
    */

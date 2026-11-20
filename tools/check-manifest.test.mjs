@@ -65,7 +65,7 @@ function checkManifest(manifest) {
 }
 
 describe('check-manifest headless.features', () => {
-  const headless = (features) => checkManifest({ ...example, headless: { executable: 'kit-grid', protocol: 'kition-kit/2', features } })
+  const headless = (features) => checkManifest({ ...example, headless: { executable: 'kit-grid', protocol: 'kition-kit/1', features } })
 
   it('accepts the object model features', () => {
     expect(headless(['model.describe', 'model.batch', 'view.describe']).code).toBe(0)
@@ -80,7 +80,7 @@ describe('check-manifest headless.features', () => {
 })
 
 describe('check-manifest headless.capabilities (platform K22)', () => {
-  const headless = (fields) => checkManifest({ ...example, headless: { executable: 'kit-grid', protocol: 'kition-kit/2', ...fields } })
+  const headless = (fields) => checkManifest({ ...example, headless: { executable: 'kit-grid', protocol: 'kition-kit/1', ...fields } })
 
   it('accepts document-text', () => {
     expect(headless({ capabilities: ['document-text'] }).code).toBe(0)
@@ -256,7 +256,7 @@ describe('check-manifest KHP 1.0 fields', () => {
     ...example,
     level: 'agent-ready',
     agent: { ...example.agent, drafts: true, objectModel: true, layout: false },
-    headless: { executable: 'kit-grid', protocol: 'kition-kit/2', features: ['document.check', 'model.describe', 'model.batch'] },
+    headless: { executable: 'kit-grid', protocol: 'kition-kit/1', features: ['document.check', 'model.describe', 'model.batch'] },
   }
 
   it('names KHP rules and platform rules apart', () => {

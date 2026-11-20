@@ -4,6 +4,12 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Every protocol is version 1.** The Kit Process Protocol is version 1 (`PROTOCOL_VERSION` 1,
+  `kition-kit/1` in `kit.json` and the kit index, the ready line and `kit.initialize` say `1`,
+  `khp/1` in an inspect's `interface`); kits built on an earlier SDK speak 2 and are refused until
+  they are rebuilt. The Kit UI protocol's documents now say what its code already did,
+  `kition-kit-ui/1` and `kitionKitUi: 1`, without minor-version history, and the open sync
+  protocol's reference states version 1.
 - **`kition gateway --workspace <folder>`**: one workspace's kits on loopback HTTP
   (`http://127.0.0.1:<port>`, port 0 by default), as the one process that holds them: the Kit AI
   bridge to attached kit editors, `/kit-files/` reads, file grants, the person's draft review and

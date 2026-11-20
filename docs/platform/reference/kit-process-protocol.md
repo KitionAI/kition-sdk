@@ -1,4 +1,4 @@
-# Kit Process Protocol, Version 2
+# Kit Process Protocol, Version 1
 
 > **Names.** This is the **Kit Process Protocol**: JSON-RPC between a host and a
 > kit process. It is always written in full, never abbreviated; a section is
@@ -11,7 +11,7 @@ Reference implementations:
 `kition-kit-server` for kits, `kition-kit-host` and `kition-kits` for hosts;
 see section 15.
 
-Version 2 (edition 2026.11) gives the kit file handles
+The kit works on file handles
 ([`KitFiles 1.1`](../sets/files.md)): the host serves `files.*` to the kit,
 and the kit never sees a path (sections 5 and 5.3).
 
@@ -29,7 +29,7 @@ Machine-readable contracts, in kition-sdk's `schemas/` (and the SDK bundle's):
 
 | File | Purpose |
 | --- | --- |
-| [`kit.schema.json`](../../../schemas/kit.schema.json) | `kit.json` shipped inside every kit package; its `headless.protocol` is `kition-kit/2` |
+| [`kit.schema.json`](../../../schemas/kit.schema.json) | `kit.json` shipped inside every kit package; its `headless.protocol` is `kition-kit/1` |
 | [`kit-process-protocol.schema.json`](../../../schemas/kit-process-protocol.schema.json) | Parameter and result shapes for every method below, the host services included |
 
 When this document and the schemas disagree, the schemas win and this document
@@ -70,7 +70,7 @@ variables:
 ```text
 <kit-executable> --kition-kit
 
-KITION_KIT_PROTOCOL=2
+KITION_KIT_PROTOCOL=1
 KITION_KIT_ENDPOINT=<socket path or pipe name>
 KITION_KIT_TOKEN=<64 hex characters, random per launch>
 KITION_KIT_SURFACE=headless
@@ -146,7 +146,7 @@ When the endpoint is listening, the kit writes exactly one line to standard
 output and then never writes to standard output again:
 
 ```json
-{"type":"ready","protocolVersion":2}
+{"type":"ready","protocolVersion":1}
 ```
 
 Standard error is free-form diagnostic logging. The host must reach `ready`
@@ -157,7 +157,7 @@ writes its ready line, with the version it speaks; a host that reads another
 version there stops the kit and reports both versions, and `kit.initialize`
 with another version fails `-32004 unsupported_protocol` with the kit's version
 in `data.detail`. A kit's `kit.json` says the same in `headless.protocol`
-(`kition-kit/2`), so a host can refuse a kit before it starts it.
+(`kition-kit/1`), so a host can refuse a kit before it starts it.
 
 ## 4. Lifecycle
 
@@ -191,7 +191,7 @@ Parameters:
 | `locale` | string | BCP 47, for example `en-US` or `zh-CN` (host only) |
 | `appearance` | `light` or `dark` | Host only |
 | `reservedShortcuts` | array of shortcut | Host only; see section 8 |
-| `hostServices` | array of string | Host only; the services the host serves to the kit on this connection: `files` (always, in version 2), `files.print` when it prints (section 5.1), `links` and `links.preview` (section 5.4), and `replica` (section 5.5) |
+| `hostServices` | array of string | Host only; the services the host serves to the kit on this connection: `files` (always), `files.print` when it prints (section 5.1), `links` and `links.preview` (section 5.4), and `replica` (section 5.5) |
 
 Result:
 
@@ -823,9 +823,8 @@ A29). Only a path that passes every check and names no file fails
 
 ## 12. Versioning
 
-- `protocolVersion` is an integer. Breaking changes increment it. Version 2
-  replaced version 1 before any release, so hosts and kits speak only
-  version 2.
+- `protocolVersion` is an integer, `1` in this version. Breaking changes
+  increment it; hosts and kits speak one version.
 - Additive features within a version are discovered through
   `capabilities`, never through kit version comparisons.
 - Clients must ignore unknown notification methods and unknown result fields.
@@ -833,7 +832,7 @@ A29). Only a path that passes every check and names no file fails
   within a version. A receiver that does not know it handles the error as a
   failed request without a reason it can act on, as it handles any other
   failure; a sender never answers a new reason where an older receiver
-  needs the old one to stay safe (`file_not_found`, version 2, is answered
+  needs the old one to stay safe (`file_not_found` is answered
   only where `file_not_allowed` would have said nothing more).
 
 ## 13. Mapping From Upstream Control Channels
@@ -913,7 +912,7 @@ kition-kit-conformance --kit <executable> --manifest kit.json \
 version; schema `contracts/kit/kit.schema.json`, a copy of
 kition-sdk's `schemas/kit.schema.json` that `node scripts/sync-kit-host.mjs`
 refreshes and `pnpm check:kit-host` keeps current), whose `headless` section names the
-executable and must say `kition-kit/2`; or the package manifest below. Kit ids
+executable and must say `kition-kit/1`; or the package manifest below. Kit ids
 are dotted, reverse-domain style (`kit.photo`, `com.example.cad`), in both.
 Kits built on the Kition SDK get their executable from `kition-headless`
 and pass the suite without kit-specific protocol code.

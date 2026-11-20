@@ -46,7 +46,7 @@ function errorText(error: unknown) {
 export type KitEditedBy = Exclude<DocumentChangeBy, { by: 'person' }>
 
 /**
- * Who an `ai/run` runs as: the agent, or (protocol 2.7) the host's own change with `origin:
+ * Who an `ai/run` runs as: the agent, or the host's own change with `origin:
  * "system"` and its `originLabel`. A malformed origin is refused (`-32602`) before any step runs.
  */
 function runAs(params: Pick<AiRunParams, 'origin' | 'originLabel' | 'draft'>): KitEditedBy {
@@ -432,7 +432,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
       const completed: RunStep[] = []
       // The steps are the agent's, for the person who started it (KitModel M12a): the person's
       // Undo keeps them, and the agent's own `edit.undo` takes back only the agent's steps. A
-      // host's change (protocol 2.7) is KDM's `system(label)`: a step of no history.
+      // host's change is KDM's `system(label)`: a step of no history.
       const origin: Origin = by.by === 'system' ? { kind: 'system', principal: 'kdm', label: by.originLabel } : { kind: 'agent', principal: host.init.document.comments?.me ?? 'agent', label: 'ai/run' }
       /** The revision the agent's last step left, to tell another's edit between steps. */
       const track = { last: null as number | null, meanwhile: false }
@@ -675,7 +675,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
     )
     // The host saw the file change (`document/fileChanged`): check it now rather than at the next poll.
     const stopFileChanged = peer.on('document/fileChanged', () => void latest.current.checkFile())
-    // A co-editor saved a state this document holds (`document/held`, protocol 2.6): no conflict for it.
+    // A co-editor saved a state this document holds (`document/held`): no conflict for it.
     const stopHeld = peer.on('document/held', (params) => {
       if (typeof params?.version === 'string') void latest.current.holdFile(params.version)
     })

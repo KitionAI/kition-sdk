@@ -10,8 +10,8 @@ described in RFC 2119.
 
 | | |
 | --- | --- |
-| Status | Specified in edition 2026.11. The headless binding (Kit Process Protocol 2, section 8.2) is implemented by every kit built on kition-sdk (`kition-kit-server`) and by its hosts (`kition-kit-host`'s `KitFiles`, `kition-kits`); the page binding by `@kition/kit-host`. `KitFiles 1.1` adds the link grant flow (FA18, from [`KitLinks 1.0`](links.md)) |
-| Bindings | [Kit UI protocol](../reference/ui-protocol.md) section 7g (protocol 2.1, `kition-kit-ui/2`; files since 1.10); [Kit Process Protocol](../reference/kit-process-protocol.md) version 2, section 5; [`KitEmbed 1.5`](embed.md) EM21 to EM24; [`KitAgent 1.4`](agent.md) A28 to A30 |
+| Status | Specified in edition 2026.11. The headless binding (Kit Process Protocol, section 8.2) is implemented by every kit built on kition-sdk (`kition-kit-server`) and by its hosts (`kition-kit-host`'s `KitFiles`, `kition-kits`); the page binding by `@kition/kit-host`. `KitFiles 1.1` adds the link grant flow (FA18, from [`KitLinks 1.0`](links.md)) |
+| Bindings | [Kit UI protocol](../reference/ui-protocol.md) section 7g (`kition-kit-ui/1`); [Kit Process Protocol](../reference/kit-process-protocol.md) version 1, section 5; [`KitEmbed 1.5`](embed.md) EM21 to EM24; [`KitAgent 1.4`](agent.md) A28 to A30 |
 | Kit side | Engine rules E15 and E16 ([engine contract](../kits/engine.md)); manifest rule K15 ([manifest](../kits/manifest.md)) |
 | Host side | FA1 to FA18 below; H3 and H5 ([host contract](../kits/host.md)); LR2 |
 
@@ -215,12 +215,12 @@ engine passes it back to `host::read_range` and never sees a path.
 The methods of sections 3 to 5 are Kit UI protocol requests from kit to host
 (`files/revoked` is a notification from host to kit), specified in the
 [Kit UI protocol](../reference/ui-protocol.md) section 7g; `files/dropped`
-(host to kit, minor version 1.11) is in section 7h. Bytes travel as
+(host to kit) is in section 7h. Bytes travel as
 `ArrayBuffer`s. A host that serves them lists the capability `files` in
 `ui/initialize`, and `files-pick` and `print` when it has a picker and
 prints.
 
-### 8.2 Kit Process Protocol 2 (headless)
+### 8.2 Kit Process Protocol (headless)
 
 - **FA12** The host serves `files.stat`, `files.read`, `files.list`,
   `files.write`, `files.create`, `files.release`, and `files.resolve` (and
@@ -269,7 +269,7 @@ A refusal names one reason. The Kit UI protocol and the embed carry it as
 `-32000` with `error.data.reason`; the Kit Process Protocol has a code per
 reason.
 
-| Reason (Kit UI, embed) | Kit Process Protocol 2 | Meaning |
+| Reason (Kit UI, embed) | Kit Process Protocol | Meaning |
 | --- | --- | --- |
 | `file-not-granted` | `-32014 file_not_granted` | Unknown, expired, revoked, or foreign handle, or a right the handle lacks (FA4, FA5) |
 | `not-allowed` | `-32018 file_not_allowed` | The host's policy refuses the grant or the file: an extension outside K15, outside the workspace, host data or a hidden path (FA7, FA8, LR2), an agent write without a draft or approval (FA13), a write in a read-only session (FA17) |
@@ -287,7 +287,7 @@ reason.
 | `files` | Host, Kit UI `ui/initialize` `capabilities` | Serves `files/stat`, `read`, `list`, `write`, `create`, `release`, and sends `files/revoked` |
 | `files-pick` | Host, Kit UI `ui/initialize` `capabilities` | Serves `files/pick` |
 | `print` | Host, Kit UI `ui/initialize` `capabilities` | Serves `files/print` |
-| `files`, `files.print` | Host, Kit Process Protocol 2 `kit.initialize` param `hostServices` | Serves `files.*` (always, in version 2) and `files.print` |
+| `files`, `files.print` | Host, Kit Process Protocol `kit.initialize` param `hostServices` | Serves `files.*` (always) and `files.print` |
 | `files` | Kit, manifest `capabilities` (K15) | Uses this set; declares `files` lists |
 
 ## 11. What replaces today's methods
@@ -301,7 +301,7 @@ edition, with no aliases.
 | Kit UI `host/write` with `mode: "export"` or `mode: "create"` | `files/create`, then `files/write`. `host/write` keeps only `mode: "save"`, for the document's own file |
 | Kit UI `host/read`, `host/stamp`, `document.lend` | Unchanged in role: the document and the files beside it (its lent files), under LR2. Other files are reached only through handles |
 | A kit library's "export a file at a path" helper | `files/create`, then `files/write` of the bytes |
-| Kit Process Protocol 1: `uri` in `document.open`, `saveAs`, `export`; `workspaceRoots`; `DocumentState.uri`; reason `uri_not_granted` | Kit Process Protocol 2: `file` handles; no roots; `DocumentState.name`; reason `file_not_granted` |
+| Kit Process Protocol paths: `uri` in `document.open`, `saveAs`, `export`; `workspaceRoots`; `DocumentState.uri`; reason `uri_not_granted` | Kit Process Protocol `file` handles; no roots; `DocumentState.name`; reason `file_not_granted` |
 | Name-based guesses of which command parameters name files | Parameters typed `file` (A28); a command that names files any other way is not exposed to agents |
 | Embed: other writes become `storage.create(name, bytes)` | Unchanged, now reached through `files/create` with staged writes; `write` grants call `storage.write` (EM23) |
 
@@ -316,7 +316,7 @@ edition, with no aliases.
 - **Prompt injection.** Picked file names, listed folder contents, and a
   kit's `purpose` are untrusted text. A harness MUST NOT treat them as
   instructions.
-- **Sandboxing.** A headless kit on Kit Process Protocol 2 needs no ambient
+- **Sandboxing.** A headless kit on the Kit Process Protocol needs no ambient
   file access, so a host can deny it at the operating-system level (8.2).
   Headless kits MUST NOT open network connections.
 - **Gestures.** Pickers and print dialogs open only from a person's gesture
@@ -331,7 +331,7 @@ passes these tests (see [conformance.md](../conformance.md)):
 | Who | Test |
 | --- | --- |
 | Kits (page) | A flow test through `@kition/kit-dev-host` that picks a file and a folder with a scripted picker, creates an export, and checks that the kit never sends a path-shaped string in any `files/*` request (`checkNoPaths`; a `mime` param is read as a MIME type, so `application/pdf` passes and `exports/Out.pdf` does not) |
-| Kits (headless) | The Kit Process Protocol 2 conformance checks: an ungranted handle is refused; `create` never replaces; a staged write commits atomically; every exposed command that names a file has a `file`-typed parameter; optionally, the executable passes under a sandbox that denies the file system and the network |
+| Kits (headless) | The Kit Process Protocol conformance checks: an ungranted handle is refused; `create` never replaces; a staged write commits atomically; every exposed command that names a file has a `file`-typed parameter; optionally, the executable passes under a sandbox that denies the file system and the network |
 | Hosts | FA1 to FA18 and LR2 in Chromium and WebKit: expired and foreign handles refused, unused names chosen, the K15 extension policy, a pick without a gesture refused, a stale `expected` answered `conflict` |
 | Embeds | EM21 to EM24 with a fake storage |
 | Harnesses | A28 to A30: `file` parameters converted, a refused path stops the call, created files listed and logged |

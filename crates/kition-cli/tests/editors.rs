@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 use support::{Entry, IndexBuilder, archive, editor_archive, kit_archive, kition, run, sha256};
 
-const P: &str = "kition-kit/2";
+const P: &str = "kition-kit/1";
 
 /// An index made in a folder.
 type IndexOf = dyn Fn(&Path) -> IndexBuilder;

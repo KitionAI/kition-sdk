@@ -7,7 +7,7 @@ with `kition-kits` and `kition-kits-mcp`, and names every file's SHA-256 and the
 answers ([distribution.md](distribution.md)). They can also be built from each kit's repository
 (`cargo build --release -p kition-<kit>`).
 
-They speak the [Kit Process Protocol](../platform/reference/kit-process-protocol.md), version 2, on the
+They speak the [Kit Process Protocol](../platform/reference/kit-process-protocol.md), version 1, on the
 `headless` surface (a private socket or named pipe, a fresh token per launch): the kit never sees
 a path, and reads and writes files only through its host, by handle. You rarely drive that
 yourself:

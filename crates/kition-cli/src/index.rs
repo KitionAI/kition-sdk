@@ -62,7 +62,7 @@ pub struct IndexKit {
 #[serde(rename_all = "camelCase")]
 pub struct IndexVersion {
     /// The Kit Process Protocol it speaks, as its `kit.json` says (`headless.protocol`):
-    /// `kition-kit/2`.
+    /// `kition-kit/1`.
     pub protocol: String,
     /// Its archive for each platform (`darwin-arm64`, `linux-x64`, `win32-x64`, ...).
     pub platforms: BTreeMap<String, Archive>,
@@ -261,9 +261,9 @@ mod tests {
         json!({
             "schemaVersion": 1,
             "kits": { "note": { "id": "kit.note", "name": "Note", "extensions": ["md", "markdown"], "versions": {
-                "0.3.0": { "protocol": "kition-kit/2", "platforms": { "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 10, "sha256": "a".repeat(64) } },
+                "0.3.0": { "protocol": "kition-kit/1", "platforms": { "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 10, "sha256": "a".repeat(64) } },
                     "ui": { "url": "kition-note-0.3.0.tgz", "size": 20, "sha256": "b".repeat(64) } },
-                "0.10.0": { "protocol": "kition-kit/2", "platforms": {} }
+                "0.10.0": { "protocol": "kition-kit/1", "platforms": {} }
             } } }
         })
     }
@@ -294,7 +294,7 @@ mod tests {
         ui["kits"]["note"]["versions"]["0.3.0"]["ui"]["size"] = json!(0);
         assert!(Index::parse(&ui.to_string()).unwrap_err().contains("0.3.0 ui"));
         let mut version = sample();
-        version["kits"]["note"]["versions"]["latest"] = json!({ "protocol": "kition-kit/2", "platforms": {} });
+        version["kits"]["note"]["versions"]["latest"] = json!({ "protocol": "kition-kit/1", "platforms": {} });
         assert!(Index::parse(&version.to_string()).unwrap_err().contains("semver"));
     }
 

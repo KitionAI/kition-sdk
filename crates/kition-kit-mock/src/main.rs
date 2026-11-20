@@ -1,5 +1,5 @@
 //! A minimal kit for plain-text `.mocktext` documents. It implements the
-//! headless parts of Kit Process Protocol version 2, reading and writing its
+//! headless parts of Kit Process Protocol version 1, reading and writing its
 //! documents through the host's `files.*`, so a host and the conformance suite
 //! can be tested without a real editor. It shares no code with
 //! `kition-kit-server`: it is a second, independent kit side, which enforces what a kit process

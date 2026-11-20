@@ -2,8 +2,8 @@
 
 | | |
 | --- | --- |
-| Protocol | `kition-kit-ui/2` |
-| Version | 2.9: a failed `ai/run` on the live document is atomic (section 2): the kit undoes the agent's steps before the failing one in the agent's undo scope and says in `error.data` what it rolled back (`completed`, `rolledBack`, `editedMeanwhile`); an agent's steps run in an editor state of the agent's own and take a call context (`ai/run` steps' `context`, capability `context`, section 2), so they never move the person's selection, part or time; `ai/version` and `ai/changes` (capability `changes`, section 2) answer what an agent's write changed from the kit's replica; 2.8: adds fetching a picture the person pasted or dropped by its web address (`host/fetchImage`, capability `fetch-image`, section 7l): the host downloads it from public addresses only and answers its bytes, so the kit keeps it as a pasted file while it still loads nothing from the network (UI-K1); 2.7: adds a host's own change through the open editor (`ai/run`'s `origin: "system"` and `originLabel`, `document/changed`'s `by: "system"`, section 2): no undo step in any history, as Kit Process Protocol's `commands.execute` with origin `system`, and the reason `invalid-params` with `data.errors` for an `ai/run` step whose parameters the kit's engine refused; 2.6: adds `document/held` (section 2), the document's display permissions and watermark (`document.permissions`, `document.watermark`, section 2), host services (`host/service`, capability `service:<id>`, section 7k) and comment anchors (`comments/*`, capability `comment-anchors`, section 7k), for managed co-editing ([managed-collab.md](../managed-collab.md)); 2.5: adds picking a file to link (`links/pick`, capability `links-pick`, rules UI-N2 to UI-N4, section 7i): the person chooses an existing workspace file, which the host answers by its document-relative path and never copies; 2.4: `ai/run` steps are the agent's undo steps (section 2, [`KitModel 1.1`](../sets/model.md) M12a), and `host/generate` purposes are a defined set plus each kit's own (section 7j); 2.3: adds display modes (the UI configuration's `modes`, the element `action:mode`, rules UI-C7 and UI-C8, section 9); 2.2: adds host generation and host actions (`host/generate`, `host/action`, capabilities `generate` and `action:<id>`, section 7j), Kition platform requests, not KHP; 2.1: adds links, previews, and opening (`links/*`, `host/preview`, `host/open`, `host/openUrl`, `document.view`, `document.preview`, `document/reveal`, `view/render`, capabilities `links`, `preview-files`, `open-file`, `open-url`, and `render`, section 7i) and UI-K8; 2.0: the identifier becomes `kition-kit-ui/2`, because 1.10 removed members and 1.11 changed a kit's duty in read-only documents (UI-K7); no released host or kit used `kition-kit-ui/1`, so there is no compatibility path; minor versions below keep their history; 1.11: adds selection and hit testing (`selection/changed`, `ai/selection`, `ai/select`, `ai/hitTest`, `files/dropped`, capabilities `selection` and `hit-test`, section 7h) and lets tools that do not change the document run in read-only documents (UI-K7); 1.10: adds files (`files/*`, capabilities `files`, `files-pick`, and `print`, section 7g) and removes `host/pick` and `host/write`'s `export` and `create` modes (section 3); 1.9: adds diagnostics (`document/check`, capability `check`, section 2); 1.8: adds schema reports (`document/schema`, section 7f) and a commenter's Undo and Redo of their own comments (section 3); 1.7: adds presence (capability `presence`, section 7e); 1.6: adds agent drafts (capability `draft`, section 7d) and `document.comments` (section 3); 1.5: adds `capabilitySets` to `ui/initialize` (section 3); 1.4: adds leases (capability `lease`, section 7b) and conflict reports (`document/conflicts`, section 7c); 1.3: adds `replica/info` and multi-listener `replica/changed` (section 7) |
+| Protocol | `kition-kit-ui/1` |
+| Version | 1 |
 | Part of | [Kition kit platform](../index.md) edition 2026.11 ([index](../index.md#32-versions-and-editions)) |
 | Host library | `@kition/kit-host` (packages/kit-host (Kition SDK: `packages/kit-host`)) |
 | Kit library | `@kition/kit-editor` (packages/kit-editor (Kition SDK: `packages/kit-editor`)) |
@@ -26,12 +26,12 @@ The same kit UI runs in any host that implements this protocol.
    posts to its parent window
 
    ```js
-   window.parent.postMessage({ kitionKitUi: 2, ready: "kition-kit-ui/2", id }, "*")
+   window.parent.postMessage({ kitionKitUi: 1, ready: "kition-kit-ui/1", id }, "*")
    ```
 
    where `id` is a fresh random string for this document. The message carries
    nothing secret, so its target origin may be `"*"`. A kit that receives
-   `{ kitionKitUi: 2, hello: "kition-kit-ui/2" }` from its parent before it has
+   `{ kitionKitUi: 1, hello: "kition-kit-ui/1" }` from its parent before it has
    a port announces itself again.
 3. The host listens for `ready` from the frame's window (`event.source`) and
    origin, and posts `hello` to the frame when it starts, for a kit that
@@ -39,7 +39,7 @@ The same kit UI runs in any host that implements this protocol.
    new `MessageChannel`, transferring `port2` and naming the document:
 
    ```js
-   frame.contentWindow.postMessage({ kitionKitUi: 2, protocol: "kition-kit-ui/2", id }, kitOrigin, [channel.port2])
+   frame.contentWindow.postMessage({ kitionKitUi: 1, protocol: "kition-kit-ui/1", id }, kitOrigin, [channel.port2])
    ```
 
    A `ready` with an `id` it already answered changes nothing. A `ready` with
@@ -71,7 +71,7 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
 
 ```json
 {
-  "protocol": "kition-kit-ui/2",
+  "protocol": "kition-kit-ui/1",
   "host": { "name": "Kition", "version": "0.2.0" },
   "document": {
     "path": "talks/Launch.pptx",
@@ -99,18 +99,18 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
   serves ranged reads (`Range`, `ETag`) of the document's folder, and the
   document's folder below it. The kit's engine reads the files beside the
   document (media, pictures, fonts) from it synchronously in its worker
-  (standard E5); the host confines it like `host/read` (H3, LR2). Since 2.1
-  the root is a capability URL bound to this session and never a view of the
+  (standard E5); the host confines it like `host/read` (H3, LR2). The
+  root is a capability URL bound to this session and never a view of the
   whole workspace; it need not be on the kit's origin and answers the kit's
   origin across origins ([`KitLinks 1.0`](../sets/links.md) section 3.1).
   Files the document links outside its folder are read through link handles
   (section 7i).
-- `document.view` (minor version 2.1), when present, is where in the
+- `document.view`, when present, is where in the
   document to show first, in the shape of a link's `view`
   ([`KitLinks 1.0`](../sets/links.md) section 2): the host opened the
   document from a link (`host/open`, OP3). A kit that can show it scrolls to
   it and selects it; otherwise it ignores it.
-- `document.preview` (minor version 2.1), when `true`, opens the document
+- `document.preview`, when `true`, opens the document
   only to draw previews of it for the host (PV1): the frame is hidden, the
   document is read-only (`readOnly` is `true`), and the kit answers
   `view/render` (section 7i) and need not draw its editor.
@@ -122,7 +122,7 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
   the kit keeps its own key. kit-editor's `RESERVED_SHORTCUTS` lists Kition's.
 - `capabilities` are the optional host methods this host serves (sections 3,
   7, 7b, 7e, 7g, 7h, and 7i).
-- `capabilitySets` (minor version 1.5) are the capability sets this host serves ([capability sets](../index.md#3-capability-sets)),
+- `capabilitySets` are the capability sets this host serves ([capability sets](../index.md#3-capability-sets)),
   such as `"KitModel 1.0"`, `"KitCollab 1.0"` (the document is co-edited
   through a sync server), `"KitObjectModel 1.0"`, `"KitExtensions 1.0"`, or
   `"KitEmbed 1.0"`. Older hosts leave it out; a kit treats that as an empty
@@ -131,7 +131,7 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
 - `document.readOnly`, when true, opens the document for viewing only (a
   view-only link, a viewer of a shared document): see UI-K7. It is fixed for
   the session.
-- `document.comments` (minor version 1.6), when present, is who comments and
+- `document.comments`, when present, is who comments and
   how, for a kit that keeps comment threads ([`KitModel 1.0`](../sets/model.md) M23):
   `{ me, name, canComment, othersReadOnly }`. `me` is the person's principal
   id (a comment's `author`; `null` when unknown), `name` their display name,
@@ -142,19 +142,19 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
   content (UI-K7) but still writes comment threads, which are all its
   replica's changes the sync server takes from a commenter: it runs the
   commands its `kit.json` lists as `collaboration.comments.commands` (Kit Harness
-  Protocol 2.0 K13) and no other edit, and (minor version 1.8) Undo and Redo
+  Protocol 2.0 K13) and no other edit, and Undo and Redo
   of what those commands did in the session, never of anything else. Its
   menus hide what it refuses a commenter instead of showing it disabled. kit-editor's
   `CommentsPanel` takes these as its props. Absent, a kit treats the person as
   unknown, allowed to comment unless `readOnly`, and others' threads as
   writable.
-- `document.permissions` (minor version 2.6), when present, is
+- `document.permissions`, when present, is
   `{ download, export, share }`: what the person may take out of the
   document, from the host's open token ([managed-collab.md](../managed-collab.md)
   OT5). A kit hides its Download, Export and Print (`export`), and Share
   controls whose flag is not `true`. Absent, all are allowed. These are
   display permissions; the host enforces them for the bytes it serves.
-- `document.watermark` (minor version 2.6), when present, is `{ text }` (at
+- `document.watermark`, when present, is `{ text }` (at
   most 256 characters, no control characters): the kit draws it faint and
   repeated over its canvas, in every mode, previews and prints included.
   `null` or absent: none. kit-editor's `HostConnection` has both, checked
@@ -189,7 +189,7 @@ them and MUST let the person choose (standard H6).
 
 ### `document/held` (notification)
 
-Minor version 2.6. `{ "version": string }`: the file is now `version`, and the
+`{ "version": string }`: the file is now `version`, and the
 document the kit holds already contains everything it holds (another session
 of a co-edited room saved a state this replica has). The kit takes `version`
 as the version it last read or wrote, keeps its unsaved mark as it is, and
@@ -200,7 +200,7 @@ it (`holdFile`).
 
 ### `document/check` (request)
 
-Minor version 1.9. `{ "draft"?: bool }` answers `{ "diagnostics": [...] }`:
+`{ "draft"?: bool }` answers `{ "diagnostics": [...] }`:
 what the kit's engine finds wrong with the document ([`KitAgent 1.4`](../sets/agent.md) A21),
 each `{ code, severity, target, message, fix? }`, errors first. A kit that
 serves it lists the capability `check`; a host MUST NOT send it to a kit
@@ -229,8 +229,8 @@ so an agent edits the live document the person sees:
 | `ai/commands` | `{ query }` | `[{ id, title, description, enabled, schema }]` |
 | `ai/run` | `{ steps: [{ command, params, context? }], save, draft?, origin?, originLabel? }` | `{ completed: [{ command, changed, result }], saved }` |
 | `ai/preview` | `{ maxSize, draft? }` | `{ png: <base64> }`, at most `maxSize` pixels on the longer side |
-| `ai/version` | `{}` | (2.9, capability `changes`) `{ version }`, the replica's version, base64 |
-| `ai/changes` | `{ since, schema? }` | (2.9, capability `changes`) `{ changes, version }`, or `{ changes: null, unavailable, version }` |
+| `ai/version` | `{}` | (capability `changes`) `{ version }`, the replica's version, base64 |
+| `ai/changes` | `{ since, schema? }` | (capability `changes`) `{ changes, version }`, or `{ changes: null, unavailable, version }` |
 
 `ai/inspect`'s `details` is the engine's `inspect()` (at the part and in
 the context the request gives, when it gives them) as the engine answers it,
@@ -247,16 +247,15 @@ kit's `view.describe` leaves them out (`kition_kit::document_content`;
 whose manifest declares no `engine.editorState` has all of `details` read as
 the document. The person's selection reaches an agent through
 `ai/selection` (section 7h), and an agent's step acts in an editor state of
-its own (2.9, below), so the agent needs none of it in the document.
+its own (below), so the agent needs none of it in the document.
 
 With `draft: true` (capability `draft`, section 7d) they work on the agent's
-draft instead of the live document. Minor version 1.11 adds `ai/selection`,
-`ai/select`, and `ai/hitTest` (section 7h).
+draft instead of the live document. `ai/selection`,
+`ai/select`, and `ai/hitTest` are in section 7h.
 
 A kit that declares the `ai` capability MUST answer these; edits made through
 `ai/run` MUST join the document's undo history, and the kit MUST report them
-with `document/changed` (`by: "agent"`), except a host's own change (2.7,
-below). (2.4) A kit whose engine runs commands
+with `document/changed` (`by: "agent"`), except a host's own change (below). A kit whose engine runs commands
 as an origin (engine contract 2, `executeAs`) runs each step as origin `agent`
 for the person (label `ai/run`), so the steps are the agent's undo steps
 ([`KitModel 1.1`](../sets/model.md) M12a): the person's Undo keeps them, a step
@@ -264,7 +263,7 @@ for the person (label `ai/run`), so the steps are the agent's undo steps
 `{ "scope": "agent" }` lets the person take back the agent's last change.
 `@kition/kit-editor` does both.
 
-(2.7) **A host's own change.** With `origin: "system"` the steps are not the
+**A host's own change.** With `origin: "system"` the steps are not the
 agent's: they are a change the host makes on the person's behalf through the
 open editor (a host feature importing mail into the open table), so the
 person sees it at once and there is one copy of the document. `originLabel`
@@ -295,7 +294,7 @@ says in its status line that the app made the change, not the agent.
   send `origin` for a model's or an agent's call (UI-H5); only its own
   features send it.
 
-(2.7) **An engine's refusal of a step's parameters.** When the kit's engine
+**An engine's refusal of a step's parameters.** When the kit's engine
 refuses a step's parameters with a list of what is wrong (an engine built on
 `kition-kit` returns `kition_kit::schema::refusal(&errors)`, whose message is
 the text, U+001E, and the errors as JSON), `ai/run` fails at that step with
@@ -304,7 +303,7 @@ reason: "invalid-params", command, step, errors }`, `errors` one `{ path,
 message, expected? }` for each wrong parameter as Kit Process Protocol's
 `invalid_params` lists them. A kit shows the person the text alone too.
 
-(2.9) **What an agent's write changed.** A kit whose engine keeps a replica
+**What an agent's write changed.** A kit whose engine keeps a replica
 lists the capability `changes` and answers `ai/version` and `ai/changes` from
 it exactly as a headless kit answers Kit Process Protocol's `model.version` and
 `model.changes` ([kit-process-protocol.md](kit-process-protocol.md) section 5a): the version
@@ -319,7 +318,7 @@ so the agent's tools answer the write's receipt (`changes`, `diagnostics`)
 as on the headless path; the change set is the whole document's since the
 version, so an edit the person made while the write ran is in it too.
 
-(2.9) **The agent's own editor state.** The person is using the editor while
+**The agent's own editor state.** The person is using the editor while
 the agent works, so an agent's step never moves the person's selection,
 current part or playhead. A kit whose engine keeps editor state and takes a
 call context (engine contract: `editorState()`, `restoreEditorState()`,
@@ -336,10 +335,10 @@ the run's `target`). A context the kit cannot set fails the step with `data`
 `{ reason: "unsupported", command, step }`, and the run is rolled back as
 below. A kit without the capability refuses a step that gives `context`
 before any step runs, with the same `data`, rather than ignore it; its
-agent steps run in the person's editor state, as before 2.9. The agent's
+agent steps run in the person's editor state. The agent's
 draft (section 7d) takes no `context` yet.
 
-(2.9) **A failed run is atomic.** When a step of an agent's `ai/run` on the
+**A failed run is atomic.** When a step of an agent's `ai/run` on the
 live document fails, the kit takes back the steps before it that changed the
 document, as the headless kit does (Kit Process Protocol A53): it runs
 `edit.undo` with `{ "scope": "agent" }` as the agent once for each of them,
@@ -384,7 +383,7 @@ serves its own data or a hidden path (LR2): `host/read` and `host/stamp`
 refuse them (`not-allowed`) exactly as `document.lend` does. A kit reaches
 any other file only through a file handle: one the person or the host
 granted (section 7g), or a link handle for a file its document links
-(section 7i). (2.5) A file the person chose with `links/pick` is one of the
+(section 7i). A file the person chose with `links/pick` is one of the
 document's lent files by the path the host answered (UI-N3).
 
 ### `host/stamp` (request)
@@ -404,8 +403,7 @@ answers `{ "path", "version" }`.
   `ui/initialize`); the host refuses any other path (`not-allowed`), whatever
   its extension. A read-only document refuses every `host/write`
   (`read-only`).
-- Version 1.10 removes the modes `export` and `create` and the request
-  `host/pick` (capability `pick-file`), with no alias: a kit writes any other
+- `save` is the only mode, and there is no `host/pick`: a kit writes any other
   file through `files/create` and `files/write`, and asks the person for a
   file with `files/pick` (section 7g, [`KitFiles 1.1`](../sets/files.md)
   section 11).
@@ -424,7 +422,7 @@ A kit SHOULD show its own notices; this is for the ones the host shows best
 
 `{ "dirty", "revision", "title"?, "by": "person" | "agent" | "system", "originLabel"? }`
 after every change, so the host shows the tab's unsaved mark and tells the
-agent (A8 `kit.changed`). (2.7) `by: "system"` is the host's own change
+agent (A8 `kit.changed`). `by: "system"` is the host's own change
 (`ai/run` with `origin: "system"`, section 2), with the `originLabel` it ran
 under; `originLabel` is present only then. Kits SHOULD send at most one per
 frame while dragging.
@@ -469,7 +467,7 @@ for the host's locales; it falls back to `en-US`.
 
 - **UI-K1** The kit's UI, engine worker, WebAssembly, fonts, and assets are
   all in its package and load from the package's own location. It loads
-  nothing from the network. (2.8) A picture the person pasted or dropped by
+  nothing from the network. A picture the person pasted or dropped by
   its web address reaches it only through the host (`host/fetchImage`,
   section 7l).
 - **UI-K2** All file access goes through `host/read`, `host/stamp`,
@@ -492,7 +490,7 @@ for the host's locales; it falls back to `en-US`.
   command, step? }`). `ai/commands` lists the commands that edit with
   `enabled: false`. Viewing still works: zooming, scrolling, moving between
   pages, selecting and copying, and playback. Canvas tools follow their role
-  ([`KitPointer 1.0`](../sets/pointer.md) PT2, minor version 1.11): tools
+  ([`KitPointer 1.0`](../sets/pointer.md) PT2): tools
   that do not change the document (`select`, `text-select`, `hand`, `zoom`,
   and `custom` tools declared `mutates: false`) keep working, in canvas and
   DOM editors alike; tools whose role mutates are refused, and so are the
@@ -515,7 +513,7 @@ for the host's locales; it falls back to `en-US`.
   Undo, Redo, or mutating canvas tools other than those whose every effect
   is a comment command (PT2), and nothing unsaved; the comments replicate.
 
-- **UI-K8** (minor version 2.1) The kit MUST NOT open windows or tabs
+- **UI-K8** The kit MUST NOT open windows or tabs
   (`window.open`, links with a `target`), navigate the top window, or start
   downloads itself. It opens a workspace file with `host/open` and a web
   address with `host/openUrl` (section 7i), and writes files only through
@@ -536,7 +534,7 @@ for the host's locales; it falls back to `en-US`.
   `document/changed`, asks before closing a tab with unsaved work, and uses
   `document/save` when the person chooses Save.
 - **UI-H5** The host forwards the Kit AI bridge as `ai/*` to the frame of the
-  document it targets. (2.7) It sends `ai/run`'s `origin: "system"` only for
+  document it targets. It sends `ai/run`'s `origin: "system"` only for
   its own features' changes, never for a call a model or an agent made.
 - **UI-H6** The host sends `ui/theme` and `ui/locale` whenever the person
   changes them.
@@ -555,10 +553,8 @@ across saves and can later be shared. The host lists `replica` in
 `ui/initialize`'s `capabilities` when it serves `host/replicaRead` and
 `host/replicaWrite`; the kit lists `replica` in its answer when it uses them
 and answers `replica/*`. Either side without it changes nothing: the kit opens
-and saves the file as before. Minor version 1.1 adds only this capability;
-minor version 1.3 adds `replica/info` and narrower `replica/export` blobs to
-it (UI-R5), both optional for a kit's engine to answer precisely. Neither
-changed the protocol identifier (then `kition-kit-ui/1`; `kition-kit-ui/2` since 2.0).
+and saves the file as before. `replica/info` and narrower
+`replica/export` blobs (UI-R5) are optional for a kit's engine to answer precisely.
 
 | Method | Direction | Params | Result |
 | --- | --- | --- | --- |
@@ -573,7 +569,7 @@ changed the protocol identifier (then `kition-kit-ui/1`; `kition-kit-ui/2` since
 `snapshot`, `blobs`, `version`, `since`, and `changes` are `ArrayBuffer`s in
 the KDM's encodings; `blobs` is the engine's blob bundle and `fileStamp` a
 version stamp as `host/stamp` answers it. `since` may be empty (every change).
-`docId` (minor version 1.3) is the replica's own id — a sync room's `docId`
+`docId` is the replica's own id — a sync room's `docId`
 ([sync-protocol.md](sync-protocol.md)) the kit's engine ties the document to,
 or `null` when it has none (the engine made its replica but no room exists
 for it yet, or the engine does not keep one at all).
@@ -633,7 +629,7 @@ model on its side (standard OM6): `@kition/script` does, so every kit with the
 
 ## 7b. Leases (capability `lease`)
 
-Minor version 1.4. Some edits do not merge meaningfully when two people make
+Some edits do not merge meaningfully when two people make
 them at once (repainting one layer's pixels, rewriting a whole PDF). A kit
 asks its host for a **lease** on the object's scope before such an edit; a
 host that co-edits the document takes it from its sync server (sync protocol
@@ -685,7 +681,7 @@ of its own while another session holds the whole document (`*`).
 
 ## 7c. Conflict objects (`document/conflicts`)
 
-Minor version 1.4. When a kit's repair pass after a merge cannot resolve
+When a kit's repair pass after a merge cannot resolve
 something by itself, it records a **conflict object** in the document
 (`KitModel 1.0` M22) that keeps what could not be kept, and tells the host:
 
@@ -701,7 +697,7 @@ non-blocking notice; it never blocks editing. `@kition/kit-editor`'s
 
 ## 7d. Drafts (capability `draft`)
 
-Minor version 1.6. An agent can edit a **draft** of the document instead of
+An agent can edit a **draft** of the document instead of
 the live document (`KitAgent 1.4` A12 to A15): the person reviews it and merges
 it or discards it. A kit that keeps drafts lists `draft` in its
 `ui/initialize` answer; its engine must exchange changes (engine contract 2).
@@ -760,7 +756,7 @@ worker's replica model (section 7a), so the editor's Undo takes it back.
 
 ## 7e. Presence (capability `presence`)
 
-Minor version 1.7. The people in a co-edited document see what the others
+The people in a co-edited document see what the others
 have selected and where their carets are. A kit tells its host what this
 session shares; the host carries it to the others as the person's presence
 (sync protocol section 5) and tells the kit what they share. A host that does
@@ -803,7 +799,7 @@ stays empty.
 
 ## 7f. Schema reports (`document/schema`)
 
-Minor version 1.8. A kit's document may hold changes a newer version of the
+A kit's document may hold changes a newer version of the
 kit wrote (`KitModel 1.0` M5a: every commit records its author's schema
 version). The kit keeps working on it, and tells the host, which tells the
 person and offers the update:
@@ -825,7 +821,7 @@ to the host's `schema` handler.
 
 ## 7g. Files (capabilities `files`, `files-pick`, `print`)
 
-Minor version 1.10. A kit reaches files other than its document only through
+A kit reaches files other than its document only through
 **file handles** the host grants ([`KitFiles 1.1`](../sets/files.md)): the
 person picks them, the host creates them, or an agent's command names them.
 A host that serves the methods below lists `files` in `ui/initialize`'s
@@ -873,7 +869,7 @@ outputs (E16, `takeOutput`) to their handles in chunks.
 
 ## 7h. Selection and hit testing (capabilities `selection`, `hit-test`)
 
-Minor version 1.11. A kit tells its host what the person has selected, and
+A kit tells its host what the person has selected, and
 the host's agent reads it, points the person at something, or asks what a
 point in a preview shows ([`KitPointer 1.0`](../sets/pointer.md)). A kit
 that reports its selection lists `selection` in its `ui/initialize` answer;
@@ -917,7 +913,7 @@ are in the frame's CSS pixels.
 
 ## 7i. Links, previews, and opening (capabilities `links`, `preview-files`, `open-file`, `open-url`, `render`, `links-pick`)
 
-Minor version 2.1 (`links/pick`: 2.5). A kit reads the files its document
+A kit reads the files its document
 links, asks the host for pictures of other kits' files, opens files and web
 addresses in the host, and asks the person for a file to link; a host keeps
 links working when files move
@@ -983,7 +979,7 @@ previews of its documents for a host lists `render`. `linkRef` is
   handles. Both sides check
   what they receive as for presence (UI-P3): at most 10,000 links in
   `links/changed`, `text` at most 200 characters, well-formed references.
-- **Picking a file to link** (minor version 2.5, capability `links-pick`).
+- **Picking a file to link** (capability `links-pick`).
   A kit whose document refers to other workspace files by path (a design's
   library files, a slide's linked picture) asks the person to choose one
   with `links/pick`; the file stays where it is and the document links it.
@@ -1034,7 +1030,7 @@ previews of its documents for a host lists `render`. `linkRef` is
 
 ## 7j. Host generation and host actions (capabilities `generate`, `action:<id>`)
 
-Minor version 2.2 (generation purposes: 2.4). These are **Kition platform requests**, not part of KHP:
+These are **Kition platform requests**, not part of KHP:
 a kit stays offline and self-contained (UI-K1), so anything that needs a
 model, the person's account, or a host feature goes to the host. The first
 user is the Table kit: AI fields build their prompts and apply results in the
@@ -1049,7 +1045,7 @@ run a workflow or make a design from a record.
 - **`host/generate`.** A host that runs models for kits lists `generate` in
   `ui/initialize`'s `capabilities`.
   - `purpose` names what the kit generates for, so the host can show it and
-    account for it. (2.4) It is a **defined purpose** or one of the **kit's
+    account for it. It is a **defined purpose** or one of the **kit's
     own**:
 
     | Purpose | What the kit generates |
@@ -1130,8 +1126,8 @@ run a workflow or make a design from a record.
 
 ## 7k. Host services and comment anchors (capabilities `service:<id>`, `comment-anchors`)
 
-Minor version 2.6, for managed co-editing ([managed-collab.md](../managed-collab.md)
-section 4). These are **Kition platform requests**, not KHP. A kit
+For managed co-editing ([managed-collab.md](../managed-collab.md)
+section 4); these are **Kition platform requests**, not KHP. A kit
 asks its host for anything that needs the host's people, files, dialogs, or
 permissions, so the same kit behaves as a native part of every host.
 
@@ -1205,7 +1201,7 @@ permissions, so the same kit behaves as a native part of every host.
 
 ## 7l. Fetching pictures (capability `fetch-image`)
 
-Minor version 2.8. HTML a person pastes or drops from a web page carries its
+HTML a person pastes or drops from a web page carries its
 pictures as web addresses (`<img src="https://…">`), often signed addresses
 that expire within minutes. A kit loads nothing from the network (UI-K1), so
 it asks the host to download such a picture and keeps the bytes as it keeps a
@@ -1261,8 +1257,7 @@ then links the kept copy, never the address.
 ## 9. UI configuration and brand colors
 
 A host can hide or disable the elements of a kit's editor, add its own buttons, and keep what
-the person hid. Minor version 1.2 adds only optional fields and methods, so the protocol
-identifier stayed `kition-kit-ui/1` (`kition-kit-ui/2` since 2.0). A kit that honors it lists `ui-config` in its `ui/initialize`
+the person hid. A kit that honors it lists `ui-config` in its `ui/initialize`
 answer; a host that relies on `hide` or `disable` for permissions MAY refuse to show a kit
 that does not.
 

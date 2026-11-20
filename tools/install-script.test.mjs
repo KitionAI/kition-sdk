@@ -23,7 +23,7 @@ function release(version, { sums = true, wrongSum = false, forPlatform = platfor
   const stage = path.join(scratch, `stage-${version}`)
   fs.mkdirSync(dir, { recursive: true })
   fs.mkdirSync(stage, { recursive: true })
-  fs.writeFileSync(path.join(stage, 'kition'), `#!/bin/sh\necho "kition ${version} (kit protocol kition-kit/2, index format 1)"\n`, { mode: 0o755 })
+  fs.writeFileSync(path.join(stage, 'kition'), `#!/bin/sh\necho "kition ${version} (kit protocol kition-kit/1, index format 1)"\n`, { mode: 0o755 })
   fs.writeFileSync(path.join(stage, 'LICENSE'), 'license')
   const archive = `kition-${version}-${forPlatform}.tar.gz`
   execFileSync('tar', ['-czf', path.join(dir, archive), '-C', stage, 'kition', 'LICENSE'])
@@ -73,7 +73,7 @@ function install(args = [], env = {}) {
 describe.runIf(process.platform !== 'win32')('install.sh', () => {
   it('installs the latest kition for this platform into $KITION_HOME/bin and says how to put it on the PATH', async () => {
     const result = await install()
-    expect(result.stderr).toContain(`installed kition 9.9.9 (kit protocol kition-kit/2, index format 1) as ${result.kitionHome}/bin/kition`)
+    expect(result.stderr).toContain(`installed kition 9.9.9 (kit protocol kition-kit/1, index format 1) as ${result.kitionHome}/bin/kition`)
     expect(result.status).toBe(0)
     expect(result.stdout).toBe('')
     expect(execFileSync(path.join(result.kitionHome, 'bin', 'kition'), { encoding: 'utf8' })).toContain('kition 9.9.9')

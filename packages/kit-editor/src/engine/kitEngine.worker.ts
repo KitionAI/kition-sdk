@@ -198,7 +198,7 @@ function member<K extends 'version' | 'exportChanges' | 'importChanges' | 'snaps
   return method.bind(open) as NonNullable<KitModuleDocument[K]>
 }
 
-/** The SDK's own `docId` (`replica/info`, protocol minor version 1.3), or `null` when the
+/** The SDK's own `docId` (`replica/info`), or `null` when the
  * engine's document has none. */
 export function replicaDocId(open: KitModuleDocument): string | null {
   return typeof open.docId === 'string' ? open.docId : null
@@ -206,7 +206,7 @@ export function replicaDocId(open: KitModuleDocument): string | null {
 
 /**
  * The blobs a `replicaExport` sends alongside its changes: only what changed since `since` when
- * the SDK can tell narrower than its whole bundle (`blobsSince`, protocol minor version 1.3),
+ * the SDK can tell narrower than its whole bundle (`blobsSince`),
  * else every blob the replica references.
  */
 export function replicaBlobsSince(open: KitModuleDocument, since: Uint8Array): Uint8Array {

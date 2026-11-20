@@ -43,7 +43,7 @@ read them by knowing the file format, which a host must not do:
 ```json
 "headless": {
   "executable": "example-pages",
-  "protocol": "kition-kit/2",
+  "protocol": "kition-kit/1",
   "features": ["view.describe", "document.check"],
   "capabilities": ["document-text"]
 }

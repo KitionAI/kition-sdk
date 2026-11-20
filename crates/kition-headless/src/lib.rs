@@ -10,7 +10,7 @@
 //! }
 //! ```
 //!
-//! Files (Kit Process Protocol version 2, section 5): the kit touches no file itself. It opens and
+//! Files (Kit Process Protocol, section 5): the kit touches no file itself. It opens and
 //! saves a document through the host's `files.*` on the handle the host gave it, and a save
 //! commits with the version it read, so a file someone changed meanwhile is a conflict, never
 //! overwritten. The files a document refers to are lent through [`kition_kit::host`]: the binding

@@ -125,11 +125,11 @@ export interface KitModuleDocument {
   /** Every blob the replica references, for `addBlobs`. */
   blobs?(): Uint8Array
   /** Only the blobs new changes since `since` may need, when the engine can tell; narrower than
-   * `blobs()` for a client that already has most of them. Protocol minor version 1.3. */
+   * `blobs()` for a client that already has most of them. */
   blobsSince?(since: Uint8Array): Uint8Array
   addBlobs?(blobs: Uint8Array): void
   /** The replica's own id (a sync room's `docId`), when the engine's document is tied to one.
-   * Protocol minor version 1.3; absent (not merely empty) means the engine has none. */
+   * Absent (not merely empty) means the engine has none. */
   readonly docId?: string
   /** Undo and redo of the engine's own history (contract 2); `undo()` answers `{"done", "damage"}`. */
   canUndo?(): boolean

@@ -252,7 +252,7 @@ unchanged with a newer embed.
   { save?, origin: 'system', originLabel? })` runs the command as a change
   the page makes on the person's behalf (a feature syncing mail into the
   open table), not as the agent: the embed sends `ai/run` with `origin:
-  "system"` and `originLabel` (Kit UI protocol 2.7, section 2), and the kit
+  "system"` and `originLabel` (Kit UI protocol section 2), and the kit
   runs it as the KDM `system` origin with that label, the same change Kit
   Process Protocol's `commands.execute` with origin `system` makes on a closed
   document. It is a step of no undo history: neither the person's Undo nor

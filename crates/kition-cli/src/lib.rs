@@ -23,7 +23,7 @@ pub mod supply;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The Kit Process Protocol this program's hosts speak, as kit manifests and the index name it:
-/// `kition-kit/2`.
+/// `kition-kit/1`.
 pub fn protocol() -> String {
     format!("kition-kit/{}", kition_kit_process_protocol::PROTOCOL_VERSION)
 }

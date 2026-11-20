@@ -18,7 +18,7 @@ afterEach(() => {
   for (const dir of scratch.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-const kit = { kit: 'note', id: 'kit.note', version: '0.3.0', repository: 'KitionAI/kition-note', tag: 'package-v0.3.0', commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), url: 'https://example.invalid/kition-note-0.3.0.tgz', protocol: 'kition-kit/2', manifest: 'kits/note/kit.json', file: 'kits/kition-note-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }
+const kit = { kit: 'note', id: 'kit.note', version: '0.3.0', repository: 'KitionAI/kition-note', tag: 'package-v0.3.0', commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), url: 'https://example.invalid/kition-note-0.3.0.tgz', protocol: 'kition-kit/1', manifest: 'kits/note/kit.json', file: 'kits/kition-note-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }
 
 /** A bundle manifest as sdk-bundle.mjs writes it. */
 function manifest(platform, overrides = {}) {
@@ -31,8 +31,8 @@ function manifest(platform, overrides = {}) {
     packages: [{ name: '@kition/embed', version: '9.9.9', file: 'npm/kition-embed-9.9.9.tgz', size: 1, sha256: 'e'.repeat(64) }],
     kits: [kit],
     binaries: [
-      { name: 'kition-kits-mcp', protocol: 'kition-kit/2', file: `bin/${platform}/kition-kits-mcp${exe}`, size: 1, sha256: 'f'.repeat(64) },
-      { name: 'kition-note', kit: 'note', kitVersion: '0.3.0', protocol: 'kition-kit/2', file: `bin/${platform}/kition-note${exe}`, size: 1, sha256: '0'.repeat(64) },
+      { name: 'kition-kits-mcp', protocol: 'kition-kit/1', file: `bin/${platform}/kition-kits-mcp${exe}`, size: 1, sha256: 'f'.repeat(64) },
+      { name: 'kition-note', kit: 'note', kitVersion: '0.3.0', protocol: 'kition-kit/1', file: `bin/${platform}/kition-note${exe}`, size: 1, sha256: '0'.repeat(64) },
     ],
     docs: [],
     ...overrides,
@@ -61,7 +61,7 @@ const gatheredIndex = () => ({
       id: 'kit.note',
       name: 'Note',
       extensions: ['md'],
-      versions: { '0.3.0': { protocol: 'kition-kit/2', platforms: { 'linux-x64': { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.3.0/kition-note-0.3.0-linux-x64.tar.gz', size: 10, sha256: '9'.repeat(64) } } } },
+      versions: { '0.3.0': { protocol: 'kition-kit/1', platforms: { 'linux-x64': { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.3.0/kition-note-0.3.0-linux-x64.tar.gz', size: 10, sha256: '9'.repeat(64) } } } },
     },
   },
 })
@@ -90,7 +90,7 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     const written = writeRelease(dir, '9.9.9')
     expect(written.tag).toBe('sdk-v9.9.9')
     expect(written.commit).toBe('d'.repeat(40))
-    expect(written.kits).toEqual([{ kit: 'note', id: 'kit.note', version: '0.3.0', repository: 'KitionAI/kition-note', tag: 'package-v0.3.0', commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), url: kit.url, protocol: 'kition-kit/2', manifest: 'kits/note/kit.json', asset: 'kition-note-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }])
+    expect(written.kits).toEqual([{ kit: 'note', id: 'kit.note', version: '0.3.0', repository: 'KitionAI/kition-note', tag: 'package-v0.3.0', commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), url: kit.url, protocol: 'kition-kit/1', manifest: 'kits/note/kit.json', asset: 'kition-note-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }])
     const darwin = written.platforms['darwin-arm64']
     expect(darwin.sha256).toBe(sha256(path.join(dir, 'kition-sdk-9.9.9-darwin-arm64.tar.gz')))
     expect(darwin.url).toBe('https://github.com/KitionAI/kition-sdk/releases/download/sdk-v9.9.9/kition-sdk-9.9.9-darwin-arm64.tar.gz')

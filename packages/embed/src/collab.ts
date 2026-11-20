@@ -138,7 +138,7 @@ async function snapshotBlobs(client: SyncClient, docId: string, snapshot: Uint8A
   return encodeBlobSection(entries)
 }
 
-/** Uploads a document's blobs for `docId`'s room (blobs are scoped to documents, protocol 1.5). */
+/** Uploads a document's blobs for `docId`'s room (blobs are scoped to documents). */
 async function uploadBlobs(client: SyncClient, docId: string, entries: BlobEntry[]) {
   if (!entries.length) return
   const { missing } = await client.blobs.has(docId, entries.map((entry) => entry.hash))
@@ -268,7 +268,7 @@ export class CollabSession {
   }
 
   /**
-   * In a managed room: what the kit opens with (Kit UI protocol 2.6) from the token, with the
+   * In a managed room: what the kit opens with from the token, with the
    * permissions as the sync server read them when it said (it verified the token), and the watermark.
    */
   get openDocument(): { permissions: { download: boolean; export: boolean; share: boolean }; watermark: { text: string } | null } | null {

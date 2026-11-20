@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | Protocol | `kition-sync/1` |
-| Version | 1.10: open-token rooms — `sync/hello` answers an open-token connection's `open` scope, `room/resolve` and `room/resolved` find a file generation's one room and give one editor the seed claim, `room/create` binds the room to the generation (section 3c, [managed-collab.md](../managed-collab.md)), and the room's save state machine (`save/begin`, `save/end`, `save/changed`, section 3d); 1.9: a person's documents — `rooms/list` and `rooms/changed` list every room the principal is a member of, private rooms (`room/create` with `private: true`) sync a document to its owner's own devices without a share link, and account settings (`account/settings`, `account/update`, `account/changed`) carry "sync all my documents" (section 3b); 1.8: shallow starts — `snapshot/get` and `room/join` (with `since: null`) answer a shallow snapshot of a large document on request (`shallow`, `prefer`), for a shallow replica ([`KitModel 1.0`](../sets/model.md) M16a) that reads older history from the server (sections 3 and 7); 1.7: server-side kits — previews (`preview/get`), exports (`export/get`), server-side agents (`agent/run`), and opt-in server validation of pushed changes (sections 4 and 8a); 1.6: the `commenter` role, whose pushes may only touch comments (sections 3 and 4), and member administration: `room/members`, `room/setRole`, `room/removeMember`, `room/revokeLink`, `room/access` (section 3a); 1.5: blobs scoped to documents (section 6), push checks (section 4), rate limits (section 1), catch-up from a snapshot past the retention window (section 3), history (section 7), leases for coordinated objects (section 8); 1.4: `room/link` mints view-only (or editing) share links (section 3); 1.3: `room/join` catch-up pages (section 3); 1.2 switched catch-up to server sequence instead of KDM version (also section 3); 1.1 added `room/open` (also section 3) |
+| Version | 1 |
 | Part of | [Kition kit platform](../index.md) edition 2026.11, L6 Collaboration ([`KitModel 1.0`](../sets/model.md)) |
 | Rust types | `kition-sync-protocol` (crates/kition-sync-protocol (Kition SDK: `crates/kition-sync-protocol`)) |
 | Client library | `@kition/sync` (packages/sync (Kition SDK: `packages/sync`)) |
@@ -440,7 +440,7 @@ otherwise).
 
 The receiver's account settings changed (on any of their connections).
 
-## 3c. Open-token rooms (1.10)
+## 3c. Open-token rooms
 
 A server that lists the capability `open-rooms` takes **open tokens**
 (`ko1.`, [`KitCollab 1.4`](../sets/collab.md) section 4a) as `token` in
@@ -498,7 +498,7 @@ has a room answers `conflict` with `error.data.docId` naming it, so the
 caller opens that room instead (`@kition/sync`'s `SyncRpcError.boundDocId`);
 a `docId` whose room belongs elsewhere answers `conflict` without it.
 
-## 3d. Saves (1.10)
+## 3d. Saves
 
 A server that lists `open-rooms` keeps one **save state** per room and
 applies every event to it in order ([managed-collab.md](../managed-collab.md)

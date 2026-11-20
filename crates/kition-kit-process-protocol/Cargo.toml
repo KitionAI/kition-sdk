@@ -1,6 +1,6 @@
 [package]
 name = "kition-kit-process-protocol"
-description = "Kit Process Protocol v2 message types, error codes, launch constants, and line framing shared by hosts and kits."
+description = "Kit Process Protocol message types, error codes, launch constants, and line framing shared by hosts and kits."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

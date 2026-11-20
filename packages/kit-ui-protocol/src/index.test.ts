@@ -10,7 +10,7 @@ function peers() {
   return { host, kit }
 }
 
-describe('replica/info and replica/changed (protocol minor version 1.3)', () => {
+describe('replica/info and replica/changed', () => {
   it('answers replica/info with the replica\'s own id, or null when it has none', async () => {
     const { host, kit } = peers()
     kit.handle('replica/info', () => ({ docId: 'room-1' }))
@@ -33,7 +33,7 @@ describe('replica/info and replica/changed (protocol minor version 1.3)', () => 
   })
 })
 
-describe('presence (protocol minor version 1.7)', () => {
+describe('presence', () => {
   it('checks a presence and a peer list from the other side', () => {
     expect(parsePresence(null)).toBeNull()
     expect(parsePresence({})).toEqual({ selection: [] })
@@ -55,7 +55,7 @@ describe('presence (protocol minor version 1.7)', () => {
   })
 })
 
-describe('document/schema (protocol minor version 1.8)', () => {
+describe('document/schema', () => {
   it('takes a report of a newer schema with whole numbers, and nothing else', () => {
     expect(parseSchemaReport({ reads: 1, newestAuthor: 2 })).toEqual({ reads: 1, newestAuthor: 2 })
     expect(parseSchemaReport({ reads: 2, newestAuthor: 2 })).toBeNull()
@@ -66,7 +66,7 @@ describe('document/schema (protocol minor version 1.8)', () => {
   })
 })
 
-describe('generation purposes (protocol minor version 2.4)', () => {
+describe('generation purposes', () => {
   it('are the defined ones, or the kit’s own as <kit>.<name>', () => {
     expect(GENERATE_PURPOSES).toEqual(['ai-field', 'rewrite'])
     for (const purpose of GENERATE_PURPOSES) expect(isGeneratePurpose(purpose)).toBe(true)
@@ -98,7 +98,7 @@ describe('host request refusals', () => {
   })
 })
 
-describe('picking a file to link (protocol minor version 2.5)', () => {
+describe('picking a file to link', () => {
   it('checks links/pick params', () => {
     expect(parseLinksPickParams({ purpose: 'library', accept: ['KDESIGN', 'kdesign', 'fig'] })).toEqual({ purpose: 'library', accept: ['kdesign', 'fig'], multiple: false })
     expect(parseLinksPickParams({ purpose: 'pictures', accept: ['png'], multiple: true })).toEqual({ purpose: 'pictures', accept: ['png'], multiple: true })
@@ -116,7 +116,7 @@ describe('picking a file to link (protocol minor version 2.5)', () => {
   })
 })
 
-describe('document permissions and watermark (protocol 2.6, managed co-editing D2)', () => {
+describe('document permissions and watermark (managed co-editing D2)', () => {
   it('allows everything when the host sends no permissions, and only true flags otherwise', () => {
     expect(parseDocumentPermissions(undefined)).toEqual({ download: true, export: true, share: true })
     expect(parseDocumentPermissions({ download: true, export: 1, share: false })).toEqual({ download: true, export: false, share: false })
@@ -132,7 +132,7 @@ describe('document permissions and watermark (protocol 2.6, managed co-editing D
   })
 })
 
-describe('host services and comment anchors (protocol 2.6, D4)', () => {
+describe('host services and comment anchors (D4)', () => {
   it('keeps well-formed anchors only', () => {
     expect(parseCommentAnchor({ ids: ['a', 'b'], range: { start: 1, end: 4 }, quote: 'abc', page: 2, label: 'Slide 3' })).toEqual({ ids: ['a', 'b'], range: { start: 1, end: 4 }, quote: 'abc', page: 2, label: 'Slide 3' })
     expect(parseCommentAnchor({ ids: [] })).toBeNull()
@@ -158,7 +158,7 @@ describe('host services and comment anchors (protocol 2.6, D4)', () => {
   })
 })
 
-describe('host services and the document`s permissions (protocol 2.6, UI-V3, UI-V4)', () => {
+describe('host services and the document`s permissions (UI-V3, UI-V4)', () => {
   it('allows each service only with the right it needs', () => {
     const viewer = { readOnly: true, permissions: { download: false, export: false, share: false } }
     const commenter = { readOnly: true, comments: { canComment: true }, permissions: { download: true, export: false, share: true } }

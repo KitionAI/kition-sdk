@@ -51,7 +51,7 @@ pub struct InitializeParams {
     pub host_services: Vec<String>,
 }
 
-/// The host serves `files.*` to the kit (`KitFiles 1.1` FA12); every version 2 host does.
+/// The host serves `files.*` to the kit (`KitFiles 1.1` FA12); every host does.
 pub const HOST_SERVICE_FILES: &str = "files";
 /// The host prints (`files.print`).
 pub const HOST_SERVICE_FILES_PRINT: &str = "files.print";

@@ -157,7 +157,7 @@ Server keeps a unique binding `(tenant, iss, file, doc_key) → docId`. A room's
 binding, not the UUID, carries authority, so a UUID claimed by a browser
 cannot attach one file's ACL to another file's room.
 
-New request `room/resolve` (sync protocol 1.10, open-token connections only):
+New request `room/resolve` (sync protocol, open-token connections only):
 
 | | |
 | --- | --- |
@@ -251,7 +251,7 @@ session saves.
 | `corrupted` | A save produced bytes the kit or host rejected; saving stops, editing continues; the host keeps the last good version and shows the error | a successful save, or a host restore (new generation) |
 | `closed` | Everyone left and the room is clean | the next join |
 
-Requests (sync protocol 1.10):
+Requests (sync protocol):
 
 - `save/begin { docId, trigger }` → `{ save, seq, authors, receipt }`. Moves the room to
   `force-save` for this connection (an editor), or answers `conflict` while
@@ -335,7 +335,7 @@ types are in `kition-sync-protocol::messages` (`SaveState`, `SaveStatus`,
 
 ## 4. Host services and comment anchors
 
-### 4.1 `host/service` (Kit UI protocol 2.6, capability `service:<id>`)
+### 4.1 `host/service` (Kit UI protocol, capability `service:<id>`)
 
 A kit asks the host for anything that needs the host's people, files,
 dialogs or permissions, so every kit behaves like a native part of the host.
@@ -482,7 +482,7 @@ The SDK provides these integration points:
 
 - Open tokens: `kition-open-token` and `@kition/sync/openToken`; Kit UI protocol
   `document.permissions` and `document.watermark`.
-- Per-file rooms: sync protocol 1.10 section 3c (`room/resolve`, `room/resolved`, the
+- Per-file rooms: sync protocol section 3c (`room/resolve`, `room/resolved`, the
   hello `open` scope, bound `room/create`), with the reference server in
   `packages/sync/test/helpers.ts`; `@kition/embed` gives each open-token
   editor its own connection for its file, seeds a room once, reseeds from the

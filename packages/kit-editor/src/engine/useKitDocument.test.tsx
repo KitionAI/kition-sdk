@@ -267,7 +267,7 @@ describe('useKitDocument save over a file changed on disk', () => {
   })
 })
 
-describe('useKitDocument and a co-editor`s save it already holds (document/held, protocol 2.6)', () => {
+describe('useKitDocument and a co-editor`s save it already holds (document/held)', () => {
   async function open(file: { stamp: string }) {
     const engine = fakeEngine()
     const fileHost = { read: async () => ({ bytes: new ArrayBuffer(1), stamp: file.stamp }), stamp: async () => file.stamp, write: async () => 'v9' } as unknown as KitHost
