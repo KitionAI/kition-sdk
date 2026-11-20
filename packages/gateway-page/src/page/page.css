@@ -206,6 +206,7 @@ body {
   z-index: 10;
 }
 .dialog {
+  --dialog-padding: 16px;
   background: var(--surface);
   color: var(--text);
   border-radius: 12px;
@@ -213,7 +214,7 @@ body {
   width: min(880px, 100%);
   max-height: 100%;
   overflow: auto;
-  padding: 16px;
+  padding: var(--dialog-padding);
 }
 .dialog__head {
   display: flex;
@@ -257,6 +258,13 @@ body {
   bottom: 0;
   background: var(--surface);
   padding-top: 8px;
+}
+/* In the dialog the buttons sit on its bottom edge: the dialog's padding below them is theirs, so
+   nothing scrolls past under them. */
+.dialog .review__actions {
+  bottom: calc(-1 * var(--dialog-padding));
+  margin-bottom: calc(-1 * var(--dialog-padding));
+  padding-bottom: var(--dialog-padding);
 }
 .sides {
   display: grid;
@@ -351,7 +359,22 @@ ins {
     flex-wrap: wrap;
   }
   .dialog {
-    padding: 12px;
+    --dialog-padding: 12px;
+  }
+}
+/* A frame narrower than the dialog's own width and its margins, or a short one (a sidebar tab, a
+   floating window): the review takes the whole frame instead of a box with the page peeking
+   around it. */
+@media (max-width: 911px), (max-height: 479px) {
+  .backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+  .dialog {
+    width: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

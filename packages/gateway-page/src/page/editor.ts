@@ -274,7 +274,7 @@ export class EditorView {
       button.addEventListener('click', () => this.review())
       banner.replaceChildren(h('span', { class: 'banner__text' }, next.state === 'ready' ? t('draftBannerReady') : t('draftBanner')), button)
       banner.dataset.state = next.state
-      banner.hidden = false
+      banner.hidden = this.reviewing !== null
     }
     const listener = (method: string, params: Record<string, unknown>) => {
       if (method === 'kit/draftsChanged' && (!params.path || params.path === this.path)) void refresh()
@@ -294,9 +294,14 @@ export class EditorView {
   review() {
     if (this.reviewing) return
     const content = h('div', { class: 'review-host' })
+    // The banner that opened the review is not shown behind it.
+    const banner = this.root.querySelector<HTMLElement>('.banner')
+    const bannerShown = banner ? !banner.hidden : false
+    if (banner) banner.hidden = true
     const opened = dialog(t('reviewTitle', { name: nameOf(this.path) }), content, () => {
       review.close()
       this.reviewing = null
+      if (banner && bannerShown && this.draft) banner.hidden = false
     }, t('close'))
     const review = mountReview(this.gateway, this.path, content, {
       beforeMerge: () => (this.dirty ? t('reviewSaveFirst') : null),

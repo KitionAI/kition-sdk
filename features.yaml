@@ -515,7 +515,7 @@ features:
       - sdk.distribution.kition/install
     since: "2026-11-17"
   - id: sdk.distribution.kits-index
-    title: "The kit index kition reads by default is gathered from every kit repository's package-v<version> releases: each release's index fragment, with archives its fragment lacks added from the release's asset metadata; a release without a fragment is skipped and named, a fragment that disagrees with its release or a repository that cannot be listed stops the run, and an empty index is never published; the workflow publishes it on the branch kits-index only when it changed"
+    title: "The kit index kition reads by default is gathered from every kit repository's package-v<version> releases: each release's index fragment, with archives its fragment lacks added from the release's asset metadata, and the extensions each kit only views from its kit.json at its newest version's tag; a release without a fragment is skipped and named, a fragment that disagrees with its release or a repository that cannot be listed stops the run, and an empty index is never published; the workflow publishes it on the branch kits-index only when it changed"
     dimension: [platform, security]
     priority: P1
     status: has
@@ -1967,11 +1967,11 @@ features:
       - sdk.gateway.editor-packages/serve
     since: "2026-11-19"
   - id: sdk.gateway.page
-    title: "kition gateway serves an editor page (/page/?path=<file>) that opens one workspace file in its kit's own editor over the Kit UI protocol (host read, stamp, version-checked atomic write, replicas, KitFiles, theme, locale, shortcuts, Focus mode when narrow) and is the Kit AI bridge's window for it (kit/documents with the kit's capabilities; kit/call including version, changes and premise; reconnecting), under any proxy prefix with the proxy's token or opened directly through a one-time signed bootstrap traded for a page session; it shows why it cannot open a file, installs a missing editor with its progress, and speaks a postMessage protocol with a framing host"
+    title: "kition gateway serves an editor page (/page/?path=<file>) that opens one workspace file in its kit's own editor over the Kit UI protocol (host read, stamp, version-checked atomic write, replicas, KitFiles, theme, locale, shortcuts, Focus mode when narrow) and is the Kit AI bridge's window for it (kit/documents with the kit's capabilities; kit/call including version, changes and premise; reconnecting), under any proxy prefix with the proxy's token or opened directly through a one-time signed bootstrap traded for a page session; it shows why it cannot open a file, installs a missing editor with its progress, asks before unsaved edits are lost unless a framing host asks itself (closing=host), and speaks a postMessage protocol with a framing host"
     dimension: [platform, ai, security]
     priority: P1
     status: partial
-    gap: "A kit's view-only formats (GET /kits views, opened read-only) are known only for installed kits: the kit index lists edit formats only; no host/pick, print, links/pick, open-file, generate or co-editing (leases, presence); the KitFiles picker is a plain list of the gateway's choices; the person's own undo (Cmd+Z) leaves an agent's live edit, which the agent's undo scope takes back (KitModel M12a)"
+    gap: "No host/pick, print, links/pick, open-file, generate or co-editing (leases, presence); the KitFiles picker is a plain list of the gateway's choices; the person's own undo (Cmd+Z) leaves an agent's live edit, which the agent's undo scope takes back (KitModel M12a)"
     paths:
       - packages/gateway-page/**
       - crates/kition-kits-http/src/page.rs

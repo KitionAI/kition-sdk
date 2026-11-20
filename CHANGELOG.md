@@ -97,9 +97,15 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   says how), and are listed again after an upgrade.
 - **View-only formats open read-only**: `GET /api/v1/kits` lists each kit's `views` (its `view`
   formats no kit edits there), and the gateway's page opens such a file in the kit's editor
-  read-only (`state` gains `readOnly`). The page also takes a host's extra shortcuts (`keys=`),
-  opens without taking the focus (`focus=no`), opens the draft's review on a host's `review`
-  command, and takes a merge made outside it (a host's review card).
+  read-only (`state` gains `readOnly`). The kit index lists the extensions each kit only views
+  (`views`, from its `kit.json` at its newest version's tag; schema field added, read by older
+  `kition`s as nothing), so such a file opens before the kit is installed. The page also takes a
+  host's extra shortcuts (`keys=`), opens without taking the focus (`focus=no`), leaves the
+  question before unsaved edits are lost to a host that asks itself (`closing=host`: an Electron
+  window, which shows no page's question, refused to close instead), opens the draft's review on a
+  host's `review` command, and takes a merge made outside it (a host's review card). The page's
+  review fills a frame narrower than its dialog, the banner hidden behind it, and its buttons sit on
+  the dialog's bottom edge.
 - **One skill generator for both agent plugins**: `tools/agent-plugin-skills.mjs` (was
   `tools/claude-plugin-skills.mjs`) writes and checks the Claude Code and DeepSeek Harness skills
   (`--target claude-code|deepseek-harness`, both by default); its test is

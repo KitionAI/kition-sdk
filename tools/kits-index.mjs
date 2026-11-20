@@ -33,7 +33,9 @@
 //   run. So does a repository whose Releases cannot be listed and a fragment that cannot be read:
 //   a failure never yields a smaller index.
 // - A kit's id, name and extensions come from the fragment of its newest version; each version
-//   keeps the protocol its own fragment declares.
+//   keeps the protocol its own fragment declares. The extensions it only views (`views`, opened
+//   read-only) come from the `kit.json` at that version's tag: the fragments list only the
+//   extensions a kit edits.
 // - A version's editor package (`ui`) is the Release's `kition-<kit>-<version>.tgz`, which the
 //   kit's Package workflow publishes with its entry `kition-<kit>-<version>.json` (its size and
 //   SHA-256; KitionAI/kition scripts/package-kit.sh): the index takes its address and size from
@@ -179,7 +181,7 @@ export function ordered(index) {
       versions[version] = { protocol: entry.protocol, platforms }
       if (entry.ui) versions[version].ui = { url: entry.ui.url, size: entry.ui.size, sha256: entry.ui.sha256 }
     }
-    kits[name] = { id: kit.id, name: kit.name, extensions: kit.extensions, versions }
+    kits[name] = { id: kit.id, name: kit.name, extensions: kit.extensions, ...(kit.views?.length ? { views: kit.views } : {}), versions }
   }
   return { schemaVersion: 1, kits }
 }
@@ -331,10 +333,13 @@ export async function gatherIndex({ kits, net }) {
     if (found.length) {
       found.sort((a, b) => compareVersions(a.version, b.version))
       const newest = found[found.length - 1].entry
+      const views = await viewsAt(net, repository, `${TAG_PREFIX}${found[found.length - 1].version}`, newest.extensions)
+      if (views === null) done.viewsUnread = true
       index.kits[kit] = {
         id: newest.id,
         name: newest.name,
         extensions: newest.extensions,
+        ...(views?.length ? { views } : {}),
         versions: Object.fromEntries(found.map(({ version, entry, platforms, ui }) => [version, { protocol: entry.protocol, platforms, ...(ui ? { ui } : {}) }])),
       }
     }
@@ -344,6 +349,37 @@ export async function gatherIndex({ kits, net }) {
   const problems = schemaProblems(result)
   if (problems.length) throw new Error(`the index gathered would not be a kit index:\n  ${problems.join('\n  ')}`)
   return { index: result, report }
+}
+
+/**
+ * The extensions a kit only views, as the `kit.json` at its Release's tag declares them: its
+ * `view` formats that no `edit` format covers (Vector's .svg, Sheet's .csv), lowercase. The
+ * fragments list only the extensions a kit edits; the tag's `kit.json` is the one the Release was
+ * built from. `[]` when it views nothing, `null` when it cannot be read.
+ */
+export async function viewsAt(net, repository, tag, edits) {
+  let file
+  try {
+    file = await net(`${API}/repos/${repository}/contents/kit.json?ref=${encodeURIComponent(tag)}`, { as: 'json' })
+  } catch {
+    return null
+  }
+  let manifest
+  try {
+    manifest = JSON.parse(Buffer.from(String(file?.content ?? ''), file?.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8'))
+  } catch {
+    return null
+  }
+  const edited = new Set(edits)
+  const views = []
+  for (const format of Array.isArray(manifest?.formats) ? manifest.formats : []) {
+    if (format?.role !== 'view' || !Array.isArray(format.extensions)) continue
+    for (const raw of format.extensions) {
+      const extension = String(raw).replace(/^\./, '').toLowerCase()
+      if (/^[a-z][a-z0-9]*$/.test(extension) && !edited.has(extension) && !views.includes(extension)) views.push(extension)
+    }
+  }
+  return views
 }
 
 /**
@@ -402,8 +438,9 @@ export function compareIndexes(previous, index) {
 /** The report as text lines. */
 export function reportLines({ index, report }, previous) {
   const lines = []
-  for (const { kit, repository, versions, skipped, added, editors = [] } of report) {
+  for (const { kit, repository, versions, skipped, added, editors = [], viewsUnread } of report) {
     lines.push(`${kit} (${repository}): ${versions.length ? versions.join(', ') : 'no version'}`)
+    if (viewsUnread) lines.push('  no views: its kit.json at the newest version\'s tag cannot be read')
     const without = versions.filter((version) => !editors.includes(version))
     if (versions.length && without.length) lines.push(`  no editor package: ${without.join(', ')}`)
     for (const { tag, why } of skipped) lines.push(`  skipped ${tag}: ${why}`)

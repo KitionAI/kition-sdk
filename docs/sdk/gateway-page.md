@@ -20,7 +20,7 @@ any prefix works.
 
 | Address | What |
 | --- | --- |
-| `<root>page/?path=<file>[&theme=light\|dark][&locale=en\|zh][&keys=<shortcuts>][&focus=no]` | the editor of the workspace file `<file>` (workspace-relative, `/`-separated) |
+| `<root>page/?path=<file>[&theme=light\|dark][&locale=en\|zh][&keys=<shortcuts>][&focus=no][&closing=host]` | the editor of the workspace file `<file>` (workspace-relative, `/`-separated) |
 | `<root>page/review?path=<file>[&theme=…][&locale=…]` | the review of the agent's draft of `<file>` |
 | `<root>kits-ui/<kit>@<version>/<file>` | a kit's editor package (the page frames `index.html`) |
 | `<root>kit-files/<path>` | workspace files as kits read them |
@@ -30,12 +30,16 @@ The kit is chosen by the file's extension among the kits the gateway serves and 
 offers: a kit that edits the extension wins over one that only views it (`.html` and `.htm` go to
 the HTML kit, not to Doc). A type no kit edits but some kit views (its `view` formats, which
 `GET /api/v1/kits` lists as `views`: Vector's `.svg`, Sheet's `.csv`, Design's `.fig`) opens in that
-kit's editor read-only: nothing is saved, and the agent's runs on the open file are refused.
+kit's editor read-only: nothing is saved, and the agent's runs on the open file are refused. A kit
+not installed yet views what the kit index's `views` say.
 
 `keys` adds shortcuts the editor leaves to the host besides the page's own (space-separated, as kits
 write them: `keys=Cmd+Alt+, Cmd+Alt+W`): a browser host binds its own with Alt, the browser keeping
 Cmd+N and its kind. `focus=no` opens the editor without taking the keyboard focus (a window the
-person watches while typing elsewhere). The editor package is the version of the kit in use (else the newest the
+person watches while typing elsewhere). `closing=host` leaves the question before unsaved edits are
+lost to the host: the page asks nothing when it unloads (its `beforeunload`), for a host that asks
+before it closes the page, and one in an Electron app, which shows no page's question and refuses
+to close the window instead. The editor package is the version of the kit in use (else the newest the
 index offers); when it is not installed the page installs it and shows the download's progress.
 
 The page shows a state instead of the editor when it cannot open the file, and tells the host

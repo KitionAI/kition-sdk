@@ -98,8 +98,10 @@ async function start() {
         break
     }
   })
-  // Unsaved edits are not lost to a closed tab without the person being asked.
-  window.addEventListener('beforeunload', (event) => {
+  // Unsaved edits are not lost to a closed tab without the person being asked; a host that asks
+  // itself (`closing=host`) gets no question from the page: in an Electron app nobody shows it, and
+  // the window then refuses to close, silently.
+  if (params.get('closing') !== 'host') window.addEventListener('beforeunload', (event) => {
     if (!editor.unsaved) return
     event.preventDefault()
     event.returnValue = ''

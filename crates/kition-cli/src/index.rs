@@ -49,6 +49,10 @@ pub struct IndexKit {
     pub name: String,
     /// The extensions it edits, lowercase, without the dot.
     pub extensions: Vec<String>,
+    /// The extensions it only views (opened read-only), lowercase, without the dot; absent from an
+    /// index made before the index listed them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub views: Vec<String>,
     /// Each version (semver) published.
     pub versions: BTreeMap<String, IndexVersion>,
 }

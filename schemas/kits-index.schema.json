@@ -29,6 +29,12 @@
           "description": "The extensions it edits (kit.json formats with role `edit`), lowercase, without the dot.",
           "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" }
         },
+        "views": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "The extensions it only views (kit.json formats with role `view` that no `edit` format covers), lowercase, without the dot: an editor opens them read-only. Optional.",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" }
+        },
         "versions": {
           "type": "object",
           "description": "Each published version, by its semver.",

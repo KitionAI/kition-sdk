@@ -106,9 +106,12 @@ and every hour, with `tools/kits-index.mjs`:
   no longer holds, or at another address, size or SHA-256 than the Release's, stops the run; so
   does a repository whose Releases cannot be listed or a fragment that cannot be read. A failure
   never publishes a smaller index.
-- A kit's id, name and extensions come from its newest version's fragment; each version keeps the
-  Kit Process Protocol its fragment declares. The index is checked against its schema and written
-  in a fixed order, so the same Releases give the same bytes.
+- A kit's id, name and extensions come from its newest version's fragment; the extensions it only
+  views (its `kit.json`'s `view` formats, which fragments do not carry) come from the `kit.json` at
+  that version's tag, listed as the kit's `views`, so a gateway opens them read-only before the kit
+  is installed. When that `kit.json` cannot be read the kit has no `views` and the run says so.
+  Each version keeps the Kit Process Protocol its fragment declares. The index is checked against
+  its schema and written in a fixed order, so the same Releases give the same bytes.
 - An index with no kit is never published: the one published stays.
 - The workflow commits the index on the branch only when its bytes changed, without force, so the
   branch's history is the index's history.

@@ -6,8 +6,8 @@ intent: >-
   release assets; GATEWAY_E2E_INDEX names an index with editor packages, kept in GATEWAY_E2E_CACHE),
   a real kition gateway and a real relayed kition mcp: a request without a credential is refused;
   the address kition gateway url prints opens the Table file directly, leaves no bootstrap in the
-  address bar and lets no second tab in; a cell edited and saved changes the file on disk and the
-  editor is clean; behind a same-origin proxy under /kition/ (which adds the token and drops Origin
+  address bar and lets no second tab in; a cell edited asks before the page is left (declined, the
+  edit stays), and saved changes the file on disk and the editor is clean; behind a same-origin proxy under /kition/ (which adds the token and drops Origin
   and Cookie) the Note editor loads everything through the prefix, an agent's kit_run arrives in the
   open editor's engine with live true and no reload, and is taken back in its history (the agent's
   undo scope) live; with no editor open the same call runs headless and an editor opened then shows

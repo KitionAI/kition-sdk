@@ -51,6 +51,8 @@ function fakeGithub(repos, { fail = [] } = {}) {
           add(`kition-${kit}-${release.version}.json`, Buffer.from(JSON.stringify(entry)))
         }
       }
+      // The kit.json at the Release's tag, as the GitHub contents API answers it (`manifest`).
+      if (release.manifest) files.set(`https://api.github.com/repos/${repository}/contents/kit.json?ref=${encodeURIComponent(tag)}`, Buffer.from(JSON.stringify({ encoding: 'base64', content: Buffer.from(JSON.stringify(release.manifest)).toString('base64') })))
       const archives = {}
       for (const platform of release.platforms ?? []) {
         const bytes = Buffer.from(`${kit} ${release.version} ${platform}`)
@@ -123,6 +125,28 @@ describe('kits-index: the kit index gathered from the kit repositories', () => {
       ui: { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.1.0/kition-note-0.1.0.tgz', size: Buffer.from('note package 0.1.0').length, sha256: sha256(Buffer.from('note package 0.1.0')) },
     })
     expect(report.map(({ kit, versions, skipped }) => [kit, versions, skipped])).toEqual([['note', ['0.1.0'], []], ['table', ['0.4.0', '0.5.4'], []]])
+  })
+
+  it('lists the extensions a kit only views, from the kit.json at its newest version’s tag, and none when it cannot be read', async () => {
+    const formats = [
+      { id: 'xlsx', extensions: ['xlsx'], role: 'edit' },
+      { id: 'csv', extensions: ['csv', '.ODS', 'xlsx'], role: 'view' },
+    ]
+    const repos = {
+      'KitionAI/kition-sheet': { kit: 'sheet', extensions: ['xlsx'], releases: [{ version: '0.1.0', platforms: ALL, manifest: { formats: [] } }, { version: '0.1.1', platforms: ALL, manifest: { formats } }] },
+      'KitionAI/kition-note': { kit: 'note', releases: [{ version: '0.1.0', platforms: ALL }] },
+    }
+    const { net, seen } = fakeGithub(repos)
+    const gathered = await gatherIndex({ kits: kitsOf(repos), net })
+    const { index, report } = gathered
+    expect(schemaProblems(index)).toEqual([])
+    expect(index.kits.sheet.views).toEqual(['csv', 'ods'])
+    expect(seen).toContain('https://api.github.com/repos/KitionAI/kition-sheet/contents/kit.json?ref=package-v0.1.1')
+    // No kit.json to read: no views, and the report says so.
+    expect(index.kits.note.views).toBeUndefined()
+    expect(report.find((entry) => entry.kit === 'note').viewsUnread).toBe(true)
+    expect(reportLines(gathered)).toContain("  no views: its kit.json at the newest version's tag cannot be read")
+    expect(reportLines(gathered).filter((line) => line.includes('no views'))).toHaveLength(1)
   })
 
   it('gives the same bytes for the same Releases, whatever order they are listed in', async () => {

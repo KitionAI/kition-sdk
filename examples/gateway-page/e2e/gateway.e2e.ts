@@ -53,6 +53,15 @@ test('direct opening lets one tab in, refuses a request without a credential, an
     await page.keyboard.type('Edited by the person')
     await page.keyboard.press('Enter')
     await page.waitForTimeout(500)
+    // Unsaved, leaving the page asks first; declined, the edit stays.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { kitionGatewayPage: { state: { dirty: boolean } } }).kitionGatewayPage.state.dirty)).toBe(true)
+    const leaving = page.waitForEvent('dialog')
+    void page.evaluate(() => location.reload()).catch(() => undefined)
+    const question = await leaving
+    expect(question.type()).toBe('beforeunload')
+    await question.dismiss()
+    expect(await page.evaluate(() => (window as unknown as { kitionGatewayPage: { state: { dirty: boolean } } }).kitionGatewayPage.state.dirty)).toBe(true)
+    await page.mouse.click(178, 400)
     await page.keyboard.press('Meta+S')
     await expect.poll(() => fs.readFileSync(path.join(workspace, 'tasks.ktable')).includes('Edited by the person'), { timeout: 30_000 }).toBe(true)
     expect(Buffer.compare(before, fs.readFileSync(path.join(workspace, 'tasks.ktable')))).not.toBe(0)

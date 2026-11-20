@@ -6,7 +6,8 @@ intent: >-
   page by page, and merges the releases' index fragments into one index valid against its schema,
   at the kit repositories' addresses, byte for byte the same whatever order the releases come in;
   a kit's id, name and extensions come from its newest version, each version keeps its own
-  protocol. A release without a fragment, a draft or another tag is skipped and named; an archive
+  protocol, and the extensions it only views come from its kit.json at its newest version's tag
+  (the run says so when that cannot be read). A release without a fragment, a draft or another tag is skipped and named; an archive
   the release holds and its fragment does not list is added from the asset's digest, or hashed
   when GitHub gives none. A fragment that is not an index of that one kit version, or that names
   an archive the release no longer holds or with another address, size or SHA-256, stops the run,

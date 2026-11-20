@@ -40,7 +40,7 @@ fn placeholder(name: &str, kit: &index::IndexKit) -> Option<&'static KitDefiniti
         "id": kit.id,
         "name": kit.name,
         "version": kit.latest().map(|version| version.to_string()).unwrap_or_default(),
-        "formats": [{ "id": name, "extensions": kit.extensions, "role": "edit" }],
+        "formats": [{ "id": name, "extensions": kit.extensions, "role": "edit" }, { "id": format!("{name}-view"), "extensions": kit.views, "role": "view" }],
         "agent": { "prefix": name },
     });
     KitDefinition::from_manifest(&manifest).ok()
@@ -146,4 +146,22 @@ pub fn for_mcp(store: Store, source: Source, installs: bool) -> (Vec<Found>, Opt
     let found = installed(&store);
     let supply: Arc<dyn KitSupply> = Arc::new(StoreSupply::new(store, source, installs));
     (found, Some(supply))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kit_the_index_offers_opens_what_it_views_read_only() {
+        let kit: index::IndexKit =
+            serde_json::from_value(json!({ "id": "kit.sheet", "name": "Sheet", "extensions": ["xlsx"], "views": ["csv", "ods"], "versions": {} }))
+                .unwrap_or_else(|error| panic!("{error}"));
+        let definition = placeholder("sheet", &kit).unwrap_or_else(|| panic!("a definition"));
+        assert_eq!((definition.extensions, definition.views), (&["xlsx"][..], &["csv", "ods"][..]));
+        let older: index::IndexKit =
+            serde_json::from_value(json!({ "id": "kit.note", "name": "Note", "extensions": ["md"], "versions": {} })).unwrap_or_else(|error| panic!("{error}"));
+        assert!(older.views.is_empty(), "an index without views reads as none");
+        assert!(placeholder("note", &older).unwrap_or_else(|| panic!("a definition")).views.is_empty());
+    }
 }
