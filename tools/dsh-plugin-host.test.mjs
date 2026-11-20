@@ -185,7 +185,8 @@ describe('finding kition', () => {
   })
 })
 
-describe('the gateways', () => {
+// Each test starts stand-in kitions (Node processes), and asks each new one for its gateway command.
+describe('the gateways', { timeout: 30_000 }, () => {
   const kition = fakeBin()
 
   it('starts one gateway per workspace on first need and reuses it', async () => {

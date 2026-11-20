@@ -78,7 +78,8 @@ function install(args = [], env = {}) {
   })
 }
 
-describe.runIf(process.platform !== 'win32')('install.sh', () => {
+// Each test runs the script up to three times, with curl and tar: seconds alone, more on a busy machine.
+describe.runIf(process.platform !== 'win32')('install.sh', { timeout: 60_000 }, () => {
   it('installs the latest kition for this platform into $KITION_HOME/bin and says how to put it on the PATH', async () => {
     const result = await install()
     expect(result.stderr).toContain(`installed kition 9.9.9 (kit protocol kition-kit/1, index format 2) as ${result.kitionHome}/bin/kition (from ${good.url})`)
