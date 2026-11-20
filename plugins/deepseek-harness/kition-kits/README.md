@@ -80,14 +80,18 @@ when set, else the registry your `~/.npmrc` names, else registry.npmjs.org, else
 registry.npmmirror.com, each checked against the integrity the kit index gives (kition-sdk's
 `docs/sdk/cli.md`, "The registries"). Nothing is downloaded from GitHub.
 
-Which `kition` runs, in this order:
+Which `kition` runs, in this order, each only if it has the `gateway` command (the plugin asks
+it with `kition gateway --help`; an older one is passed over, never started to fail):
 
 1. `KITION_BIN`, when you set it (a development build, for one);
 2. `KITION_KITS_MCP`, when it names a `kition` (then the draft skills' server is the gateways' too);
 3. the plugin's own, from `@kition/cli-<platform>` beside it;
 4. a `kition` you installed (on the `PATH`, else in `~/.kition/bin`, `~/.cargo/bin`,
-   `/usr/local/bin`, `/opt/homebrew/bin`), only if it has the `gateway` command: an older one is
-   passed over, never started to fail.
+   `/usr/local/bin`, `/opt/homebrew/bin`).
+
+When the plugin's own is too old (a registry served an older `@kition/cli-<platform>` under the
+version the plugin depends on) and no other runs, the Kition tab and `kition_setup` name its file
+and version and say to add the plugin again or install a newer `kition`.
 
 Elsewhere (a platform without a package, such as Linux with musl or FreeBSD; an install with
 optional dependencies left out, `--omit=optional` or `--no-optional`; a plugin added from a folder,

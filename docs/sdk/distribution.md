@@ -239,6 +239,12 @@ registry) as DeepSeek Harness does, and runs the `kition` it brings.
   only what npm lacks: no draft, no bundle, no new release. The `@kition/cli-<platform>` packages
   carry the `kition` of the release's own `kition-<version>-<platform>.tar.gz`, checked against
   its `SHA256SUMS`, not a new build. From any other commit the run stops.
+- **npm already has `@kition/cli`, a `@kition/cli-<platform>` or `@kition/dsh-kits` of the version
+  with other bytes** (a version released before, such as 0.5.2, whose `kition` has no `gateway`):
+  the run stops before publishing it, since npm never replaces a version and the plugin would
+  install that other `kition`. Bump `sdk.json`'s version and release again. Every platform's
+  `kition` must also answer `kition gateway --help` in its smoke test before anything is
+  published.
 
 ## After a release
 

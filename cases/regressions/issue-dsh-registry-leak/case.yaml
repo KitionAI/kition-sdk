@@ -1,0 +1,30 @@
+format: 1
+id: regressions/issue-dsh-registry-leak
+feature: sdk.agent.dsh-plugin
+intent: >-
+  The plugin's install in the tests and in the release's check takes @kition/cli and
+  @kition/cli-<platform> from the local registry only, whatever npm and pnpm settings the runner
+  carries: `npm run`, `npm exec` and `npx` give their children npm_config_userconfig, the
+  person's own ~/.npmrc, which pnpm then read instead of the test HOME's, so the @kition scope fell
+  through to registry.npmjs.org, whose @kition/cli 0.5.2 of the same version has no gateway, and
+  the e2e's tab said "kition: unknown command gateway". The test shows that leak with a "public"
+  registry serving a stale kition of the same version, then installs with hermeticInstallEnv: the
+  local registry served both packages, the kition installed is byte for byte the one packed, and it
+  answers `kition gateway --help`. The plugin never starts a kition without the gateway command:
+  its own, KITION_BIN and KITION_KITS_MCP are asked like a system one, a capable kition after them
+  is taken, and otherwise the message names the file, its version and what to do.
+layer: gate
+source:
+  kind: probe
+  from: tools/dsh-plugin.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/dsh-plugin.test.mjs, tools/dsh-plugin-host.test.mjs, -t, "registry leak|without the gateway command"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-20"
+timeout_s: 300

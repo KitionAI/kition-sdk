@@ -4,6 +4,17 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The DeepSeek Harness plugin never starts a kition without the gateway command**: its own
+  kition, `KITION_BIN` and `KITION_KITS_MCP` are asked (`kition gateway --help`) like a system one;
+  a capable kition after an old one is taken, and otherwise the tab and `kition_setup` name the
+  old one's file and version and what to do. The plugin's tests and the release's check install it
+  from their local registry only (`hermeticInstallEnv`: none of the runner's npm or pnpm settings,
+  cache or store, since `npm run` and `npx` pass npm_config_userconfig, which made pnpm take npm's
+  `@kition/cli` 0.5.2, without the gateway, under the same version), check the registry served
+  `@kition/cli` and the platform package, and that the installed kition is the packed one; the
+  release stops when npm has kition's packages or the plugin of its version with other bytes, and
+  every platform's kition must answer `kition gateway --help` before anything is published
+  (regressions/issue-dsh-registry-leak).
 - **Kits, the kit index and `kition` come from npm, not GitHub** (feature
   `sdk.distribution.npm-registries`). Each kit version is published by its repository as the npm
   packages `@kition/kit-<kit>-<platform>` (`kit.json` and the executable) and `@kition/kit-<kit>-ui`

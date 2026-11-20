@@ -12,7 +12,10 @@
 // - `npm install @kition/dsh-kits` from those archives (as `dsh plugin add @kition/dsh-kits` installs
 //   it, with optional dependencies) brings this platform's kition, which the plugin finds
 //   (lib/kition.mjs bundledKition) and which answers --version with that version and has the
-//   gateway command.
+//   gateway command. The local registry is the install's only one (test/registry.mjs
+//   hermeticInstallEnv: none of the runner's npm settings, cache or store), it must have served
+//   the plugin, @kition/cli and this platform's package, and the kition installed must be byte for
+//   byte the one packed: npm's own packages of the same names and version never stand in.
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -46,7 +49,7 @@ export function checkManifests({ plugin, launcher, platforms }) {
 
 /** Installs the plugin by name from the archives, as DeepSeek Harness does, and runs its kition. */
 export async function checkInstall({ plugin, launcher, platforms }, version) {
-  const { startRegistry } = await import(pathToFileURL(path.join(root, 'plugins/deepseek-harness/kition-kits/test/registry.mjs')).href)
+  const { assertServed, hermeticInstallEnv, startRegistry } = await import(pathToFileURL(path.join(root, 'plugins/deepseek-harness/kition-kits/test/registry.mjs')).href)
   const scratch = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kition-dsh-package-')))
   try {
     const served = path.join(scratch, 'registry')
@@ -56,15 +59,13 @@ export async function checkInstall({ plugin, launcher, platforms }, version) {
     for (const file of fs.readdirSync(platforms).filter((name) => name.startsWith('kition-cli-') && name.endsWith(`-${version}.tgz`))) fs.copyFileSync(path.join(platforms, file), path.join(served, file))
     const registry = await startRegistry(served)
     try {
-      const home = path.join(scratch, 'home')
       const project = path.join(scratch, 'profile')
-      fs.mkdirSync(home)
       fs.mkdirSync(project)
-      fs.writeFileSync(path.join(home, '.npmrc'), `@kition:registry=${registry.url}\n`)
       fs.writeFileSync(path.join(project, 'package.json'), '{"private":true}\n')
-      const env = { ...process.env, HOME: home, USERPROFILE: home, npm_config_cache: path.join(scratch, 'npm-cache'), npm_config_userconfig: path.join(home, '.npmrc') }
-      // The registry is on loopback: no proxy may stand between.
-      for (const key of Object.keys(env)) if (/^(https?_proxy|all_proxy|npm_config_(https_)?proxy)$/i.test(key)) delete env[key]
+      // The local registry is the install's only one, and nothing of the runner's npm settings,
+      // cache or store is read: npm's own packages of the same names and version (a kition
+      // without the gateway, for 0.5.2) must never stand in for these.
+      const env = hermeticInstallEnv(scratch, registry.url)
       // Not execFileSync: the registry answers from this process, whose event loop must go on.
       await new Promise((resolve, reject) => {
         const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-audit', '--no-fund', '--no-update-notifier', `@kition/dsh-kits@${version}`], { cwd: project, env, stdio: 'inherit', shell: process.platform === 'win32' })
@@ -75,6 +76,12 @@ export async function checkInstall({ plugin, launcher, platforms }, version) {
       const { bundledKition } = await import(pathToFileURL(path.join(installed, 'lib/kition.mjs')).href)
       const found = bundledKition({ from: installed })
       assert.ok(found.file, `the installed plugin finds no kition of its own: ${JSON.stringify(found)}`)
+      // The registry served the plugin, @kition/cli and this platform's package, and the kition
+      // installed is byte for byte the one packed in it.
+      const key = `${process.platform}-${process.arch}`
+      assertServed(registry.requests, ['@kition/dsh-kits', '@kition/cli', `@kition/cli-${key}`])
+      const packed = execFileSync('tar', ['-xzOf', `kition-cli-${key}-${version}.tgz`, `package/bin/${path.basename(found.file)}`], { cwd: platforms, maxBuffer: 1 << 30 })
+      assert.ok(packed.equals(fs.readFileSync(found.file)), `${found.file} is not the kition packed in kition-cli-${key}-${version}.tgz`)
       const said = execFileSync(found.file, ['--version'], { encoding: 'utf8' })
       assert.ok(said.startsWith(`kition ${version} `), `${found.file} --version: ${said}`)
       assert.match(execFileSync(found.file, ['gateway', '--help'], { encoding: 'utf8' }), /kition gateway/)

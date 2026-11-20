@@ -4,13 +4,15 @@
  * Kition home of their own (nothing of the person's is read or written), and a scripted model that
  * makes the tool calls a test asks for, so no model account is needed.
  */
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
 import { fileURLToPath } from 'node:url'
+import { assertServed, hermeticInstallEnv, writeNpmrc } from './registry.mjs'
 
 export const here = path.dirname(fileURLToPath(import.meta.url))
 export const plugin = path.resolve(here, '..')
@@ -35,21 +37,45 @@ export function dshRuntime() {
 /**
  * The release's archives of this checkout, made as the release makes them (test/registry.mjs:
  * @kition/dsh-kits, @kition/cli, @kition/cli-<platform> carrying `kition`), served by a local
- * registry in a process of its own (the tests install synchronously), with `<base>/home/.npmrc`
- * pointing the @kition scope at it: `dsh plugin add` installs the plugin with its kition as it
- * will from npm. Answers the plugin's archive, the registry's address and how to stop it.
+ * registry in a process of its own (the tests install synchronously), which `<base>/home/.npmrc`
+ * names as the registry of every package (`isolated` makes the install read that file and no
+ * other): `dsh plugin add` installs the plugin with its kition as it will from npm, and never the
+ * published packages of the same version. Answers the plugin's archive, the registry's address,
+ * the requests it served, and how to stop it.
  */
 export async function kitionRegistry(base: string, kition: string) {
   const folder = path.join(base, 'registry')
-  const child = spawn(process.execPath, [path.join(here, 'registry.mjs'), '--write', folder, kition], { stdio: ['ignore', 'pipe', 'inherit'] })
+  const child = spawn(process.execPath, [path.join(here, 'registry.mjs'), '--write', folder, kition], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const requests: string[] = []
+  readline.createInterface({ input: child.stderr! }).on('line', (line) => {
+    if (line.startsWith('served ')) requests.push(line.slice('served '.length))
+    else process.stderr.write(`${line}\n`)
+  })
   const url = await new Promise<string>((resolve, reject) => {
     child.once('exit', (code) => reject(new Error(`the registry exited with status ${code}`)))
     readline.createInterface({ input: child.stdout! }).once('line', (line) => resolve((JSON.parse(line) as { registry: string }).registry))
   })
-  fs.mkdirSync(path.join(base, 'home'), { recursive: true })
-  fs.writeFileSync(path.join(base, 'home/.npmrc'), `@kition:registry=${url}\n`)
+  writeNpmrc(base, url)
   const archive = fs.readdirSync(folder).find((name) => name.startsWith('kition-dsh-kits-'))!
-  return { archive: path.join(folder, archive), url, stop: () => child.kill() }
+  return { archive: path.join(folder, archive), url, requests, stop: () => child.kill() }
+}
+
+/**
+ * The plugin's own kition as the install of `profile` (under `base`) brought it: the local
+ * registry served @kition/cli and this platform's package (nothing came from a cache or another
+ * registry), the executable is byte for byte `kition`, the one packed, and it has the gateway
+ * command. Throws saying which does not hold.
+ */
+export function checkOwnKition(base: string, profile: string, kition: string, requests: string[]) {
+  const key = `${process.platform}-${process.arch}`
+  assertServed(requests, ['@kition/cli', `@kition/cli-${key}`])
+  const own = path.join(base, 'dsh/profiles', profile, 'node_modules', `@kition/cli-${key}`, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition')
+  if (!fs.existsSync(own)) throw new Error(`the install brought no kition of the plugin's own (${own})`)
+  const digest = (file: string) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+  if (digest(own) !== digest(kition)) throw new Error(`the plugin's own kition ${own} (sha256 ${digest(own)}) is not the one packed, ${kition} (sha256 ${digest(kition)})`)
+  const help = spawnSync(own, ['gateway', '--help'], { encoding: 'utf8' })
+  if (help.status !== 0 || !/kition gateway/.test(`${help.stdout}${help.stderr}`)) throw new Error(`${own} gateway --help exited with status ${help.status}: ${help.stderr}`)
+  return own
 }
 
 /** `PATH` without any folder that holds a kition: what the plugin runs must be its own. */
@@ -113,9 +139,13 @@ export async function scriptedModel(script: Record<string, Step[]>) {
 
 export type Dsh = { url: string; origin: string; process: ChildProcess; output: string[]; stop: () => Promise<void> }
 
-/** The environment of a process of the test: its own homes, no proxy (loopback must not go through one). */
+/**
+ * The environment of a process of the test: its own homes, no proxy (loopback must not go through
+ * one), and no npm or pnpm setting of the runner's (`hermeticInstallEnv`: an install reads
+ * `<base>/home/.npmrc` only, which `kitionRegistry` writes, and its own cache and store).
+ */
 export function isolated(base: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, HOME: path.join(base, 'home'), CFFIXED_USER_HOME: path.join(base, 'home'), DSH_HOME: path.join(base, 'dsh'), KITION_HOME: path.join(base, 'kition'), PNPM_HOME: path.join(base, 'pnpm'), npm_config_cache: path.join(base, 'npm-cache'), ...extra }
+  const env: NodeJS.ProcessEnv = { ...hermeticInstallEnv(base), CFFIXED_USER_HOME: path.join(base, 'home'), DSH_HOME: path.join(base, 'dsh'), KITION_HOME: path.join(base, 'kition'), ...extra }
   for (const key of Object.keys(env)) if (/_proxy$/i.test(key) || key.startsWith('KITION_KIT_') || key === 'KITION_KITS_MCP') delete env[key]
   return env
 }

@@ -336,6 +336,7 @@ const en = {
   missingOmitted: "The plugin was installed without its optional dependencies, which bring the Kition program for this computer ({platform}). Add the plugin again without leaving them out.",
   missingCli: "The package that brings the Kition program (@kition/cli) is not installed beside the plugin. Add the plugin again.",
   missingFolder: "The plugin was added from a folder, which is linked without its dependencies, so the Kition program is not there. Run npm install --omit=dev in that folder, or add the plugin by name or from its .tgz.",
+  missingOld: "The Kition program that came with the plugin is an older one ({platform}) without what the plugin needs. Add the plugin again, or install a newer kition (npm install -g @kition/cli), and restart DeepSeek Harness.",
   missingOption: "An option names a Kition program that cannot be used:",
   unreachableTitle: "Kition does not answer",
   unreachableDetail: "Kition could not open this file.",
@@ -393,6 +394,7 @@ const zh = {
   missingOmitted: "安装插件时没有安装它的可选依赖，而这台电脑（{platform}）的 Kition 程序正是由可选依赖带来的。请重新添加插件，不要省略可选依赖。",
   missingCli: "带来 Kition 程序的包（@kition/cli）没有和插件一起安装。请重新添加插件。",
   missingFolder: "插件是从文件夹添加的，文件夹会被直接链接而不安装依赖，所以没有 Kition 程序。请在该文件夹里运行 npm install --omit=dev，或者按包名或 .tgz 添加插件。",
+  missingOld: "插件带来的 Kition 程序（{platform}）是旧版本，缺少插件需要的功能。请重新添加插件，或安装较新的 kition（npm install -g @kition/cli），然后重启 DeepSeek Harness。",
   missingOption: "一个选项指定的 Kition 程序无法使用：",
   unreachableTitle: "Kition 没有响应",
   unreachableDetail: "Kition 无法打开这个文件。",
@@ -814,7 +816,7 @@ function KitionView(props) {
   if (opened.phase === "failed") {
     const retry = () => setAttempt((n) => n + 1);
     if (opened.error === "kition-missing" || opened.error === "kition-invalid") {
-      const why = opened.error === "kition-invalid" ? "missingOption" : opened.reason === "unsupported" ? "missingUnsupported" : opened.reason === "omitted" ? "missingOmitted" : opened.reason === "folder" ? "missingFolder" : "missingCli";
+      const why = opened.error === "kition-invalid" ? "missingOption" : opened.reason === "unsupported" ? "missingUnsupported" : opened.reason === "omitted" ? "missingOmitted" : opened.reason === "old-bundled" ? "missingOld" : opened.reason === "folder" ? "missingFolder" : "missingCli";
       return h(
         Panel,
         { state: "kition-missing", title: env.t("missingTitle"), detail: env.t(why, { platform: opened.platform ?? "" }), onRetry: retry },

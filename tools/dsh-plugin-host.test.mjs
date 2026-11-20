@@ -63,7 +63,7 @@ describe('finding kition', () => {
    * with the stand-in kition. `isolated`: pnpm's layout, where the platform package is reachable
    * from @kition/cli's folder only.
    */
-  function installed(name, { omit = false, isolated = false, listed = [platformKey(), 'win32-x64'] } = {}) {
+  function installed(name, { omit = false, isolated = false, listed = [platformKey(), 'win32-x64'], executable = kition } = {}) {
     const root = path.join(scratch, `installed-${name}`)
     const plugin = path.join(root, 'node_modules/@kition/dsh-kits')
     fs.mkdirSync(plugin, { recursive: true })
@@ -77,7 +77,7 @@ describe('finding kition', () => {
       const own = path.join(store, `@kition/cli-${platformKey()}`)
       fs.mkdirSync(path.join(own, 'bin'), { recursive: true })
       fs.writeFileSync(path.join(own, 'package.json'), JSON.stringify({ name: `@kition/cli-${platformKey()}`, version: '0.0.0' }))
-      fs.copyFileSync(kition, path.join(own, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition'))
+      fs.copyFileSync(executable, path.join(own, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition'))
       fs.chmodSync(path.join(own, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition'), 0o755)
     }
     return plugin
@@ -132,6 +132,35 @@ describe('finding kition', () => {
     expect(missingMessage(found)).toContain(`no gateway command (older versions): ${old}`)
     // An old one named as the draft skills' server is an error, not a quiet fall back.
     expect(findKition({ KITION_KITS_MCP: old, PATH: '', HOME: empty }, look).error).toContain('without the gateway command')
+  })
+
+  it('never takes the plugin’s own kition, KITION_BIN or KITION_KITS_MCP without the gateway command: a capable one after it, else a message naming the file and its version', () => {
+    // npm's @kition/cli-<platform> 0.5.2, served under the version the plugin depends on: it says
+    // its version and has no `kition gateway`.
+    const published = path.join(scratch, 'published-bin', 'kition')
+    fs.mkdirSync(path.dirname(published), { recursive: true })
+    fs.writeFileSync(published, '#!/bin/sh\nif [ "$1" = --version ]; then echo "kition 0.5.2 (kit protocol kition-kit/1, index format 1)"; exit 0; fi\necho "kition: unknown command $1" >&2\nexit 2\n', { mode: 0o755 })
+    const stale = { bundled: () => bundledKition({ from: installed('stale', { executable: published }) }) }
+    const own = bundledKition({ from: installed('stale', { executable: published }) }).file
+    // A capable system kition after it is taken.
+    const home = path.join(scratch, 'stale-and-new-home')
+    fs.mkdirSync(path.join(home, '.kition/bin'), { recursive: true })
+    fs.copyFileSync(kition, path.join(home, '.kition/bin/kition'))
+    fs.chmodSync(path.join(home, '.kition/bin/kition'), 0o755)
+    expect(findKition({ PATH: '', HOME: home }, stale)).toEqual({ file: path.join(home, '.kition/bin/kition'), from: 'system' })
+    // None: the plugin's own is named, with the version it says and what to do; nothing starts it as a gateway.
+    const found = findKition({ PATH: path.dirname(old), HOME: empty }, { ...stale, gateway: (file) => file !== old && file !== own && !['/usr/local/bin/kition', '/opt/homebrew/bin/kition'].includes(file) && fs.existsSync(file) && file !== published })
+    expect(found).toMatchObject({ missing: true, reason: 'old-bundled', file: own, version: '0.5.2', passedOver: [old] })
+    const message = missingMessage(found)
+    expect(message).toContain(`The plugin's own kition, ${own} (kition 0.5.2), has no gateway command`)
+    expect(message).toContain(`older @kition/cli-${platformKey()} than this plugin was released with`)
+    expect(message).toContain('npm install -g @kition/cli')
+    expect(message).toContain(`no gateway command (older versions): ${old}`)
+    // With the real check (kition gateway --help), as the plugin runs it.
+    expect(findKition({ PATH: '', HOME: empty }, stale)).toMatchObject({ missing: true, reason: 'old-bundled', file: own, version: '0.5.2' })
+    // An option naming it is an error that says which file and version, not a gateway that fails.
+    expect(findKition({ KITION_BIN: published, PATH: '', HOME: empty }, stale).error).toBe(`KITION_BIN is ${published} (kition 0.5.2), a kition without the gateway command (an older version): set it to a newer kition, or unset it`)
+    expect(findKition({ KITION_KITS_MCP: published, PATH: '', HOME: empty }, stale).error).toContain(`${published} (kition 0.5.2), a kition without the gateway command`)
   })
 
   it('looks in the places kition installs to when the PATH lacks it (DeepSeek Harness Desktop)', () => {
@@ -259,7 +288,8 @@ describe('the gateways', () => {
   it('says why when the gateway cannot start', async () => {
     const dirs = fresh('failing')
     const failing = path.join(scratch, 'failing-kition')
-    fs.writeFileSync(failing, '#!/bin/sh\necho "kition gateway: no such folder" >&2\nexit 1\n', { mode: 0o755 })
+    // A kition with the gateway command (the plugin asks before it starts one) whose gateway fails.
+    fs.writeFileSync(failing, '#!/bin/sh\nif [ "$1 $2" = "gateway --help" ]; then echo "usage: kition gateway"; exit 0; fi\necho "kition gateway: no such folder" >&2\nexit 1\n', { mode: 0o755 })
     const gateways = new Gateways({ env: { HOME: dirs.fakeHome, KITION_BIN: failing, KITION_HOME: dirs.home } })
     const error = await gateways.get(dirs.workspace).catch((caught) => caught)
     expect(error.code).toBe('gateway-failed')

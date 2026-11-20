@@ -795,6 +795,7 @@ features:
       - sdk.agent.dsh-plugin/desktop-smoke
       - regressions/issue-dsh-session-workspace
       - regressions/issue-dsh-tools-ready
+      - regressions/issue-dsh-registry-leak
     since: "2026-11-19"
   - id: sdk.agent.headless-drafts
     title: An agent's headless drafts through kition-kits-mcp, which only the person reviews, merges or discards

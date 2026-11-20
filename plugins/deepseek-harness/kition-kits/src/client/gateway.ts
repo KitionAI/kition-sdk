@@ -6,7 +6,7 @@
  */
 import type { Review } from './turn'
 
-/** `reason`, `platform`: why no kition can run (`unsupported`, `omitted`, `no-cli`), for `kition-missing`. */
+/** `reason`, `platform`: why no kition can run (`unsupported`, `omitted`, `old-bundled`, `no-cli`, `folder`), for `kition-missing`. */
 export type Opened = { phase: 'opening' } | { phase: 'open'; page: string; key: string; path: string } | { phase: 'failed'; error: string; message: string; reason?: string; platform?: string }
 
 /** The host module's route `path`, relative to where DeepSeek Harness is served. */

@@ -25,7 +25,7 @@ import path from 'node:path'
 import { expect, test, type Frame, type Page } from '@playwright/test'
 import { index, installKits, kition } from '../../../../examples/gateway-page/e2e/helpers'
 import { noteSample, shots, tableSample } from '../../../../examples/gateway-page/e2e/page'
-import { bundledGateways, dshRuntime, here, installProfile, isolated, kitionRegistry, pathWithoutKition, plugin, repo, scratch, scriptedModel, startWeb, type Dsh } from './dsh'
+import { bundledGateways, checkOwnKition, dshRuntime, here, installProfile, isolated, kitionRegistry, pathWithoutKition, plugin, repo, scratch, scriptedModel, startWeb, type Dsh } from './dsh'
 
 const PROFILE = 'kition-e2e'
 let base: string
@@ -76,7 +76,8 @@ test.beforeAll(async () => {
   const env = isolated(base, { KITION_INDEX: index, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted', PATH: pathWithoutKition() })
   delete env.KITION_BIN
   const dump = installProfile(runtime, env, PROFILE, registry.archive)
-  const own = path.join(base, 'dsh/profiles', PROFILE, 'node_modules', `@kition/cli-${process.platform}-${process.arch}`, 'bin/kition')
+  // From the local registry, the packed kition itself, with the gateway command.
+  const own = checkOwnKition(base, PROFILE, kition, registry.requests)
   expect(fs.existsSync(own), 'the install brought the plugin’s own kition').toBe(true)
   expect(dump).toContain('# == @kition/dsh-kits')
   dsh = await startWeb(runtime, env, PROFILE, [path.join(here, 'scripted-route.cordis.patch.yml')])

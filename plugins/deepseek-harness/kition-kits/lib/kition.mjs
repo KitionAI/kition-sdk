@@ -163,36 +163,44 @@ export function kitionVersion(file) {
   return versions.get(signature)
 }
 
+/** `file` and the version it says, for a message: `<file> (kition <version>)`. */
+const described = (file, version) => `${file} (${version ? `kition ${version}` : 'it names no version'})`
+
 /**
- * The kition the plugin runs, in this order:
- * 1. `KITION_BIN`, the person's choice (a development build), as it is;
- * 2. `KITION_KITS_MCP` when it names a kition (the draft skills' server is the gateways' then too),
- *    which must have the `gateway` command;
- * 3. the kition that came with the plugin (`bundledKition`);
- * 4. a kition on the PATH, else in a place kition installs to, only when it has the `gateway`
- *    command: an older one is passed over, never started to fail.
+ * The kition the plugin runs, in this order, each only when it has the `gateway` command (asked
+ * with `kition gateway --help`, never trusted from where it is or the version it says), so no
+ * gateway is started that cannot exist:
+ * 1. `KITION_BIN`, the person's choice (a development build);
+ * 2. `KITION_KITS_MCP` when it names a kition (the draft skills' server is the gateways' then too);
+ * 3. the kition that came with the plugin (`bundledKition`); one without the command (an older
+ *    @kition/cli-<platform> than the plugin was released with, served under the same version) is
+ *    passed over, and named when nothing else runs;
+ * 4. a kition on the PATH, else in a place kition installs to; an older one is passed over.
  *
  * `{ file, from }` (`from`: `env`, `bundled` or `system`); `{ error }` for an option that names no
  * usable kition; or `{ missing: true, reason, platform, platforms, passedOver }` when there is
- * none (`reason` as `bundledKition` says; `passedOver`: the kitions without `gateway` found).
+ * none (`reason` as `bundledKition` says, or `old-bundled` with `file` and `version` for a plugin's
+ * own kition without the command; `passedOver`: the system kitions without it).
  * @param {NodeJS.ProcessEnv} [env]
- * @param {{ bundled?: () => ReturnType<typeof bundledKition>, gateway?: (file: string) => boolean }} [look]
+ * @param {{ bundled?: () => ReturnType<typeof bundledKition>, gateway?: (file: string) => boolean, version?: (file: string) => string | null }} [look]
  */
-export function findKition(env = process.env, { bundled = bundledKition, gateway = hasGateway } = {}) {
+export function findKition(env = process.env, { bundled = bundledKition, gateway = hasGateway, version = kitionVersion } = {}) {
   if (!unset(env.KITION_BIN)) {
-    return executable(env.KITION_BIN) ? { file: env.KITION_BIN, from: 'env' } : { error: `KITION_BIN is ${env.KITION_BIN}, which is not an executable file` }
+    if (!executable(env.KITION_BIN)) return { error: `KITION_BIN is ${env.KITION_BIN}, which is not an executable file` }
+    return gateway(env.KITION_BIN) ? { file: env.KITION_BIN, from: 'env' } : { error: `KITION_BIN is ${described(env.KITION_BIN, version(env.KITION_BIN))}, a kition without the gateway command (an older version): set it to a newer kition, or unset it` }
   }
   if (!unset(env.KITION_KITS_MCP) && isKition(env.KITION_KITS_MCP) && executable(env.KITION_KITS_MCP)) {
-    return gateway(env.KITION_KITS_MCP) ? { file: env.KITION_KITS_MCP, from: 'env' } : { error: `KITION_KITS_MCP is ${env.KITION_KITS_MCP}, a kition without the gateway command (an older version)` }
+    return gateway(env.KITION_KITS_MCP) ? { file: env.KITION_KITS_MCP, from: 'env' } : { error: `KITION_KITS_MCP is ${described(env.KITION_KITS_MCP, version(env.KITION_KITS_MCP))}, a kition without the gateway command (an older version)` }
   }
   const own = bundled()
-  if (own.file) return { file: own.file, from: 'bundled' }
+  if (own.file && gateway(own.file)) return { file: own.file, from: 'bundled' }
   const passedOver = []
   for (const candidate of [onPath('kition', env), ...wellKnownKition(env)]) {
-    if (!candidate || passedOver.includes(candidate) || !executable(candidate)) continue
+    if (!candidate || candidate === own.file || passedOver.includes(candidate) || !executable(candidate)) continue
     if (gateway(candidate)) return { file: candidate, from: 'system' }
     passedOver.push(candidate)
   }
+  if (own.file) return { missing: true, reason: 'old-bundled', file: own.file, version: version(own.file), platform: platformKey(), platforms: [platformKey()], passedOver }
   return { missing: true, reason: own.reason, platform: own.platform, platforms: own.platforms, ...(own.folder ? { folder: own.folder } : {}), passedOver }
 }
 
@@ -200,7 +208,9 @@ export function findKition(env = process.env, { bundled = bundledKition, gateway
 export function missingMessage(found) {
   const built = found.platforms?.length ? ` It is built for ${found.platforms.join(', ')}.` : ''
   const why =
-    found.reason === 'unsupported'
+    found.reason === 'old-bundled'
+      ? `The plugin's own kition, ${described(found.file, found.version)}, has no gateway command: it is an older ${CLI_PACKAGE}-${found.platform} than this plugin was released with, which the registry the plugin was installed from served under the same version. Add the plugin again from the npm registry (registry.npmjs.org, or a mirror that has caught up), or install a newer kition (npm install -g ${CLI_PACKAGE}) or set KITION_BIN to one, and restart DeepSeek Harness.`
+      : found.reason === 'unsupported'
       ? `The plugin's kition (${CLI_PACKAGE}) has no build for this platform, ${found.platform}.${built} Set KITION_BIN to a kition built for it (cargo build -p kition-cli in kition-sdk) and restart DeepSeek Harness.`
       : found.reason === 'folder'
         ? `The plugin was added from a folder (${found.folder}), which DeepSeek Harness links without installing the plugin's dependencies, so ${CLI_PACKAGE}, which brings its kition, is not there. Run npm install --omit=dev in that folder, or add the plugin by name (dsh plugin add @kition/dsh-kits) or from its .tgz, which install it.`

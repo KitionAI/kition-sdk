@@ -277,6 +277,9 @@ jobs:
           export PATH="$bin:$PATH" KITION_HOME="$smoke/home" KITION_INDEX="$smoke/no-index.json"
           [ "$(command -v kition)" = "$bin/kition" ] || { echo "kition on the PATH is $(command -v kition), not npm's $bin/kition" >&2; exit 1; }
           kition --version | grep -F "kition $version "
+          # The DeepSeek Harness plugin starts `kition gateway`: every platform's kition, the one
+          # @kition/cli-<platform> carries, must have it before anything is published.
+          kition gateway --help | grep -F "kition gateway"
           for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
             mkdir -p "$smoke/kits/$kit"
             cp "target/release-bin/$PLATFORM/kits/$kit/kit.json" "target/release-bin/$PLATFORM/kition-$kit$exe" "$smoke/kits/$kit/"
@@ -449,10 +452,19 @@ jobs:
         run: |
           set -euo pipefail
           npm whoami
+          # kition's packages and the plugin: a version npm has with other bytes stops the run. npm
+          # never replaces a version, so a plugin published beside it would install that other
+          # kition (npm's @kition/cli 0.5.2, for one, has no gateway). Bump sdk.json instead.
           publish() {
             name=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')
             version=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')
-            if npm view "$name@$version" version >/dev/null 2>&1; then
+            if published=$(npm view "$name@$version" dist.integrity 2>/dev/null) && [ -n "$published" ]; then
+              ours="sha512-$(openssl dgst -sha512 -binary "$1" | openssl base64 -A)"
+              case "$name" in @kition/cli | @kition/cli-* | @kition/dsh-kits) ;; *) ours="$published" ;; esac
+              if [ "$published" != "$ours" ]; then
+                echo "::error::$name@$version is on npm with the integrity $published; this run packed $ours. npm never replaces a version: bump sdk.json's version and release again" >&2
+                exit 1
+              fi
               echo "$name@$version is already published"
             else
               npm publish "$1" --access public --provenance

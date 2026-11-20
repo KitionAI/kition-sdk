@@ -3,7 +3,7 @@
 // skills and its launcher. Its host module is tested in tools/dsh-plugin-host.test.mjs, its
 // generated kit skills against their guides in tools/agent-plugin.test.mjs; a real DeepSeek Harness
 // runs it in the plugin's test/e2e.sh (headless) and test/web.e2e.ts and test/desktop.e2e.ts.
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -85,6 +85,72 @@ describe('the release’s check of the packed plugin (tools/check-dsh-plugin-pac
     expect(checkManifests(archives)).toBe(version)
     expect(await checkInstall(archives, version)).toMatch(new RegExp(`node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition$`))
   }, 120_000)
+
+  // The registry leak (regressions/issue-dsh-registry-leak): `npm run`, `npm exec` and `npx` give
+  // their children npm_config_userconfig, the person's own ~/.npmrc; a package manager reads it
+  // instead of the test's, the @kition scope falls through to the registry it names (npm's, whose
+  // @kition/cli-<platform> of the same version has no gateway), and that kition is installed.
+  it('installs from the local registry only, whatever npm and pnpm settings the runner carries (registry leak)', async () => {
+    const { assertServed, hermeticInstallEnv, startRegistry } = await import('../plugins/deepseek-harness/kition-kits/test/registry.mjs')
+    const key = `${process.platform}-${process.arch}`
+    const leak = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-kits-leak-')))
+    // "Public": @kition/cli and this platform's package of the same version, a kition without the gateway.
+    const stale = path.join(leak, 'stale', 'kition')
+    fs.mkdirSync(path.dirname(stale))
+    fs.writeFileSync(stale, `#!/bin/sh\nif [ "$1" = --version ]; then echo "kition ${version} (published)"; exit 0; fi\necho "kition: unknown command $1" >&2\nexit 2\n`, { mode: 0o755 })
+    const publicFolder = path.join(leak, 'public')
+    fs.mkdirSync(publicFolder)
+    execFileSync(process.execPath, [path.join(root, 'packages/kition/scripts/platform-package.mjs'), 'platform', '--platform', key, '--kition', stale, '--out', path.join(leak, 'stale-platform')])
+    execFileSync('npm', ['pack', path.join(leak, 'stale-platform', key), '--pack-destination', publicFolder])
+    fs.copyFileSync(archives.launcher, path.join(publicFolder, path.basename(archives.launcher)))
+    const localFolder = path.join(leak, 'local')
+    fs.mkdirSync(localFolder)
+    for (const file of fs.readdirSync(dir).filter((name) => name.startsWith('kition-cli-') && name.endsWith('.tgz'))) fs.copyFileSync(path.join(dir, file), path.join(localFolder, file))
+    const publicRegistry = await startRegistry(publicFolder)
+    const local = await startRegistry(localFolder)
+    try {
+      // The runner's settings, as `npx playwright test` leaves them: a userconfig naming the "public" registry.
+      const userconfig = path.join(leak, 'person.npmrc')
+      fs.writeFileSync(userconfig, `registry=${publicRegistry.url}\n`)
+      const runner = { ...process.env, npm_config_userconfig: userconfig, npm_config_registry: publicRegistry.url, pnpm_config_registry: publicRegistry.url }
+      // The registries are on loopback: no proxy stands between (the tests always dropped them).
+      for (const key of Object.keys(runner)) if (/_proxy$/i.test(key)) delete runner[key]
+      // As DeepSeek Harness installs a plugin (pnpm, node-linker hoisted). Not spawnSync: the
+      // registries answer from this process, whose event loop must go on.
+      const install = async (base, env) => {
+        const project = path.join(base, 'profile')
+        fs.mkdirSync(project, { recursive: true })
+        fs.writeFileSync(path.join(project, 'package.json'), '{"private":true}\n')
+        await new Promise((resolve, reject) => {
+          const child = spawn('pnpm', ['add', archives.plugin, '--config.node-linker=hoisted'], { cwd: project, env, stdio: ['ignore', 'pipe', 'pipe'] })
+          let output = ''
+          child.stdout.on('data', (chunk) => (output += chunk))
+          child.stderr.on('data', (chunk) => (output += chunk))
+          child.on('error', reject)
+          child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`pnpm add exited with status ${code}: ${output}`))))
+        })
+        return path.join(project, 'node_modules', `@kition/cli-${key}`, 'bin', 'kition')
+      }
+      // What the tests did: the runner's environment with a HOME whose .npmrc names the local registry.
+      const before = path.join(leak, 'before')
+      fs.mkdirSync(path.join(before, 'home'), { recursive: true })
+      fs.writeFileSync(path.join(before, 'home/.npmrc'), `@kition:registry=${local.url}\n`)
+      const leaked = await install(before, { ...runner, HOME: path.join(before, 'home'), PNPM_HOME: path.join(before, 'pnpm'), npm_config_cache: path.join(before, 'npm-cache') })
+      expect(fs.readFileSync(leaked, 'utf8'), 'the leak: the stale kition came from the "public" registry').toContain('(published)')
+      // Now: the local registry only, every package it was asked for served by it, the packed kition itself.
+      const now = path.join(leak, 'now')
+      const served = local.requests.length
+      const own = await install(now, hermeticInstallEnv(now, local.url, runner))
+      expect(assertServed(local.requests.slice(served), ['@kition/cli', `@kition/cli-${key}`])).toHaveLength(2)
+      expect(fs.readFileSync(own).equals(fs.readFileSync(path.join(dir, 'exe', key, 'kition'))), 'the kition installed is the one packed').toBe(true)
+      expect(execFileSync(own, ['gateway', '--help'], { encoding: 'utf8' })).toContain('kition gateway')
+      expect(() => assertServed([], ['@kition/cli'])).toThrow(/did not serve @kition\/cli: the install took them from elsewhere/)
+    } finally {
+      await publicRegistry.stop()
+      await local.stop()
+      fs.rmSync(leak, { recursive: true, force: true })
+    }
+  }, 180_000)
 
   it('refuses a plugin whose @kition/cli is a range or another version', () => {
     const drifted = path.join(dir, 'drifted')

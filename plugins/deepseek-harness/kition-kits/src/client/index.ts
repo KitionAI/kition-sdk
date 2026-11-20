@@ -259,8 +259,9 @@ function KitionView(props: ViewProps) {
     const retry = () => setAttempt((n) => n + 1)
     if (opened.error === 'kition-missing' || opened.error === 'kition-invalid') {
       // kition comes with the plugin: none runs only on a platform it has no build for, after an
-      // install that left out optional dependencies, or with an option naming another.
-      const why = opened.error === 'kition-invalid' ? 'missingOption' : opened.reason === 'unsupported' ? 'missingUnsupported' : opened.reason === 'omitted' ? 'missingOmitted' : opened.reason === 'folder' ? 'missingFolder' : 'missingCli'
+      // install that left out optional dependencies, when the one it brought is too old, or with
+      // an option naming another.
+      const why = opened.error === 'kition-invalid' ? 'missingOption' : opened.reason === 'unsupported' ? 'missingUnsupported' : opened.reason === 'omitted' ? 'missingOmitted' : opened.reason === 'old-bundled' ? 'missingOld' : opened.reason === 'folder' ? 'missingFolder' : 'missingCli'
       return h(
         Panel,
         { state: 'kition-missing', title: env.t('missingTitle'), detail: env.t(why, { platform: opened.platform ?? '' }), onRetry: retry },

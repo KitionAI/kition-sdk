@@ -22,7 +22,8 @@ import path from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { index, installKits, kition } from '../../../../examples/gateway-page/e2e/helpers'
 import { shots, tableSample } from '../../../../examples/gateway-page/e2e/page'
-import { bundledGateways, here, isolated, kitionRegistry, pathWithoutKition, scratch, scriptedModel } from './dsh'
+import { bundledGateways, checkOwnKition, here, isolated, kitionRegistry, pathWithoutKition, scratch, scriptedModel } from './dsh'
+import { assertServed, writeNpmrc } from './registry.mjs'
 
 const app = process.env.DSH_DESKTOP_APP || '/Applications/DeepSeek Harness.app'
 const executable = path.join(app, 'Contents/MacOS/DeepSeek Harness')
@@ -67,11 +68,10 @@ test.afterAll(() => {
 
 /**
  * The environment of an isolated app at `folder`: the plugin's own kition only (no KITION_BIN, no
- * kition on the PATH), the @kition scope from the test's registry.
+ * kition on the PATH), every package from the test's registry.
  */
 function bare(folder: string) {
-  fs.mkdirSync(path.join(folder, 'home'), { recursive: true })
-  fs.writeFileSync(path.join(folder, 'home/.npmrc'), `@kition:registry=${registry.url}\n`)
+  writeNpmrc(folder, registry.url)
   const bareEnv = isolated(folder, { KITION_INDEX: index, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted', PATH: pathWithoutKition() })
   delete bareEnv.KITION_BIN
   return bareEnv
@@ -109,10 +109,13 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
   await test.step('the app’s CLI installs the plugin', async () => {
     // The scripted model as the profile's own layer (Desktop takes no --patch).
     fs.copyFileSync(path.join(here, 'scripted-route.cordis.patch.yml'), path.join(base, 'dsh/profiles/desktop/cordis.patch.yml'))
+    const before = registry.requests.length
     execFileSync(cli, ['plugin', '--profile', 'desktop', 'add', registry.archive], { env, cwd: env.HOME, stdio: 'pipe', timeout: 120_000 })
     expect(JSON.parse(fs.readFileSync(path.join(base, 'dsh/profiles/desktop/package.json'), 'utf8')).dsh.profile.bundles).toContain('@kition/dsh-kits')
     // With the plugin came its kition: @kition/cli and this platform's package.
     expect(fs.existsSync(path.join(base, `dsh/profiles/desktop/node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition`))).toBe(true)
+    // From the local registry, the packed kition itself, with the gateway command.
+    expect(checkOwnKition(base, 'desktop', kition, registry.requests.slice(before))).toContain('bin/kition')
     mark('plugin installed')
   })
 
@@ -237,6 +240,7 @@ test('the Plugins page installs the plugin by its name, with its own kition; a .
       // "Add plugin" asks for a package name, a GitHub address or a local folder.
       await page.getByRole('button', { name: 'Add plugin', exact: true }).first().click()
       const dialog = page.getByRole('dialog').filter({ hasText: 'local directory path' })
+      const before = registry.requests.length
       await dialog.getByRole('textbox').fill('@kition/dsh-kits')
       await dialog.getByRole('button', { name: 'Install', exact: true }).click()
       // Installed, then enabled: the page's own two steps.
@@ -246,6 +250,9 @@ test('the Plugins page installs the plugin by its name, with its own kition; a .
       await expect(page.getByText('@kition/dsh-kits', { exact: true }).first()).toBeVisible({ timeout: 120_000 })
       await page.screenshot({ path: path.join(shots, 'dsh-desktop-plugins-page-installed.png') })
       expect(fs.existsSync(path.join(own, `dsh/profiles/desktop/node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition`)), 'the plugin’s own kition came with it').toBe(true)
+      // By name, from the local registry too: the plugin, and the packed kition itself, with the gateway command.
+      expect(checkOwnKition(own, 'desktop', kition, registry.requests.slice(before))).toContain('bin/kition')
+      expect(assertServed(registry.requests.slice(before), ['@kition/dsh-kits']).length, 'the registry served the plugin').toBeGreaterThan(0)
     })
     // Whatever the page says about applying it, a new start has it.
     await quit(desktop)

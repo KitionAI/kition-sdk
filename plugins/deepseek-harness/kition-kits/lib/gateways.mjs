@@ -18,7 +18,7 @@ export class GatewayError extends Error {
    * @param {'kition-missing' | 'kition-invalid' | 'gateway-failed'} code
    * @param {string} message
    * @param {{ reason?: string, platform?: string }} [detail] for `kition-missing`: why there is
-   *   none (`unsupported`, `omitted`, `no-cli`) and this platform
+   *   none (`unsupported`, `omitted`, `old-bundled`, `no-cli`, `folder`) and this platform
    */
   constructor(code, message, detail = {}) {
     super(message)
