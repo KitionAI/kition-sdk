@@ -171,12 +171,12 @@ fn refuses_kits_of_another_protocol_and_says_what_to_do() {
     let server = Server::start(dir.path());
     let loaded = load(&home, index.display().to_string(), &server);
     let error = store.install(&loaded, "newer", None).unwrap_err();
-    assert!(error.contains("kition-kit/99") && error.contains("upgrade kition"), "{error}");
+    assert!(error.contains("kition-kit/99") && error.contains("install a version of the kit that speaks"), "{error}");
     assert_eq!(store.install(&loaded, "mixed", None).unwrap().1, Outcome::Installed(Version::new(1, 0, 0)), "the newest it can run");
     let error = store.install(&loaded, "mixed", Some(&Version::new(2, 0, 0))).unwrap_err();
-    assert!(error.contains("upgrade kition"), "{error}");
+    assert!(error.contains("kition-kit/99") && error.contains("install a version of the kit that speaks"), "{error}");
     let error = store.install(&loaded, "mixed", Some(&Version::new(0, 1, 0))).unwrap_err();
-    assert!(error.contains("install a newer version of the kit"), "{error}");
+    assert!(error.contains("kition-kit/0") && error.contains("install a version of the kit that speaks"), "{error}");
     let error = store.install(&loaded, "missing", None).unwrap_err();
     assert!(error.contains("mixed, newer"), "{error}");
 }

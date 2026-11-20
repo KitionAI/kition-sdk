@@ -190,7 +190,7 @@ fn add_takes_a_kit_folder_or_a_kit_executable_and_refuses_what_an_install_refuse
 
     let newer = kit_folder(dir.path(), "newer-build", &manifest("newer", "1.0.0", "kition-kit/99", "knewer", "kition-newer"), b"x");
     let (ok, _, err) = run(kition(&home).args(["kit", "add"]).arg(&newer));
-    assert!(!ok && err.contains("newer 1.0.0 cannot be installed: it speaks kition-kit/99") && err.contains("upgrade kition"), "{err}");
+    assert!(!ok && err.contains("newer 1.0.0 cannot be installed: it speaks kition-kit/99") && err.contains("install a version of the kit that speaks"), "{err}");
     assert!(!home.join("kits/newer").exists());
 
     let empty = dir.path().join("no-executable");

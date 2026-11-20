@@ -22,7 +22,7 @@ use semver::Version;
 use serde_json::Value;
 
 use crate::home::{Home, executable_name};
-use crate::index::{IndexKit, Loaded, protocol_number};
+use crate::index::{IndexKit, Loaded};
 
 /// The most an archive may unpack to.
 const UNPACKED_LIMIT: u64 = 2 * 1024 * 1024 * 1024;
@@ -495,12 +495,10 @@ pub fn speaks(name: &str, protocol: &str) -> Result<(), String> {
     if protocol == ours {
         return Ok(());
     }
-    match (protocol_number(protocol), protocol_number(&ours)) {
-        (Some(theirs), Some(mine)) if theirs > mine => {
-            Err(format!("it speaks {protocol}, and this kition {} speaks {ours}: upgrade kition, then install it again", crate::VERSION))
-        }
-        _ => Err(format!("it speaks {protocol}, and this kition speaks {ours}: install a newer version of the kit (`kition kit install {name}`)")),
-    }
+    Err(format!(
+        "it speaks {protocol}, and this kition {} speaks {ours}: install a version of the kit that speaks {ours} (`kition kit install {name}`)",
+        crate::VERSION
+    ))
 }
 
 /// The executable a kit.json names (`headless.executable`), without a folder.

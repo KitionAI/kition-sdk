@@ -4,6 +4,10 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A kit of another protocol is refused with the right advice** (`kition kit install`, `kit add`):
+  every protocol is version 1, so the refusal no longer says "upgrade kition" for a kit built
+  before that; it names both protocols and says to install a version of the kit that speaks
+  this kition's.
 - **An editor opening a managed room never stores a state older than the file** (`@kition/embed`).
   A page with no record of the room (another person, another browser, cleared site data) replaced
   the host's stored replica, a save's checkpoint of the room's document under the file's current
