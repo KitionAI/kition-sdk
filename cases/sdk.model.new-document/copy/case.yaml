@@ -1,0 +1,22 @@
+format: 1
+id: sdk.model.new-document/copy
+feature: sdk.model.new-document
+intent: >-
+  A copy as a new document (Rust copy_as_new_document, TypeScript copyAsNewDocument) has the new
+  docId in its meta and its envelope and the source's objects, ids, tree nodes and blob references,
+  loads cleanly, carries no history (text deleted before the copy, a deleted object's text and the
+  source's docId are absent from its bytes; it forks only at its current version), starts with empty
+  undo, refuses the source's changes, drafts and snapshots and is refused by the source both ways
+  (wrong-document), and two copies of one source co-edit as two documents; a copy made by either
+  implementation loads in the other with the new id and the source's objects.
+layer: gate
+source: { kind: synthetic, from: kition-one refresh F2 (copies, templates and repeated uploads as new documents), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: new_document }
+  - cargo-test: { package: kition-kdm, test: cross_language }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/new-document.test.ts, packages/kdm/test/cross-language.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-19"

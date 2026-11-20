@@ -107,6 +107,14 @@ features:
     paths: [crates/kition-kdm/src/**, packages/kdm/src/**, crates/kition-kit/src/session/model.rs, packages/kit-editor/src/engine/kitModelRunner.ts, packages/kit-engine/src/session.ts, packages/script/src/exchange.ts, packages/script/src/sources.ts, crates/kition-kits/src/tools/**, crates/kition-kit-mock/src/projected.rs, crates/kition-env/src/**]
     cases: [regressions/issue-c8-fix-21-projections, regressions/issue-c8-fix-21-projection-adapters, regressions/issue-c8-fix-21-projected-model, regressions/issue-c8-fix-21-projected-receipts, regressions/issue-c8-fix-21-projected-storage, regressions/issue-c8-fix-21-projected-env, regressions/issue-c8-fix-21-projected-human, regressions/issue-c8-fix-21-projected-placement, regressions/issue-script-engine-projections]
     since: "2026-11-16"
+  - id: sdk.model.new-document
+    title: A replica copies as a new document with its own docId, the source's objects and no history
+    dimension: [function, collab, data-safety]
+    priority: P0
+    status: has
+    paths: [crates/kition-kdm/src/replica.rs, packages/kdm/src/replica.ts]
+    cases: [sdk.model.new-document/copy]
+    since: "2026-11-19"
   - id: sdk.agent.editor-premises
     title: Live editor kit callbacks participate in per-call premises
     dimension: [collab, data-safety]

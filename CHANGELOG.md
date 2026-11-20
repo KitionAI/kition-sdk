@@ -115,6 +115,13 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `tools/claude-plugin-skills.mjs`) writes and checks the Claude Code and DeepSeek Harness skills
   (`--target claude-code|deepseek-harness`, both by default); its test is
   `tools/agent-plugin.test.mjs`.
+- **A copy as a new document**: `Replica::copy_as_new_document(doc_id, actor)`
+  (`replica.copyAsNewDocument(docId, actor)` in TypeScript) answers a replica with a new permanent
+  docId, written in both the meta map and the byte envelope, and the source's objects, ids, tree
+  nodes and blob references. It carries no history (deleted content, earlier versions and the
+  source's docId stay behind) and starts with empty undo; a copy and its source refuse each other's
+  changes, drafts and snapshots. For templates used twice, copied files and repeated uploads
+  (KitModel M7a, `docs/platform/data-model.md`).
 
 ## 0.5.2 (2026-11-19)
 
