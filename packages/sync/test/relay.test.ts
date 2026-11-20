@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { decodeBlobSection, encodeBlobSection } from '../src/blobSection'
 import type { RoomJoinResult } from '../src/protocol'
 import { startRelay, type RelayReplica, type RelaySync } from '../src/relay'
-import type { ReplicaVersions } from '../src/replicaVersions'
+import { LORO_REPLICA_VERSIONS, type ReplicaVersions } from '../src/replicaVersions'
+import { decodeImportBlobMeta } from 'loro-crdt'
+import { newDocId, openEnvelope, parseSchema, person, Replica, Version } from '@kition/kdm'
 import type { ConnectionState } from '../src/transport'
 
 const sha256 = (data: Uint8Array) => createHash('sha256').update(data).digest('hex')
@@ -81,6 +83,8 @@ const FAKE_VERSIONS: ReplicaVersions = {
     const held = new Set(version.length ? parse<string[]>(version) : [])
     return (other.length ? parse<string[]>(other) : []).every((id) => held.has(id))
   },
+  // This replica's exports are always change sets.
+  snapshotRoot: () => null,
 }
 
 /** A sync server holding one room: its change log and the blob store. */
@@ -129,8 +133,17 @@ class FakeClient implements RelaySync {
     this.joined.delete(docId)
   }
 
+  /** Pushes the server refuses from here on, as a server answers one it does not take (`invalid`, say). */
+  refusing = 0
+
   push(_docId: string, changes: Uint8Array) {
-    return new Promise<{ seq: number }>((resolve) => {
+    return new Promise<{ seq: number }>((resolve, reject) => {
+      if (this.refusing > 0) {
+        this.refusing -= 1
+        this.server.events.push('refused')
+        reject(new Error('invalid: refused'))
+        return
+      }
       if (this.state === 'online') this.send(changes, resolve)
       else this.queued.push({ changes, resolve })
     })
@@ -345,6 +358,77 @@ describe('startRelay', () => {
     await relay.idle()
     expect(sync.joins).toHaveLength(1)
     expect(roles).toEqual(['viewer', null])
+    relay.stop()
+  })
+})
+
+describe('startRelay, pushes that fail', () => {
+  it('sends a refused push again with the next one, and reports it sent only once the room took it', async () => {
+    const { server, a, settle } = await setUp()
+    const sent: string[][] = []
+    a.relay.stop()
+    const relay = startRelay({ docId: 'doc', replica: a.replica, sync: a.sync, versions: FAKE_VERSIONS, lastSent: text(['base']), onSent: (version) => sent.push(parse<string[]>(version)) })
+    await relay.idle()
+    a.sync.refusing = 1
+    a.replica.edit('a1')
+    await settle()
+    await relay.idle()
+    expect(server.events).toEqual(['refused'])
+    expect(sent).toEqual([])
+    a.replica.edit('a2')
+    await settle()
+    await relay.idle()
+    // The refused change goes again with the next: the room has both.
+    expect(server.log.flatMap((changes) => parse<{ ops: Op[] }>(changes).ops.map((op) => op.id)).filter((id) => id !== 'base').sort()).toEqual(['a1', 'a2'])
+    expect(sent.at(-1)).toEqual(['a1', 'a2', 'base'])
+    relay.stop()
+  })
+})
+
+describe('startRelay, a shallow replica', () => {
+  const schema = parseSchema({ kdm: 1, kit: 'kit.relay-test', schemaVersion: 1, root: 'Note', types: { Note: { fields: { body: { kind: 'text' }, count: { kind: 'number', optional: true } } } } })
+
+  /** A KDM replica as a kit's `replica` capability serves it (no blobs). */
+  function relayed(replica: Replica): RelayReplica & { replica: Replica; changed: () => void } {
+    const listeners = new Set<(version: ArrayBuffer) => void>()
+    return {
+      replica,
+      changed: () => {
+        for (const listener of listeners) listener(buffer(replica.version().encode()))
+      },
+      version: async () => buffer(replica.version().encode()),
+      exportChanges: async (since) => ({ changes: buffer(replica.exportChanges(since.byteLength ? Version.decode(new Uint8Array(since)) : Version.empty())), blobs: buffer(encodeBlobSection([])) }),
+      importChanges: async (changes) => replica.importChanges(new Uint8Array(changes)),
+      onChanged: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    }
+  }
+
+  const mode = (changes: Uint8Array) => decodeImportBlobMeta(openEnvelope(changes).engine, false).mode
+
+  it('pushes only change sets from a copy whose room is not known to hold anything from it yet', async () => {
+    const source = Replica.create(schema, newDocId(), 1n)
+    const note = source.transact(person('user:a'), (tx) => tx.create('Note', {}))
+    const fork = source.copyAsNewDocument(newDocId(), 2n)
+    const server = new FakeServer()
+    // The room was made from the copy's snapshot (its changes log starts empty); this relay starts
+    // with nothing known sent, as one whose replica came from the room's snapshot does.
+    const roomSnapshot = fork.snapshot()
+    const side = relayed(Replica.load(schema, roomSnapshot, 3n))
+    const relay = startRelay({ docId: 'doc', replica: side, sync: server.client(), versions: LORO_REPLICA_VERSIONS })
+    await relay.idle()
+    side.replica.transact(person('user:a'), (tx) => tx.set(note, 'count', 7))
+    side.changed()
+    await relay.idle()
+    const pushed = server.log
+    expect(pushed).toHaveLength(1)
+    // `changes/push` takes change sets only, never a snapshot.
+    expect(mode(pushed[0])).toBe('update')
+    const other = Replica.load(schema, roomSnapshot, 4n)
+    other.importChanges(pushed[0])
+    expect(other.get(note, 'count')).toBe(7)
     relay.stop()
   })
 })

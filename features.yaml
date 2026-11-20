@@ -129,6 +129,25 @@ features:
       - schemas/kit-process-protocol.schema.json
     cases: [sdk.host.document-fork/identity-and-fork]
     since: "2026-11-20"
+  - id: sdk.collab.fork-rooms
+    title: A copy made as a new document carries its whole history from its birth and is co-edited in its own sync room
+    dimension: [collab, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - crates/kition-kdm/src/replica.rs
+      - crates/kition-kdm/src/read.rs
+      - packages/kdm/src/replica.ts
+      - packages/kdm/src/read.ts
+      - packages/sync/src/relay.ts
+      - packages/sync/src/replicaVersions.ts
+      - packages/sync/test/helpers.ts
+      - packages/embed/src/collab.ts
+      - packages/script/src/room.ts
+      - crates/kition-sync-protocol/src/messages.rs
+      - docs/platform/reference/sync-protocol.md
+    cases: [sdk.collab.fork-rooms/create-and-converge, regressions/issue-sync-relay-shallow-push, regressions/issue-sync-relay-refused-push]
+    since: "2026-11-20"
   - id: sdk.agent.editor-premises
     title: Live editor kit callbacks participate in per-call premises
     dimension: [collab, data-safety]
@@ -378,6 +397,7 @@ features:
     cases:
       - sdk.agent.draft-objects/review
       - regressions/issue-mock-replica-save
+      - regressions/issue-embed-agent-principal
     since: "2026-11-16"
   - id: sdk.host.call-deadline
     title: Every managed kit request has a bounded deadline and a typed timeout

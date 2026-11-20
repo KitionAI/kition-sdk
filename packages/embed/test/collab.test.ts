@@ -5,13 +5,14 @@
  * room records, and kit (`fakeKit`, a real KDM replica).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { newDocId, person, Replica } from '@kition/kdm'
 import { FakeServer, fakeTransport } from '../../sync/test/helpers'
 import { mountEmbed } from '../src/mount'
 import { memoryReplicaStore } from '../src/replicaStore'
 import { localState, RoomRecords } from '../src/rooms'
 import { EmbedError } from '../src/errors'
 import type { CollabState, EmbedEditor, EmbedLeases, IdentityProvider, Presence } from '../src/types'
-import { fakeKit } from './fakeKit'
+import { fakeKit, NOTE_SCHEMA } from './fakeKit'
 import { memoryStorage } from './memoryStorage'
 
 const wait = { timeout: 4000, interval: 10 }
@@ -431,5 +432,93 @@ describe('collaboration', () => {
     expect(errors).toEqual([])
     // Every write went over the version the one before it wrote.
     expect(writes).toEqual(writes.map((_, index) => `v${index + 1}`))
+  })
+})
+
+describe('collaboration on a copy made as a new document', () => {
+  /** A note with text and history, as a template or a file copied from. */
+  function sourceNote(text: string) {
+    const { replica } = Replica.createWith(NOTE_SCHEMA, newDocId(), 900n, person('user:kit'), (tx) => tx.create('Note', {}))
+    const note = replica.objectsOfType('Note')[0]
+    replica.transact(person('user:kit'), (tx) => tx.textInsert(note, 'body', 0, `${text} DROPPED`))
+    replica.transact(person('user:kit'), (tx) => tx.textDelete(note, 'body', text.length, ' DROPPED'.length))
+    return replica
+  }
+
+  /** What a host keeps for a file whose replica is `snapshot` (as `document.fork` writes it). */
+  async function keptWith(snapshot: Uint8Array): Promise<Kept> {
+    const kept = { files: memoryStorage({ f1: '' }), state: localState(null), replicas: memoryReplicaStore() }
+    await kept.replicas.write('f1', { snapshot: snapshot.slice().buffer as ArrayBuffer, blobs: new ArrayBuffer(0), fileStamp: 'v1' })
+    return kept
+  }
+
+  it('makes the copy its own room, which a joiner catches up on, both edit, reconnect, reload and converge', async () => {
+    const sync = room()
+    const source = sourceNote('Template')
+    const fork = source.copyAsNewDocument(newDocId(), 901n)
+    const kept = await keptWith(fork.snapshot())
+    const alice = await page(sync, { id: 'alice', name: 'Alice' }, undefined, kept)
+    await joined(alice, 'owner')
+    const { docId } = alice.editor.collab.state
+    expect(docId).toBe(fork.docId)
+    const made = sync.server.rooms.get(docId!)!
+    // The room's first state is the copy, rooted at its birth: shallow, with its whole history.
+    expect(Replica.load(NOTE_SCHEMA, made.snapshot, 902n).isShallow()).toBe(true)
+    expect(Replica.snapshotCarriesWholeHistory(made.snapshot)).toBe(true)
+    expect(alice.kit.last().text()).toBe('Template')
+    alice.kit.last().edit(' by Alice')
+
+    const bob = await page(sync, { id: 'bob', name: 'Bob' }, await alice.editor.collab.shareLink('editor'))
+    await joined(bob)
+    expect(bob.editor.collab.state.docId).toBe(docId)
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe('Template by Alice'), wait)
+    bob.kit.last().edit(', Bob')
+    await vi.waitFor(() => expect(alice.kit.last().text()).toBe('Template by Alice, Bob'), wait)
+
+    // Offline edits on both sides converge after Bob reconnects.
+    bob.transport.sockets[0].close()
+    await vi.waitFor(() => expect(bob.editor.collab.state.status).toBe('offline'), wait)
+    bob.kit.last().edit(' offline')
+    alice.kit.last().edit(' online')
+    await vi.waitFor(() => expect(bob.editor.collab.state.status).toBe('online'), wait)
+    await vi.waitFor(() => expect(alice.kit.last().text()).toBe(bob.kit.last().text()), wait)
+    expect(alice.kit.last().text()).toContain(' offline')
+    expect(alice.kit.last().text()).toContain(' online')
+
+    // Saved, Alice's stored replica is the copy still rooted at its birth; a reload opens the
+    // same room from it and goes on.
+    await expect(alice.editor.save()).resolves.toMatchObject({ saved: true })
+    const stored = await alice.replicas.read('f1')
+    expect(Replica.snapshotCarriesWholeHistory(new Uint8Array(stored!.snapshot))).toBe(true)
+    alice.editor.destroy()
+    const again = await page(sync, { id: 'alice', name: 'Alice' }, undefined, alice)
+    await joined(again, 'owner')
+    expect(again.editor.collab.state.docId).toBe(docId)
+    again.kit.last().edit('!')
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe(again.kit.last().text()), wait)
+    expect(sync.server.rooms.size).toBe(1)
+    expect(sync.server.calls.filter((call) => call.method === 'room/create')).toHaveLength(1)
+
+    // Reopened where its room record is gone (another browser, cleared site data) but its replica
+    // is kept: the room exists, so it joins it knowing nothing it sent, and its edits still reach
+    // the room as changes.
+    again.editor.destroy()
+    const elsewhere = await page(sync, { id: 'alice', name: 'Alice' }, undefined, { files: alice.files, state: localState(null), replicas: alice.replicas })
+    await joined(elsewhere, 'owner')
+    expect(elsewhere.editor.collab.state.docId).toBe(docId)
+    await vi.waitFor(() => expect(elsewhere.kit.last().text()).toBe(bob.kit.last().text()), wait)
+    elsewhere.kit.last().edit('?')
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe(elsewhere.kit.last().text()), wait)
+    for (const side of [alice, bob, again, elsewhere]) expect(side.errors).toEqual([])
+  })
+
+  it('tells the page a replica truncated after its birth makes no room, before asking the server', async () => {
+    const sync = room()
+    const source = sourceNote('Truncated')
+    const kept = await keptWith(source.shallowSnapshot(source.version()))
+    const alice = await page(sync, { id: 'alice', name: 'Alice' }, undefined, kept)
+    await vi.waitFor(() => expect(alice.errors[0]?.message).toMatch(/does not carry the document's whole history/), wait)
+    expect(sync.server.calls.filter((call) => call.method === 'room/create')).toHaveLength(0)
+    expect(sync.server.rooms.size).toBe(0)
   })
 })

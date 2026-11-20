@@ -8,7 +8,10 @@
  * `ts-page.bin` copied as a new document (`ts-new-document.*`, docId
  * `01920000-0000-7000-8000-0000000000ab`) with `KDM_WRITE_NEW_DOCUMENT_FIXTURE=1`, or the committed
  * `ts-new-document.bin` (a shallow replica) with its page retitled, as it answers every change
- * (`ts-shallow-export.*`, `exportChanges(Version.empty())`), with `KDM_WRITE_SHALLOW_EXPORT_FIXTURE=1`.
+ * (`ts-shallow-export.*`, `exportChanges(Version.empty())`), with `KDM_WRITE_SHALLOW_EXPORT_FIXTURE=1`,
+ * or the committed `ts-page.bin` copied as a new document (docId `01920000-0000-7000-8000-0000000000ac`)
+ * with its page retitled, as its snapshot (`ts-birth.bin`, rooted at its birth) and as a shallow
+ * snapshot at its last version (`ts-birth-truncated.bin`), with `KDM_WRITE_BIRTH_FIXTURE=1`.
  *
  * Skipped otherwise, so the committed fixture changes only on purpose (object ids are new each time).
  */
@@ -49,4 +52,12 @@ it.skipIf(!process.env.KDM_WRITE_SHALLOW_EXPORT_FIXTURE)('writes crates/kition-k
   writeFileSync(target('ts-shallow-export.bin'), copy.exportChanges(Version.empty()))
   writeFileSync(target('ts-shallow-export.json'), copy.stateText())
   writeFileSync(target('ts-shallow-export.sha256'), createHash('sha256').update(copy.stateText()).digest('hex'))
+})
+
+it.skipIf(!process.env.KDM_WRITE_BIRTH_FIXTURE)('writes crates/kition-kdm/tests/fixtures/ts-birth.bin and ts-birth-truncated.bin', () => {
+  const copy = Replica.load(testSchema(), readFileSync(target('ts-page.bin')), 3n).copyAsNewDocument('01920000-0000-7000-8000-0000000000ac', 6n)
+  const page = copy.objectsOfType('Page')[0] as string
+  copy.transact(person('user:fixture'), (tx) => tx.set(page, 'title', 'Born page'))
+  writeFileSync(target('ts-birth.bin'), copy.snapshot())
+  writeFileSync(target('ts-birth-truncated.bin'), copy.shallowSnapshot(copy.version()))
 })

@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { Replica, Version } from '../src/index'
+import { newDocId, Replica, Version } from '../src/index'
 import { crateFixture, me, reasonOf, testSchema, tsPage } from './helpers'
 
 /** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures`; never regenerated to make a test pass. */
@@ -114,6 +114,25 @@ describe('copies as new documents across the two implementations', () => {
    * packages/kdm/test/fixtures shallow-export`: the committed `rust-new-document.bin` with its page
    * retitled, as the Rust KDM exports every change (`export_changes(&Version::empty())`).
    */
+  /**
+   * Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures birth`:
+   * `rust-page.bin` copied and retitled, as its snapshot and as a shallow snapshot at its last
+   * version. Both implementations read the same birth (sync protocol S20); the Rust
+   * `a_typescript_copy_carries_its_whole_history_and_its_truncation_does_not` checks the TypeScript pair.
+   */
+  it('read the birth of a Rust-made copy: its snapshot carries the whole history, its truncation does not', () => {
+    const born = Replica.load(testSchema(), fixture('rust-birth.bin'), 14n)
+    const truncated = Replica.load(testSchema(), fixture('rust-birth-truncated.bin'), 15n)
+    for (const replica of [born, truncated]) {
+      expect(replica.docId).toBe('01920000-0000-7000-8000-000000000003')
+      expect(replica.isShallow()).toBe(true)
+      expect(replica.get(replica.objectsOfType('Page')[0] as string, 'title')).toBe('Born page')
+    }
+    expect(born.carriesWholeHistory()).toBe(true)
+    expect(truncated.carriesWholeHistory()).toBe(false)
+    expect(born.copyAsNewDocument(newDocId(), 16n).carriesWholeHistory()).toBe(true)
+  })
+
   it("open a Rust-made shallow replica's export of every change as the document", () => {
     const exported = Replica.load(testSchema(), fixture('rust-shallow-export.bin'), 11n)
     const copy = Replica.load(testSchema(), fixture('rust-new-document.bin'), 12n)

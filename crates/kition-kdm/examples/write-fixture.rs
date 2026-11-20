@@ -9,7 +9,11 @@
 //! `01920000-0000-7000-8000-000000000002`; `... -- <dir> shallow-export` writes only
 //! `rust-shallow-export.bin` and `rust-shallow-export.json`, the committed
 //! `<dir>/rust-new-document.bin` (a shallow replica) with its page retitled, as it answers every
-//! change (`export_changes(&Version::empty())`).
+//! change (`export_changes(&Version::empty())`); `... -- <dir> birth` writes only `rust-birth.bin`
+//! and `rust-birth-truncated.bin`, the committed `<dir>/rust-page.bin` copied as a new document under
+//! docId `01920000-0000-7000-8000-000000000003` with its page retitled, as its snapshot (rooted at
+//! its birth: it carries the whole history) and as a shallow snapshot at its last version (it does
+//! not).
 
 use std::sync::Arc;
 
@@ -29,6 +33,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::write(format!("{dir}/rust-new-document.bin"), copy.snapshot()?)?;
         std::fs::write(format!("{dir}/rust-new-document.json"), copy.state_json()?.to_string())?;
         println!("{}", copy.state_hash()?);
+        return Ok(());
+    }
+    if std::env::args().nth(2).as_deref() == Some("birth") {
+        let page = Replica::load(schema, &std::fs::read(format!("{dir}/rust-page.bin"))?, ActorId::from_u64(7)?)?;
+        let mut copy = page.copy_as_new_document(DocId::parse("01920000-0000-7000-8000-000000000003")?, ActorId::from_u64(10)?)?;
+        let title = copy.objects_of_type("Page").into_iter().next().ok_or("no page")?;
+        copy.transact(&Origin::person("user:fixture"), |tx| tx.set(&title, "title", json!("Born page")))?;
+        std::fs::write(format!("{dir}/rust-birth.bin"), copy.snapshot()?)?;
+        std::fs::write(format!("{dir}/rust-birth-truncated.bin"), copy.shallow_snapshot(&copy.version())?)?;
         return Ok(());
     }
     if std::env::args().nth(2).as_deref() == Some("shallow-export") {

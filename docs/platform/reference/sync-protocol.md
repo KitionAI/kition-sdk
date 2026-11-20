@@ -105,7 +105,8 @@ shares where it looks, never an edit). Roles rank
 | Result | `{ shareLink }` |
 
 Makes a room from a KDM `snapshot` (the document's full state so far, with no
-changes yet); the caller becomes its `owner`. `name` is the document's
+changes yet, carrying the document's whole history: S20); the caller becomes
+its `owner`. `name` is the document's
 display name and `kit` its kit id (for example `kit.sheet`), shown in a
 person's document list (section 3b) and a server's own UI. Fails `conflict`
 if `docId` already has a room. `shareLink` is an opaque URL a server mints
@@ -275,7 +276,16 @@ goes to the server (section 7), which always keeps the whole history.
   are harmless).
 - **Pushing.** A shallow replica's pushes are ordinary change sets: the
   server checks and stores them like any other (section 4). `room/create`
-  still takes a full snapshot: a room starts with its whole history.
+  still takes a snapshot that carries the document's whole history (S20): a
+  room starts with its whole history.
+- **A copy's room.** A copy made as a new document (KitModel M7a: a copied
+  file, a template instantiated, the same file uploaded twice) is shallow,
+  rooted at its **birth**, and has no history before it anywhere, so its
+  snapshot carries the document's whole history and creates a room
+  (`room/create`). The room's whole history then starts at the birth: its
+  full snapshots, compactions and history reads are rooted there, and every
+  replica of the document has that root, so they import those snapshots and
+  each other's changes like a full document's.
 
 ## 3a. Members
 
@@ -982,8 +992,17 @@ only; a model that writes them (an LLM) is the caller's.
   from the whole history it keeps, as of the `seq` it answers, and MUST keep
   that history: history reads, restores, and full snapshots still answer
   from it. It MUST answer a shallow start only to `snapshot/get` and to a
-  `room/join` with `since: null`, MUST say so (`shallow: true`), and MUST
-  refuse a shallow snapshot as `room/create`'s snapshot (`invalid`).
+  `room/join` with `since: null`, and MUST say so (`shallow: true`). It MUST
+  refuse as `room/create`'s snapshot (`invalid`) one that does not carry the
+  **document's whole history**: a snapshot carries it when it is not
+  shallow, or when it is shallow and its root is the document's birth (a copy
+  made as a new document, KitModel M7a), as the birth recorded in the
+  snapshot's state at its root says, never a later change (KDM
+  `carries_whole_history`, `carriesWholeHistory` in TypeScript). A truncated
+  history cannot merge with replicas that hold the part before its root; no
+  replica holds history before a birth. A snapshot truncated later (its root
+  after the birth, or a shallow snapshot that records no birth, such as copies
+  made by board 0.1.4-dev builds) is refused.
 - **S21** Since 1.8, a client MUST NOT import a shallow snapshot into a
   replica it has; it loads one as a new replica, or rebases a shallow
   replica on it (section 3, "Shallow replicas").

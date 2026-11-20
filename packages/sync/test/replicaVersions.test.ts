@@ -26,6 +26,25 @@ describe('replica versions over real KDM exports', () => {
     expect(versions.isEmpty(b.exportChanges(decode(sentFromB)))).toBe(false)
   })
 
+  it("tells a shallow replica's snapshot from a change set, and the root it holds", () => {
+    const a = Replica.create(schema, newDocId(), 1n)
+    const note = a.transact(person('user:a'), (tx) => tx.create('Note', {}))
+    expect(versions.snapshotRoot(a.exportChanges(Version.empty()))).toBeNull()
+    expect(versions.snapshotRoot(new Uint8Array([1, 2, 3]))).toBeNull()
+    const copy = a.copyAsNewDocument(newDocId(), 2n)
+    const born = copy.snapshot()
+    copy.transact(person('user:a'), (tx) => tx.textInsert(note, 'body', 0, 'after the copy'))
+    const snapshot = copy.exportChanges(Version.empty())
+    const root = versions.snapshotRoot(snapshot)!
+    expect(root).not.toBeNull()
+    // Since that root, the copy answers its edit alone, as changes that take a replica of its birth to it.
+    const changes = copy.exportChanges(decode(root))
+    expect(versions.snapshotRoot(changes)).toBeNull()
+    const other = Replica.load(schema, born, 3n)
+    other.importChanges(changes)
+    expect(other.stateText()).toBe(copy.stateText())
+  })
+
   it('finds a blob hash a change references', () => {
     const a = Replica.create(schema, newDocId(), 1n)
     const note = a.transact(person('user:a'), (tx) => tx.create('Note', {}))

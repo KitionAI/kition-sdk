@@ -1,4 +1,4 @@
-import { isContainer as isEngineContainer, LoroDoc, UndoManager, type ContainerID, type ImportStatus, type LoroEventBatch, type LoroTreeNode, type PeerID } from 'loro-crdt'
+import { decodeImportBlobMeta, isContainer as isEngineContainer, LoroDoc, UndoManager, VersionVector, type ContainerID, type ImportStatus, type LoroEventBatch, type LoroTreeNode, type PeerID } from 'loro-crdt'
 import { canonicalText, compareKeys } from './canonical'
 import { checkString } from './args'
 import { open, sameBytes, Version, wrap } from './envelope'
@@ -98,6 +98,23 @@ function checkField(id: unknown, field: unknown): void {
 
 function checkFunction(f: unknown): void {
   if (typeof f !== 'function') throw new KdmError('invalid-value', 'a transaction needs a function')
+}
+
+/** Whether `doc` is full, or shallow with its state at its root recording that root as its birth (`Replica.carriesWholeHistory`). */
+function carriesWholeHistory(doc: LoroDoc): boolean {
+  if (!doc.isShallow()) return true
+  const root = Version.fromEngine(doc.shallowSinceVV())
+  // The engine here exports no state alone, so a fork of the document is read at its root.
+  const atRoot = doc.fork()
+  try {
+    atRoot.checkout(doc.shallowSinceFrontiers())
+    const birth = atRoot.getMap(read.BIRTH).get(read.BIRTH_ROOT)
+    return birth instanceof Uint8Array && Version.decode(birth).equals(root)
+  } catch {
+    return false
+  } finally {
+    atRoot.free()
+  }
 }
 
 /** One copy of one document; the TypeScript twin of the Rust `Replica`. */
@@ -584,6 +601,48 @@ export class Replica {
     return this.doc.isShallow() ? Version.fromEngine(this.doc.shallowSinceVV()) : null
   }
 
+  /**
+   * Whether this replica carries the **document's whole history** (sync protocol S20): it is full,
+   * or it is shallow and its root is the document's birth, so no replica of the document can hold
+   * changes before it. A copy made by `copyAsNewDocument` is born at its root, and every replica
+   * loaded from it, its snapshots and its drafts keep that root; a shallow snapshot taken later
+   * (`shallowSnapshot` after more changes) does not.
+   *
+   * The birth is the version the copy recorded in the change that made it, read from this
+   * replica's state **at its root**: a change after the root, which any client may make, never
+   * counts, and a value written in such a change could only name a version before the root it is
+   * part of. A server that trusts no client decides from the bytes alone. Shallow documents that
+   * record no birth (copies made before it was recorded) do not carry it. As the Rust
+   * `Replica::carries_whole_history`.
+   */
+  carriesWholeHistory(): boolean {
+    this.checkOpen()
+    return carriesWholeHistory(this.doc)
+  }
+
+  /**
+   * `carriesWholeHistory` of the document `bytes` (a snapshot or a full export) hold, read without
+   * a schema, as a sync server reads a room's first state (rule S20). Bytes that are not a KDM
+   * export, or that do not decode, are `encoding` errors. As the Rust
+   * `Replica::snapshot_carries_whole_history`.
+   */
+  static snapshotCarriesWholeHistory(bytes: Uint8Array): boolean {
+    const { engine } = open(bytes)
+    const doc = new LoroDoc()
+    try {
+      if (decodeImportBlobMeta(engine, true).mode !== 'shallow-snapshot') return true
+      doc.import(engine)
+    } catch (error) {
+      doc.free()
+      throw errors.encoding(engineMessage(error))
+    }
+    try {
+      return carriesWholeHistory(doc)
+    } finally {
+      doc.free()
+    }
+  }
+
   /** Whether `version` is at or after this replica's shallow root: always, on a full replica. */
   private reaches(version: Version): boolean {
     const root = this.shallowRoot()
@@ -837,14 +896,23 @@ export class Replica {
       configure(doc, this.schema)
       doc.import(this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() }))
       doc.setPeerId(actor)
+      // The change records the copy's root below, its birth: the engine roots a shallow document
+      // at its last operation, which is this change's second write, this actor's next operation
+      // but one, so the root (as `shallowRoot` answers it) is known before the change.
+      const birth = new Map(doc.oplogVersion().toJSON())
+      const peer = actor.toString() as PeerID
+      birth.set(peer, (birth.get(peer) ?? 0) + 1)
       doc.getMap(read.META).set('docId', uuidFromBytes(idBytes))
+      doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, VersionVector.parseJSON(birth).encode())
       doc.commit({ origin: SYSTEM, message: encodeCommit(system('new-document'), this.schema.schemaVersion) })
       // Rooted after that change: the source's id is overwritten, not kept as history.
       bytes = doc.export({ mode: 'shallow-snapshot', frontiers: doc.oplogFrontiers() })
     } catch (error) {
       throw errors.encoding(engineMessage(error))
     }
-    return Replica.load(this.schema, wrap(idBytes, bytes), actor)
+    const copy = Replica.load(this.schema, wrap(idBytes, bytes), actor)
+    if (!copy.carriesWholeHistory()) throw errors.engine('the copy is not rooted at the birth it records')
+    return copy
   }
 
   /**

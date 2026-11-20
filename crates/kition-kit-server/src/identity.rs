@@ -142,6 +142,22 @@ mod tests {
         assert!(kind.identity(&again).is_ok());
     }
 
+    /// A forked file's replica is rooted at its birth, so a sync server takes its snapshot as a
+    /// room's first state (sync protocol S20), and so does a fork of a fork.
+    #[test]
+    fn a_forked_files_replica_carries_its_whole_history() {
+        let (bytes, _) = file();
+        let kind = container();
+        let container = Container(Arc::new(Schema::parse(SCHEMA).unwrap_or_else(|error| panic!("{error}"))));
+        let replica_of =
+            |file: &[u8]| FileIdentity::embedded(&container, file).unwrap_or_else(|error| panic!("{error}")).unwrap_or_else(|| panic!("a replica"));
+        let (forked, _) = kind.fork(&bytes).unwrap_or_else(|error| panic!("{error}"));
+        let fork = replica_of(&forked);
+        assert!(fork.is_shallow() && fork.carries_whole_history());
+        let (again, _) = kind.fork(&forked).unwrap_or_else(|error| panic!("{error}"));
+        assert!(replica_of(&again).carries_whole_history());
+    }
+
     #[test]
     fn a_file_without_a_replica_has_no_id_and_forks_unchanged() {
         let plain = b"TEST no replica yet".to_vec();

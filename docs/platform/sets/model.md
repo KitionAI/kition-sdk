@@ -141,7 +141,14 @@ A kit on the KDM ships `model/schema.json`:
   `copy_as_new_document(doc_id, actor)` (`copyAsNewDocument` in TypeScript)
   answers a replica of `doc_id` with the same objects, ids and values and no
   history (a shallow replica, M16a, rooted at its own first change, with
-  empty undo), and refuses (`invalid-value`) the source's own `docId`. Copies
+  empty undo), and refuses (`invalid-value`) the source's own `docId`. That
+  root is the document's **birth**, recorded in the copy's first change:
+  `carries_whole_history()` (`carriesWholeHistory()`) is true for a full
+  replica and for a shallow one whose state at its root records that root
+  as its birth (the copy and every replica loaded from it), and false for one
+  truncated later; only the state at the root counts, so no later change
+  claims another birth. A sync server takes such a snapshot as a room's
+  first state (sync protocol S20). Copies
   and their source refuse each other's bytes (M17). Hosts use it for
   templates, copied files and repeated uploads; a fork (A12) keeps the
   `docId` and is merged back, a copy never is. For a kit whose files embed
@@ -283,7 +290,8 @@ A kit on the KDM ships `model/schema.json`:
   since it was loaded (as for any loaded replica, M12), and it forks a
   draft (A12) only at its current version. Earlier versions, blame, and
   restores are read from whoever keeps the whole history (the sync server,
-  [sync-protocol.md](../reference/sync-protocol.md) sections 3 and 7). Changes that
+  [sync-protocol.md](../reference/sync-protocol.md) sections 3 and 7; a copy
+  has none before its birth, M7a). Changes that
   depend on history before the root (made by a replica that had not seen
   the root) MUST be refused (`KdmError::HistoryMissing`, reason
   `history-missing`) without changing anything; the host then rebases the

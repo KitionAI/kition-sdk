@@ -14,7 +14,7 @@
  *   as its replica instead); then the relay starts, and presence follows the room. A role that turns out to
  *   be `viewer` reopens the kit read-only (the host's `reopenReadOnly`).
  */
-import { openEnvelope } from '@kition/kdm'
+import { openEnvelope, Replica } from '@kition/kdm'
 import { KitRpcError, LEASE_HELD_REASON, type KitConnection, type KitLease } from '@kition/kit-host'
 import {
   DocumentLeases,
@@ -112,6 +112,21 @@ function toError(error: unknown) {
 }
 
 /** The document id a stored replica's snapshot carries (its KDM envelope), or `null`. */
+/**
+ * Refuses a room's first state that does not carry the document's whole history (sync protocol
+ * S20): a shallow replica truncated after the document's birth. Bytes the KDM cannot read are the
+ * server's to refuse.
+ */
+function checkWholeHistory(snapshot: Uint8Array, name: string) {
+  let whole = true
+  try {
+    whole = Replica.snapshotCarriesWholeHistory(snapshot)
+  } catch {
+    return
+  }
+  if (!whole) throw new Error(`${name} cannot be co-edited: its replica is a shallow one truncated after the document's birth, so it does not carry the document's whole history (sync protocol S20); open it from a full replica or a copy made as a new document`)
+}
+
 function snapshotDocId(snapshot: ArrayBuffer) {
   try {
     return toHex(openEnvelope(new Uint8Array(snapshot)).docId)
@@ -397,6 +412,7 @@ export class CollabSession {
     const hex = snapshotDocId(toArrayBuffer(stored.snapshot))
     if (!hex) return null
     const docId = canonicalDocId(hex)
+    checkWholeHistory(new Uint8Array(toArrayBuffer(stored.snapshot)), file.name)
     await uploadBlobs(this.client, docId, decodeBlobSection(new Uint8Array(toArrayBuffer(stored.blobs))))
     try {
       await this.client.createRoom(docId, new Uint8Array(toArrayBuffer(stored.snapshot)), file.name, kit.id)
@@ -904,6 +920,7 @@ export class CollabSession {
     const { saved } = this.managed ? { saved: false } : await connection.save()
     const version = new Uint8Array(await connection.replica.version())
     const exported = await connection.replica.exportChanges(new ArrayBuffer(0))
+    checkWholeHistory(new Uint8Array(exported.changes), file.name)
     // An unedited document has nothing to save, so the kit kept no replica: the room's creation
     // snapshot becomes it, under the file's current stamp, so the document opens again with the
     // same id (and room) after a reload.

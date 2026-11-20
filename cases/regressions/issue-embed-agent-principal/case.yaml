@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-embed-agent-principal
+feature: sdk.agent.draft-objects
+intent: >-
+  An embed with an identity merges an agent's draft as the person (origin.principal is the
+  person's id) also before any agent port opened, as a sync server requires of a person's token.
+  Before, a merge before editor.agentPort() carried the principal `agent`, which a server refuses.
+layer: gate
+source: { kind: issue, from: fork-rooms audit (embed mount.ts agentPrincipal default), license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/embed/test/agent.test.ts, -t, before any agent port] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-20"

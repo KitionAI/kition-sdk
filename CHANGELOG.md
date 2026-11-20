@@ -4,6 +4,27 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A forked document is co-edited in its own sync room** (sync protocol S20, KitModel M7a,
+  M16a). A copy made as a new document (`Replica::copy_as_new_document`, `copyAsNewDocument`, and
+  so every file `document.fork` writes) is shallow, and a sync server refuses a shallow snapshot as
+  `room/create`'s, so no forked file could be shared. The copy's first change now records its root
+  as the document's **birth**, and `carries_whole_history()` (`carriesWholeHistory()`; for a server
+  without a schema, `Replica::snapshot_carries_whole_history(bytes)`,
+  `Replica.snapshotCarriesWholeHistory`) is true for a full replica and for a shallow one whose
+  state at its root records that root as its birth: the copy and every replica loaded from it.
+  S20 now refuses only a snapshot that does not carry the document's whole history (truncated
+  after its birth, or recording none: copies made by board 0.1.4-dev builds, which are copied
+  again). `@kition/script`'s `createRoom` and the embed refuse a truncated replica with a clear
+  error before `room/create`. The relay in `@kition/sync` never pushes a snapshot as changes (a
+  shallow replica with an empty `lastSent` sends the changes after its root; `ReplicaVersions`
+  has `snapshotRoot`), and what it has sent advances only once the room takes a push, so a refused
+  or failed push is sent again with the next one; before, it was lost. The test sync server
+  checks KDM exports as Kition Server does. Kits pin the new SDK revision and change nothing
+  (sdk.collab.fork-rooms/create-and-converge, regressions/issue-sync-relay-shallow-push,
+  regressions/issue-sync-relay-refused-push).
+- **The embed merges a draft as the person before any agent port opened**: with an identity, a
+  `draft.merge` before `editor.agentPort()` carried the principal `agent`, which a sync server
+  refuses for a person's token; it is now the person's id (regressions/issue-embed-agent-principal).
 - **A forked document's every change loads** (KitModel M14, M16a). A shallow replica, above all
   a copy as a new document and so every file `document.fork` writes, answered `export_changes`
   since the empty version (`exportChanges()` in TypeScript) with only the changes after its root,

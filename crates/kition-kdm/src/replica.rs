@@ -13,7 +13,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::error::{engine, importing};
-use crate::read::{self, META, OBJECTS, SCHEMA_VERSION};
+use crate::read::{self, BIRTH, BIRTH_ROOT, META, OBJECTS, SCHEMA_VERSION};
 use crate::value::canonical;
 use crate::{ActorId, Changes, DocId, FieldKind, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
 
@@ -614,6 +614,35 @@ impl Replica {
         self.is_shallow().then(|| Version(self.doc.shallow_since_vv().to_vv()))
     }
 
+    /// Whether this replica carries the **document's whole history** (sync protocol S20): it is
+    /// full, or it is shallow and its root is the document's birth, so no replica of the document
+    /// can hold changes before it. A copy made by [`Replica::copy_as_new_document`] is born at its
+    /// root, and every replica loaded from it, its snapshots and its drafts keep that root; a
+    /// shallow snapshot taken later ([`Replica::shallow_snapshot`] after more changes) does not.
+    ///
+    /// The birth is the version the copy recorded in the change that made it, read from this
+    /// replica's state **at its root**: a change after the root, which any client may make, never
+    /// counts, and a value written in such a change could only name a version before the root it
+    /// is part of. A server that trusts no client decides from the bytes alone. Shallow documents
+    /// that record no birth (copies made before it was recorded) do not carry it.
+    pub fn carries_whole_history(&self) -> bool {
+        carries_whole_history(&self.doc)
+    }
+
+    /// [`Replica::carries_whole_history`] of the document `bytes` (a snapshot or a full export)
+    /// hold, read without a schema, as a sync server reads a room's first state (rule S20).
+    /// Bytes that are not a KDM export, or that do not decode, are [`KdmError::Encoding`].
+    pub fn snapshot_carries_whole_history(bytes: &[u8]) -> Result<bool> {
+        let (_, bytes) = envelope::open(bytes)?;
+        let meta = LoroDoc::decode_import_blob_meta(bytes, true).map_err(|error| KdmError::Encoding(error.to_string()))?;
+        if meta.mode != loro::EncodedBlobMode::ShallowSnapshot {
+            return Ok(true);
+        }
+        let doc = LoroDoc::new();
+        doc.import(bytes).map_err(|error| KdmError::Encoding(error.to_string()))?;
+        Ok(carries_whole_history(&doc))
+    }
+
     /// Whether `version` is at or after this replica's shallow root: always, on a full replica.
     fn reaches(&self, version: &Version) -> bool {
         self.shallow_root().is_none_or(|root| version.includes(&root))
@@ -1069,13 +1098,24 @@ impl Replica {
         crate::marks::configure(&doc, &self.schema);
         doc.import(&state).map_err(importing)?;
         doc.set_peer_id(actor.get()).map_err(engine)?;
+        // The change records the copy's root below, its birth: the engine roots a shallow document
+        // at its last operation, which is this change's second write, this actor's next operation
+        // but one, so the root (as `shallow_root` answers it) is known before the change.
+        let mut birth = doc.oplog_vv();
+        let next = birth.get(&actor.get()).copied().unwrap_or(0);
+        birth.insert(actor.get(), next + 1);
         doc.get_map(META).insert("docId", doc_id.to_string()).map_err(engine)?;
+        doc.get_map(BIRTH).insert(BIRTH_ROOT, LoroValue::Binary(birth.encode().into())).map_err(engine)?;
         doc.set_next_commit_origin(OriginKind::System.as_str());
         doc.set_next_commit_message(&Origin::system("new-document").encode_commit(self.schema.schema_version));
         doc.commit();
         // Rooted after that change: the source's id is overwritten, not kept as history.
         let bytes = doc.export(ExportMode::shallow_snapshot(&doc.oplog_frontiers())).map_err(encoding)?;
-        Self::load(Arc::clone(&self.schema), &envelope::wrap(doc_id, bytes), actor)
+        let copy = Self::load(Arc::clone(&self.schema), &envelope::wrap(doc_id, bytes), actor)?;
+        if !copy.carries_whole_history() {
+            return Err(KdmError::Engine("the copy is not rooted at the birth it records".into()));
+        }
+        Ok(copy)
     }
 
     /// The canonical state this replica would have after importing `changes`, without changing it:
@@ -1243,6 +1283,24 @@ impl Replica {
     pub fn state_hash(&self) -> Result<String> {
         let digest = Sha256::digest(self.state_json()?.to_string().as_bytes());
         Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    }
+}
+
+/// Whether `doc` is full, or shallow with its state at its root recording that root as its birth
+/// ([`Replica::carries_whole_history`]).
+fn carries_whole_history(doc: &LoroDoc) -> bool {
+    if !doc.is_shallow() {
+        return true;
+    }
+    let root = Version(doc.shallow_since_vv().to_vv());
+    let Ok(state) = doc.export(ExportMode::StateOnly(Some(Cow::Owned(doc.shallow_since_frontiers())))) else { return false };
+    let at_root = LoroDoc::new();
+    if at_root.import(&state).is_err() {
+        return false;
+    }
+    match at_root.get_map(BIRTH).get(BIRTH_ROOT) {
+        Some(ValueOrContainer::Value(LoroValue::Binary(bytes))) => Version::decode(&bytes).is_ok_and(|birth| birth == root),
+        _ => false,
     }
 }
 

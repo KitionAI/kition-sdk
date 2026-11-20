@@ -163,8 +163,11 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
   let frame: HTMLIFrameElement | null = null
   let opening: AbortController | null = null
   let collab: CollabSession | null = null
-  // Who drafts are merged as: the agent the page last gave a port (`origin.principal`).
-  let agentPrincipal = 'agent'
+  // Who drafts are merged as (`origin.principal`): the principal the page last gave an agent
+  // port; before any, the person (an agent acts for the person who started it, KHP A11, A14), or
+  // `agent` without an identity.
+  let agentPrincipal: string | null = null
+  const mergePrincipal = () => agentPrincipal ?? user?.id ?? 'agent'
   let agentLabel: string | undefined
   const ports = new Set<AgentPort>()
   let destroyed = false
@@ -569,7 +572,7 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       merge: async (mergeOptions) => {
         const current = await deciding()
         const label = mergeOptions?.label ?? agentLabel
-        return current.draft.merge({ kind: 'agent', principal: agentPrincipal, ...(label ? { label } : {}) }, await kitSchema())
+        return current.draft.merge({ kind: 'agent', principal: mergePrincipal(), ...(label ? { label } : {}) }, await kitSchema())
       },
       discard: async () => (await deciding()).draft.discard(),
     },
@@ -578,7 +581,7 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       // draft carry the person's id unless the page names another principal.
       agentPrincipal = portOptions?.principal ?? user?.id ?? agentPrincipal
       agentLabel = portOptions?.label ?? agentLabel
-      const port = createAgentPort({ kitId: kit.id, path: () => file.name, opened, editable: () => mode === 'edit', version: EMBED_VERSION, schema: kitSchema }, { ...portOptions, principal: agentPrincipal })
+      const port = createAgentPort({ kitId: kit.id, path: () => file.name, opened, editable: () => mode === 'edit', version: EMBED_VERSION, schema: kitSchema }, { ...portOptions, principal: mergePrincipal() })
       ports.add(port)
       // While a port is open, co-editors see the agent working for the person (KitAgent A20).
       collab?.setAgent({ name: agentLabel ?? 'Agent' })

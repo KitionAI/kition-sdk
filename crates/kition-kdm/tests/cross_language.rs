@@ -101,3 +101,23 @@ fn a_typescript_shallow_export_of_every_change_loads_as_the_document() {
     let again = Replica::load(schema(), &exported.export_changes(&kition_kdm::Version::empty()).unwrap(), ActorId::from_u64(19).unwrap()).unwrap();
     assert_eq!(again.state_hash().unwrap(), exported.state_hash().unwrap());
 }
+
+/// A copy made by the TypeScript KDM and retitled (`fixtures/ts-birth*.bin`, written by
+/// `KDM_WRITE_BIRTH_FIXTURE=1 pnpm vitest run packages/kdm/test/write-ts-fixture.test.ts`) carries
+/// the whole history here as its snapshot (rooted at its birth), and not as a shallow snapshot at
+/// its last version: both implementations read the same birth (sync protocol S20).
+#[test]
+fn a_typescript_copy_carries_its_whole_history_and_its_truncation_does_not() {
+    let born = Replica::load(schema(), include_bytes!("fixtures/ts-birth.bin"), ActorId::from_u64(20).unwrap()).unwrap();
+    let truncated = Replica::load(schema(), include_bytes!("fixtures/ts-birth-truncated.bin"), ActorId::from_u64(21).unwrap()).unwrap();
+    for replica in [&born, &truncated] {
+        assert_eq!(replica.doc_id(), DocId::parse("01920000-0000-7000-8000-0000000000ac").unwrap());
+        assert!(replica.is_shallow());
+        let page = replica.objects_of_type("Page").into_iter().next().unwrap();
+        assert_eq!(replica.get(&page, "title").unwrap(), serde_json::json!("Born page"));
+    }
+    assert!(born.carries_whole_history());
+    assert!(!truncated.carries_whole_history());
+    // A replica loaded from the copy and copied again here is born again.
+    assert!(born.copy_as_new_document(DocId::new(), ActorId::from_u64(22).unwrap()).unwrap().carries_whole_history());
+}

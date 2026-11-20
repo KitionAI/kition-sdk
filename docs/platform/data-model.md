@@ -322,6 +322,20 @@ earlier versions would name the source's `docId`, and deleted content would
 travel. A kit that also writes the `docId` outside its replica (a container's
 manifest, a database row) writes the new one there too.
 
+A copy's root is the document's **birth**: no replica of the new `docId` can
+hold history before it. The change that makes the copy records that root (a
+root map `birth`, key `root`, outside `meta`, so the canonical state stays the
+source's), and `carries_whole_history()` (`carriesWholeHistory()`) answers
+true for a full replica and for a shallow one whose state **at its root**
+records its root as the birth: the copy, every replica loaded from it, its
+snapshots and drafts. A shallow snapshot taken after more changes does not,
+and neither does a later change that writes another birth (only the state at
+the root counts). A sync server reads it from the bytes alone to accept a
+copy's snapshot as a new room's first state (sync protocol S20), so a copy is
+co-edited as its own document. Copies made before the birth was recorded
+(board 0.1.4-dev builds only; no released artifact) record none, and a server
+refuses them like any truncated replica: copy them again.
+
 **Two reads of one file compared.** When another program changes a file
 and a kit reads it again, what changed is found by pairing the objects of
 the two reads, never by `ObjectId` alone (`kition_kdm::reread`). Pairing is

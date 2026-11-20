@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-sync-relay-shallow-push
+feature: sdk.collab.fork-rooms
+intent: >-
+  The relay never pushes a snapshot as changes: a shallow replica (a copy made as a new document, a
+  shallow start) answers its snapshot for a since that does not reach its root, an empty lastSent
+  above all, and changes/push takes change sets only, so the relay sends the changes after the root,
+  which the room holds. Before, a page reopening a forked document whose room record was gone joined
+  its room and pushed the snapshot, which Kition Server refuses ("changes/push takes change sets").
+layer: gate
+source: { kind: issue, from: fork-rooms audit (relay.ts with an empty lastSent), license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/sync/test/relay.test.ts, -t, a shallow replica] }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/embed/test/collab.test.ts, -t, makes the copy its own room] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-20"

@@ -3,12 +3,43 @@
  * stand in for a WebSocket, and `FakeServer` implements just enough of the protocol (hello,
  * rooms, pushes, presence, blobs, snapshots) for `SyncClient` to be tested against something
  * that actually speaks the wire format, including its binary framing.
+ *
+ * It checks the KDM exports it takes as Kition Server does: `room/create` refuses a snapshot that
+ * does not carry the document's whole history (rule S20: a full one, or one rooted at the
+ * document's birth), and `changes/push` takes change sets only, never a snapshot (`invalid`). Bytes
+ * that are not a KDM export at all are a test's opaque payload, taken as they are.
  */
+import { decodeImportBlobMeta } from 'loro-crdt'
+import { openEnvelope, Replica } from '@kition/kdm'
 import { Decoder, Outgoing, readBin } from '../src/framing'
 import { sha256Hex } from '../src/hash'
 import { initialSaveState, saveTransition, type SaveEvent, type SaveState } from '../src/saveMachine'
 import type { Role, OpenScope } from '../src/protocol'
 import type { SyncTransport, TransportFactory } from '../src/transport'
+
+const KDM_MAGIC = [0x4b, 0x44, 0x4d, 0x01]
+const isKdm = (bytes: Uint8Array) => bytes.length >= 20 && KDM_MAGIC.every((byte, index) => bytes[index] === byte)
+
+/** Why Kition Server refuses `bytes` as `room/create`'s snapshot (S20); `null` when it takes them. */
+function snapshotRefusal(bytes: Uint8Array): string | null {
+  if (!isKdm(bytes)) return null
+  try {
+    return Replica.snapshotCarriesWholeHistory(bytes) ? null : "a snapshot must carry the document's whole history, not a shallow one"
+  } catch (error) {
+    return `the snapshot does not decode: ${String(error)}`
+  }
+}
+
+/** Why Kition Server refuses `bytes` as `changes/push`'s changes; `null` when it takes them. */
+function changesRefusal(bytes: Uint8Array): string | null {
+  if (!isKdm(bytes)) return null
+  try {
+    const { mode } = decodeImportBlobMeta(openEnvelope(bytes).engine, true)
+    return mode === 'update' || mode === 'outdated-update' ? null : `changes/push takes change sets, not a ${mode} export`
+  } catch (error) {
+    return `the changes do not decode: ${String(error)}`
+  }
+}
 
 /** One end of a loop-back pair: `send` on one side reaches the other's `onmessage`, asynchronously. */
 export class FakeSocket implements SyncTransport {
@@ -354,6 +385,8 @@ export class FakeServer {
           return
         }
         const bytes = readBin(params.changes, bins)
+        const refused = changesRefusal(bytes)
+        if (refused) return this.fail(conn, id, 'invalid', refused)
         const seq = room.changes.length + 1
         room.changes.push({ seq, bytes, from: conn.principalId })
         room.updated = Date.now()
@@ -515,6 +548,8 @@ export class FakeServer {
       }
       case 'room/create': {
         const docId = params.docId as string
+        const refused = snapshotRefusal(readBin(params.snapshot, bins))
+        if (refused) return this.fail(conn, id, 'invalid', refused)
         if (conn.open) {
           // RM6: one room per file generation, made by an editor, bound to it; never owned.
           if (conn.open.role !== 'editor') return this.fail(conn, id, 'forbidden', 'only an editor makes the room')

@@ -90,6 +90,18 @@ describe('KitEmbed 1.3', () => {
     expect(kit.last().merges).toEqual([{ kind: 'agent', principal: 'alice' }])
   })
 
+  it('merges a draft made before any agent port opened as the person, when the page gives an identity', async () => {
+    const { editor, kit } = setUp({ identity: { user: async () => ({ id: 'alice', name: 'Alice' }) } })
+    const opened = await editor
+    await opened.ready()
+    // A draft the kit kept from an earlier session (or its own assistant made): no port yet.
+    kit.last().draftText = 'hello!'
+    kit.last().draftState = 'ready'
+    await opened.draft.merge()
+    // Never `agent`, which a sync server refuses as the principal of a person's token.
+    expect(kit.last().merges).toEqual([{ kind: 'agent', principal: 'alice' }])
+  })
+
   it("never runs an agent's steps as the page's own change, whatever the call passes", async () => {
     const { editor, kit } = setUp()
     const opened = await editor

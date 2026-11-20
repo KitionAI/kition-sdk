@@ -3,7 +3,7 @@
  * a KDM replica of a server room, runs batches on it, and pushes their changes; another member's
  * handle hears them as `changed`. Roles, commands through `agent/run`, and leaving the room.
  */
-import { BatchError, person, Replica, Version } from '@kition/kdm'
+import { BatchError, newDocId, person, Replica, Version } from '@kition/kdm'
 import { SyncClient } from '@kition/sync'
 import { describe, expect, it } from 'vitest'
 import { FakeServer, fakeTransport } from '../../sync/test/helpers'
@@ -219,6 +219,50 @@ describe('openRoom', () => {
     expect(await titles(doc)).toEqual(['After'])
     bob.close()
     doc.close()
+  })
+})
+
+describe('createRoom from a copy made as a new document', () => {
+  /** A fake server with Alice's room made from a copy (KitModel M7a) of an entry file, edited after the copy. */
+  async function forkedRoom() {
+    const server = new FakeServer()
+    server.identify('dev-alice', { id: 'u:alice', name: 'Alice', color: '#5645d4' })
+    server.identify('dev-bob', { id: 'u:bob', name: 'Bob', color: '#0a7' })
+    const source = makeCollection(['Q2 plan', 'Hiring'])
+    const fork = source.copyAsNewDocument(newDocId(), 7n)
+    const { docId } = await createRoom({ server: SERVER, token: 'dev-alice', kit: 'kit.mockroom', name: 'Plan copy', document: fork.snapshot(), createTransport: fakeTransport(server).factory })
+    expect(docId).toBe(fork.docId)
+    const open = (token: string) => openRoom({ server: SERVER, token, docId, kit: 'kit.mockroom', createTransport: fakeTransport(server).factory })
+    return { server, source, fork, docId, open }
+  }
+
+  it('makes the copy its own room, where members catch up, co-edit and converge', async () => {
+    const { server, source, docId, open } = await forkedRoom()
+    expect(docId).not.toBe(source.docId)
+    const alice = await open('dev-alice')
+    const bob = await open('dev-bob')
+    expect(await titles(bob)).toEqual(['Q2 plan', 'Hiring'])
+    await titles(alice, (title, index) => (index === 0 ? `${title} (copy)` : title))
+    await until(() => server.rooms.get(docId)!.changes.length === 1)
+    await titles(bob, (title, index) => (index === 1 ? title.toUpperCase() : title))
+    await until(() => server.rooms.get(docId)!.changes.length === 2)
+    await until(() => Replica.load(alice.schema, alice.snapshot(), 50n).stateText() === Replica.load(bob.schema, bob.snapshot(), 51n).stateText())
+    expect(await titles(alice)).toEqual(['Q2 plan (copy)', 'HIRING'])
+    // Someone who opens it later catches up from its snapshot (rooted at the copy's birth) and changes.
+    const late = await open('dev-bob')
+    expect(await titles(late)).toEqual(['Q2 plan (copy)', 'HIRING'])
+    for (const doc of [alice, bob, late]) doc.close()
+  })
+
+  it('refuses a document truncated after its birth before it reaches the server', async () => {
+    const server = new FakeServer()
+    server.identify('dev-alice', { id: 'u:alice', name: 'Alice', color: '#5645d4' })
+    const collection = makeCollection(['Q2 plan'])
+    const truncated = collection.shallowSnapshot(collection.version())
+    const refused = await createRoom({ server: SERVER, token: 'dev-alice', kit: 'kit.mockroom', name: 'Plan', document: truncated, createTransport: fakeTransport(server).factory }).catch((error: unknown) => error)
+    expect(String(refused)).toMatch(/does not carry the document's whole history/)
+    expect(server.calls.map((call) => call.method)).not.toContain('room/create')
+    expect(server.rooms.size).toBe(0)
   })
 })
 
