@@ -1,0 +1,24 @@
+format: 1
+id: sdk.host.document-fork/identity-and-fork
+feature: sdk.host.document-fork
+intent: >-
+  Through a real kit process, a host reads the docId a file carries (document.identity) and forks a
+  file into a new document (document.fork) without parsing the kit's format: for a kit whose files
+  embed their replica a byte copy tells the same id, the fork has a new id, opens with the same
+  content and object ids, holds none of the source's deleted content, refuses the source's changes
+  and is refused by it, and forks again; a fork never replaces a file; a file without a replica, and
+  a kit whose files embed none (kition-kit-server's default), has no identity and forks into the
+  same bytes; a kit that does not declare the feature answers method not found.
+layer: gate
+source: { kind: synthetic, from: kition-one refresh F2 (copies, templates and repeated uploads as new documents), license: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -q, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kit-host, test: document_identity }
+  - cargo-test: { package: kition-kit-server, filter: identity }
+  - exec: { cmd: [cargo, test, -q, -p, grid-kit-headless, --test, protocol, a_kit_whose_files_embed_no_replica_has_no_identity_and_forks_the_same_bytes] }
+  - cargo-test: { package: kition-kit-process-protocol, test: schema }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-20"

@@ -403,6 +403,47 @@ when its engine keeps a replica (`open_with_replica`, the features
   connection. An agent's drafts beside a file (A27) fork the replica opened
   this way, so a draft and its merge keep the document's `docId`.
 
+### 5.6 Document identity and forks
+
+A document's permanent id (`docId`, [`KitModel 1.0`](../sets/model.md) M7) lives
+in its replica. A kit whose files embed the replica (a board, a table, a
+layout) makes every byte copy of a file the same document: a file copied, a
+template instantiated twice, the same file uploaded twice. These two requests
+let a host read the id a file carries, and make a file into a new document,
+without knowing the kit's format. A kit that answers them lists the feature
+`document.identity` in `capabilities.features` and its manifest's
+`headless.features` (K9); a kit that does not answers both `-32601 method
+not found`.
+
+| Method | Direction | Parameters | Result |
+| --- | --- | --- | --- |
+| `document.identity` | request | `file` (a handle with `read`) | `{ docId }`: the id the file carries, or `null` |
+| `document.fork` | request | `file` (a handle with `read`), `target` (a `create` handle) | `{ docId, name, version }`: the new document's id, or `null`; the target's name and the version its commit answered |
+
+- Both read the file through its handle (`files.read`); neither opens a
+  document nor needs one open. `document.fork` writes its answer to `target`
+  with one committed write and never replaces a file (a `create` handle, H5).
+- `docId` is a lower-case hyphenated UUID. It is `null` when the kit's files
+  embed no replica (the kit makes a new one each time it opens a file) or
+  when this file holds none (a file another program wrote); then
+  `document.fork` writes the file's bytes unchanged.
+- Otherwise `document.fork` writes the same file with its replica replaced by
+  a copy as a new document (M7a, `copy_as_new_document`): the same objects,
+  object ids and values, no history (deleted content and earlier versions
+  stay behind), empty undo, and a new `docId` the kit makes and answers; the
+  host supplies none, as it supplies no `documentId`. Everything else in the
+  file is kept. The source and the fork refuse each other's changes (M17),
+  and a fork of a fork is another new document.
+- A replica the kit cannot read (damaged, of another kit, of a newer schema)
+  is `-32012 unsupported_format`, never `null`: a host must not take a file
+  it cannot read as one without identity.
+- `kition-kit-server` answers both from the kit's `file_identity`:
+  `FileIdentity::NotEmbedded` needs no other code; a kit whose files embed a
+  replica gives `FileIdentity::Embedded` with where its container keeps the
+  replica's bytes and how to put others in their place, and the server loads,
+  reads and copies the replica. Hosts call them through `kition-kit-host`'s
+  `HeadlessKit::identity` and `HeadlessKit::fork`.
+
 ## 5a. Object model and diagnostics
 
 A kit built on the Kit Data Model lists these features in `kit.initialize`'s

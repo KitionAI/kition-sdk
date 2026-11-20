@@ -4,6 +4,17 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Kit Process Protocol: `document.identity` and `document.fork`** (section 5.6, feature
+  `document.identity`). A host reads the `docId` a file carries (`{ docId }`, `null` for none) and
+  forks a file into a new document (`{ file, target }` → `{ docId, name, version }`: the embedded
+  replica replaced by a copy as a new document, no history, the same object ids; a file without a
+  replica is copied unchanged), without knowing the kit's format. `kition-kit-server` answers both
+  from `KitBackend::file_identity`: `FileIdentity::NotEmbedded` needs no other code, and a kit
+  whose files embed the replica gives `FileIdentity::Embedded` with an `EmbeddedReplica` (its
+  schema, where the replica's bytes are, how to put others in their place); `kition-headless`
+  takes it with `Headless::with_file_identity`. Hosts call `HeadlessKit::identity` and
+  `HeadlessKit::fork`. The reference grid kit declares `NotEmbedded`; a kit that declares nothing
+  answers "method not found".
 - **The kit tools are there for a session's first step in DeepSeek Harness**: the plugin
   registers the unified tools' names at start, each admitted to a step once the kits listed it
   (waiting at most 30 seconds for the first list); a session's first request went without them

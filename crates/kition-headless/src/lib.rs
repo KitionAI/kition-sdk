@@ -28,6 +28,7 @@ mod folder;
 mod test_support;
 
 pub use folder::HostFolder;
+pub use kition_kit_server::{EmbeddedReplica, FileIdentity};
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -300,6 +301,9 @@ pub struct Headless<D> {
     /// started it), for engines that record who acts: contract 2 kits. `None`: contract 1, whose
     /// `execute` knows no origin.
     run_as: Option<RunAs<D>>,
+    /// How the kit's files carry their document's identity (`document.identity`,
+    /// `document.fork`); `None`: the kit says nothing and serves neither.
+    file_identity: Option<FileIdentity>,
     _doc: PhantomData<fn() -> D>,
 }
 
@@ -894,8 +898,17 @@ impl<D: KitDocument + Send + 'static> Headless<D> {
             next_plan: 0,
             model: None,
             run_as: None,
+            file_identity: None,
             _doc: PhantomData,
         }
+    }
+
+    /// Serves `document.identity` and `document.fork` (Kit Process Protocol section 5.6):
+    /// [`FileIdentity::NotEmbedded`] for a kit whose files embed no replica,
+    /// [`FileIdentity::Embedded`] with where its container keeps one.
+    pub fn with_file_identity(mut self, identity: FileIdentity) -> Self {
+        self.file_identity = Some(identity);
+        self
     }
 
     fn host(&self) -> Result<Host, RpcError> {
@@ -1187,6 +1200,10 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
 
     fn kit_version(&self) -> &str {
         &self.kit.version
+    }
+
+    fn file_identity(&self) -> Option<FileIdentity> {
+        self.file_identity.clone()
     }
 
     fn capabilities(&self) -> Value {

@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+kition-kdm = { path = "../kition-kdm" }
 kition-kit-process-protocol = { path = "../kition-kit-process-protocol", features = ["tokio"] }
 
 serde = { workspace = true }

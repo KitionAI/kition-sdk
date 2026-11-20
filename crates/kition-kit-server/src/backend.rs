@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use serde_json::{Map, Value};
 
+use crate::identity::FileIdentity;
 use crate::protocol::methods::{self, HostServiceMethod};
 use crate::protocol::{Appearance, ErrorReason, FILE_CHUNK, FileStat, FilesReadParams, FilesWriteParams, Origin, RpcError, ScreenshotScope, base64};
 
@@ -344,6 +345,16 @@ pub trait KitBackend: Send + 'static {
     }
     fn context_inputs(&mut self, _id: &str, _params: &Map<String, Value>) -> Result<Value, RpcError> {
         Err(RpcError::method_not_found("context.inputs"))
+    }
+
+    /// How the kit's files carry their document's identity, for `document.identity` and
+    /// `document.fork` (section 5.6): [`FileIdentity::NotEmbedded`] for a kit whose files embed no
+    /// replica, [`FileIdentity::Embedded`] with where its container keeps one. `kit.initialize`
+    /// then lists the feature `document.identity`. By default the kit says nothing, lists no
+    /// feature and answers both "method not found": a kit whose files embed a replica must not
+    /// claim they carry no identity.
+    fn file_identity(&self) -> Option<FileIdentity> {
+        None
     }
 
     /// The host saw the file change on disk. Returns the new state when it changed: reloaded when

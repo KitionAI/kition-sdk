@@ -388,3 +388,41 @@ fn a_kit_ends_when_its_host_connection_closes_without_shutdown() {
     drop(kit);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// `document.identity` and `document.fork` (section 5.6) on a kit whose files embed no replica,
+/// served by kition-kit-server's default: the kit lists the feature, a file carries no identity,
+/// and a fork is the same bytes in a new file, which it never replaces.
+#[test]
+fn a_kit_whose_files_embed_no_replica_has_no_identity_and_forks_the_same_bytes() {
+    let dir = folder("identity");
+    let (kit, _) = launch(&dir, "1");
+    let files = Arc::new(Mutex::new(Files::default()));
+    let mut host = Connection::open(&kit.endpoint, Arc::clone(&files));
+    let initialized = initialize(&mut host, "host", 1).unwrap();
+    assert!(initialized["capabilities"]["features"].as_array().unwrap().contains(&json!("document.identity")), "{initialized}");
+
+    let source = dir.join("plan.grid");
+    let handle = files.lock().unwrap().grant("fh_00000000000000000000000000000011", source.clone(), &["read", "create", "write"]);
+    let opened = host.call("document.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
+    let id = opened["documentId"].clone();
+    host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 3, "grey": 90 }, "origin": "user" })).unwrap();
+    host.call("document.save", json!({ "documentId": id })).unwrap();
+
+    let read = files.lock().unwrap().grant("fh_00000000000000000000000000000012", source.clone(), &["read"]);
+    assert_eq!(host.call("document.identity", json!({ "file": read })).unwrap(), json!({ "docId": null }));
+    let target = dir.join("copy.grid");
+    let create = files.lock().unwrap().grant("fh_00000000000000000000000000000013", target.clone(), &["create"]);
+    let forked = host.call("document.fork", json!({ "file": read, "target": create })).unwrap();
+    assert_eq!(forked["docId"], Value::Null, "{forked}");
+    assert_eq!(forked["name"], "copy.grid");
+    assert_eq!(std::fs::read(&target).unwrap(), std::fs::read(&source).unwrap());
+
+    // The target is a `create` handle: a second fork into it is the host's refusal.
+    let again = files.lock().unwrap().grant("fh_00000000000000000000000000000014", target.clone(), &["create"]);
+    let refused = host.call("document.fork", json!({ "file": read, "target": again })).unwrap_err();
+    assert_eq!(refused["data"]["reason"], "file_conflict", "{refused}");
+
+    host.call("kit.shutdown", json!({})).unwrap();
+    drop(kit);
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -117,6 +117,14 @@ fn document_shapes_match_the_schema() {
     round_trip("documentSaveAsParams", &DocumentSaveAsParams { document_id: "d1".into(), file: HANDLE.into(), format: Some("psd".into()) });
     round_trip("documentExportParams", &DocumentExportParams { document_id: "d1".into(), file: HANDLE.into(), format: "png".into(), options: None });
     round_trip("documentWritten", &DocumentWritten { name: "b.png".into(), version: "\"1791704599-22779\"".into() });
+    let doc_id = "0193f2a4-7c1e-7d3a-9b2c-4f5e6a7b8c9d";
+    round_trip("documentIdentityParams", &DocumentIdentityParams { file: HANDLE.into() });
+    round_trip("documentIdentityResult", &DocumentIdentityResult { doc_id: Some(doc_id.into()) });
+    round_trip("documentIdentityResult", &DocumentIdentityResult { doc_id: None });
+    assert_eq!(serde_json::to_value(DocumentIdentityResult { doc_id: None }).unwrap(), json!({ "docId": null }), "no identity is an explicit null");
+    round_trip("documentForkParams", &DocumentForkParams { file: HANDLE.into(), target: HANDLE.into() });
+    round_trip("documentForkResult", &DocumentForkResult { doc_id: Some(doc_id.into()), name: "b.kboard".into(), version: "v1".into() });
+    round_trip("documentForkResult", &DocumentForkResult { doc_id: None, name: "b.kboard".into(), version: "v1".into() });
     round_trip("documentCloseParams", &DocumentCloseParams { document_id: "d1".into(), discard_changes: Some(true) });
     round_trip("documentTextParams", &DocumentTextParams { document_id: "d1".into(), limit: Some(DOCUMENT_TEXT_LIMIT) });
     round_trip("documentTextParams", &DocumentTextParams { document_id: "d1".into(), limit: None });

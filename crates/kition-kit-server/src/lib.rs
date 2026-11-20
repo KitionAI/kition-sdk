@@ -17,6 +17,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod backend;
+pub mod identity;
 mod reply;
 mod server;
 
@@ -24,6 +25,7 @@ pub use backend::{
     CommandSummary, Describe, DocumentInfo, Executed, FileBytes, Host, HostCall, KitBackend, MODEL_FEATURES, Notifier, OpenRequest, Screenshot,
     ScreenshotRequest, Written, with_model_features,
 };
+pub use identity::{EmbeddedReplica, FileIdentity};
 pub use kition_kit_process_protocol as protocol;
 pub use protocol::launch::LAUNCH_ARG;
 pub use protocol::{ErrorReason, PROTOCOL_VERSION, RpcError};

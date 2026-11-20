@@ -1264,6 +1264,7 @@ dependencies = [
 name = "kition-kit-server"
 version = "0.1.0"
 dependencies = [
+ "kition-kdm",
  "kition-kit-process-protocol",
  "serde",
  "serde_json",

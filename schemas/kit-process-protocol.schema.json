@@ -207,6 +207,46 @@
         "version": { "type": "string", "minLength": 1 }
       }
     },
+    "docId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "A document's permanent id (KDM DocId, KitModel M7): a lower-case hyphenated UUID."
+    },
+    "documentIdentityParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file"],
+      "properties": {
+        "file": { "$ref": "#/$defs/fileHandle" }
+      }
+    },
+    "documentIdentityResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["docId"],
+      "properties": {
+        "docId": { "oneOf": [{ "$ref": "#/$defs/docId" }, { "type": "null" }], "description": "The document id the file carries; null when it carries none (the kit's files embed no replica, or this one has none)." }
+      }
+    },
+    "documentForkParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "target"],
+      "properties": {
+        "file": { "$ref": "#/$defs/fileHandle", "description": "A read handle on the source file." },
+        "target": { "$ref": "#/$defs/fileHandle", "description": "A create handle: a fork never replaces a file." }
+      }
+    },
+    "documentForkResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["docId", "name", "version"],
+      "properties": {
+        "docId": { "oneOf": [{ "$ref": "#/$defs/docId" }, { "type": "null" }], "description": "The new document's id, which the kit made; null when the file carries no identity and was written unchanged." },
+        "name": { "$ref": "#/$defs/fileName" },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
     "documentCloseParams": {
       "type": "object",
       "additionalProperties": false,

@@ -565,6 +565,31 @@ async fn request<B: KitBackend>(
             let target: p::DocumentRef = reply::params(params)?;
             with_backend(shared, move |b| b.check(&target.document_id)).await
         }
+        "document.identity" => {
+            let identity: p::DocumentIdentityParams = reply::params(params)?;
+            let host = host_of(shared);
+            with_backend(shared, move |b| {
+                let kind = b.file_identity().ok_or_else(|| RpcError::method_not_found("document.identity"))?;
+                let file = host.read(&identity.file)?;
+                let doc_id = kind.identity(&file.bytes)?;
+                Ok(json!(p::DocumentIdentityResult { doc_id: doc_id.map(|id| id.to_string()) }))
+            })
+            .await
+        }
+        "document.fork" => {
+            let fork: p::DocumentForkParams = reply::params(params)?;
+            let host = host_of(shared);
+            with_backend(shared, move |b| {
+                let kind = b.file_identity().ok_or_else(|| RpcError::method_not_found("document.fork"))?;
+                let file = host.read(&fork.file)?;
+                let (bytes, doc_id) = kind.fork(&file.bytes)?;
+                // A fork never replaces a file: the target is a `create` handle, committed once.
+                let version = host.write(&fork.target, &bytes, None)?;
+                let name = host.stat(&fork.target)?.name;
+                Ok(json!(p::DocumentForkResult { doc_id: doc_id.map(|id| id.to_string()), name, version }))
+            })
+            .await
+        }
         "document.text" => {
             let request: p::DocumentTextParams = reply::params(params)?;
             let limit = request.limit.unwrap_or(p::DOCUMENT_TEXT_LIMIT);
@@ -663,8 +688,7 @@ async fn initialize<B: KitBackend>(shared: &Arc<Shared<B>>, connection: &mut Con
             let answered = with_backend(shared, move |b| {
                 b.set_host(host);
                 b.set_preferences(locale.as_deref(), appearance);
-                let serves = b.serves_model();
-                Ok((b.kit_id().to_owned(), b.kit_version().to_owned(), with_model_features(b.capabilities(), serves)))
+                Ok((b.kit_id().to_owned(), b.kit_version().to_owned(), capabilities_of(b)))
             })
             .await;
             let (id, version, capabilities) = match answered {
@@ -689,11 +713,7 @@ async fn initialize<B: KitBackend>(shared: &Arc<Shared<B>>, connection: &mut Con
                 clients.writers.insert(connection.id, connection.out.clone());
             }
             connection.role = Some(Role::Agent);
-            let (id, version, capabilities) = with_backend(shared, |b| {
-                let serves = b.serves_model();
-                Ok((b.kit_id().to_owned(), b.kit_version().to_owned(), with_model_features(b.capabilities(), serves)))
-            })
-            .await?;
+            let (id, version, capabilities) = with_backend(shared, |b| Ok((b.kit_id().to_owned(), b.kit_version().to_owned(), capabilities_of(b)))).await?;
             Ok(initialize_result(&id, &version, capabilities))
         }
     }
@@ -737,6 +757,26 @@ fn context_params(params: Value, members: &[&str]) -> Result<(String, serde_json
     // required members, unlike an omitted optional call-context control.
     fields.retain(|key, value| !value.is_null() || matches!(key.as_str(), "region" | "before"));
     Ok((document, fields))
+}
+
+/// `kit.initialize`'s `capabilities`: the backend's, with the object model's features when it
+/// serves one and `document.identity` when it says how its files carry their identity.
+fn capabilities_of<B: KitBackend>(backend: &mut B) -> Value {
+    let serves = backend.serves_model();
+    let mut capabilities = with_model_features(backend.capabilities(), serves);
+    if backend.file_identity().is_some()
+        && let Some(object) = capabilities.as_object_mut()
+        && let Some(features) = object.entry("features").or_insert_with(|| Value::Array(Vec::new())).as_array_mut()
+        && !features.iter().any(|known| known == p::DOCUMENT_IDENTITY_FEATURE)
+    {
+        features.push(Value::String(p::DOCUMENT_IDENTITY_FEATURE.to_owned()));
+    }
+    capabilities
+}
+
+/// The host's `files.*` for a request the server answers itself (section 5.6).
+fn host_of<B>(shared: &Shared<B>) -> Host {
+    Host::new(Vec::new(), Arc::new(HostLink { requests: Arc::clone(&shared.host) }))
 }
 
 fn initialize_result(id: &str, version: &str, capabilities: Value) -> Value {

@@ -144,7 +144,12 @@ A kit on the KDM ships `model/schema.json`:
   empty undo), and refuses (`invalid-value`) the source's own `docId`. Copies
   and their source refuse each other's bytes (M17). Hosts use it for
   templates, copied files and repeated uploads; a fork (A12) keeps the
-  `docId` and is merged back, a copy never is.
+  `docId` and is merged back, a copy never is. For a kit whose files embed
+  the replica, a host reads the `docId` a file carries and makes a file into
+  a new document through the kit, without knowing its format: the Kit
+  Process Protocol's `document.identity` and `document.fork`
+  ([section 5.6](../reference/kit-process-protocol.md#56-document-identity-and-forks),
+  feature `document.identity`).
 - **M8** Objects have KDM ids (UUID strings), unique across replicas without
   coordination. Implementations generate UUID v7 ids and accept any UUID when
   loading. Engines MAY keep efficient local ids and file-format
