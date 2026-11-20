@@ -2,7 +2,7 @@
 // its bundle manifest, its patch, its browser module (built, and the extensions it claims), its
 // skills and its launcher. Its host module is tested in tools/dsh-plugin-host.test.mjs, its
 // generated kit skills against their guides in tools/agent-plugin.test.mjs; a real DeepSeek Harness
-// runs it in the plugin's test/e2e.sh.
+// runs it in the plugin's test/e2e.sh (headless) and test/web.e2e.ts and test/desktop.e2e.ts.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -43,11 +43,12 @@ describe('the bundle manifest', () => {
     expect(fs.readFileSync(path.join(plugin, 'lib/client.js'), 'utf8')).toMatch(/^window\.__ModuleLoader__\.load\(\{\n  id: "@kition\/dsh-kits",/m)
   })
 
-  it('admits the pinned DeepSeek Harness release and no 0.3.0 prerelease', () => {
+  it('admits the pinned DeepSeek Harness release, the oldest one tested (Desktop’s), and no 0.3.0 prerelease', () => {
     expect(manifest.dsh.target).toBe('0.2.2-rc.5')
     expect(manifest.dsh.commit).toMatch(/^[0-9a-f]{8,40}$/)
+    expect(manifest.dsh.tested).toEqual(['0.2.2-rc.5', '0.2.2-rc.2'])
     // DeepSeek Harness compares with prereleases included: `<0.3.0` would admit 0.3.0-rc.1.
-    expect(manifest.engines.dsh).toBe(`>=${manifest.dsh.target} <0.3.0-0`)
+    expect(manifest.engines.dsh).toBe(`>=${manifest.dsh.tested.at(-1)} <0.3.0-0`)
   })
 
   it('lists files that exist, and packs the host module, the built browser module, the launcher and the skills, and nothing else', () => {

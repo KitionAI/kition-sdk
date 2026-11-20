@@ -351,7 +351,8 @@ jobs:
           node tools/sdk-release.mjs --dir target/sdk-release
           (cd target/sdk-release && sha256sum -c SHA256SUMS)
       - run: node tools/pack-public-packages.mjs
-      # @kition/dsh-kits, the DeepSeek Harness plugin: patches, skills and a Node launcher, nothing built.
+      # @kition/dsh-kits, the DeepSeek Harness plugin: its patch, skills, Node host module and launcher, and its
+      # browser module, built and committed (lib/client.js), so the pack builds nothing.
       - run: npm pack ./plugins/deepseek-harness/kition-kits --pack-destination target/npm-pack && mv target/npm-pack/kition-dsh-kits-*.tgz target/npm-pack/dsh-kits.tgz
       # kition: the archive every platform installed in its smoke test, not a second packing.
       - uses: actions/download-artifact@v4

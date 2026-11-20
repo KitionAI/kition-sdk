@@ -5,8 +5,8 @@ intent: >-
   @kition/dsh-kits is a DeepSeek Harness bundle at the SDK's version that ships every file it lists
   and only its host module, its built browser module, its launcher, its patch, its skills and its
   README: its manifest declares the patch, the host module as its main export, the browser module
-  for the web UI, and a DeepSeek Harness range admitting the pinned 0.2.2-rc.5 and no 0.3.0
-  prerelease; the host module imports
+  for the web UI, and a DeepSeek Harness range from the oldest version tested (Desktop's
+  0.2.2-rc.2) admitting the pinned 0.2.2-rc.5 and no 0.3.0 prerelease; the host module imports
   only Node's modules and its own; the browser module is what its build makes from its sources,
   and opens the extensions each published kit edits (from the kits' manifests, HTML to the HTML
   kit, no view-only format); the patch inserts the host module by the package's name and the

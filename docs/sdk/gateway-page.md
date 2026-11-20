@@ -84,7 +84,9 @@ modules and workers as `text/javascript`, fonts as `font/*`, everything `nosniff
 ## The proxy
 
 A host that frames the page puts a same-origin reverse proxy in front of the gateway, under a prefix
-of its own (`/kition/`). `examples/gateway-page/proxy.mjs` is a working one in 20 lines. It must:
+of its own (`/kition/`). `examples/gateway-page/proxy.mjs` is a working one in 20 lines; DeepSeek
+Harness's is the `@kition/dsh-kits` plugin's host module (`plugins/deepseek-harness/kition-kits`,
+`lib/routes.mjs` and `lib/forward.mjs`). It must:
 
 1. **Authenticate the browser itself** (the host's own login or session check) before forwarding
    anything: the gateway trusts every request that carries the token, and the proxy adds it.

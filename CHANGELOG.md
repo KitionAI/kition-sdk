@@ -62,15 +62,22 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   0.1.2 package. The release builds every published kit's headless executable.
 - **The DeepSeek Harness plugin `@kition/dsh-kits`** moves from `packages/dsh-kits` to
   `plugins/deepseek-harness/kition-kits` and becomes an installable DeepSeek Harness bundle
-  (`dsh plugin --profile <profile> add ./plugins/deepseek-harness/kition-kits`), for DeepSeek
-  Harness 0.2.2-rc.5 and later 0.2.x (`engines.dsh` `>=0.2.2-rc.5 <0.3.0-0`): `kition mcp` as MCP
-  server `kition` (tools `mcp__kition__kit_<action>`), found by the Node launcher
-  `bin/kits-mcp.mjs` as the Claude Code plugin finds it; an editing skill per published kit; and
-  the person's draft review (`/drafts-list`, `/drafts-compare`, `/drafts-merge`,
-  `/drafts-discard`, the last two only from the person). Its second patch reaches a running
-  Kition. It is no longer private; the release packs and publishes it. The old
-  `kition-kits.stdio.cordis.patch.yml`, which started `kition-kits-mcp` with one variable per kit,
-  is gone.
+  (`dsh plugin --profile <profile> add <archive>`; Desktop through the app's own CLI), for
+  DeepSeek Harness 0.2.2-rc.2 (Desktop's) and later 0.2.x (`engines.dsh`
+  `>=0.2.2-rc.2 <0.3.0-0`), pinned to 0.2.2-rc.5. A kit file opens in its kit's editor (the
+  gateway's editor page) in the right sidebar: a tab type for the extensions only Kition opens, the
+  kit under Open with for those DeepSeek Harness previews (`.md`, `.html`, `.pdf`, `.docx`,
+  `.xlsx`, `.pptx`), with the tab's unsaved and draft marks, a question before closing unsaved
+  edits, DeepSeek Harness's theme and language, and states for kition missing (how to install it),
+  starting and unreachable. Its host module runs one `kition gateway` per workspace folder, serves
+  it same-origin under `/kition/` behind DeepSeek Harness's own login and only for its sessions'
+  folders, and registers the kits' tools (`mcp__kition__kit_<action>`) so each session's calls
+  reach its own folder's gateway, live in an open editor (DeepSeek Harness's MCP client runs one
+  server per host, on one folder, and a call does not say its session). Also an editing skill per
+  published kit, and the person's draft review (`/drafts-list`, `/drafts-compare`,
+  `/drafts-merge`, `/drafts-discard`, the last two only from the person). It is no longer private;
+  the release packs and publishes it. The old `kition-kits.stdio.cordis.patch.yml`, which started
+  `kition-kits-mcp` with one variable per kit, is gone.
 - **One skill generator for both agent plugins**: `tools/agent-plugin-skills.mjs` (was
   `tools/claude-plugin-skills.mjs`) writes and checks the Claude Code and DeepSeek Harness skills
   (`--target claude-code|deepseek-harness`, both by default); its test is

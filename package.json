@@ -24,6 +24,7 @@
     "test:gateway:e2e": "cargo build -p kition-cli && playwright test -c examples/gateway-page/playwright.config.ts",
     "test:gateway:smoke": "cargo build -p kition-cli && playwright test -c examples/gateway-page/playwright.smoke.config.ts",
     "test:dsh:e2e": "cargo build -p kition-cli && playwright test -c plugins/deepseek-harness/kition-kits/test/playwright.config.ts --project web",
+    "test:dsh:desktop": "cargo build -p kition-cli && playwright test -c plugins/deepseek-harness/kition-kits/test/playwright.config.ts --project desktop",
     "sdk:bundle": "node tools/sdk-bundle.mjs"
   },
   "devDependencies": {

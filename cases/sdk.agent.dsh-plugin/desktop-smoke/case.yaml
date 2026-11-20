@@ -1,0 +1,26 @@
+format: 1
+id: sdk.agent.dsh-plugin/desktop-smoke
+feature: sdk.agent.dsh-plugin
+intent: >-
+  The installed DeepSeek Harness Desktop (macOS, its bundled 0.2.2-rc.2), started with a HOME, a
+  DSH_HOME and an Electron user data folder of its own (nothing of the person's read or written,
+  no sign-in, no model account, no update): the packed plugin installs into its desktop profile
+  with the app's own CLI; a .ktable clicked in the file tree opens the real Table editor in the
+  right sidebar under dsh-app://app/kition/w/<key>/page/; Cmd+W pressed in the editor reaches
+  DeepSeek Harness and closes the tab; and a scripted agent's mcp__kition__kit_run (the model
+  routed by the profile's own patch layer) adds a record in the open editor without a reload and
+  answers that it ran there. Skipped where the app is not installed.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: plugins/deepseek-harness/kition-kits/test/desktop.e2e.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, test:dsh:desktop]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 600
