@@ -2,13 +2,14 @@ format: 1
 id: sdk.gateway.editor-packages/install
 feature: sdk.gateway.editor-packages
 intent: >-
-  kition kit install brings each kit's editor package beside it (kits/<kit>/ui/<version>/: the
-  package's top folder, index.html, kit.json, scripts, engine, fonts; nothing left in tmp/), says
-  when the index lists none, and installs it again when it is missing; kit upgrade installs the new
-  version's and removes the older; kit remove removes them; kit list (EDITOR installed, missing,
-  none; --json editor), kit info and doctor (editor <kit>, ok or info with its fix) show it. A
-  package with another SHA-256 or size than the index gives, another kit's or version's, one with an
-  entry outside its folder, or one with no editor is refused and nothing is installed.
+  kition kit install brings each kit's editor package from the npm registries beside it
+  (kits/<kit>/ui/<version>/: the package's top folder, index.html, kit.json, scripts, engine, fonts;
+  nothing left in tmp/), says when the index lists none, and installs it again when it is missing;
+  kit upgrade installs the new version's and removes the older; kit remove removes them; kit list
+  (EDITOR installed, missing, none; --json editor), kit info and doctor (editor <kit>, ok or info
+  with its fix) show it. A package with another integrity or size than the index gives, whose
+  package.json names another package or version, another kit's, one with an entry outside its
+  folder, or one with no editor is refused and nothing is installed.
 layer: gate
 dimension: security
 source:

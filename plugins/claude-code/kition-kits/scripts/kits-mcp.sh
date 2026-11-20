@@ -39,7 +39,7 @@ if unset_option "$mcp"; then
   fi
 fi
 if [ -z "$mcp" ]; then
-  echo "kition-kits: no kition, no kition-kits-mcp and no npx. Install kition (curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh) and put ~/.kition/bin on the PATH, set the plugin's \"kition-kits-mcp\" option (/plugin, or /config), or install Node.js for npx -y @kition/cli." >&2
+  echo "kition-kits: no kition, no kition-kits-mcp and no npx. Install kition (curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh) and put ~/.kition/bin on the PATH, set the plugin's \"kition-kits-mcp\" option (/plugin, or /config), or install Node.js for npx -y @kition/cli." >&2
   exit 1
 fi
 if [ "$mcp" != npx ] && [ ! -x "$mcp" ]; then

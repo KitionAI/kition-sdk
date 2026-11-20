@@ -1,0 +1,28 @@
+format: 1
+id: sdk.distribution.npm-registries/packages
+feature: sdk.distribution.npm-registries
+intent: >-
+  A kit version's npm packages are named @kition/kit-<kit>-<platform> (npm os, cpu, and glibc on
+  Linux) and @kition/kit-<kit>-ui, and their package.json carries the kition field the index needs
+  (kit, id, name, version, role, platform, protocol, edited extensions, views, build commits). The
+  Package workflow's tool writes them from a build or a kit's package archive and packs them with
+  npm pack, refusing an archive that is not exactly the folder's files and bytes (the executable
+  executable); it says publish when the registry lacks the version, published when it has the same
+  integrity, and refuses other bytes, since a version is published once. The tools read the same
+  registry list as kition, .npmrc parsing included.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kit-npm.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kit-npm.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-20"
+timeout_s: 60

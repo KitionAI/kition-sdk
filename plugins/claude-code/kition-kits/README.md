@@ -42,7 +42,7 @@ first time Claude opens a file of it (kition-sdk's `docs/sdk/cli.md`). Without N
 install `kition` and put `~/.kition/bin` on the `PATH`:
 
 ```sh
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
+curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh
 ```
 
 or build it:

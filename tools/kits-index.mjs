@@ -1,73 +1,62 @@
 #!/usr/bin/env node
-// Gathers the kit index `kition` reads (schemas/kits-index.schema.json) from the kit repositories.
-// Each kit repository publishes its own archives: its `package-v<version>` GitHub Release holds
-// `kition-<kit>-<version>-<platform>.tar.gz` for each platform and the index fragment
-// `kits-index-<kit>-<version>.json`, a kit index of that one kit version with absolute addresses
-// (KitionAI/kition docs/kits.md, section 4b). This tool merges the fragments into one index;
-// .github/workflows/kits-index.yml publishes it at the address `kition` reads by default.
+// Gathers the kit index `kition` reads (schemas/kits-index.schema.json, format 2) from the npm
+// registry. Each kit repository's Package workflow (KitionAI/kition .github/workflows/kit-package.yml)
+// publishes every kit version as npm packages, `@kition/kit-<kit>-<platform>` and
+// `@kition/kit-<kit>-ui` (tools/kit-npm.mjs), whose package.json carries a `kition` field with
+// what the index needs; this tool reads the registry's metadata of those packages (never their
+// tarballs) and writes the index, and the package `@kition/kits-index` that holds it, which
+// .github/workflows/kits-index.yml publishes when it changed.
 //
-//   node tools/kits-index.mjs --out <file> [--modules <file or URL>] [--previous <kits-index.json>]
-//   node tools/kits-index.mjs --dry-run   [--modules <file or URL>] [--previous <kits-index.json>]
+//   node tools/kits-index.mjs --modules <file> --out <file> [--registry <address>] [--previous <kits-index.json>]
+//        [--package <folder> --version <version>]
+//   node tools/kits-index.mjs --modules <file> --dry-run [--registry <address>] [--previous <kits-index.json>]
 //
-// --modules   KitionAI/kition's kits/modules.json, which names each kit and its repository
-//             (default: the one on its main branch)
-// --out       where the index goes; nothing else is written
+// --modules   KitionAI/kition's kits/modules.json (a file: the workflow checks Kition out), which
+//             names each kit
+// --registry  the npm registry read (default https://registry.npmjs.org/)
+// --out       where the index goes
+// --previous  the index published now: the report names the archives that enter or leave, and a
+//             package listed there with the same integrity keeps its size (the registry gives a
+//             tarball's size only to a HEAD request of it)
+// --package   with --version, also writes the folder of the package @kition/kits-index at that
+//             version (package.json and kits-index.json) for `npm publish`
 // --dry-run   writes nothing; prints what the index would hold
-// --previous  an index to compare with (the one published): the report names the kit versions
-//             and platforms that would enter or leave it
-//
-// GH_TOKEN (or GITHUB_TOKEN), when set, is sent to the GitHub API; without one it reads the
-// public repositories anonymously (60 API requests an hour).
 //
 // The rules:
 //
-// - The kit repositories are the only source: the index holds what their fragments say, nothing
-//   carried from an earlier index, and every kit modules.json names (published-kits.json, the
-//   kits the SDK documents and bundles, does not filter it).
-// - A `package-v*` Release without a fragment is skipped and named in the report.
-// - A fragment is published once and never replaced, so it can lack a platform whose archive was
-//   added to the Release later: such an archive is added from the Release's asset metadata (its
-//   size, and its SHA-256 from GitHub's `digest`, or from downloading it when GitHub gives none).
-// - A fragment that is not a kit index of that one kit version, an archive it names that the
-//   Release no longer holds, or one whose size or SHA-256 differs from the Release's, stops the
-//   run. So does a repository whose Releases cannot be listed and a fragment that cannot be read:
-//   a failure never yields a smaller index.
-// - A kit's id, name and extensions come from the fragment of its newest version; each version
-//   keeps the protocol its own fragment declares. The extensions it only views (`views`, opened
-//   read-only) come from the `kit.json` at that version's tag: the fragments list only the
-//   extensions a kit edits.
-// - A version's editor package (`ui`) is the Release's `kition-<kit>-<version>.tgz`, which the
-//   kit's Package workflow publishes with its entry `kition-<kit>-<version>.json` (its size and
-//   SHA-256; KitionAI/kition scripts/package-kit.sh): the index takes its address and size from
-//   the Release and its SHA-256 from that entry, which must agree with the asset's size and with
-//   GitHub's `digest` when it gives one (else the run stops); with no entry, from the digest, or
-//   from downloading it. A Release without the package lists the version without `ui`.
+// - The registry is the only source: the index holds what the packages' metadata says, nothing
+//   carried from an earlier index but a size known for the same integrity, and every kit
+//   modules.json names (published-kits.json, the kits the SDK documents and bundles, does not
+//   filter it).
+// - A version is listed when it has a headless package for at least one platform; its editor
+//   package (`ui`) when it has one. An editor package of a version without a headless one is named
+//   in the report and left out.
+// - Every package of a version must say the same kit, id, name, protocol and extensions in its
+//   `kition` field, be the role and platform its name says, and have npm's sha512 integrity; any
+//   that does not stops the run. So does a registry answer other than the metadata or a 404 (a
+//   package never published), and a tarball whose size cannot be read: a failure never yields a
+//   smaller index.
+// - A kit's id, name, extensions and views come from its newest version.
 // - The index is checked against the schema and written with kits, versions and platforms in a
-//   fixed order, so the same Releases give the same bytes.
+//   fixed order, so the same metadata gives the same bytes.
 // - An index with no kit is never written (exit status 3): it would replace a good one with
 //   nothing.
 //
 // Every network read goes through one function (`net`), so the tests run on fakes.
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { INDEX_PACKAGE, packageName, PLATFORMS, tarballPath } from './kit-npm.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const INDEX = 'kits-index.json'
-export const MODULES_URL = 'https://raw.githubusercontent.com/KitionAI/kition/main/kits/modules.json'
-export const PLATFORMS = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
+export { PLATFORMS }
+export const REGISTRY = 'https://registry.npmjs.org/'
 const SCHEMA = JSON.parse(fs.readFileSync(path.join(root, 'schemas', 'kits-index.schema.json'), 'utf8'))
-const API = 'https://api.github.com'
-const TAG_PREFIX = 'package-v'
-const PER_PAGE = 100
 /** The exit status when the index would hold no kit. */
 export const EMPTY = 3
-
-export const fragmentName = (kit, version) => `kits-index-${kit}-${version}.json`
-export const kitArchive = (kit, version, platform) => `kition-${kit}-${version}-${platform}.tar.gz`
-export const editorArchive = (kit, version) => `kition-${kit}-${version}.tgz`
-export const editorEntry = (kit, version) => `kition-${kit}-${version}.json`
+/** The index format written. */
+export const SCHEMA_VERSION = SCHEMA.properties.schemaVersion.const
 
 /** Orders semver strings: numbers first, then a release after its pre-releases. */
 export function compareVersions(a, b) {
@@ -164,6 +153,7 @@ export function schemaProblems(value, schema = SCHEMA, rootSchema = schema, at =
 }
 
 const VERSION = new RegExp(SCHEMA.$defs.kit.properties.versions.propertyNames.pattern)
+const INTEGRITY = new RegExp(SCHEMA.$defs.archive.properties.integrity.pattern)
 
 /** `{ schemaVersion, kits }` with kits, versions and platforms in a fixed order. */
 export function ordered(index) {
@@ -175,39 +165,39 @@ export function ordered(index) {
       const entry = kit.versions[version]
       const platforms = {}
       for (const platform of Object.keys(entry.platforms).sort()) {
-        const { url, size, sha256 } = entry.platforms[platform]
-        platforms[platform] = { url, size, sha256 }
+        const { package: name, size, integrity } = entry.platforms[platform]
+        platforms[platform] = { package: name, size, integrity }
       }
       versions[version] = { protocol: entry.protocol, platforms }
-      if (entry.ui) versions[version].ui = { url: entry.ui.url, size: entry.ui.size, sha256: entry.ui.sha256 }
+      if (entry.ui) versions[version].ui = { package: entry.ui.package, size: entry.ui.size, integrity: entry.ui.integrity }
     }
     kits[name] = { id: kit.id, name: kit.name, extensions: kit.extensions, ...(kit.views?.length ? { views: kit.views } : {}), versions }
   }
-  return { schemaVersion: 1, kits }
+  return { schemaVersion: SCHEMA_VERSION, kits }
 }
 
 /** The index as written: two-space JSON and a final newline. */
 export const serialize = (index) => `${JSON.stringify(ordered(index), null, 2)}\n`
 
 /**
- * The network as the GitHub API and release downloads give it: `net(url, { as })` answers the
- * parsed JSON (`as: 'json'`) or the bytes (`as: 'bytes'`) of a 2xx answer and throws on anything
- * else. `token` goes to the GitHub API only.
+ * The npm registry over HTTP: `net(url, { as })` answers the parsed JSON of a 200 (`as: 'json'`),
+ * null for a 404, or the size a HEAD request of a tarball gives (`as: 'size'`); it throws on
+ * anything else.
  */
-export function githubNet({ token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN, fetchImpl = globalThis.fetch } = {}) {
+export function registryNet({ fetchImpl = globalThis.fetch } = {}) {
   return async (url, { as = 'json' } = {}) => {
-    const headers = { 'User-Agent': 'kition-sdk tools/kits-index.mjs' }
-    if (url.startsWith(`${API}/`)) {
-      headers.Accept = 'application/vnd.github+json'
-      headers['X-GitHub-Api-Version'] = '2022-11-28'
-      if (token) headers.Authorization = `Bearer ${token}`
-    }
-    const response = await fetchImpl(url, { headers, redirect: 'follow' })
+    const headers = { 'User-Agent': 'kition-sdk tools/kits-index.mjs', Accept: 'application/json' }
+    const response = await fetchImpl(url, { method: as === 'size' ? 'HEAD' : 'GET', headers, redirect: 'follow' })
+    if (as !== 'size' && response.status === 404) return null
     if (!response.ok) {
-      const detail = (await response.text().catch(() => '')).slice(0, 200).replace(/\s+/g, ' ')
+      const detail = as === 'size' ? '' : (await response.text().catch(() => '')).slice(0, 200).replace(/\s+/g, ' ')
       throw new Error(`${url}: HTTP ${response.status}${detail ? ` ${detail}` : ''}`)
     }
-    if (as === 'bytes') return Buffer.from(await response.arrayBuffer())
+    if (as === 'size') {
+      const size = Number(response.headers.get('content-length'))
+      if (!Number.isSafeInteger(size) || size < 1) throw new Error(`${url}: no size (Content-Length)`)
+      return size
+    }
     const text = await response.text()
     try {
       return JSON.parse(text)
@@ -217,212 +207,122 @@ export function githubNet({ token = process.env.GH_TOKEN || process.env.GITHUB_T
   }
 }
 
-/** Every Release of `repository`, page by page; a page that cannot be read stops the run. */
-export async function listReleases(net, repository) {
-  const releases = []
-  for (let page = 1; ; page += 1) {
-    let batch
-    try {
-      batch = await net(`${API}/repos/${repository}/releases?per_page=${PER_PAGE}&page=${page}`, { as: 'json' })
-    } catch (error) {
-      throw new Error(`the Releases of ${repository} cannot be listed: ${error.message}`)
-    }
-    if (!Array.isArray(batch)) throw new Error(`the Releases of ${repository} cannot be listed: the answer is not a list`)
-    releases.push(...batch)
-    if (batch.length < PER_PAGE) return releases
-  }
-}
-
-/** The kits and their repositories in KitionAI/kition's kits/modules.json, by name. */
+/** The kits KitionAI/kition's kits/modules.json names, sorted. */
 export function kitsOfModules(modules) {
-  const kits = Object.entries(modules)
-    .filter(([name]) => !name.startsWith('$'))
-    .map(([kit, entry]) => {
+  const kits = Object.keys(modules)
+    .filter((name) => !name.startsWith('$'))
+    .map((kit) => {
       if (!/^[a-z][a-z0-9]*$/.test(kit)) throw new Error(`modules.json: ${JSON.stringify(kit)} is not a kit name`)
-      if (typeof entry?.repository !== 'string' || !/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(entry.repository)) throw new Error(`modules.json: ${kit} names no repository (owner/name)`)
-      return { kit, repository: entry.repository }
+      return kit
     })
-    .sort((a, b) => a.kit.localeCompare(b.kit))
+    .sort()
   if (!kits.length) throw new Error('modules.json names no kit')
   return kits
 }
 
-const sha256Of = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex')
-const digestOf = (asset) => (typeof asset.digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(asset.digest) ? asset.digest.slice(7) : null)
-
-/** The one kit version a fragment holds, checked: `{ id, name, extensions, protocol, platforms }`. */
-function readFragment(fragment, kit, version, where) {
-  const problems = schemaProblems(fragment)
-  if (problems.length) throw new Error(`${where} is not a kit index:\n  ${problems.join('\n  ')}`)
-  const kits = Object.keys(fragment.kits)
-  if (kits.length !== 1 || kits[0] !== kit) throw new Error(`${where} holds ${kits.join(', ') || 'no kit'}, not ${kit} alone`)
-  const entry = fragment.kits[kit]
-  const versions = Object.keys(entry.versions)
-  if (versions.length !== 1 || versions[0] !== version) throw new Error(`${where} holds ${kit} ${versions.join(', ') || 'no version'}, not ${version} alone`)
-  return { id: entry.id, name: entry.name, extensions: entry.extensions, ...entry.versions[version] }
-}
+const sameList = (a, b) => JSON.stringify(a ?? []) === JSON.stringify(b ?? [])
 
 /**
- * The kit index gathered from the kit repositories' fragments, and a report:
- * `{ index, report: { kits: [{ kit, repository, versions, skipped: [{ tag, why }], added: [{ version, platform }] }] } }`.
- * `kits` is kitsOfModules' list; `net` is the network (githubNet).
+ * One version's package `name` (role `ui` or a platform) from its registry `manifest`, checked:
+ * `{ kition, entry: { package, integrity } }`.
  */
-export async function gatherIndex({ kits, net }) {
-  const index = { schemaVersion: 1, kits: {} }
-  const report = []
-  for (const { kit, repository } of kits) {
-    const releases = await listReleases(net, repository)
-    const done = { kit, repository, versions: [], skipped: [], added: [], editors: [] }
-    const found = []
-    for (const release of releases) {
-      if (release.draft || typeof release.tag_name !== 'string' || !release.tag_name.startsWith(TAG_PREFIX)) continue
-      const tag = release.tag_name
-      const version = tag.slice(TAG_PREFIX.length)
-      if (!VERSION.test(version)) {
-        done.skipped.push({ tag, why: 'the tag is not package-v<version>' })
-        continue
-      }
-      const assets = new Map((release.assets ?? []).map((asset) => [asset.name, asset]))
-      const fragmentAsset = assets.get(fragmentName(kit, version))
-      if (!fragmentAsset) {
-        done.skipped.push({ tag, why: `no ${fragmentName(kit, version)}` })
-        continue
-      }
-      const where = `${repository} ${tag} ${fragmentAsset.name}`
-      let fragment
-      try {
-        fragment = await net(fragmentAsset.browser_download_url, { as: 'json' })
-      } catch (error) {
-        throw new Error(`${where} cannot be read: ${error.message}`)
-      }
-      const entry = readFragment(fragment, kit, version, where)
-      if (entry.id !== `kit.${kit}`) throw new Error(`${where}: its id is ${entry.id}, not kit.${kit}`)
-
-      // Each archive the fragment names must be the Release's asset of that name, as published.
-      const platforms = {}
-      for (const [platform, archive] of Object.entries(entry.platforms)) {
-        const name = kitArchive(kit, version, platform)
-        const asset = assets.get(name)
-        if (!asset) throw new Error(`${where} lists ${name}, which the Release does not hold`)
-        if (archive.url !== asset.browser_download_url) throw new Error(`${where} gives ${platform} the address ${archive.url}; the Release's ${name} is at ${asset.browser_download_url}`)
-        if (archive.size !== asset.size) throw new Error(`${where} says ${name} is ${archive.size} bytes; the Release's is ${asset.size}`)
-        let sum = digestOf(asset)
-        if (!sum) sum = sha256Of(await download(net, asset, `${repository} ${tag}`))
-        if (archive.sha256 !== sum) throw new Error(`${where} gives ${name} the SHA-256 ${archive.sha256}; the Release's is ${sum}`)
-        platforms[platform] = { url: archive.url, size: archive.size, sha256: archive.sha256 }
-      }
-      // An archive the Release holds that its fragment does not list (added after the fragment).
-      for (const platform of PLATFORMS) {
-        if (platforms[platform]) continue
-        const asset = assets.get(kitArchive(kit, version, platform))
-        if (!asset) continue
-        const sum = digestOf(asset) ?? sha256Of(await download(net, asset, `${repository} ${tag}`))
-        if (!Number.isInteger(asset.size) || asset.size < 1) throw new Error(`${repository} ${tag} ${asset.name} has no size`)
-        platforms[platform] = { url: asset.browser_download_url, size: asset.size, sha256: sum }
-        done.added.push({ version, platform })
-      }
-      const ui = await editorPackage(net, { kit, version, assets, where: `${repository} ${tag}` })
-      if (entry.ui && (!ui || entry.ui.url !== ui.url || entry.ui.size !== ui.size || entry.ui.sha256 !== ui.sha256)) {
-        throw new Error(`${where} gives the editor package ${JSON.stringify(entry.ui)}; the Release's is ${ui ? JSON.stringify(ui) : 'missing'}`)
-      }
-      if (ui) done.editors.push(version)
-      found.push({ version, entry, platforms, ui })
-      done.versions.push(version)
-    }
-    done.versions.sort(compareVersions)
-    if (found.length) {
-      found.sort((a, b) => compareVersions(a.version, b.version))
-      const newest = found[found.length - 1].entry
-      const views = await viewsAt(net, repository, `${TAG_PREFIX}${found[found.length - 1].version}`, newest.extensions)
-      if (views === null) done.viewsUnread = true
-      index.kits[kit] = {
-        id: newest.id,
-        name: newest.name,
-        extensions: newest.extensions,
-        ...(views?.length ? { views } : {}),
-        versions: Object.fromEntries(found.map(({ version, entry, platforms, ui }) => [version, { protocol: entry.protocol, platforms, ...(ui ? { ui } : {}) }])),
-      }
-    }
-    report.push(done)
-  }
-  const result = ordered(index)
-  const problems = schemaProblems(result)
-  if (problems.length) throw new Error(`the index gathered would not be a kit index:\n  ${problems.join('\n  ')}`)
-  return { index: result, report }
+function readPackage(name, kit, part, version, manifest) {
+  const where = `${name}@${version}`
+  const kition = manifest?.kition
+  if (!kition || typeof kition !== 'object') throw new Error(`${where} has no kition field`)
+  if (manifest.name !== name || manifest.version !== version || kition.version !== version) throw new Error(`${where}: its package.json is ${manifest.name}@${manifest.version} (kition.version ${kition.version})`)
+  if (kition.kit !== kit || kition.id !== `kit.${kit}`) throw new Error(`${where}: its kition field is the kit ${kition.kit} (${kition.id}), not ${kit}`)
+  if (part === 'ui' ? kition.role !== 'ui' : kition.role !== 'headless' || kition.platform !== part) throw new Error(`${where}: its kition field is role ${kition.role} ${kition.platform ?? ''}, not ${part === 'ui' ? 'ui' : `headless ${part}`}`)
+  if (typeof kition.name !== 'string' || !kition.name.trim()) throw new Error(`${where}: its kition field has no name`)
+  if (!/^kition-kit\/[0-9]+$/.test(String(kition.protocol))) throw new Error(`${where}: its kition field names no protocol`)
+  if (!Array.isArray(kition.extensions) || !kition.extensions.length || !kition.extensions.every((ext) => /^[a-z][a-z0-9]*$/.test(ext))) throw new Error(`${where}: its kition field lists no extensions`)
+  if (kition.views !== undefined && (!Array.isArray(kition.views) || !kition.views.every((ext) => /^[a-z][a-z0-9]*$/.test(ext)))) throw new Error(`${where}: its kition field's views are not extensions`)
+  const integrity = manifest.dist?.integrity
+  if (typeof integrity !== 'string' || !INTEGRITY.test(integrity)) throw new Error(`${where} has no sha512 integrity (dist.integrity)`)
+  return { kition, entry: { package: name, integrity } }
 }
 
-/**
- * The extensions a kit only views, as the `kit.json` at its Release's tag declares them: its
- * `view` formats that no `edit` format covers (Vector's .svg, Sheet's .csv), lowercase. The
- * fragments list only the extensions a kit edits; the tag's `kit.json` is the one the Release was
- * built from. `[]` when it views nothing, `null` when it cannot be read.
- */
-export async function viewsAt(net, repository, tag, edits) {
-  let file
+/** The size of `name`@`version`'s tarball: the previous index's for the same integrity, else asked of the registry. */
+async function sizeOf(net, registry, previousSizes, entry, version) {
+  const known = previousSizes.get(`${entry.package}@${version} ${entry.integrity}`)
+  if (known) return known
   try {
-    file = await net(`${API}/repos/${repository}/contents/kit.json?ref=${encodeURIComponent(tag)}`, { as: 'json' })
-  } catch {
-    return null
-  }
-  let manifest
-  try {
-    manifest = JSON.parse(Buffer.from(String(file?.content ?? ''), file?.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8'))
-  } catch {
-    return null
-  }
-  const edited = new Set(edits)
-  const views = []
-  for (const format of Array.isArray(manifest?.formats) ? manifest.formats : []) {
-    if (format?.role !== 'view' || !Array.isArray(format.extensions)) continue
-    for (const raw of format.extensions) {
-      const extension = String(raw).replace(/^\./, '').toLowerCase()
-      if (/^[a-z][a-z0-9]*$/.test(extension) && !edited.has(extension) && !views.includes(extension)) views.push(extension)
-    }
-  }
-  return views
-}
-
-/**
- * The editor package of `kit` `version` among a Release's `assets`, `{ url, size, sha256 }`, or
- * null when the Release has none. Its SHA-256 comes from the package's entry
- * (`kition-<kit>-<version>.json`), checked against the asset's size and GitHub's digest; else
- * from the digest; else from downloading it.
- */
-export async function editorPackage(net, { kit, version, assets, where }) {
-  const asset = assets.get(editorArchive(kit, version))
-  if (!asset) return null
-  if (!Number.isInteger(asset.size) || asset.size < 1) throw new Error(`${where} ${asset.name} has no size`)
-  const digest = digestOf(asset)
-  let sha256 = null
-  const entryAsset = assets.get(editorEntry(kit, version))
-  if (entryAsset) {
-    let entry
-    try {
-      entry = await net(entryAsset.browser_download_url, { as: 'json' })
-    } catch (error) {
-      throw new Error(`${where} ${entryAsset.name} cannot be read: ${error.message}`)
-    }
-    if (entry?.asset !== asset.name) throw new Error(`${where} ${entryAsset.name} is the entry of ${JSON.stringify(entry?.asset)}, not ${asset.name}`)
-    if (entry.size !== asset.size) throw new Error(`${where} ${entryAsset.name} says ${asset.name} is ${entry.size} bytes; the Release's is ${asset.size}`)
-    if (typeof entry.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(entry.sha256)) throw new Error(`${where} ${entryAsset.name} gives no SHA-256`)
-    if (digest && digest !== entry.sha256) throw new Error(`${where} ${entryAsset.name} gives ${asset.name} the SHA-256 ${entry.sha256}; GitHub's digest is ${digest}`)
-    sha256 = entry.sha256
-  }
-  sha256 ??= digest ?? sha256Of(await download(net, asset, where))
-  return { url: asset.browser_download_url, size: asset.size, sha256 }
-}
-
-async function download(net, asset, where) {
-  try {
-    const bytes = await net(asset.browser_download_url, { as: 'bytes' })
-    if (bytes.length !== asset.size) throw new Error(`${bytes.length} bytes, and the Release says ${asset.size}`)
-    return bytes
+    return await net(`${registry}${tarballPath(entry.package, version)}`, { as: 'size' })
   } catch (error) {
-    throw new Error(`${where} ${asset.name} cannot be downloaded to hash it (GitHub gives no digest): ${error.message}`)
+    throw new Error(`the size of ${entry.package}@${version} cannot be read: ${error.message}`)
   }
 }
 
-/** `<kit> <version> <platform>` lines of every archive in `index`. */
+/** The sizes of the packages of `previous`, by `<package>@<version> <integrity>`. */
+function sizesOf(previous) {
+  const sizes = new Map()
+  for (const kit of Object.values(previous?.kits ?? {})) {
+    for (const [version, entry] of Object.entries(kit.versions ?? {})) {
+      for (const archive of [...Object.values(entry.platforms ?? {}), ...(entry.ui ? [entry.ui] : [])]) {
+        if (archive?.package && archive.integrity && archive.size) sizes.set(`${archive.package}@${version} ${archive.integrity}`, archive.size)
+      }
+    }
+  }
+  return sizes
+}
+
+/**
+ * The kit index gathered from the registry's metadata of each kit's packages, and a report:
+ * `{ index, report: [{ kit, versions, editors, uiOnly }] }`.
+ */
+export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null }) {
+  const base = registry.endsWith('/') ? registry : `${registry}/`
+  const previousSizes = sizesOf(previous)
+  const index = { schemaVersion: SCHEMA_VERSION, kits: {} }
+  const report = []
+  for (const kit of kits) {
+    /** version → { kition, platforms, ui } */
+    const versions = new Map()
+    for (const part of [...PLATFORMS, 'ui']) {
+      const name = packageName(kit, part)
+      let packument
+      try {
+        packument = await net(`${base}${name.replace('/', '%2f')}`, { as: 'json' })
+      } catch (error) {
+        throw new Error(`the metadata of ${name} cannot be read: ${error.message}`)
+      }
+      if (packument === null) continue
+      for (const [version, manifest] of Object.entries(packument?.versions ?? {})) {
+        if (!VERSION.test(version)) throw new Error(`${name} lists the version ${JSON.stringify(version)}, which is not semver`)
+        const { kition, entry } = readPackage(name, kit, part, version, manifest)
+        let found = versions.get(version)
+        if (!found) versions.set(version, (found = { kition, platforms: {}, ui: null }))
+        for (const field of ['name', 'protocol']) if (found.kition[field] !== kition[field]) throw new Error(`${name}@${version} says ${field} ${JSON.stringify(kition[field])}; the other packages of ${kit} ${version} say ${JSON.stringify(found.kition[field])}`)
+        for (const field of ['extensions', 'views']) if (!sameList(found.kition[field], kition[field])) throw new Error(`${name}@${version} lists other ${field} than the other packages of ${kit} ${version}`)
+        const sized = { ...entry, size: await sizeOf(net, base, previousSizes, entry, version) }
+        if (part === 'ui') found.ui = sized
+        else found.platforms[part] = sized
+      }
+    }
+    const listed = [...versions.keys()].filter((version) => Object.keys(versions.get(version).platforms).length).sort(compareVersions)
+    const uiOnly = [...versions.keys()].filter((version) => !listed.includes(version)).sort(compareVersions)
+    report.push({ kit, versions: listed, editors: listed.filter((version) => versions.get(version).ui), uiOnly })
+    if (!listed.length) continue
+    const newest = versions.get(listed[listed.length - 1]).kition
+    index.kits[kit] = {
+      id: newest.id,
+      name: newest.name,
+      extensions: newest.extensions,
+      ...(newest.views?.length ? { views: newest.views } : {}),
+      versions: Object.fromEntries(
+        listed.map((version) => {
+          const { kition, platforms, ui } = versions.get(version)
+          return [version, { protocol: kition.protocol, platforms, ...(ui ? { ui } : {}) }]
+        }),
+      ),
+    }
+  }
+  const problems = schemaProblems(ordered(index))
+  if (problems.length) throw new Error(`the gathered index is not a kit index:\n  ${problems.join('\n  ')}`)
+  return { index: ordered(index), report }
+}
+
+/** `<kit> <version> <platform>` lines of every package in `index`. */
 const entries = (index) =>
   Object.entries(index?.kits ?? {}).flatMap(([kit, { versions }]) =>
     Object.entries(versions).flatMap(([version, { platforms, ui }]) => [...Object.keys(platforms), ...(ui ? ['ui'] : [])].map((platform) => `${kit} ${version} ${platform}`)),
@@ -438,60 +338,71 @@ export function compareIndexes(previous, index) {
 /** The report as text lines. */
 export function reportLines({ index, report }, previous) {
   const lines = []
-  for (const { kit, repository, versions, skipped, added, editors = [], viewsUnread } of report) {
-    lines.push(`${kit} (${repository}): ${versions.length ? versions.join(', ') : 'no version'}`)
-    if (viewsUnread) lines.push('  no views: its kit.json at the newest version\'s tag cannot be read')
+  for (const { kit, versions, editors, uiOnly } of report) {
+    lines.push(`${kit}: ${versions.length ? versions.join(', ') : 'no version'}`)
     const without = versions.filter((version) => !editors.includes(version))
     if (versions.length && without.length) lines.push(`  no editor package: ${without.join(', ')}`)
-    for (const { tag, why } of skipped) lines.push(`  skipped ${tag}: ${why}`)
-    for (const { version, platform } of added) lines.push(`  added ${version} ${platform} from the Release (its fragment does not list it)`)
+    if (uiOnly.length) lines.push(`  an editor package without a headless one, left out: ${uiOnly.join(', ')}`)
   }
   const kits = Object.keys(index.kits)
-  const skipped = report.reduce((sum, { skipped }) => sum + skipped.length, 0)
   lines.push(
     kits.length
-      ? `${INDEX}: ${kits.length} of ${report.length} kits (${kits.map((kit) => `${kit} ${Object.keys(index.kits[kit].versions).join(' ')}`).join('; ')}); ${skipped} Releases skipped`
-      : `${INDEX} would be empty: none of the ${report.length} kits has a Release with a fragment (${skipped} Releases skipped); nothing is written`,
+      ? `${INDEX}: ${kits.length} of ${report.length} kits (${kits.map((kit) => `${kit} ${Object.keys(index.kits[kit].versions).join(' ')}`).join('; ')})`
+      : `${INDEX} would be empty: none of the ${report.length} kits has a published headless package; nothing is written`,
   )
   if (previous) {
     const { entering, leaving } = compareIndexes(previous, index)
-    lines.push(`compared with the previous index: ${entering.length} archives enter, ${leaving.length} leave`)
+    lines.push(`compared with the previous index: ${entering.length} packages enter, ${leaving.length} leave`)
     for (const line of entering) lines.push(`  + ${line}`)
     for (const line of leaving) lines.push(`  - ${line}`)
   }
   return lines
 }
 
-async function readSource(net, source) {
-  if (/^https?:\/\//.test(source)) return net(source, { as: 'json' })
-  return JSON.parse(fs.readFileSync(source, 'utf8'))
+/** The package @kition/kits-index at `version` holding `index`, written into `folder`. */
+export function writeIndexPackage(folder, index, version) {
+  if (!VERSION.test(version)) throw new Error(`${JSON.stringify(version)} is not a version (semver)`)
+  fs.rmSync(folder, { recursive: true, force: true })
+  fs.mkdirSync(folder, { recursive: true })
+  const manifest = {
+    name: INDEX_PACKAGE,
+    version,
+    description: `The kit index kition reads: every published Kition kit's npm packages, with their sizes and integrity (format ${SCHEMA_VERSION}, kition-sdk schemas/kits-index.schema.json). Published by kition-sdk's kits-index workflow.`,
+    license: 'Apache-2.0',
+    repository: { type: 'git', url: 'git+https://github.com/KitionAI/kition-sdk.git' },
+    files: [INDEX],
+  }
+  fs.writeFileSync(path.join(folder, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+  fs.writeFileSync(path.join(folder, INDEX), serialize(index))
+  return folder
 }
 
 /** The command line; answers its exit status. */
-export async function main(args, { net = githubNet(), out: write = (text) => process.stdout.write(text), err = (text) => process.stderr.write(text) } = {}) {
+export async function main(args, { net = registryNet(), out: write = (text) => process.stdout.write(text), err = (text) => process.stderr.write(text) } = {}) {
+  const valued = ['--out', '--modules', '--previous', '--registry', '--package', '--version']
   const flag = (name) => {
     const at = args.indexOf(name)
     return at >= 0 ? args[at + 1] : undefined
   }
   const out = flag('--out')
   const dryRun = args.includes('--dry-run')
-  const known = new Set(['--out', '--modules', '--previous', '--dry-run'])
-  const unknown = args.filter((arg, i) => arg.startsWith('--') && !known.has(arg) && !(i > 0 && ['--out', '--modules', '--previous'].includes(args[i - 1])))
-  if ((!out && !dryRun) || (out && dryRun) || unknown.length) {
-    err('usage: kits-index.mjs (--out <file> | --dry-run) [--modules <file or URL>] [--previous <kits-index.json>]\n')
+  const unknown = args.filter((arg, i) => arg.startsWith('--') && arg !== '--dry-run' && !valued.includes(arg) && !(i > 0 && valued.includes(args[i - 1])))
+  if ((!out && !dryRun) || (out && dryRun) || !flag('--modules') || unknown.length || Boolean(flag('--package')) !== Boolean(flag('--version'))) {
+    err('usage: kits-index.mjs --modules <file> (--out <file> [--package <folder> --version <version>] | --dry-run) [--registry <address>] [--previous <kits-index.json>]\n')
     return 2
   }
   try {
-    const modules = await readSource(net, flag('--modules') ?? MODULES_URL)
+    const modules = JSON.parse(fs.readFileSync(flag('--modules'), 'utf8'))
     const previousFile = flag('--previous')
-    const previous = previousFile ? JSON.parse(fs.readFileSync(previousFile, 'utf8')) : null
-    const gathered = await gatherIndex({ kits: kitsOfModules(modules), net })
+    const previous = previousFile && fs.existsSync(previousFile) ? JSON.parse(fs.readFileSync(previousFile, 'utf8')) : null
+    const gathered = await gatherIndex({ kits: kitsOfModules(modules), net, registry: flag('--registry') ?? REGISTRY, previous })
     write(`${reportLines(gathered, previous).join('\n')}\n`)
     if (!Object.keys(gathered.index.kits).length) return EMPTY
     if (out) {
       fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true })
       fs.writeFileSync(out, serialize(gathered.index))
       write(`wrote ${out}\n`)
+      if (flag('--package')) write(`wrote ${writeIndexPackage(flag('--package'), gathered.index, flag('--version'))}\n`)
     }
     return 0
   } catch (error) {

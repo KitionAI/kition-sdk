@@ -18,13 +18,8 @@ use support::{Entry, IndexBuilder, Server, archive, workspace_binary};
 
 fn kition(home: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_kition"));
-    command.env("KITION_HOME", home).env_remove("KITION_INDEX");
-    for (key, _) in std::env::vars_os() {
-        let key = key.to_string_lossy().into_owned();
-        if key.starts_with("KITION_KIT_") || key.to_ascii_lowercase().ends_with("_proxy") {
-            command.env_remove(key);
-        }
-    }
+    command.env("KITION_HOME", home);
+    support::isolate(&mut command, home);
     command
 }
 
@@ -38,8 +33,10 @@ fn run(command: &mut Command) -> (bool, String, String) {
 fn mock_index(dir: &Path, mock: &Path) -> PathBuf {
     let manifest = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../kition-kit-mock/kit.json")).unwrap();
     let program = std::fs::read(mock).unwrap();
-    let exe = format!("kition-kit-mock{}", std::env::consts::EXE_SUFFIX);
-    let bytes = archive(&[Entry::File("kit.json", &manifest, 0o644), Entry::File(&exe, &program, 0o755)]);
+    let exe = format!("package/kition-kit-mock{}", std::env::consts::EXE_SUFFIX);
+    let package = support::package_json(&format!("@kition/kit-mock-{}", kition_cli::home::platform()), "0.0.0");
+    let bytes =
+        archive(&[Entry::File("package/package.json", &package, 0o644), Entry::File("package/kit.json", &manifest, 0o644), Entry::File(&exe, &program, 0o755)]);
     IndexBuilder::new().kit(dir, "mock", "mocktext", &[("0.0.0", "kition-kit/1", bytes)]).write(dir)
 }
 
@@ -86,7 +83,8 @@ fn list_works_offline_and_through_a_proxy() {
         .kit(&served, "fake", "kfake", &[("0.1.0", "kition-kit/1", support::kit_archive("fake", "0.1.0", "kition-kit/1", "kfake", "kition-fake", b"x"))])
         .write(&served);
     let proxy = Server::start(&served);
-    let (ok, out, err) = run(kition(&home).env("HTTP_PROXY", format!("http://127.0.0.1:{}", proxy.port)).env("NO_PROXY", "").args([
+    let address = format!("http://127.0.0.1:{}", proxy.port);
+    let (ok, out, err) = run(kition(&home).env("HTTP_PROXY", &address).env("HTTPS_PROXY", &address).env("NO_PROXY", "").args([
         "kit",
         "list",
         "--json",
@@ -177,7 +175,7 @@ fn mcp_installs_a_kit_when_the_agent_first_names_its_file() {
     let server = Server::start(&served);
 
     let mut command = kition(&home);
-    command.args(["mcp", "--workspace"]).arg(&workspace).args(["--index", &server.url("kits-index.json")]);
+    command.args(["mcp", "--workspace"]).arg(&workspace).args(["--index", &server.url("kits-index.json")]).env("KITION_NPM_REGISTRY", server.url(""));
     let mut client = Client::start(command);
     let init = initialize(&mut client);
     assert_eq!(init["capabilities"]["tools"]["listChanged"], true);
@@ -232,19 +230,15 @@ fn mcp_says_how_to_install_when_it_may_not_and_when_offline() {
     client.close();
     assert!(!home.join("kits").join("mock").exists());
 
-    // Offline: the index read at startup is kept, and the archive cannot be fetched.
+    // Offline: the index read at startup is kept, and no registry has the package.
     let served = dir.path().join("served");
     std::fs::create_dir_all(&served).unwrap();
     mock_index(&served, &mock);
     let server = Server::start(&served);
     let url = server.url("kits-index.json");
-    for entry in std::fs::read_dir(&served).unwrap().flatten() {
-        if entry.path().extension().is_some_and(|extension| extension == "gz") {
-            std::fs::remove_file(entry.path()).unwrap();
-        }
-    }
+    std::fs::remove_dir_all(served.join("@kition")).unwrap();
     let mut command = kition(&home);
-    command.args(["mcp", "--workspace"]).arg(&workspace).args(["--index", &url]);
+    command.args(["mcp", "--workspace"]).arg(&workspace).args(["--index", &url]).env("KITION_NPM_REGISTRY", server.url(""));
     let mut client = Client::start(command);
     initialize(&mut client);
     let failed = client.call("kit_inspect", json!({ "path": "a.mocktext" }));

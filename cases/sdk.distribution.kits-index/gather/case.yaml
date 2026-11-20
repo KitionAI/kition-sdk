@@ -2,18 +2,17 @@ format: 1
 id: sdk.distribution.kits-index/gather
 feature: sdk.distribution.kits-index
 intent: >-
-  The aggregator lists every package-v<version> release of each kit Kition's modules.json names,
-  page by page, and merges the releases' index fragments into one index valid against its schema,
-  at the kit repositories' addresses, byte for byte the same whatever order the releases come in;
-  a kit's id, name and extensions come from its newest version, each version keeps its own
-  protocol, and the extensions it only views come from its kit.json at its newest version's tag
-  (the run says so when that cannot be read). A release without a fragment, a draft or another tag is skipped and named; an archive
-  the release holds and its fragment does not list is added from the asset's digest, or hashed
-  when GitHub gives none. A fragment that is not an index of that one kit version, or that names
-  an archive the release no longer holds or with another address, size or SHA-256, stops the run,
-  as does a repository that cannot be listed or a fragment that cannot be read. An index with no
-  kit is not written and has its own exit status; --dry-run writes nothing, --previous names what
-  enters and leaves; a token goes to the GitHub API only.
+  The aggregator reads, for every kit Kition's modules.json names, the npm registry's metadata of
+  the kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui) and writes one index valid
+  against its schema: each version that has a headless package, every platform's package and its
+  editor with the tarball's size (a HEAD, or the previous index's for the same integrity) and npm's
+  integrity, byte for byte the same whatever order the registry lists versions in; a kit's name,
+  extensions and views come from its newest version's kition field, each version keeps its own
+  protocol. An editor without a headless package, or a kit with no package, is left out and named. A
+  package whose kition field disagrees with its name or its version's other packages, or that has no
+  sha512 integrity, stops the run, as does a registry error or a tarball without a size. An index
+  with no kit is not written and has its own exit status; --package with --version writes the npm
+  package the workflow publishes, --dry-run writes nothing, --previous names what enters and leaves.
 layer: gate
 dimension: platform
 source:

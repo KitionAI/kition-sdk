@@ -1,0 +1,30 @@
+format: 1
+id: sdk.distribution.npm-registries/fallback
+feature: sdk.distribution.npm-registries
+intent: >-
+  kition takes kits, editors and the kit index from npm registries in order: KITION_NPM_REGISTRY
+  (several with commas), npm's own @kition:registry, npm_config_registry or registry from the
+  .npmrc npm_config_userconfig names or ~/.npmrc (read without npm, ${VAR} expanded), then
+  registry.npmjs.org and registry.npmmirror.com, each once; kition doctor names them. A registry
+  that does not answer, or serves bytes that are not the index's integrity, passes to the next and
+  the install succeeds from it; a download cut short resumes with an HTTP range where the registry
+  allows one and starts over otherwise, and passes to the next registry when it is cut again. The
+  default index is the npm package @kition/kits-index at its latest, checked against the integrity
+  its metadata gives; a tampered one is refused and the copy kept from the last good read is used.
+  When no registry serves a package, the error names every registry tried and why.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/registry.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: registry }
+  - cargo-test: { package: kition-cli, filter: "registry::tests::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-20"
+timeout_s: 300

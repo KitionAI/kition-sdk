@@ -71,8 +71,14 @@ The plugin has a kition for: `darwin-arm64` (macOS, Apple silicon), `darwin-x64`
 `linux-arm64` and `linux-x64` (Linux with glibc), and `win32-x64` (Windows).
 
 On disk the plugin takes about 0.7 MB and its kition about 14 MB (measured on macOS, Apple
-silicon). `kition` downloads each kit with its editor the first time a file of it is opened, into
-`~/.kition/kits`: about 40 to 70 MB per kit (measured: Note, Table, Sheet, Vector's editor).
+silicon). `kition` downloads each kit with its editor the first time a file of it is opened (the
+tab shows the download's progress, and "Try again" when it fails), into `~/.kition/kits`: about 40
+to 70 MB per kit on disk (measured: Note, Table, Sheet, Vector's editor). The download is the kit's
+two npm packages, smaller: Note's is 14.0 MB for its `darwin-arm64` package and 13.0 MB for its
+editor; Table's editor is 22.2 MB. They come from npm, as the plugin does: `KITION_NPM_REGISTRY`
+when set, else the registry your `~/.npmrc` names, else registry.npmjs.org, else its mirror
+registry.npmmirror.com, each checked against the integrity the kit index gives (kition-sdk's
+`docs/sdk/cli.md`, "The registries"). Nothing is downloaded from GitHub.
 
 Which `kition` runs, in this order:
 

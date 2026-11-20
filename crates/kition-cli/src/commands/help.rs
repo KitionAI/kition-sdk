@@ -33,9 +33,11 @@ troubleshooting:
 
 environment:
   KITION_HOME    where kits are kept (default ~/.kition): kits/<kit>/<version>/
-  KITION_INDEX   the kit index: an https address or a file (default the SDK's kit index, gathered
-                 from every kit's releases:
-                 https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json)
+  KITION_INDEX   the kit index: an https address or a file (default the npm package
+                 @kition/kits-index, which lists every published kit's npm packages)
+  KITION_NPM_REGISTRY  the npm registries kits and the index come from, tried first (one address,
+                 or several with commas); then npm's own setting (@kition:registry or registry in
+                 ~/.npmrc, npm_config_registry), then registry.npmjs.org, then registry.npmmirror.com
   HTTPS_PROXY, HTTP_PROXY, ALL_PROXY, NO_PROXY   proxies for downloads
 ";
 

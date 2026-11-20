@@ -15,6 +15,7 @@ pub mod gateway;
 pub mod home;
 pub mod index;
 pub mod launcher;
+pub mod registry;
 pub mod relay;
 pub mod store;
 pub mod supply;

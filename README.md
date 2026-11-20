@@ -149,14 +149,14 @@ kition agent add claude          # in your project folder; or codex, cursor
 # or, without installing: claude mcp add kition -- npx -y @kition/cli mcp --workspace "$PWD"
 ```
 
-Without Node.js, from the SDK release:
+Without Node.js, the same `kition` from npm (registry.npmjs.org, else its mirror registry.npmmirror.com):
 
 ```sh
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
+curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh
 ~/.kition/bin/kition agent add claude
 ```
 
-On Windows, `irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex`.
+On Windows, `irm https://unpkg.com/@kition/cli/dist/install.ps1 | iex`.
 See [docs/sdk/cli.md](docs/sdk/cli.md).
 
 ## Scripts and extensions

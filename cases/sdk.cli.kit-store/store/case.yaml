@@ -2,14 +2,17 @@ format: 1
 id: sdk.cli.kit-store/store
 feature: sdk.cli.kit-store
 intent: >-
-  The kit index is read and checked (format version, names, ids, semver, archives) and kept for
-  offline use. An install from an index served over HTTP checks the archive's size and SHA-256
-  and the unpacked kit.json, and renames the finished folder into kits/<kit>/<version>/; an
-  archive with a bad hash or size, an entry leaving the folder, a link, another kit or version,
-  no executable, or no gzip is refused and leaves nothing in kits/ or tmp/. A kit of another Kit
-  Process Protocol is refused, saying to upgrade kition when it is newer. Four installs of one
-  version at once end with one folder. A folder another program renames into place is seen; the
-  version in use is the pinned one, else the newest; upgrade prunes and remove leaves nothing.
+  The kit index (format 2: each platform's and the editor's npm package, size and integrity) is read
+  and checked (format version, names, ids, semver, package names, integrity form) and kept for
+  offline use. An install downloads the package from a registry served over HTTP in npm's layout,
+  checks its size and integrity, its package.json (the package and version the index names) and the
+  unpacked kit.json, and renames the finished folder into kits/<kit>/<version>/; a package with a
+  bad integrity or size, another package's name or version, an entry leaving the folder, a link,
+  another kit or version, no executable, or no gzip is refused and leaves nothing in kits/ or tmp/.
+  A kit of another Kit Process Protocol is refused, saying to upgrade kition when it is newer. Four
+  installs of one version at once end with one folder. A folder another program renames into place
+  is seen; the version in use is the pinned one, else the newest; upgrade prunes and remove leaves
+  nothing.
 layer: gate
 dimension: platform
 source:

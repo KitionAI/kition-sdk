@@ -2,13 +2,12 @@ format: 1
 id: sdk.distribution.release/index-snapshot
 feature: sdk.distribution.release
 intent: >-
-  A release carries kits-index.json, a snapshot of the kit index gathered when it is made, for the
-  kition versions released before the branch kits-index (0.3.0, 0.4.0), which read
-  releases/latest/download/kits-index.json. The release tool checks it against
+  A release carries kits-index.json, a snapshot of the kit index (format 2, the npm packages)
+  gathered when it is made, a record that kition does not read. The release tool checks it against
   kits-index.schema.json, names it in the release manifest (index, with its size, SHA-256 and
-  versioned URL) and in SHA256SUMS, and refuses a release without it, with one that is not JSON,
-  not valid against the schema or with no kit, or with any other kits-index*.json beside it; a kit
-  archive is still refused.
+  versioned URL) and in SHA256SUMS, and refuses a release without it, with one that is not JSON, not
+  valid against the schema or with no kit, or with any other kits-index*.json beside it; a kit
+  package is still refused.
 layer: gate
 dimension: platform
 source:

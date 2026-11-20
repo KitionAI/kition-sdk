@@ -20,12 +20,13 @@ npx -y @kition/cli mcp --workspace <folder>
 ```
 
 Node.js 20 or later, on macOS (arm64, x64), Linux with glibc (arm64, x64) or Windows (x64). The
-same `kition`, without Node.js, is in each
-[SDK release](https://github.com/KitionAI/kition-sdk/releases) with its SHA-256 sum, with an
-install script:
+same `kition`, without Node.js: this package carries an install script (`dist/install.sh`,
+`dist/install.ps1` on Windows) that downloads `@kition/cli-<platform>` from the npm registry
+(registry.npmjs.org, else registry.npmmirror.com, or `KITION_NPM_REGISTRY`) with `curl` and `tar`,
+checks its integrity, and installs `~/.kition/bin/kition`:
 
 ```sh
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
+curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh
 ```
 
 Every command (`kit`, `agent`, `mcp`, `serve`, `doctor`) is in

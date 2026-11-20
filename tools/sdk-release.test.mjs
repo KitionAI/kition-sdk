@@ -18,7 +18,8 @@ afterEach(() => {
   for (const dir of scratch.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-const kit = { kit: 'note', id: 'kit.note', version: '0.3.0', repository: 'KitionAI/kition-note', tag: 'package-v0.3.0', commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), url: 'https://example.invalid/kition-note-0.3.0.tgz', protocol: 'kition-kit/1', manifest: 'kits/note/kit.json', file: 'kits/kition-note-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }
+const integrity = `sha512-${'d'.repeat(86)}==`
+const kit = { kit: 'note', id: 'kit.note', version: '0.3.0', package: '@kition/kit-note-ui', integrity, commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), protocol: 'kition-kit/1', manifest: 'kits/note/kit.json', file: 'kits/kition-kit-note-ui-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }
 
 /** A bundle manifest as sdk-bundle.mjs writes it. */
 function manifest(platform, overrides = {}) {
@@ -53,15 +54,15 @@ function writeArchives(dir, platforms) {
   for (const platform of platforms) fs.writeFileSync(path.join(dir, `kition-9.9.9-${platform}.tar.gz`), `kition ${platform}`)
 }
 
-/** A kit index as tools/kits-index.mjs gathers it, at a kit repository's addresses. */
+/** A kit index as tools/kits-index.mjs gathers it from the kit packages' npm metadata. */
 const gatheredIndex = () => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   kits: {
     note: {
       id: 'kit.note',
       name: 'Note',
       extensions: ['md'],
-      versions: { '0.3.0': { protocol: 'kition-kit/1', platforms: { 'linux-x64': { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.3.0/kition-note-0.3.0-linux-x64.tar.gz', size: 10, sha256: '9'.repeat(64) } } } },
+      versions: { '0.3.0': { protocol: 'kition-kit/1', platforms: { 'linux-x64': { package: '@kition/kit-note-linux-x64', size: 10, integrity: `sha512-${'9'.repeat(86)}==` } } } },
     },
   },
 })
@@ -90,7 +91,7 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     const written = writeRelease(dir, '9.9.9')
     expect(written.tag).toBe('sdk-v9.9.9')
     expect(written.commit).toBe('d'.repeat(40))
-    expect(written.kits).toEqual([{ kit: 'note', id: 'kit.note', version: '0.3.0', repository: 'KitionAI/kition-note', tag: 'package-v0.3.0', commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), url: kit.url, protocol: 'kition-kit/1', manifest: 'kits/note/kit.json', asset: 'kition-note-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }])
+    expect(written.kits).toEqual([{ kit: 'note', id: 'kit.note', version: '0.3.0', package: '@kition/kit-note-ui', integrity, commit: 'a'.repeat(40), sdkCommit: 'b'.repeat(40), protocol: 'kition-kit/1', manifest: 'kits/note/kit.json', asset: 'kition-kit-note-ui-0.3.0.tgz', size: 3, sha256: 'c'.repeat(64) }])
     const darwin = written.platforms['darwin-arm64']
     expect(darwin.sha256).toBe(sha256(path.join(dir, 'kition-sdk-9.9.9-darwin-arm64.tar.gz')))
     expect(darwin.url).toBe('https://github.com/KitionAI/kition-sdk/releases/download/sdk-v9.9.9/kition-sdk-9.9.9-darwin-arm64.tar.gz')
@@ -147,12 +148,12 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     }
     expect(release(() => {})).not.toThrow()
     expect(release((dir) => fs.rmSync(path.join(dir, 'kits-index.json')))).toThrow(/no kits-index\.json/)
-    expect(release((dir) => writeIndex(dir, '{"schemaVersion": 1, "kits": '))).toThrow(/kits-index\.json is not JSON/)
+    expect(release((dir) => writeIndex(dir, '{"schemaVersion": 2, "kits": '))).toThrow(/kits-index\.json is not JSON/)
     const invalid = gatheredIndex()
     invalid.kits.note.versions['0.3.0'].platforms['linux-x64'].sha256 = 'not a digest'
     expect(release((dir) => writeIndex(dir, invalid))).toThrow(/kits-index\.json is not valid against kits-index\.schema\.json: .*sha256/)
-    expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), schemaVersion: 2 }))).toThrow(/not valid against kits-index\.schema\.json/)
-    expect(release((dir) => writeIndex(dir, { schemaVersion: 1, kits: {} }))).toThrow(/kits-index\.json holds no kit/)
+    expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), schemaVersion: 1 }))).toThrow(/not valid against kits-index\.schema\.json/)
+    expect(release((dir) => writeIndex(dir, { schemaVersion: 2, kits: {} }))).toThrow(/kits-index\.json holds no kit/)
     expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), kits: { note: { ...gatheredIndex().kits.note, extensions: [] } } }))).toThrow(/not valid/)
     expect(release((dir) => fs.writeFileSync(path.join(dir, 'kits-index-note-0.3.0.json'), '{}'))).toThrow(/kits-index-note-0\.3\.0\.json: a release carries one kit index/)
     // A kit archive the snapshot names is still not a release asset.

@@ -1,24 +1,22 @@
 name: kits-index
 # Publishes the kit index `kition` reads by default (crates/kition-cli/src/index.rs DEFAULT_INDEX,
-# sdk.json binaries.cli.defaultIndex):
+# sdk.json binaries.cli.defaultIndex): the npm package @kition/kits-index, its `kits-index.json`,
+# at its `latest`. kition downloads it from npm registries (registry.npmjs.org, its mirror
+# registry.npmmirror.com, or one the person names), as it downloads the kits.
 #
-#   https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json
-#
-# the file kits-index.json on the branch `kits-index` of this repository, which holds that one file
-# and nothing else. This is the one deliberately mutable thing this repository publishes: everything
-# else (releases, tags, assets, npm versions) is published once and never replaced
-# (docs/sdk/distribution.md). It is a branch, not a release asset, because this repository's
-# releases are immutable, so no release could have its asset replaced.
-#
-# Each kit repository publishes its own archives and an index fragment in its package-v<version>
-# releases (KitionAI/kition docs/kits.md, section 4b); tools/kits-index.mjs merges the fragments of
-# every kit KitionAI/kition's kits/modules.json names into one index. A run:
-# - stops, publishing nothing, when a kit repository cannot be listed, a fragment cannot be read,
-#   or a fragment disagrees with its release (the tool's exit status 1);
+# Each kit repository's Package workflow (KitionAI/kition .github/workflows/kit-package.yml)
+# publishes every kit version as npm packages, @kition/kit-<kit>-<platform> and
+# @kition/kit-<kit>-ui, whose package.json carries a `kition` field (tools/kit-npm.mjs);
+# tools/kits-index.mjs reads the registry's metadata of the packages of every kit KitionAI/kition's
+# kits/modules.json names (no tarball is downloaded) and writes the index (docs/sdk/distribution.md).
+# A run:
+# - stops, publishing nothing, when the registry cannot be read or a package's metadata is not what
+#   the contract says (the tool's exit status 1);
 # - publishes nothing when the index would hold no kit (exit status 3), so an empty index never
 #   replaces a good one;
-# - commits the new index on top of the branch only when its bytes differ from the published one,
-#   and pushes it without force (a fast-forward), so the branch's history is the index's history.
+# - publishes a new version of @kition/kits-index only when the index's bytes differ from those of
+#   the one published: version 2.0.<n>, n one more than the published one's (2 is the index format),
+#   tagged latest. A version published is never replaced.
 # Started by hand from the Actions tab, and every hour.
 on:
   workflow_dispatch:
@@ -32,60 +30,72 @@ jobs:
   index:
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
+      id-token: write
+    env:
+      PACKAGE: '@kition/kits-index'
+      REGISTRY: https://registry.npmjs.org/
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Kition, for its kits/modules.json
+        uses: actions/checkout@v4
+        with:
+          repository: KitionAI/kition
+          ref: main
+          path: target/kition
+          sparse-checkout: kits/modules.json
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22.23.4'
-      # The published index, when the branch exists. A failure to ask is not "no branch".
+          registry-url: https://registry.npmjs.org
+      # The published index, when there is one. A failure to ask is not "none published".
       - name: The published index
         id: published
         run: |
           set -euo pipefail
           mkdir -p target/published
-          status=0
-          git ls-remote --exit-code --heads origin kits-index >/dev/null || status=$?
+          status=$(curl -sS -o target/published/latest.json -w '%{http_code}' "${REGISTRY}@kition%2fkits-index/latest")
           case "$status" in
-            0)
-              git fetch --depth 1 origin kits-index
-              git show FETCH_HEAD:kits-index.json > target/published/kits-index.json
-              echo "parent=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+            200)
+              version=$(node -p 'require("./target/published/latest.json").version')
+              (cd target/published && npm pack "$PACKAGE@$version" --silent > /dev/null && tar -xzf kition-kits-index-"$version".tgz package/kits-index.json && mv package/kits-index.json kits-index.json)
+              echo "version=$version" >> "$GITHUB_OUTPUT"
               ;;
-            2) echo "no branch kits-index yet: this run makes it" ;;
-            *) echo "cannot ask origin for the branch kits-index (git ls-remote exit $status)" >&2; exit 1 ;;
+            404) echo "no $PACKAGE published yet: this run publishes its first version"; echo "version=" >> "$GITHUB_OUTPUT" ;;
+            *) echo "cannot ask $REGISTRY for $PACKAGE (HTTP $status)" >&2; exit 1 ;;
           esac
-      - name: Gather the index from the kit repositories
+      - name: Gather the index from the kit packages' metadata
         id: gather
         env:
-          GH_TOKEN: ${{ github.token }}
+          PUBLISHED: ${{ steps.published.outputs.version }}
         run: |
           set -uo pipefail
           previous=()
           [ -f target/published/kits-index.json ] && previous=(--previous target/published/kits-index.json)
-          node tools/kits-index.mjs --out target/kits-index/kits-index.json "${previous[@]}" | tee target/kits-index-report.txt
+          if [ -n "$PUBLISHED" ]; then next="2.0.$(( ${PUBLISHED##*.} + 1 ))"; else next=2.0.0; fi
+          node tools/kits-index.mjs --modules target/kition/kits/modules.json --registry "$REGISTRY" \
+            --out target/kits-index/kits-index.json --package target/kits-index/package --version "$next" "${previous[@]}" | tee target/kits-index-report.txt
           status=${PIPESTATUS[0]}
           { echo '```text'; cat target/kits-index-report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           case "$status" in
-            0) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            0) echo "publish=true" >> "$GITHUB_OUTPUT"; echo "next=$next" >> "$GITHUB_OUTPUT" ;;
             3) echo "::notice::the index would be empty; the published one stays as it is"; echo "publish=false" >> "$GITHUB_OUTPUT" ;;
             *) exit "$status" ;;
           esac
       - name: Publish it when it changed
         if: steps.gather.outputs.publish == 'true'
         env:
-          PARENT: ${{ steps.published.outputs.parent }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NEXT: ${{ steps.gather.outputs.next }}
         run: |
           set -euo pipefail
           if [ -f target/published/kits-index.json ] && cmp -s target/published/kits-index.json target/kits-index/kits-index.json; then
             echo "kits-index.json is unchanged"
             exit 0
           fi
-          blob=$(git hash-object -w target/kits-index/kits-index.json)
-          tree=$(printf '100644 blob %s\tkits-index.json\n' "$blob" | git mktree)
-          parent=()
-          [ -n "$PARENT" ] && parent=(-p "$PARENT")
-          commit=$(git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit-tree "$tree" "${parent[@]}" -m "kits-index.json from the kit repositories' fragments (run $GITHUB_RUN_ID, $GITHUB_SHA)")
-          git push origin "$commit:refs/heads/kits-index"
-          echo "published kits-index.json as $commit" | tee -a "$GITHUB_STEP_SUMMARY"
+          npm publish target/kits-index/package --access public --provenance --tag latest
+          echo "published $PACKAGE@$NEXT" | tee -a "$GITHUB_STEP_SUMMARY"
+          # npmmirror copies npmjs.org on its own schedule; ask it now, so kition there sees the
+          # new index sooner. A refusal is only a warning: kition falls back to npmjs.org.
+          curl -fsS -X PUT "https://registry-direct.npmmirror.com/-/package/$PACKAGE/syncs" || echo "::warning::npmmirror did not take the copy request for $PACKAGE"

@@ -81,6 +81,7 @@ pub fn run(args: &[String]) -> ExitCode {
     };
     checks.push(check_path());
     if let Some(home) = &home {
+        checks.push(Check::new("registries", Status::Info, format!("kits and the index come from {}", kition_cli::registry::configured().named()), None));
         checks.push(check_index(home, &source));
         checks.extend(check_kits(&Store::new(home.clone())));
         checks.extend(check_editors(&Store::new(home.clone())));
@@ -210,7 +211,10 @@ fn check_path() -> Check {
 /// Whether the index can be read now; else how old the copy kept from the last read is.
 fn check_index(home: &Home, source: &Source) -> Check {
     let location = &source.location;
-    let fix = Some(format!("check the network (and HTTPS_PROXY), or name another index: export {INDEX_VARIABLE}=<address or file>; then kition doctor"));
+    let fix = Some(format!(
+        "check the network (and HTTPS_PROXY), name a registry that answers (export {}=<address>, such as https://registry.npmmirror.com), or another index ({INDEX_VARIABLE}=<address or file>); then kition doctor",
+        kition_cli::registry::REGISTRY_VARIABLE
+    ));
     match index::load(home, source, Freshness::Now) {
         Ok(loaded) if loaded.stale.is_none() => Check::new("index", Status::Ok, format!("{location}: read now, {} kits", loaded.index.kits.len()), None),
         Ok(loaded) => {

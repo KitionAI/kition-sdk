@@ -13,10 +13,9 @@
 //                               gives every schema a stable, versioned address
 //   install.sh, install.ps1     the `kition` installers (install/)
 //   kits-index.json             (written by tools/kits-index.mjs before this runs) the kit index
-//                               gathered when the release was made: a snapshot, for the `kition`
-//                               versions released before the branch kits-index existed (0.3.0,
-//                               0.4.0), which read releases/latest/download/kits-index.json; the
-//                               index `kition` reads is the one on the branch kits-index
+//                               gathered from the kit packages' npm metadata when the release was
+//                               made: a snapshot; the index `kition` reads is the npm package
+//                               @kition/kits-index
 //   SHA256SUMS                  every asset, in `sha256sum -c` form
 //
 //   node tools/sdk-release.mjs --dir <folder of kition-sdk-<version>-<platform>.tar.gz>
@@ -24,8 +23,8 @@
 // Every bundle must be of this SDK's version and commit and hold the same kits; every bundle's
 // platform needs its `kition-<version>-<platform>.tar.gz`; kits-index.json must be there, valid
 // against schemas/kits-index.schema.json and holding a kit; and no other `.tar.gz` and no other
-// `kits-index*.json` may be there (the kit repositories publish the kit archives and fragments, and
-// tools/kits-index.mjs gathers the kit index from them: docs/sdk/distribution.md). Otherwise
+// `kits-index*.json` may be there (the kit repositories publish the kit packages on npm, and
+// tools/kits-index.mjs gathers the kit index from their metadata: docs/sdk/distribution.md). Otherwise
 // nothing is written. It publishes nothing.
 import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'

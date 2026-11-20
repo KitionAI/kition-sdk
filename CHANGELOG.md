@@ -4,6 +4,25 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Kits, the kit index and `kition` come from npm, not GitHub** (feature
+  `sdk.distribution.npm-registries`). Each kit version is published by its repository as the npm
+  packages `@kition/kit-<kit>-<platform>` (`kit.json` and the executable) and `@kition/kit-<kit>-ui`
+  (the editor folder `<kit>-ui/`), the same files as the archives before, with a `kition` field in
+  `package.json`; `tools/kit-npm-package.mjs` writes, packs and checks them for Kition's Package
+  workflow, and a version is published once. The kit index is the npm package
+  `@kition/kits-index` (format 2: each entry is a package, its size and npm's `sha512-` integrity),
+  gathered by `tools/kits-index.mjs` from the registry's metadata and published by the `kits-index`
+  workflow only when it changes. `kition` downloads the index, kits and editors from
+  `KITION_NPM_REGISTRY`, npm's own `.npmrc` setting, `registry.npmjs.org`, then
+  `registry.npmmirror.com` (reachable from mainland China): a registry that does not answer within
+  5 seconds or serves other bytes passes to the next, a cut download resumes or passes on, the
+  integrity is always checked, and an error names every registry tried; `kition doctor` lists the
+  registries. `install.sh` and `install.ps1` install `@kition/cli-<platform>` from the same
+  registries with `curl` and `tar`, checked against its integrity, and ride in `@kition/cli`
+  (`curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh`); `KITION_RELEASES_URL` is
+  gone. The SDK bundle takes each kit's editor package from npm by the integrity Kition's lock
+  pins. `kition` 0.5.2 and earlier read the branch `kits-index`, which is no longer written:
+  upgrade them to see kit versions published from now on.
 - **A forked document is co-edited in its own sync room** (sync protocol S20, KitModel M7a,
   M16a). A copy made as a new document (`Replica::copy_as_new_document`, `copyAsNewDocument`, and
   so every file `document.fork` writes) is shallow, and a sync server refuses a shallow snapshot as

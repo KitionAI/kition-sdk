@@ -16,7 +16,7 @@ use std::process::{Child, Stdio};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use support::{Entry, IndexBuilder, archive, editor_archive, kit_archive, kition, run, sha256};
+use support::{Entry, IndexBuilder, Server, archive, editor_archive, editor_archive_as, integrity, kit_archive, kition, package_json, run, sha256};
 
 const P: &str = "kition-kit/1";
 
@@ -25,8 +25,8 @@ type IndexOf = dyn Fn(&Path) -> IndexBuilder;
 
 /// An index in `dir` with `fake` 0.1.0 and 0.2.0, each with its editor package, and `bare` 1.0.0
 /// without one.
-fn index(dir: &Path) -> String {
-    IndexBuilder::new()
+fn index(dir: &Path) -> (String, Server) {
+    let index = IndexBuilder::new()
         .kit(
             dir,
             "fake",
@@ -41,7 +41,8 @@ fn index(dir: &Path) -> String {
         .kit(dir, "bare", "kbare", &[("1.0.0", P, kit_archive("bare", "1.0.0", P, "kbare", "kition-bare", b"bare"))])
         .write(dir)
         .display()
-        .to_string()
+        .to_string();
+    (index, Server::start(dir))
 }
 
 fn json_of(text: &str) -> Value {
@@ -52,9 +53,9 @@ fn json_of(text: &str) -> Value {
 fn install_and_upgrade_bring_the_editor_and_list_info_and_doctor_name_it() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join("home");
-    let index = index(dir.path());
+    let (index, registry) = index(dir.path());
 
-    let (ok, out, err) = run(kition(&home).args(["kit", "install", "fake@0.1.0", "bare", "--index", &index]));
+    let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "install", "fake@0.1.0", "bare", "--index", &index]));
     assert!(ok, "{out}{err}");
     assert!(out.contains("installed the editor of fake 0.1.0"), "{out}");
     assert!(out.contains("the kit index lists no editor package for bare 1.0.0"), "{out}");
@@ -66,21 +67,21 @@ fn install_and_upgrade_bring_the_editor_and_list_info_and_doctor_name_it() {
     assert!(home.join("kits/fake/0.1.0/kit.json").is_file(), "the headless kit beside it");
     assert_eq!(std::fs::read_dir(home.join("tmp")).map(Iterator::count).unwrap_or(0), 0, "nothing left in tmp/");
 
-    let (ok, out, _) = run(kition(&home).args(["kit", "list", "--json", "--index", &index]));
+    let (ok, out, _) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "list", "--json", "--index", &index]));
     assert!(ok);
     let listed = json_of(&out);
     let row = |name: &str| listed["kits"].as_array().unwrap().iter().find(|row| row["name"] == name).unwrap().clone();
     assert_eq!(row("fake")["editor"], json!({ "installed": ["0.1.0"], "inUse": true, "available": true }));
     assert_eq!(row("bare")["editor"], json!({ "installed": [], "inUse": false, "available": false }));
-    let (_, out, _) = run(kition(&home).args(["kit", "list", "--index", &index]));
+    let (_, out, _) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "list", "--index", &index]));
     let line = |name: &str| out.lines().find(|line| line.starts_with(name)).unwrap_or_default().to_owned();
     assert!(out.lines().next().unwrap_or_default().contains("EDITOR"), "{out}");
     assert!(line("fake").contains("installed") && line("bare").contains("none"), "{out}");
 
-    let (_, out, _) = run(kition(&home).args(["kit", "info", "fake", "--index", &index]));
+    let (_, out, _) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "info", "fake", "--index", &index]));
     assert!(out.contains("editor:      installed"), "{out}");
 
-    let (_, out, _) = run(kition(&home).args(["doctor", "--json", "--index", &index]));
+    let (_, out, _) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["doctor", "--json", "--index", &index]));
     let doctor = json_of(&out);
     let check = |name: &str| doctor["checks"].as_array().unwrap().iter().find(|check| check["name"] == name).cloned().unwrap_or(Value::Null);
     assert_eq!(check("editor fake")["status"], "ok", "{doctor}");
@@ -89,44 +90,57 @@ fn install_and_upgrade_bring_the_editor_and_list_info_and_doctor_name_it() {
 
     // A removed editor is installed again with the kit (first use repairs it), then upgraded.
     std::fs::remove_dir_all(&editor).unwrap();
-    let (_, out, _) = run(kition(&home).args(["kit", "list", "--index", &index]));
+    let (_, out, _) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "list", "--index", &index]));
     assert!(out.lines().find(|line| line.starts_with("fake")).unwrap_or_default().contains("missing"), "{out}");
-    let (ok, out, err) = run(kition(&home).args(["kit", "install", "fake@0.1.0", "--index", &index]));
+    let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "install", "fake@0.1.0", "--index", &index]));
     assert!(ok && out.contains("installed the editor of fake 0.1.0"), "{out}{err}");
-    let (ok, out, err) = run(kition(&home).args(["kit", "upgrade", "fake", "--index", &index]));
+    let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "upgrade", "fake", "--index", &index]));
     assert!(ok, "{out}{err}");
     assert!(out.contains("installed the editor of fake 0.2.0"), "{out}");
     assert!(home.join("kits/fake/ui/0.2.0/index.html").is_file());
     assert!(!home.join("kits/fake/ui/0.1.0").exists(), "the older editor goes with the older kit");
 
-    let (ok, _, _) = run(kition(&home).args(["kit", "remove", "fake"]));
+    let (ok, _, _) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "remove", "fake"]));
     assert!(ok && !home.join("kits/fake").exists(), "removing a kit removes its editors");
 }
 
 #[test]
 fn an_editor_package_that_is_not_the_one_the_index_gives_is_refused() {
-    let cases: [(&str, Box<IndexOf>, &str); 5] = [
+    let cases: [(&str, Box<IndexOf>, &str); 6] = [
         (
-            "another SHA-256",
+            "another integrity",
             Box::new(|dir| {
                 IndexBuilder::new().kit(dir, "fake", "kfake", &[("0.1.0", P, kit_archive("fake", "0.1.0", P, "kfake", "kition-fake", b"x"))]).editor(
                     dir,
                     "fake",
                     "0.1.0",
                     &editor_archive("fake", "0.1.0"),
-                    Some(&"a".repeat(64)),
+                    Some(&integrity(b"other bytes")),
                 )
             }),
-            "SHA-256",
+            "has the integrity",
         ),
         (
-            "another kit's editor",
+            "another package",
             Box::new(|dir| {
                 IndexBuilder::new().kit(dir, "fake", "kfake", &[("0.1.0", P, kit_archive("fake", "0.1.0", P, "kfake", "kition-fake", b"x"))]).editor(
                     dir,
                     "fake",
                     "0.1.0",
                     &editor_archive("other", "0.1.0"),
+                    None,
+                )
+            }),
+            "its package.json is @kition/kit-other-ui@0.1.0",
+        ),
+        (
+            "another kit's editor in the package",
+            Box::new(|dir| {
+                IndexBuilder::new().kit(dir, "fake", "kfake", &[("0.1.0", P, kit_archive("fake", "0.1.0", P, "kfake", "kition-fake", b"x"))]).editor(
+                    dir,
+                    "fake",
+                    "0.1.0",
+                    &editor_archive_as("@kition/kit-fake-ui", "other", "0.1.0", "0.1.0"),
                     None,
                 )
             }),
@@ -139,7 +153,7 @@ fn an_editor_package_that_is_not_the_one_the_index_gives_is_refused() {
                     dir,
                     "fake",
                     "0.1.0",
-                    &editor_archive("fake", "0.0.9"),
+                    &editor_archive_as("@kition/kit-fake-ui", "fake", "0.1.0", "0.0.9"),
                     None,
                 )
             }),
@@ -152,7 +166,11 @@ fn an_editor_package_that_is_not_the_one_the_index_gives_is_refused() {
                     dir,
                     "fake",
                     "0.1.0",
-                    &archive(&[Entry::File("fake-ui/index.html", b"x", 0o644), Entry::RawPath("../escaped.js", b"x")]),
+                    &archive(&[
+                        Entry::File("package/package.json", &package_json("@kition/kit-fake-ui", "0.1.0"), 0o644),
+                        Entry::File("package/fake-ui/index.html", b"x", 0o644),
+                        Entry::RawPath("../escaped.js", b"x"),
+                    ]),
                     None,
                 )
             }),
@@ -165,7 +183,10 @@ fn an_editor_package_that_is_not_the_one_the_index_gives_is_refused() {
                     dir,
                     "fake",
                     "0.1.0",
-                    &archive(&[Entry::File("readme.txt", b"x", 0o644)]),
+                    &archive(&[
+                        Entry::File("package/package.json", &package_json("@kition/kit-fake-ui", "0.1.0"), 0o644),
+                        Entry::File("package/readme.txt", b"x", 0o644),
+                    ]),
                     None,
                 )
             }),
@@ -176,7 +197,8 @@ fn an_editor_package_that_is_not_the_one_the_index_gives_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let home = dir.path().join("home");
         let index = build(dir.path()).write(dir.path()).display().to_string();
-        let (ok, out, err) = run(kition(&home).args(["kit", "install", "fake", "--index", &index]));
+        let registry = Server::start(dir.path());
+        let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "install", "fake", "--index", &index]));
         assert!(!ok, "{what}: refused: {out}");
         assert!(err.contains(reason) && err.contains("the editor of fake 0.1.0"), "{what}: {err}");
         assert!(!home.join("kits/fake/ui/0.1.0").exists(), "{what}: nothing installed");
@@ -190,10 +212,12 @@ fn an_editor_package_that_is_not_the_one_the_index_gives_is_refused() {
         .kit(dir.path(), "fake", "kfake", &[("0.1.0", P, kit_archive("fake", "0.1.0", P, "kfake", "kition-fake", b"x"))])
         .editor(dir.path(), "fake", "0.1.0", &bytes, None)
         .write(dir.path());
+    let registry = Server::start(dir.path());
     let mut value: Value = json_of(&std::fs::read_to_string(&index_file).unwrap());
     value["kits"]["fake"]["versions"]["0.1.0"]["ui"]["size"] = json!(bytes.len() - 1);
     std::fs::write(&index_file, value.to_string()).unwrap();
-    let (ok, _, err) = run(kition(&home).args(["kit", "install", "fake", "--index", &index_file.display().to_string()]));
+    let (ok, _, err) =
+        run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "install", "fake", "--index", &index_file.display().to_string()]));
     assert!(!ok && err.contains("larger than"), "{err}");
     assert!(!home.join("kits/fake/ui/0.1.0").exists());
 }
@@ -207,8 +231,9 @@ struct Gateway {
 }
 
 impl Gateway {
-    fn start(home: &Path, workspace: &Path, extra: &[&str]) -> Self {
+    fn start(home: &Path, workspace: &Path, registry: &Server, extra: &[&str]) -> Self {
         let mut child = kition(home)
+            .env("KITION_NPM_REGISTRY", registry.url(""))
             .args(["gateway", "--workspace"])
             .arg(workspace)
             .args(extra)
@@ -297,12 +322,12 @@ fn the_gateway_serves_installed_editors_and_development_builds_and_installs_on_f
     let base = std::fs::canonicalize(dir.path()).unwrap();
     let (home, workspace) = (base.join("home"), base.join("workspace"));
     std::fs::create_dir_all(&workspace).unwrap();
-    let index = index(&base);
-    let (ok, _, err) = run(kition(&home).args(["kit", "install", "fake@0.1.0", "bare", "--index", &index]));
+    let (index, registry) = index(&base);
+    let (ok, _, err) = run(kition(&home).env("KITION_NPM_REGISTRY", registry.url("")).args(["kit", "install", "fake@0.1.0", "bare", "--index", &index]));
     assert!(ok, "{err}");
     std::fs::write(base.join("outside.js"), "secret").unwrap();
     std::os::unix::fs::symlink(base.join("outside.js"), home.join("kits/fake/ui/0.1.0/assets/link.js")).unwrap();
-    let gateway = Gateway::start(&home, &workspace, &["--index", &index]);
+    let gateway = Gateway::start(&home, &workspace, &registry, &["--index", &index]);
     let token = gateway.token.as_str();
     let at = |path: &str| format!("{}{path}", gateway.url);
 
@@ -366,7 +391,7 @@ fn the_gateway_serves_installed_editors_and_development_builds_and_installs_on_f
     // First use: the editor removed, a page asks for it, the download is followed to the end.
     drop(gateway);
     std::fs::remove_dir_all(home.join("kits/fake/ui")).unwrap();
-    let gateway = Gateway::start(&home, &workspace, &["--index", &index]);
+    let gateway = Gateway::start(&home, &workspace, &registry, &["--index", &index]);
     let (token, at) = (gateway.token.clone(), |path: &str| format!("{}{path}", gateway.url));
     let editors = http("GET", &at("/api/v1/kits/editors"), &[("Kition-Token", &token)], None).json();
     assert_eq!(
@@ -392,7 +417,7 @@ fn the_gateway_serves_installed_editors_and_development_builds_and_installs_on_f
 
     // A development build: the repository's web/dist with its kit.json, served without long caching.
     let repo = repository(&base);
-    let gateway = Gateway::start(&home, &workspace, &["--index", &index, "--kit-ui", &repo.display().to_string()]);
+    let gateway = Gateway::start(&home, &workspace, &registry, &["--index", &index, "--kit-ui", &repo.display().to_string()]);
     let (token, at) = (gateway.token.clone(), |path: &str| format!("{}{path}", gateway.url));
     let editors = http("GET", &at("/api/v1/kits/editors"), &[("Kition-Token", &token)], None).json();
     assert_eq!(editors["data"]["editors"]["kit.fake"]["version"], "0.3.0", "{editors}");
@@ -420,8 +445,8 @@ fn with_nothing_installed_the_gateway_lists_the_index_kits_and_installs_an_edito
     let base = std::fs::canonicalize(dir.path()).unwrap();
     let (home, workspace) = (base.join("home"), base.join("workspace"));
     std::fs::create_dir_all(&workspace).unwrap();
-    let index = index(&base);
-    let gateway = Gateway::start(&home, &workspace, &["--index", &index]);
+    let (index, registry) = index(&base);
+    let gateway = Gateway::start(&home, &workspace, &registry, &["--index", &index]);
     let (token, at) = (gateway.token.clone(), |path: &str| format!("{}{path}", gateway.url));
     let kits = http("GET", &at("/api/v1/kits"), &[("Kition-Token", &token)], None).json();
     let fake = kits["data"]["kits"].as_array().unwrap().iter().find(|kit| kit["id"] == "kit.fake").cloned().unwrap_or(Value::Null);

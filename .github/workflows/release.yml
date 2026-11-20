@@ -3,19 +3,21 @@ name: release
 # - the GitHub Release sdk-v<version> of this repository: the SDK bundle of each platform
 #   (tools/sdk-bundle.mjs: npm tarballs, kit packages, bin/<platform>/ with kition-kits,
 #   kition-kits-mcp and each published kit's headless executable, docs, schemas, manifest.json,
-#   SHA256SUMS); kition-<version>-<platform>.tar.gz (tools/release-archives.mjs); kits-index.json,
-#   a snapshot of the kit index gathered when the release is made (tools/kits-index.mjs); install.sh
-#   and install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
-#   (tools/sdk-release.mjs), with build provenance attestations;
+#   SHA256SUMS); kition-<version>-<platform>.tar.gz (tools/release-archives.mjs), which a run that
+#   publishes a released version's npm packages takes kition from; kits-index.json, a snapshot of
+#   the kit index gathered from the npm registry when the release is made (tools/kits-index.mjs);
+#   install.sh and install.ps1 (also in @kition/cli as dist/), which install kition from the npm
+#   registry; the release manifest
+#   kition-sdk-<version>.json, every schema, and SHA256SUMS (tools/sdk-release.mjs), with build
+#   provenance attestations;
 # - the public @kition/* packages on npm, with @kition/cli (the `kition` command, a Node launcher),
 #   @kition/cli-<platform> (which carries the kition executable), and @kition/dsh-kits (the
 #   DeepSeek Harness plugin, which depends on @kition/cli at its own version and runs that kition).
 # Each published kit's executable is built from the tag that Kition's kits/kits.lock.json pins for
 # its package, and must answer kit.initialize with that package's version. A release publishes no
-# kit archive: each kit repository publishes its own archives, and .github/workflows/kits-index.yml
-# gathers the index `kition` reads, on the branch kits-index (docs/sdk/distribution.md). The
-# release's kits-index.json is only a snapshot of it, for kition 0.3.0 and 0.4.0, which read
-# releases/latest/download/kits-index.json.
+# kit package: each kit repository publishes its own on npm, and .github/workflows/kits-index.yml
+# publishes the index `kition` reads, the npm package @kition/kits-index (docs/sdk/distribution.md).
+# The release's kits-index.json is only a snapshot of it, as of the release.
 # Run it by hand from the Actions tab. A release is never replaced, and an npm version already
 # published is skipped; bump sdk.json to publish a change.
 # Order: everything is built and checked first; then the GitHub Release is made as a draft (no
@@ -77,18 +79,25 @@ jobs:
           set -euo pipefail
           [[ "$KITION_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "kition_commit must be a full commit SHA" >&2; exit 1; }
           mkdir -p target/lock
+          # Kition's lock pins each kit's npm package and the commit it was built from; its
+          # modules.json names the kit's repository.
           curl -fsSL "https://raw.githubusercontent.com/KitionAI/kition/$KITION_COMMIT/kits/kits.lock.json" -o target/lock/kits.lock.json
+          curl -fsSL "https://raw.githubusercontent.com/KitionAI/kition/$KITION_COMMIT/kits/modules.json" -o target/lock/modules.json
           node -e '
             const lock = require("./target/lock/kits.lock.json")
+            const modules = require("./target/lock/modules.json")
             for (const kit of require("./published-kits.json")) {
               const pinned = lock[kit]
-              if (!pinned) { console.error(`the lock pins no ${kit}`); process.exit(1) }
-              console.log(`${kit} ${pinned.version} ${pinned.tag} ${pinned.commit}`)
+              if (!pinned?.package || !/^[0-9a-f]{40}$/.test(pinned.commit ?? "")) { console.error(`the lock pins no npm package of ${kit} with its commit`); process.exit(1) }
+              if (!modules[kit]?.repository) { console.error(`modules.json names no repository of ${kit}`); process.exit(1) }
+              console.log(`${kit} ${pinned.version} ${pinned.package} ${modules[kit].repository} ${pinned.commit}`)
             }'
       - uses: actions/upload-artifact@v4
         with:
           name: kits-lock
-          path: target/lock/kits.lock.json
+          path: |
+            target/lock/kits.lock.json
+            target/lock/modules.json
           if-no-files-found: error
 
   # The npm package @kition/cli (packages/kition), packed once: every platform installs this archive in its smoke test,
@@ -161,18 +170,21 @@ jobs:
         with:
           name: kits-lock
           path: target/lock
-      # The tag must be the commit the lock pins, and its kit.json the version the lock pins. A kit
-      # that embeds fonts has scripts/fetch-fonts.sh; one without it embeds none.
-      - name: Check out each published kit at its package tag, with its fonts
+      # The commit the lock pins (the one its npm package was built from), and its kit.json the
+      # version the lock pins. A kit that embeds fonts has scripts/fetch-fonts.sh; one without it
+      # embeds none.
+      - name: Check out each published kit at its package's commit, with its fonts
         run: |
           set -euo pipefail
           for kit in $(node -p 'require("./published-kits.json").join(" ")'); do
-            read -r repository tag commit version < <(node -p "const p = require('./target/lock/kits.lock.json')['$kit']; [p.repository, p.tag, p.commit, p.version].join(' ')")
-            git clone --quiet --depth 1 --branch "$tag" "https://github.com/$repository" "../kition-$kit"
+            read -r repository commit version < <(node -p "const p = require('./target/lock/kits.lock.json')['$kit']; [require('./target/lock/modules.json')['$kit'].repository, p.commit, p.version].join(' ')")
+            git init --quiet "../kition-$kit"
+            git -C "../kition-$kit" fetch --quiet --depth 1 "https://github.com/$repository" "$commit"
+            git -C "../kition-$kit" checkout --quiet FETCH_HEAD
             actual=$(git -C "../kition-$kit" rev-parse HEAD)
-            [ "$actual" = "$commit" ] || { echo "$repository $tag is $actual; the lock pins $commit" >&2; exit 1; }
+            [ "$actual" = "$commit" ] || { echo "$repository is $actual; the lock pins $commit" >&2; exit 1; }
             declared=$(node -p "require('../kition-$kit/kit.json').version")
-            [ "$declared" = "$version" ] || { echo "$repository $tag kit.json is $declared; the lock pins $version" >&2; exit 1; }
+            [ "$declared" = "$version" ] || { echo "$repository $commit kit.json is $declared; the lock pins $version" >&2; exit 1; }
             # A relative path: Git Bash's sha256sum escapes a Windows path's backslashes.
             if [ -f "../kition-$kit/scripts/fetch-fonts.sh" ]; then bash "../kition-$kit/scripts/fetch-fonts.sh" "../fonts-$kit"; fi
           done
@@ -320,18 +332,17 @@ jobs:
         with:
           pattern: bin-*
           path: target/release-bin
-      # The kit index snapshot: gathered here by the aggregator itself, not copied from the branch
-      # kits-index, so the release does not depend on the branch. It is for kition 0.3.0 and
-      # 0.4.0, which read releases/latest/download/kits-index.json; later kition read the branch.
-      # A failure, or an index with no kit (exit 3), stops the run: no release goes without it.
+      # The kit index snapshot: gathered here by the aggregator itself from the kit packages'
+      # registry metadata, for the kits Kition's modules.json names at the commit given (the lock
+      # job's artifact). kition
+      # reads the published package @kition/kits-index, not this file. A failure, or an index with
+      # no kit (exit 3), stops the run: no release goes without it.
       - name: The kit index snapshot
         if: needs.lock.outputs.released != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           status=0
-          node tools/kits-index.mjs --out target/sdk-release/kits-index.json || status=$?
+          node tools/kits-index.mjs --modules target/lock/modules.json --out target/sdk-release/kits-index.json || status=$?
           if [ "$status" -eq 3 ]; then echo "::error::the gathered kit index holds no kit; a release does not go without kits-index.json"; fi
           exit "$status"
       - name: The SDK bundle of each platform, and the release files
@@ -395,18 +406,18 @@ jobs:
           version=$(node -p 'require("./sdk.json").version')
           node -e '
             const m = require(`./target/sdk-release/kition-sdk-${process.argv[1]}.json`)
-            const kits = m.kits.map((k) => `- ${k.id} ${k.version}: package ${k.url} (sha256 ${k.sha256}), built from ${k.repository} ${k.tag} (${k.commit})`).join("\n")
+            const kits = m.kits.map((k) => `- ${k.id} ${k.version}: npm ${k.package}@${k.version} (${k.integrity}), built from ${k.commit}`).join("\n")
             const platforms = Object.entries(m.platforms).map(([p, b]) => `- ${p}: ${b.bundle} (sha256 ${b.sha256})`).join("\n")
             const cli = Object.entries(m.cli).map(([p, a]) => `- ${p}: ${a.file} (sha256 ${a.sha256})`).join("\n")
             console.log([
               `Kition SDK ${m.version}, built from ${m.commit}.`, "",
-              "Install kition (kits download on first use into ~/.kition/kits):",
-              "- macOS, Linux: curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh",
-              "- Windows: irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex",
-              "- npm (Node.js 20 or later): npm install -g @kition/cli, or npx -y @kition/cli <command>", "",
+              "Install kition (kits download on first use into ~/.kition/kits), from npm or its mirrors:",
+              "- npm (Node.js 20 or later): npm install -g @kition/cli, or npx -y @kition/cli <command>",
+              "- macOS, Linux, without Node.js: curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh (it downloads @kition/cli-<platform> from registry.npmjs.org, else registry.npmmirror.com, checking npm's integrity)",
+              "- Windows, without Node.js: irm https://unpkg.com/@kition/cli/dist/install.ps1 | iex", "",
               "kition:", cli, "",
-              "kition installs kits from the kit index gathered from the releases of every kit repository: https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json.",
-              `The kits-index.json of this release is a snapshot of that index as of the release (sha256 ${m.index.sha256}), for kition 0.3.0 and 0.4.0, which read releases/latest/download/kits-index.json.`, "",
+              "kition installs kits from the npm packages the kit index @kition/kits-index lists (registry.npmjs.org, its mirror registry.npmmirror.com, or KITION_NPM_REGISTRY).",
+              `The kits-index.json of this release is a snapshot of that index as of the release (sha256 ${m.index.sha256}).`, "",
               "Kits:", kits, "",
               "SDK bundles (bin/<platform>/ holds kition-kits, kition-kits-mcp and each kit executable):", platforms, "",
               `Every executable with its SHA-256 and the kit version it answers: kition-sdk-${m.version}.json. All assets: SHA256SUMS. Provenance: gh attestation verify <file> --repo ${m.repository}.`,
@@ -453,6 +464,17 @@ jobs:
           for archive in target/kition/packed/*.tgz; do publish "$archive"; done
           publish target/npm-pack/kition.tgz
           publish target/npm-pack/dsh-kits.tgz
+      # npmmirror copies npmjs.org on its own schedule, which can lag a day for a new package;
+      # asking it to copy the packages people install now (kition, the installers' package, the
+      # plugin) makes them reachable from mainland China sooner. A refusal is only a warning.
+      - name: Ask npmmirror to copy kition's packages
+        continue-on-error: true
+        run: |
+          for archive in target/kition/packed/*.tgz target/npm-pack/kition.tgz target/npm-pack/dsh-kits.tgz; do
+            name=$(tar -xzOf "$archive" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')
+            curl -fsS -X PUT "https://registry-direct.npmmirror.com/-/package/$name/syncs" || echo "::warning::npmmirror did not take the copy request for $name"
+            echo
+          done
       # Last: the draft becomes the release, and the latest one, once npm has every package it
       # tells people to install.
       - name: Publish the GitHub Release

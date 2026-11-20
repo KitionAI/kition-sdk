@@ -2,11 +2,15 @@ format: 1
 id: sdk.distribution.kition/install
 feature: sdk.distribution.kition
 intent: >-
-  install.sh, run against a release served on loopback, installs this platform's kition from the
-  latest release or a given version into $KITION_HOME/bin (~/.kition/bin by default), leaves no
-  download behind, writes no shell profile and prints the PATH line only when it is needed; an
-  archive that does not match SHA256SUMS, a release without this platform, a missing version, or
-  Linux with the musl C library installs nothing and says why.
+  install.sh, run against fake npm registries on loopback (the public ones behind a proxy that
+  answers nothing), installs this platform's @kition/cli-<platform> from the latest or a given
+  version into $KITION_HOME/bin (~/.kition/bin by default), checked against the integrity the
+  registry's metadata gives, and names the registry it came from; it takes KITION_NPM_REGISTRY, then
+  npm's own @kition:registry, npm_config_registry or registry from the .npmrc, before the public
+  registries, and passes a dead registry or one serving other bytes to the next. It leaves no
+  download behind, writes no shell profile and prints the PATH line only when it is needed; a
+  package whose bytes are not its integrity, a version no registry has (every registry tried named),
+  or Linux with the musl C library installs nothing and says why.
 layer: gate
 dimension: platform
 source:

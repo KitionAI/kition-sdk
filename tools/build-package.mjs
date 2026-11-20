@@ -54,6 +54,11 @@ for (const [name, target] of Object.entries(exports)) {
   fs.copyFileSync(path.resolve(directory, target), output)
 }
 fs.copyFileSync(path.join(root, 'LICENSE'), path.join(directory, 'dist/LICENSE'))
+// @kition/cli carries the installers, so they are fetched from npm (or a CDN serving its files),
+// as what they install is: dist/install.sh and dist/install.ps1 (docs/sdk/cli.md).
+if (manifest.name === '@kition/cli') {
+  for (const script of ['install.sh', 'install.ps1']) fs.copyFileSync(path.join(root, 'install', script), path.join(directory, 'dist', script))
+}
 
 // Bundled third-party code ships with its license: dist/THIRD_PARTY_NOTICES, one section per package.
 // Each package's LICENSE, LICENSE-*, NOTICE and THIRD_PARTY_NOTICES files (tools/bundled-notices.mjs).

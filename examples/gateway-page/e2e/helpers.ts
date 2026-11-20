@@ -1,9 +1,12 @@
 /**
  * What the gateway page's end-to-end tests share: a real `kition gateway` on a workspace and a
- * Kition home of their own, with the kits' headless builds and editor packages installed from
- * the kit index's release assets (kept between runs in `GATEWAY_E2E_CACHE`); a real `kition mcp`
- * stdio process for the same workspace, which relays to the gateway; and the same-origin reverse
- * proxy a host puts in front (`proxy.mjs`).
+ * Kition home of their own, with the kits' headless builds and editor packages installed by
+ * `kition kit install` from the npm registries (kept between runs in `GATEWAY_E2E_CACHE`): the
+ * published index @kition/kits-index and its packages, or the index `GATEWAY_E2E_INDEX` names
+ * with its packages from `KITION_NPM_REGISTRY` (a local registry, for kits not published yet;
+ * plugins/deepseek-harness/kition-kits/test/registry.mjs serves one); a real `kition mcp` stdio
+ * process for the same workspace, which relays to the gateway; and the same-origin reverse proxy
+ * a host puts in front (`proxy.mjs`). Nothing is read from GitHub.
  */
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
@@ -14,16 +17,21 @@ import { fileURLToPath } from 'node:url'
 
 export const here = path.dirname(fileURLToPath(import.meta.url))
 export const repo = path.resolve(here, '../../..')
-/** Where the kit store with the release assets and results are kept between runs. */
+/** Where the kit store with the installed kits and results are kept between runs. */
 export const cache = process.env.GATEWAY_E2E_CACHE || path.join(os.homedir(), '.cache', 'kition-gateway-e2e')
-/** The kit index with editor packages (`tools/kits-index.mjs --out`). */
-export const index = process.env.GATEWAY_E2E_INDEX || path.join(cache, 'kits-index.json')
+/** The kit index to install from (an address or a file), or '' for kition's own, the npm package @kition/kits-index. */
+export const index = process.env.GATEWAY_E2E_INDEX || ''
 export const kition = process.env.KITION_BINARY || path.join(repo, 'target/debug/kition')
 
-/** The environment of every process: no proxy (loopback must not go through one), the home given. */
+/**
+ * The environment of every process: the home given, the index named (else kition's own), the
+ * registries the person named (`KITION_NPM_REGISTRY`) kept, and no proxy for a loopback registry.
+ */
 export function environment(home: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, KITION_HOME: home, KITION_INDEX: index }
-  for (const key of Object.keys(env)) if (/_proxy$/i.test(key) || key.startsWith('KITION_KIT_')) delete env[key]
+  const local = /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(String(process.env.KITION_NPM_REGISTRY ?? ''))
+  for (const key of Object.keys(env)) if ((local && /_proxy$/i.test(key)) || key.startsWith('KITION_KIT_')) delete env[key]
+  if (!index) delete env.KITION_INDEX
   return env
 }
 
@@ -32,12 +40,11 @@ export function environment(home: string): NodeJS.ProcessEnv {
  * into a fresh home `home`. Throws, saying what to do, when the index is missing.
  */
 export function installKits(home: string, kits: string[]) {
-  if (!fs.existsSync(index)) throw new Error(`no kit index with editor packages at ${index}: run node tools/kits-index.mjs --out ${index} (GH_TOKEN set), or set GATEWAY_E2E_INDEX`)
   const kept = path.join(cache, 'home')
   const missing = kits.filter((kit) => !fs.existsSync(path.join(kept, 'kits', kit, 'ui')))
   if (missing.length) {
-    const installed = spawnSync(kition, ['kit', 'install', ...missing, '--index', index], { env: environment(kept), encoding: 'utf8', timeout: 600_000 })
-    if (installed.status !== 0) throw new Error(`kition kit install ${missing.join(' ')}: ${installed.stderr}`)
+    const installed = spawnSync(kition, ['kit', 'install', ...missing], { env: environment(kept), encoding: 'utf8', timeout: 600_000 })
+    if (installed.status !== 0) throw new Error(`kition kit install ${missing.join(' ')} (from ${index || 'the npm package @kition/kits-index'}; GATEWAY_E2E_INDEX and KITION_NPM_REGISTRY name another index and registry): ${installed.stderr}`)
   }
   for (const kit of kits) fs.cpSync(path.join(kept, 'kits', kit), path.join(home, 'kits', kit), { recursive: true })
 }

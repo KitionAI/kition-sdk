@@ -17,8 +17,10 @@
 // --out          the bundle folder (default $HOME/.cache/kition-sdk-bundle/kition-sdk-<version>[-<platform>])
 // --lock         Kition's kit lock (default KITION_KITS_LOCK, else ../kition/kits/kits.lock.json)
 // --kits         which kits (default sdk.json `kits`)
-// --kit-assets   a folder holding the pinned kit tarballs already; else they are downloaded from
-//                the kits' public release URLs
+// --kit-assets   a folder holding the pinned kit packages already (kition-kit-<kit>-ui-<version>.tgz);
+//                else they are downloaded from the npm registries (KITION_NPM_REGISTRY, npm's
+//                registry setting, registry.npmjs.org, registry.npmmirror.com), checked against
+//                the lock's integrity
 // --standard     a supplied KHP checkout (or KIT_STANDARD_DIR); its spec/
 //                and CHANGES.md become the bundle's docs/khp/
 // --no-kits      leave the kit packages out (a packages-and-docs bundle)
@@ -38,6 +40,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { brokenLinks, shippedFiles } from './bundle-docs.mjs'
 import { handshake, readHandshakes, sdkProtocol } from './kit-handshake.mjs'
+import { fetchPackage, integrityOf, registries as npmRegistries } from './kit-npm.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sdk = JSON.parse(fs.readFileSync(path.join(root, 'sdk.json'), 'utf8'))
@@ -155,23 +158,32 @@ function packPackage(name, packageDir, npmDir, scratch) {
   return { version: manifest.version, target }
 }
 
-/** The public download address of a pinned kit package. */
-const packageUrl = (pinned) => `https://github.com/${pinned.repository}/releases/download/${pinned.tag}/${pinned.asset}`
+/** The file `npm pack` names a pinned kit package: `kition-kit-<kit>-ui-<version>.tgz`. */
+const packageFile = (pinned) => `${pinned.package.replace(/^@/, '').replace('/', '-')}-${pinned.version}.tgz`
 
+/**
+ * The pinned kit package (`@kition/kit-<kit>-ui` at its version), from the npm registries
+ * (tools/kit-npm.mjs `registries`), or from `kitAssets` when given; its integrity must be the
+ * lock's.
+ */
 async function fetchKit(kit, pinned, kitsDir, kitAssets) {
-  const target = path.join(kitsDir, pinned.asset)
-  if (kitAssets) fs.copyFileSync(path.join(kitAssets, pinned.asset), target)
-  else {
-    const response = await fetch(packageUrl(pinned))
-    if (!response.ok) throw new Error(`${packageUrl(pinned)}: HTTP ${response.status}`)
-    fs.writeFileSync(target, Buffer.from(await response.arrayBuffer()))
-  }
-  const size = fs.statSync(target).size
-  const sum = sha256(target)
-  if (size !== pinned.size || sum !== pinned.sha256) {
-    throw new Error(`${pinned.asset}: ${size} bytes, sha256 ${sum}; the lock pins ${pinned.size} bytes, sha256 ${pinned.sha256}`)
-  }
+  if (!pinned.package || !pinned.integrity) throw new Error(`the lock pins no npm package of ${kit} (package, version, integrity): pin it with Kition's scripts/pin-kits.mjs`)
+  const target = path.join(kitsDir, packageFile(pinned))
+  if (kitAssets) fs.copyFileSync(path.join(kitAssets, packageFile(pinned)), target)
+  else fs.writeFileSync(target, await fetchPackage(npmRegistries(process.env, readNpmrc()), pinned.package, pinned.version, pinned.integrity))
+  const found = integrityOf(fs.readFileSync(target))
+  if (found !== pinned.integrity) throw new Error(`${packageFile(pinned)}: its integrity is ${found}; the lock pins ${pinned.integrity}`)
   return target
+}
+
+/** The person's .npmrc (npm_config_userconfig, else ~/.npmrc), read only. */
+function readNpmrc() {
+  const file = process.env.npm_config_userconfig || path.join(os.homedir(), '.npmrc')
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return ''
+  }
 }
 
 /** The documents, schemas and examples (`shippedFiles`), and the KHP in `docs/khp/spec/`. */
@@ -196,9 +208,9 @@ function copyDocs(bundle, standardDir) {
   return copied
 }
 
-/** The kit.json inside a kit package (`<kit>-ui/kit.json`), unpacked to `kits/<kit>/kit.json`. */
+/** The kit.json inside a kit package (`package/<kit>-ui/kit.json`), unpacked to `kits/<kit>/kit.json`. */
 function unpackManifest(tarball, kit, kitsDir) {
-  const entry = run('tar', ['-tzf', tarball]).split('\n').find((name) => /^[^/]+\/kit\.json$/.test(name))
+  const entry = run('tar', ['-tzf', tarball]).split('\n').find((name) => /^package\/[^/]+\/kit\.json$/.test(name))
   if (!entry) throw new Error(`${path.basename(tarball)} has no kit.json`)
   const target = path.join(kitsDir, kit, 'kit.json')
   fs.mkdirSync(path.dirname(target), { recursive: true })
@@ -247,17 +259,16 @@ try {
       const file = await fetchKit(kit, pinned, dirs.kits, opts.kitAssets)
       const kitJson = unpackManifest(file, kit, dirs.kits)
       const declared = JSON.parse(fs.readFileSync(kitJson, 'utf8'))
-      if (declared.version !== pinned.version) throw new Error(`${pinned.asset}: its kit.json says ${declared.version}; the lock pins ${pinned.version}`)
+      if (declared.version !== pinned.version) throw new Error(`${packageFile(pinned)}: its kit.json says ${declared.version}; the lock pins ${pinned.version}`)
       const protocol = declared.headless?.protocol ?? null
       manifest.kits.push({
         kit,
         id: declared.id,
         version: pinned.version,
-        repository: pinned.repository,
-        tag: pinned.tag,
+        package: pinned.package,
+        integrity: pinned.integrity,
         commit: pinned.commit,
         sdkCommit: pinned.sdkCommit,
-        url: packageUrl(pinned),
         protocol,
         manifest: path.relative(bundle, kitJson).split(path.sep).join('/'),
         ...entry(bundle, file),

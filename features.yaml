@@ -511,7 +511,7 @@ features:
       - regressions/issue-launcher-sigterm
     since: "2026-11-19"
   - id: sdk.distribution.release
-    title: "Each SDK version is a GitHub Release with a bundle per platform holding every executable, a manifest naming each file's SHA-256 and the kit version each kit executable answers, the schemas, a snapshot of the gathered kit index (kits-index.json, schema checked, for kition 0.3.0 and 0.4.0), and SHA-256 sums"
+    title: "Each SDK version is a GitHub Release with a bundle per platform holding every executable (each kit's built from the commit its npm editor package was built from, which the bundle takes from npm by the integrity Kition's lock pins), a manifest naming each file's SHA-256 and the kit version each kit executable answers, the schemas, a snapshot of the gathered kit index (kits-index.json, schema checked, a record), and SHA-256 sums"
     dimension: [platform]
     priority: P1
     status: has
@@ -541,7 +541,7 @@ features:
       - sdk.distribution.glibc-floor/needs
     since: "2026-11-18"
   - id: sdk.distribution.kition
-    title: "Each SDK release carries kition for every platform, and no kit archive (the kit repositories publish those); install.sh and install.ps1 install kition from it, checked against SHA256SUMS"
+    title: "Each SDK release carries kition for every platform, and no kit package (the kit repositories publish those on npm); install.sh and install.ps1, which ride in @kition/cli, install kition from npm without Node.js: @kition/cli-<platform> from the first registry of kition's list that serves it, checked against the integrity its metadata gives"
     dimension: [platform, security]
     priority: P1
     status: has
@@ -550,6 +550,9 @@ features:
       - tools/release-archives.test.mjs
       - tools/install-script.test.mjs
       - install/**
+      - tools/build-package.mjs
+      - tools/pack-public-packages.mjs
+      - packages/kition/src/resolve.ts
       - .github/workflows/release.yml
       - docs/sdk/distribution.md
       - docs/sdk/cli.md
@@ -558,21 +561,45 @@ features:
       - sdk.distribution.kition/install
     since: "2026-11-17"
   - id: sdk.distribution.kits-index
-    title: "The kit index kition reads by default is gathered from every kit repository's package-v<version> releases: each release's index fragment, with archives its fragment lacks added from the release's asset metadata, and the extensions each kit only views from its kit.json at its newest version's tag; a release without a fragment is skipped and named, a fragment that disagrees with its release or a repository that cannot be listed stops the run, and an empty index is never published; the workflow publishes it on the branch kits-index only when it changed"
+    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (2.0.<n>, latest) only when the index changed"
     dimension: [platform, security]
     priority: P1
     status: has
     paths:
       - tools/kits-index.mjs
       - tools/kits-index.test.mjs
+      - tools/kit-npm.mjs
       - .github/workflows/kits-index.yml
       - crates/kition-cli/src/index.rs
+      - schemas/kits-index.schema.json
       - sdk.json
       - docs/sdk/distribution.md
       - docs/sdk/cli.md
     cases:
       - sdk.distribution.kits-index/gather
     since: "2026-11-18"
+  - id: sdk.distribution.npm-registries
+    title: "Kits, their editors, the kit index and kition itself come from npm, never from GitHub: each kit version is published as @kition/kit-<kit>-<platform> and @kition/kit-<kit>-ui (the same files, a kition field in package.json, published once), and kition, its installers and the SDK bundle take them from KITION_NPM_REGISTRY, npm's own .npmrc setting, registry.npmjs.org, then registry.npmmirror.com: a registry that does not answer or serves other bytes passes to the next, a cut download resumes or passes on, the integrity is always checked, and an error names every registry tried"
+    dimension: [platform, security]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-cli/src/registry.rs
+      - crates/kition-cli/src/store.rs
+      - crates/kition-cli/src/editors.rs
+      - crates/kition-cli/src/index.rs
+      - crates/kition-cli/tests/registry.rs
+      - tools/kit-npm.mjs
+      - tools/kit-npm-package.mjs
+      - tools/kit-npm.test.mjs
+      - tools/sdk-bundle.mjs
+      - install/**
+      - docs/sdk/cli.md
+      - docs/sdk/distribution.md
+    cases:
+      - sdk.distribution.npm-registries/fallback
+      - sdk.distribution.npm-registries/packages
+    since: "2026-11-20"
   - id: sdk.docs.integration
     title: Deterministic agent integration reference from every kit command catalogue, with read-only stale-output checking
     dimension: [ai, platform]
@@ -1856,7 +1883,7 @@ features:
       - sdk.quality.kit-vocabulary/catalogues
     since: "2026-11-16"
   - id: sdk.cli.kit-store
-    title: "kition installs kits from a kit index into a store under ~/.kition (size, SHA-256 and kit.json checked, atomic, no links, safe when two processes install at once), lists them offline, upgrades and removes them, and kition mcp installs a kit when the agent first names a file of it"
+    title: "kition installs kits from a kit index into a store under ~/.kition (each kit's npm package, its size, integrity, package.json and kit.json checked, atomic, no links, safe when two processes install at once), lists them offline, upgrades and removes them, and kition mcp installs a kit when the agent first names a file of it"
     dimension: [platform, ai, security]
     priority: P1
     status: has
@@ -1990,7 +2017,7 @@ features:
       - regressions/issue-hidden-link-write
     since: "2026-11-19"
   - id: sdk.gateway.editor-packages
-    title: "A kit's editor package reaches the kit store and the gateway serves it: the kit index lists each version's package (ui url, size, SHA-256) gathered from the kit repositories' release assets and their entries; kition kit install and upgrade install it beside the headless kit (kits/<kit>/ui/<version>/), refused on any size, SHA-256 or identity difference; kit list, kit info and doctor show it; the gateway installs it on a page's first use and serves it at /kits-ui/<kit>@<version>/ (types, immutable caching with an ETag, single ranges, no compression, nothing out of the package, the token, a page session or a signed URL), or a development build named with --kit-ui"
+    title: "A kit's editor package reaches the kit store and the gateway serves it: the kit index lists each version's npm package @kition/kit-<kit>-ui (ui: package, size, integrity) gathered from the registry; kition kit install and upgrade install it from the npm registries beside the headless kit (kits/<kit>/ui/<version>/), refused on any size, integrity or identity difference; kit list, kit info and doctor show it; the gateway installs it on a page's first use and serves it at /kits-ui/<kit>@<version>/ (types, immutable caching with an ETag, single ranges, no compression, nothing out of the package, the token, a page session or a signed URL), or a development build named with --kit-ui"
     dimension: [platform, security]
     priority: P1
     status: has

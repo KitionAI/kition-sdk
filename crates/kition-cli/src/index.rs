@@ -1,11 +1,13 @@
 //! The kit index: one JSON file listing every kit `kition` can install, each version's Kit
-//! Process Protocol, and per platform its archive's address, size and SHA-256
-//! (`schemas/kits-index.schema.json`). A kit archive is a `.tar.gz` holding the kit's `kit.json`
-//! and its executable.
+//! Process Protocol, and per platform the npm package holding its kit (`kit.json` and the
+//! executable), with the package's size and integrity (`schemas/kits-index.schema.json`);
+//! per version, the package holding its editor. Packages are downloaded from npm registries
+//! (`registry.rs`) and checked against the integrity the index gives.
 //!
-//! The index is read from `KITION_INDEX`, `--index`, or [`DEFAULT_INDEX`], the index gathered from
-//! the kit repositories' releases (kition-sdk's `tools/kits-index.mjs`); each read is kept in the
-//! home's `cache/`, so a person without a network still sees what was there last time.
+//! The index is read from `--index` or `KITION_INDEX` (an address or a file), else from the npm
+//! package [`registry::INDEX_PACKAGE`] at its `latest`, which kition-sdk's `.github/workflows/kits-index.yml`
+//! publishes from the kit packages' registry metadata (`tools/kits-index.mjs`); each read is kept
+//! in the home's `cache/`, so a person without a network still sees what was there last time.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -16,13 +18,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::home::Home;
+use crate::registry::{self, Registries};
 
 /// The index format this program reads (`schemaVersion`).
-pub const SCHEMA_VERSION: u64 = 1;
+pub const SCHEMA_VERSION: u64 = 2;
 
-/// Where the index is when nothing else is named: the one file of the branch `kits-index` of
-/// kition-sdk, which `.github/workflows/kits-index.yml` gathers from every kit repository's releases.
-pub const DEFAULT_INDEX: &str = "https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json";
+/// Where the index is when nothing else is named: the npm package `@kition/kits-index` at its
+/// `latest`, from the registries `registry.rs` lists.
+pub const DEFAULT_INDEX: &str = "npm:@kition/kits-index";
 
 /// The variable that names another index: an address or a file.
 pub const INDEX_VARIABLE: &str = "KITION_INDEX";
@@ -64,24 +67,27 @@ pub struct IndexVersion {
     /// The Kit Process Protocol it speaks, as its `kit.json` says (`headless.protocol`):
     /// `kition-kit/1`.
     pub protocol: String,
-    /// Its archive for each platform (`darwin-arm64`, `linux-x64`, `win32-x64`, ...).
+    /// Its package for each platform (`darwin-arm64`, `linux-x64`, `win32-x64`, ...):
+    /// `@kition/kit-<kit>-<platform>`, `kit.json` and the executable at its top.
     pub platforms: BTreeMap<String, Archive>,
-    /// Its editor package (the kit's UI, engine and fonts for a Kit UI protocol host): a `.tar.gz`
-    /// holding one folder `<kit>-ui/` with the editor's `index.html` and the kit's `kit.json`.
-    /// The same for every platform. Absent for a version published without one.
+    /// Its editor package (the kit's UI, engine and fonts for a Kit UI protocol host),
+    /// `@kition/kit-<kit>-ui`: one folder `<kit>-ui/` with the editor's `index.html` and the
+    /// kit's `kit.json`. The same for every platform. Absent for a version published without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui: Option<Archive>,
 }
 
-/// A kit archive: a `.tar.gz` with `kit.json` and the executable at its top.
+/// One npm package of a kit version, at the version it is listed under: its name, its tarball's
+/// size and npm's integrity of it.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Archive {
-    /// Its address, or a path; a relative one is beside the index.
-    pub url: String,
+    /// `@kition/kit-<kit>-<platform>` or `@kition/kit-<kit>-ui`.
+    pub package: String,
+    /// The tarball's bytes.
     pub size: u64,
-    /// Lowercase hex.
-    pub sha256: String,
+    /// `sha512-<base64>`, as npm's `dist.integrity`.
+    pub integrity: String,
 }
 
 /// Whether `name` is a kit's short name or an extension: lowercase letters and digits, a letter first.
@@ -136,9 +142,11 @@ impl Index {
                 for (platform, archive) in
                     entry.platforms.iter().map(|(platform, archive)| (platform.as_str(), archive)).chain(entry.ui.iter().map(|ui| ("ui", ui)))
                 {
-                    let hex = archive.sha256.len() == 64 && archive.sha256.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
-                    if !hex || archive.size == 0 || archive.url.trim().is_empty() {
-                        return bad(format!("{version} {platform}: an archive has a url, a size above 0 and a lowercase hex sha256"));
+                    if archive.package != format!("{}/kit-{name}-{platform}", registry::SCOPE) || !registry::package_name(&archive.package) {
+                        return bad(format!("{version} {platform}: its package is `{}`, not {}/kit-{name}-{platform}", archive.package, registry::SCOPE));
+                    }
+                    if archive.size == 0 || !registry::integrity_form(&archive.integrity) {
+                        return bad(format!("{version} {platform}: a package has a size above 0 and an integrity sha512-<base64>"));
                     }
                 }
             }
@@ -180,7 +188,8 @@ pub struct Source {
 }
 
 impl Source {
-    /// `given` (`--index`), else `KITION_INDEX`, else [`DEFAULT_INDEX`].
+    /// `given` (`--index`), else `KITION_INDEX`, else [`DEFAULT_INDEX`]: an address or a file, or
+    /// `npm:<package>` for the index package on the npm registries.
     pub fn choose(given: Option<&str>) -> Self {
         let location = given
             .map(str::to_owned)
@@ -205,10 +214,12 @@ impl Source {
 #[derive(Clone, Debug)]
 pub struct Loaded {
     pub index: Index,
-    /// Where it came from, for resolving archive addresses.
+    /// Where it came from: an address, a file, or `npm:<package>@<version> from <registry>`.
     pub location: String,
     /// `Some(why)` when it is the copy kept from an earlier read, because reading it now failed.
     pub stale: Option<String>,
+    /// The npm registries its packages are downloaded from (`registry::configured`).
+    pub registries: Registries,
 }
 
 /// How fresh the index must be.
@@ -231,25 +242,56 @@ pub fn load(home: &Home, source: &Source, freshness: Freshness) -> Result<Loaded
             .and_then(|at| SystemTime::now().duration_since(at).ok())
             .is_some_and(|since| since < age);
         if young && let Some(index) = cached() {
-            return Ok(Loaded { index, location: source.location.clone(), stale: None });
+            return Ok(Loaded { index, location: source.location.clone(), stale: None, registries: registry::configured() });
         }
     }
-    let read = crate::fetch::read_text(&source.location, INDEX_LIMIT).and_then(|text| Index::parse(&text).map(|index| (index, text)));
+    let read = match source.location.strip_prefix("npm:") {
+        Some(package) => read_package(home, package),
+        None => crate::fetch::read_text(&source.location, INDEX_LIMIT).map(|text| (text, source.location.clone())),
+    }
+    .and_then(|(text, location)| Index::parse(&text).map(|index| (index, text, location)));
     match read {
-        Ok((index, text)) => {
+        Ok((index, text, location)) => {
             // A cache that cannot be written only costs the offline copy.
             let _ = std::fs::create_dir_all(home.cache()).and_then(|()| {
                 let scratch = crate::fetch::scratch(&home.cache(), "index");
                 std::fs::write(&scratch, text)?;
                 std::fs::rename(&scratch, &cache)
             });
-            Ok(Loaded { index, location: source.location.clone(), stale: None })
+            Ok(Loaded { index, location, stale: None, registries: registry::configured() })
         }
         Err(error) => match cached() {
-            Some(index) => Ok(Loaded { index, location: source.location.clone(), stale: Some(error) }),
+            Some(index) => Ok(Loaded { index, location: source.location.clone(), stale: Some(error), registries: registry::configured() }),
             None => Err(error),
         },
     }
+}
+
+/// The index in the npm package `package` at its `latest`, from the first registry that has it:
+/// its `kits-index.json`, and where it came from. The tarball must have the integrity the
+/// registry's own metadata gives.
+fn read_package(home: &Home, package: &str) -> Result<(String, String), String> {
+    if !registry::package_name(package) {
+        return Err(format!("{package} is not a package of {}", registry::SCOPE));
+    }
+    let registries = registry::configured();
+    let (metadata, answered) = registry::read_json(&registries, &registry::metadata_path(package, "latest"), 4 * 1024 * 1024)?;
+    let version =
+        metadata.get("version").and_then(serde_json::Value::as_str).ok_or_else(|| format!("{answered}: {package}'s latest names no version"))?.to_owned();
+    let integrity = metadata.pointer("/dist/integrity").and_then(serde_json::Value::as_str).filter(|integrity| registry::integrity_form(integrity));
+    let integrity = integrity.ok_or_else(|| format!("{answered}: {package}@{version} gives no sha512 integrity"))?.to_owned();
+    // The registry that answered first, then the others.
+    let mut order = vec![answered.clone()];
+    order.extend(registries.0.into_iter().filter(|other| other != &answered));
+    std::fs::create_dir_all(home.tmp()).map_err(|error| format!("cannot write {}: {error}", home.tmp().display()))?;
+    let file = crate::fetch::scratch(&home.tmp(), "index");
+    let got = registry::download_bounded(&Registries(order), package, &version, INDEX_LIMIT, &integrity, &file);
+    let text = got.and_then(|from| {
+        let text = registry::read_member(&file, "package/kits-index.json", INDEX_LIMIT).map_err(|why| format!("{package}@{version}: {why}"))?;
+        Ok((text, format!("npm:{package}@{version} from {from}")))
+    });
+    let _ = std::fs::remove_file(&file);
+    text
 }
 
 #[cfg(test)]
@@ -259,10 +301,10 @@ mod tests {
 
     fn sample() -> serde_json::Value {
         json!({
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "kits": { "note": { "id": "kit.note", "name": "Note", "extensions": ["md", "markdown"], "versions": {
-                "0.3.0": { "protocol": "kition-kit/1", "platforms": { "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 10, "sha256": "a".repeat(64) } },
-                    "ui": { "url": "kition-note-0.3.0.tgz", "size": 20, "sha256": "b".repeat(64) } },
+                "0.3.0": { "protocol": "kition-kit/1", "platforms": { "darwin-arm64": { "package": "@kition/kit-note-darwin-arm64", "size": 10, "integrity": format!("sha512-{}==", "a".repeat(86)) } },
+                    "ui": { "package": "@kition/kit-note-ui", "size": 20, "integrity": format!("sha512-{}==", "b".repeat(86)) } },
                 "0.10.0": { "protocol": "kition-kit/1", "platforms": {} }
             } } }
         })
@@ -282,14 +324,23 @@ mod tests {
     #[test]
     fn refuses_a_newer_format_and_malformed_entries() {
         let mut newer = sample();
-        newer["schemaVersion"] = json!(2);
+        newer["schemaVersion"] = json!(3);
         assert!(Index::parse(&newer.to_string()).unwrap_err().contains("upgrade kition"));
         let mut id = sample();
         id["kits"]["note"]["id"] = json!("kit.table");
         assert!(Index::parse(&id.to_string()).unwrap_err().contains("not `kit.note`"));
         let mut hash = sample();
-        hash["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["sha256"] = json!("ABC");
+        hash["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["integrity"] = json!(format!("sha256-{}", "a".repeat(43)));
         assert!(Index::parse(&hash.to_string()).is_err());
+        // A package of another kit, or out of the scope: an index cannot point a kit at it.
+        for other in ["@kition/kit-table-darwin-arm64", "left-pad", "@kition/kit-note-ui"] {
+            let mut wrong = sample();
+            wrong["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["package"] = json!(other);
+            assert!(Index::parse(&wrong.to_string()).unwrap_err().contains("its package is"), "{other}");
+        }
+        let mut older = sample();
+        older["schemaVersion"] = json!(1);
+        assert!(Index::parse(&older.to_string()).is_err(), "an index of GitHub addresses is no longer read");
         let mut ui = sample();
         ui["kits"]["note"]["versions"]["0.3.0"]["ui"]["size"] = json!(0);
         assert!(Index::parse(&ui.to_string()).unwrap_err().contains("0.3.0 ui"));

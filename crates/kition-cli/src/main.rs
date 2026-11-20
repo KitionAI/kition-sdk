@@ -137,6 +137,8 @@ mod tests {
         assert_eq!(cli["home"], HOME_VARIABLE);
         assert_eq!(cli["index"], INDEX_VARIABLE);
         assert_eq!(cli["defaultIndex"], DEFAULT_INDEX);
+        assert_eq!(cli["registry"], kition_cli::registry::REGISTRY_VARIABLE);
+        assert_eq!(cli["registries"], serde_json::json!(kition_cli::registry::DEFAULT_REGISTRIES));
     }
 
     /// `kition --version` is the SDK version: bump this crate's version with sdk.json's.

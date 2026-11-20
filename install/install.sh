@@ -1,32 +1,33 @@
 #!/bin/sh
-# Installs `kition`, the Kition command line, on macOS or Linux: the archive of this machine's
-# platform from a Kition SDK release on GitHub, checked against the release's SHA256SUMS, as
-# ~/.kition/bin/kition. Kits are not installed here: `kition` downloads each one when it is first
-# needed, or with `kition kit install <kit>`.
+# Installs `kition`, the Kition command line, on macOS or Linux, from npm without Node.js: the
+# package @kition/cli-<platform> (the executable that `npm install -g @kition/cli` brings), from the
+# first npm registry that serves it, checked against the integrity (SHA-512) the registry's
+# metadata gives, as ~/.kition/bin/kition. Kits are not installed here: `kition` downloads each one
+# when it is first needed, or with `kition kit install <kit>`.
 #
-#   curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
-#   curl -fsSL .../install.sh | sh -s -- 0.3.0       # a given SDK version instead of the latest
+#   curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh
+#   curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh -s -- 0.6.0     # a given version
+# It rides in the npm package @kition/cli (dist/install.sh), so any registry or mirror serves it:
+#   curl -fsSL https://registry.npmmirror.com/@kition/cli/-/cli-0.6.0.tgz | tar -xzO package/dist/install.sh | sh
+#
+# The registries, in order (as kition itself reads them, docs/sdk/cli.md):
+#   KITION_NPM_REGISTRY  one address, or several separated by commas
+#   npm's own setting    `@kition:registry`, else `npm_config_registry`, else `registry`, in the
+#                        .npmrc that npm_config_userconfig names or ~/.npmrc (read; npm is not needed)
+#   https://registry.npmjs.org/, then https://registry.npmmirror.com/
+# A registry that does not answer within 5 seconds, lacks the version, or serves other bytes than
+# its metadata says passes to the next. Proxies: curl's (https_proxy, ...).
 #
 # Environment:
 #   KITION_HOME          the Kition home (default ~/.kition); kition goes to $KITION_HOME/bin
-#   KITION_VERSION       the SDK version to install, as the argument does (default: the latest)
-#   KITION_RELEASES_URL  where the releases are (default
-#                        https://github.com/KitionAI/kition-sdk/releases): <url>/latest/download/
-#                        and <url>/download/sdk-v<version>/ hold the assets (a mirror, or a test)
+#   KITION_VERSION       the version to install, as the argument does (default: the latest)
 #
 # It never uses sudo and never edits a shell profile: it says how to put kition on the PATH.
 # See docs/sdk/cli.md in https://github.com/KitionAI/kition-sdk.
 set -eu
 
-releases="${KITION_RELEASES_URL:-https://github.com/KitionAI/kition-sdk/releases}"
-releases="${releases%/}"
 version="${1:-${KITION_VERSION:-}}"
 version="${version#v}"
-# HTTPS only, redirects included, unless the releases are named at an http:// address (a test).
-case "$releases" in
-  http://*) protocols='=https,http' ;;
-  *) protocols='=https' ;;
-esac
 home="${KITION_HOME:-${HOME:?HOME is not set; set KITION_HOME}/.kition}"
 
 say() { printf 'kition install: %s\n' "$*" >&2; }
@@ -35,7 +36,7 @@ fail() {
   exit 1
 }
 
-# The platform of this machine, as the SDK release names it.
+# The platform of this machine, as @kition/cli names its packages.
 platform() {
   os=$(uname -s)
   arch=$(uname -m)
@@ -54,7 +55,7 @@ platform() {
       fi
       ;;
     MINGW* | MSYS* | CYGWIN* | Windows_NT)
-      fail "on Windows, run install.ps1 in PowerShell: irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex"
+      fail "on Windows, run install.ps1 in PowerShell instead (docs/sdk/cli.md)"
       ;;
     *) fail "kition is built for macOS, Linux (glibc) and Windows; not for $os." ;;
   esac
@@ -66,66 +67,93 @@ platform() {
   echo "$os-$arch"
 }
 
-# download <url> <file>
-download() {
+# fetch <url> <file>: downloads, quietly; fails (status 1) without a word.
+fetch() {
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL --proto "$protocols" --retry 2 -o "$2" "$1" || fail "could not download $1"
+    curl -fsSL --connect-timeout 5 --retry 1 -o "$2" "$1" 2>/dev/null
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$2" "$1" || fail "could not download $1"
+    wget -q -T 30 -O "$2" "$1"
   else
     fail "neither curl nor wget is installed; install one of them"
   fi
 }
 
-# sha256 <file>: its SHA-256 in hex.
-sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | cut -d ' ' -f 1
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$1" | cut -d ' ' -f 1
+# integrity <file>: npm's integrity of it, sha512-<base64>.
+integrity() {
+  if command -v openssl >/dev/null 2>&1; then
+    printf 'sha512-%s' "$(openssl dgst -sha512 -binary "$1" | openssl base64 -A)"
+  elif command -v xxd >/dev/null 2>&1 && command -v base64 >/dev/null 2>&1; then
+    if command -v sha512sum >/dev/null 2>&1; then hex=$(sha512sum "$1" | cut -d ' ' -f 1); else hex=$(shasum -a 512 "$1" | cut -d ' ' -f 1); fi
+    printf 'sha512-%s' "$(printf '%s' "$hex" | xxd -r -p | base64 | tr -d '\n')"
   else
-    fail "neither sha256sum nor shasum is installed; cannot check the download"
+    fail "neither openssl nor xxd and base64 are installed; cannot check the download"
   fi
 }
 
+# setting <key> <file>: the value of `key=value` in an .npmrc, quotes taken off; empty without one.
+setting() {
+  [ -f "$2" ] || return 0
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$2" | head -n 1 | sed "s/^[\"']//; s/[\"'][[:space:]]*\$//; s/[[:space:]]*\$//"
+}
+
+# The registries, in order, each once and ending with /.
+registries() {
+  npmrc="${npm_config_userconfig:-${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}}"
+  general="${npm_config_registry:-${NPM_CONFIG_REGISTRY:-$(setting registry "$npmrc")}}"
+  printf '%s\n' "$(printf '%s' "${KITION_NPM_REGISTRY:-}" | tr ',' '\n')" "$(setting @kition:registry "$npmrc")" "$general" https://registry.npmjs.org/ https://registry.npmmirror.com/ |
+    sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^https?://' | sed 's#/*$#/#' | awk '!seen[$0]++'
+}
+
 target=$(platform) || exit 1
+package="@kition/cli-$target"
 mkdir -p "$home/tmp" || fail "cannot create $home/tmp"
 work=$(mktemp -d "$home/tmp/install.XXXXXX") || fail "cannot create a folder in $home/tmp"
 trap 'rm -rf "$work"' EXIT
 trap 'exit 130' INT TERM
 
-if [ -n "$version" ]; then
-  base="$releases/download/sdk-v$version"
-else
-  base="$releases/latest/download"
-fi
-download "$base/SHA256SUMS" "$work/SHA256SUMS"
-# The archive's line names the version too: kition-<version>-<platform>.tar.gz.
-line=$(grep -E "^[0-9a-f]{64}  kition-[0-9][0-9A-Za-z.+-]*-$target\.tar\.gz\$" "$work/SHA256SUMS" | head -n 1 || true)
-[ -n "$line" ] || fail "the release at $base has no kition for $target (its SHA256SUMS lists none)"
-expected=${line%% *}
-archive=${line#*  }
-found=${archive#kition-}
-found=${found%-"$target".tar.gz}
-if [ -n "$version" ] && [ "$found" != "$version" ]; then
-  fail "the release at $base offers kition $found, not $version"
-fi
-version=$found
-# Download from the release of that version, so a release published meanwhile cannot mix in.
-download "$releases/download/sdk-v$version/$archive" "$work/$archive"
-actual=$(sha256 "$work/$archive")
-[ "$actual" = "$expected" ] || fail "$archive has SHA-256 $actual; the release's SHA256SUMS says $expected. Nothing was installed."
+tried=""
+installed_from=""
+for registry in $(registries); do
+  # The version's metadata: its version and npm's integrity of its tarball.
+  if ! fetch "$registry@kition%2fcli-$target/${version:-latest}" "$work/metadata.json"; then
+    tried="$tried; $registry: no $package@${version:-latest} there, or no answer"
+    continue
+  fi
+  found=$(tr -d '\n' < "$work/metadata.json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+  expected=$(tr -d '\n' < "$work/metadata.json" | sed -n 's/.*"integrity"[[:space:]]*:[[:space:]]*"\(sha512-[A-Za-z0-9+/=]*\)".*/\1/p' | head -n 1)
+  if [ -z "$found" ] || [ -z "$expected" ]; then
+    tried="$tried; $registry: its metadata of $package names no version and sha512 integrity"
+    continue
+  fi
+  if [ -n "$version" ] && [ "$found" != "$version" ]; then
+    tried="$tried; $registry: it offers $package $found, not $version"
+    continue
+  fi
+  tarball="$registry@kition/cli-$target/-/cli-$target-$found.tgz"
+  if ! fetch "$tarball" "$work/package.tgz"; then
+    tried="$tried; $registry: $tarball cannot be downloaded"
+    continue
+  fi
+  actual=$(integrity "$work/package.tgz")
+  if [ "$actual" != "$expected" ]; then
+    tried="$tried; $registry: $package $found has the integrity $actual, and its metadata gives $expected: refused"
+    continue
+  fi
+  installed_from="$registry"
+  break
+done
+[ -n "$installed_from" ] || fail "kition was not installed: no registry served $package${version:+ $version} with the integrity it gives (tried${tried#;}). Name a registry that answers with KITION_NPM_REGISTRY (such as https://registry.npmmirror.com/)."
 
 mkdir -p "$work/unpacked"
-tar -xzf "$work/$archive" -C "$work/unpacked" || fail "cannot unpack $archive"
-[ -f "$work/unpacked/kition" ] || fail "$archive holds no kition"
-chmod 755 "$work/unpacked/kition"
-ran=$("$work/unpacked/kition" --version 2>&1) || fail "the kition in $archive does not run on this machine ($target): $ran"
+tar -xzf "$work/package.tgz" -C "$work/unpacked" || fail "cannot unpack $package $found"
+[ -f "$work/unpacked/package/bin/kition" ] || fail "$package $found holds no bin/kition"
+chmod 755 "$work/unpacked/package/bin/kition"
+ran=$("$work/unpacked/package/bin/kition" --version 2>&1) || fail "the kition of $package $found does not run on this machine ($target): $ran"
 
 mkdir -p "$home/bin" || fail "cannot create $home/bin"
 # Moved into place with one rename, so a kition running now keeps its file.
-mv -f "$work/unpacked/kition" "$home/bin/kition" || fail "cannot write $home/bin/kition"
-say "installed $("$home/bin/kition" --version) as $home/bin/kition"
+mv -f "$work/unpacked/package/bin/kition" "$home/bin/kition" || fail "cannot write $home/bin/kition"
+say "installed $("$home/bin/kition" --version) as $home/bin/kition (from $installed_from)"
 
 case ":${PATH:-}:" in
   *":$home/bin:"*) ;;

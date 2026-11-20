@@ -1,5 +1,6 @@
-//! A kit index and kit archives made on the spot, served by a small HTTP server on loopback: no
-//! test reaches the network.
+//! A kit index and the npm packages it lists made on the spot, served as an npm registry lays
+//! them out (`<package>/-/<name>-<version>.tgz`) by a small HTTP server on loopback: no test
+//! reaches the network.
 
 #![allow(dead_code)]
 
@@ -10,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 
 /// A built workspace binary, from the test executable's target folder.
 pub fn workspace_binary(name: &str) -> Option<PathBuf> {
@@ -73,13 +74,21 @@ pub fn archive(entries: &[Entry]) -> Vec<u8> {
     builder.into_inner().unwrap().finish().unwrap()
 }
 
-/// An editor package of `kit.<name>` `version` as a kit's Package workflow publishes it: one
-/// folder `<name>-ui/` with `index.html`, the kit's kit.json, a script, an engine and a font.
+/// The package.json npm writes into a package's tarball (`package/package.json`).
+pub fn package_json(package: &str, version: &str) -> Vec<u8> {
+    serde_json::to_vec_pretty(&json!({ "name": package, "version": version, "kition": { "role": if package.ends_with("-ui") { "ui" } else { "headless" } } }))
+        .unwrap()
+}
+
+/// An editor package of `kit.<name>` `version` as a kit's Package workflow publishes it, the npm
+/// package `@kition/kit-<name>-ui`: `package/package.json` and one folder `package/<name>-ui/` with
+/// `index.html`, the kit's kit.json, a script, an engine and a font.
 pub fn editor_archive(name: &str, version: &str) -> Vec<u8> {
     let manifest = serde_json::to_vec_pretty(&manifest(name, version, "kition-kit/1", &format!("k{name}"), &format!("kition-{name}"))).unwrap();
-    let top = format!("{name}-ui");
+    let top = format!("package/{name}-ui");
     let index = format!("<!doctype html><title>{name} {version}</title><script type=\"module\" src=\"./assets/main.js\"></script>");
     archive(&[
+        Entry::File("package/package.json", &package_json(&format!("@kition/kit-{name}-ui"), version), 0o644),
         Entry::File(&format!("{top}/index.html"), index.as_bytes(), 0o644),
         Entry::File(&format!("{top}/kit.json"), &manifest, 0o644),
         Entry::File(&format!("{top}/assets/main.js"), b"export const kit = 1\n", 0o644),
@@ -89,8 +98,33 @@ pub fn editor_archive(name: &str, version: &str) -> Vec<u8> {
     ])
 }
 
-/// A good kit archive: its kit.json and `executable` with `program` as its content.
+/// A package `package` holding the editor of `kit.<name>` at `inner` (its kit.json's version), as
+/// `version` of the package: what a registry could serve under a name and version that are not its own.
+pub fn editor_archive_as(package: &str, name: &str, version: &str, inner: &str) -> Vec<u8> {
+    let manifest = serde_json::to_vec_pretty(&manifest(name, inner, "kition-kit/1", &format!("k{name}"), &format!("kition-{name}"))).unwrap();
+    let top = format!("package/{name}-ui");
+    archive(&[
+        Entry::File("package/package.json", &package_json(package, version), 0o644),
+        Entry::File(&format!("{top}/index.html"), b"<!doctype html>", 0o644),
+        Entry::File(&format!("{top}/kit.json"), &manifest, 0o644),
+    ])
+}
+
+/// A good kit package for this machine, `@kition/kit-<name>-<platform>`: `package/package.json`,
+/// and the kit's kit.json and `executable` with `program` as its content.
 pub fn kit_archive(name: &str, version: &str, protocol: &str, extension: &str, executable: &str, program: &[u8]) -> Vec<u8> {
+    let manifest = serde_json::to_vec_pretty(&manifest(name, version, protocol, extension, executable)).unwrap();
+    let file = format!("package/{executable}{}", std::env::consts::EXE_SUFFIX);
+    let package = format!("@kition/kit-{name}-{}", kition_cli::home::platform());
+    archive(&[
+        Entry::File("package/package.json", &package_json(&package, version), 0o644),
+        Entry::File("package/kit.json", &manifest, 0o644),
+        Entry::File(&file, program, 0o755),
+    ])
+}
+
+/// The archive `kition kit pack` writes and `kition kit add` takes: kit.json and `executable` at its top.
+pub fn local_archive(name: &str, version: &str, protocol: &str, extension: &str, executable: &str, program: &[u8]) -> Vec<u8> {
     let manifest = serde_json::to_vec_pretty(&manifest(name, version, protocol, extension, executable)).unwrap();
     let file = format!("{executable}{}", std::env::consts::EXE_SUFFIX);
     archive(&[Entry::File("kit.json", &manifest, 0o644), Entry::File(&file, program, 0o755)])
@@ -98,6 +132,18 @@ pub fn kit_archive(name: &str, version: &str, protocol: &str, extension: &str, e
 
 pub fn sha256(data: &[u8]) -> String {
     hex::encode(Sha256::digest(data))
+}
+
+/// npm's integrity of `data`: `sha512-<base64>`.
+pub fn integrity(data: &[u8]) -> String {
+    kition_cli::registry::integrity_of(&Sha512::digest(data))
+}
+
+/// Writes `bytes` where a registry serving `dir` serves `package` at `version`.
+pub fn publish(dir: &Path, package: &str, version: &str, bytes: &[u8]) {
+    let path = dir.join(kition_cli::registry::tarball_path(package, version));
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, bytes).unwrap();
 }
 
 /// A folder served over HTTP on loopback, which also answers as a proxy (a request for a full
@@ -146,6 +192,7 @@ impl Server {
                         }
                     }
                     let target = line.split_whitespace().nth(1).unwrap_or("/").to_owned();
+                    let target = target.replace("%2f", "/").replace("%2F", "/");
                     log.lock().unwrap().push(target.clone());
                     let path = match target.strip_prefix("http://") {
                         Some(rest) => rest.find('/').map_or("/".to_owned(), |at| rest[at..].to_owned()),
@@ -174,9 +221,9 @@ impl Server {
     }
 }
 
-/// Builds an index in `dir` (`kits-index.json`) whose archives are files in `dir`: each kit by
-/// name, with its id, display name, extensions, and versions `(version, protocol, archive bytes)`.
-/// Archive addresses are relative, so the same index works served or as a file.
+/// Builds an index in `dir` (`kits-index.json`) whose packages are published in `dir`, laid out
+/// as a registry serves them (a [`Server`] on `dir` is the registry): each kit by name, with its
+/// id, display name, extensions, and versions `(version, protocol, package bytes)`.
 pub struct IndexBuilder {
     kits: BTreeMap<String, Value>,
 }
@@ -190,11 +237,11 @@ impl IndexBuilder {
         let platform = kition_cli::home::platform();
         let mut listed = serde_json::Map::new();
         for (version, protocol, bytes) in versions {
-            let file = format!("kition-{name}-{version}-{platform}.tar.gz");
-            std::fs::write(dir.join(&file), bytes).unwrap();
+            let package = format!("@kition/kit-{name}-{platform}");
+            publish(dir, &package, version, bytes);
             listed.insert(
                 (*version).to_owned(),
-                json!({ "protocol": protocol, "platforms": { platform.clone(): { "url": file, "size": bytes.len(), "sha256": sha256(bytes) } } }),
+                json!({ "protocol": protocol, "platforms": { platform.clone(): { "package": package, "size": bytes.len(), "integrity": integrity(bytes) } } }),
             );
         }
         let display = name[..1].to_uppercase() + &name[1..];
@@ -202,34 +249,47 @@ impl IndexBuilder {
         self
     }
 
-    /// Lists `bytes` (written to `dir`) as the editor package (`ui`) of `name` `version`, already
-    /// added with [`IndexBuilder::kit`]; `sha256`, when given, is what the index claims instead.
-    pub fn editor(mut self, dir: &Path, name: &str, version: &str, bytes: &[u8], sha256_claimed: Option<&str>) -> Self {
-        let file = format!("kition-{name}-{version}.tgz");
-        std::fs::write(dir.join(&file), bytes).unwrap();
+    /// Publishes `bytes` in `dir` as the editor package (`ui`) of `name` `version`, already added
+    /// with [`IndexBuilder::kit`]; `integrity_claimed`, when given, is what the index claims instead.
+    pub fn editor(mut self, dir: &Path, name: &str, version: &str, bytes: &[u8], integrity_claimed: Option<&str>) -> Self {
+        let package = format!("@kition/kit-{name}-ui");
+        publish(dir, &package, version, bytes);
         let entry = self.kits.get_mut(name).and_then(|kit| kit["versions"].get_mut(version)).unwrap_or_else(|| panic!("{name} {version} is not listed"));
-        entry["ui"] = json!({ "url": file, "size": bytes.len(), "sha256": sha256_claimed.map_or_else(|| sha256(bytes), str::to_owned) });
+        entry["ui"] = json!({ "package": package, "size": bytes.len(), "integrity": integrity_claimed.map_or_else(|| integrity(bytes), str::to_owned) });
         self
     }
 
     pub fn write(self, dir: &Path) -> PathBuf {
         let path = dir.join("kits-index.json");
-        std::fs::write(&path, serde_json::to_vec_pretty(&json!({ "schemaVersion": 1, "kits": self.kits })).unwrap()).unwrap();
+        std::fs::write(&path, serde_json::to_vec_pretty(&json!({ "schemaVersion": 2, "kits": self.kits })).unwrap()).unwrap();
         path
     }
 }
 
-/// `kition` with its home at `home`, no index named by the environment, and no kit, proxy or
-/// development variable of the person's.
-pub fn kition(home: &Path) -> std::process::Command {
-    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_kition"));
-    command.env("KITION_HOME", home).env_remove("KITION_INDEX").env_remove("KITION_LAUNCHER");
+/// The environment of a `kition` under test: no index or registry of the person's, none of their
+/// npm settings, and the public registries (tried after any named) behind a proxy that answers
+/// nothing, so no test reaches the network; loopback goes direct.
+pub fn isolate(command: &mut std::process::Command, home: &Path) {
     for (key, _) in std::env::vars_os() {
         let key = key.to_string_lossy().into_owned();
-        if key.starts_with("KITION_KIT_") || key.to_ascii_lowercase().ends_with("_proxy") {
+        if key.starts_with("KITION_KIT_") || key.to_ascii_lowercase().ends_with("_proxy") || key.to_ascii_lowercase().starts_with("npm_config_") {
             command.env_remove(key);
         }
     }
+    command
+        .env_remove("KITION_INDEX")
+        .env_remove("KITION_NPM_REGISTRY")
+        .env("npm_config_userconfig", home.join("no-npmrc"))
+        .env("HTTPS_PROXY", "http://127.0.0.1:9")
+        .env("HTTP_PROXY", "http://127.0.0.1:9")
+        .env("NO_PROXY", "127.0.0.1,localhost");
+}
+
+/// `kition` with its home at `home`, isolated ([`isolate`]), without the launcher's variable.
+pub fn kition(home: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_kition"));
+    command.env("KITION_HOME", home).env_remove("KITION_LAUNCHER");
+    isolate(&mut command, home);
     command
 }
 

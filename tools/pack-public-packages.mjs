@@ -69,6 +69,13 @@ for (const { directory, manifest } of ordered) {
     if (/\.(?:[cm]?js|ts)$/.test(file)) assert.deepEqual(undeclaredImports(published, content.stdout), [], `${published.name}: ${file} has undeclared imports`)
     bundlesLoro ||= content.stdout.includes('__wbg_lorodoc_free')
   }
+  // The installers ride in @kition/cli, the same bytes as install/ (tools/build-package.mjs).
+  if (published.name === '@kition/cli') {
+    for (const script of ['install.sh', 'install.ps1']) {
+      assert.ok(files.includes(`dist/${script}`), `${published.name}: lacks dist/${script}`)
+      assert.equal(run('tar', ['-xOf', archive, `package/dist/${script}`], root).stdout, fs.readFileSync(path.join(root, 'install', script), 'utf8'), `${published.name}: dist/${script} is not install/${script}`)
+    }
+  }
   // Bundled third-party code ships with its license (tools/build-package.mjs writes the notices).
   if (bundlesLoro) {
     assert.ok(files.includes('dist/THIRD_PARTY_NOTICES'), `${published.name}: bundles loro-crdt without dist/THIRD_PARTY_NOTICES`)

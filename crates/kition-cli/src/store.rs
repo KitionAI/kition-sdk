@@ -221,12 +221,11 @@ impl Store {
         }
         let entry = &kit.versions[&version.to_string()];
         let archive = &entry.platforms[&platform];
-        let location = crate::fetch::resolve(&loaded.location, &archive.url)?;
         std::fs::create_dir_all(self.home.tmp()).map_err(|error| format!("cannot write {}: {error}", self.home.tmp().display()))?;
         self.sweep();
         let work = crate::fetch::scratch(&self.home.tmp(), &format!("install-{name}-{version}"));
         std::fs::create_dir_all(&work).map_err(|error| format!("cannot write {}: {error}", work.display()))?;
-        let done = self.install_in(&work, name, kit, &version, entry, archive, &location, progress);
+        let done = self.install_in(&work, &loaded.registries, name, kit, &version, entry, archive, progress);
         let _ = std::fs::remove_dir_all(&work);
         done.map(|outcome| (name.to_owned(), outcome))
     }
@@ -235,25 +234,26 @@ impl Store {
     fn install_in(
         &self,
         work: &Path,
+        registries: &crate::registry::Registries,
         name: &str,
         kit: &IndexKit,
         version: &Version,
         entry: &crate::index::IndexVersion,
         archive: &crate::index::Archive,
-        location: &str,
         progress: &mut dyn FnMut(u64, u64),
     ) -> Result<Outcome, String> {
-        let file = work.join("archive.tar.gz");
+        let file = work.join("package.tgz");
         let size = archive.size;
-        let sha256 = crate::fetch::download(location, size, &file, &mut |done| progress(done, size))?;
-        if sha256 != archive.sha256 {
-            return Err(format!("{location}: its SHA-256 is {sha256}, and the kit index gives {}: refused", archive.sha256));
-        }
-        let unpacked = work.join(version.to_string());
+        crate::registry::download(registries, &archive.package, &version.to_string(), size, &archive.integrity, &file, &mut |done| progress(done, size))?;
+        let shown = format!("{}@{version}", archive.package);
+        let unpacked = work.join("unpacked");
         std::fs::create_dir_all(&unpacked).map_err(|error| error.to_string())?;
-        unpack(&file, &unpacked).map_err(|why| format!("{location}: {why}: refused"))?;
-        check_unpacked(&unpacked, &kit.id, version, &entry.protocol).map_err(|why| format!("{location}: {why}: refused"))?;
-        self.place(&unpacked, name, version)
+        unpack(&file, &unpacked).map_err(|why| format!("{shown}: {why}: refused"))?;
+        let root = npm_root(&unpacked, &archive.package, version).map_err(|why| format!("{shown}: {why}: refused"))?;
+        check_unpacked(&root, &kit.id, version, &entry.protocol).map_err(|why| format!("{shown}: {why}: refused"))?;
+        let ready = work.join(version.to_string());
+        std::fs::rename(&root, &ready).map_err(|error| error.to_string())?;
+        self.place(&ready, name, version)
     }
 
     /// Moves the checked version folder `unpacked` into `kits/<name>/<version>/` with one rename.
@@ -463,6 +463,30 @@ pub fn unpack(archive: &Path, to: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// The files of the npm package unpacked into `unpacked`: its folder `package/`, whose
+/// `package.json` must name `package` at `version` (the package the index lists, nothing else),
+/// and which holds nothing else of npm's once that is checked and taken away.
+pub(crate) fn npm_root(unpacked: &Path, package: &str, version: &Version) -> Result<PathBuf, String> {
+    let root = unpacked.join("package");
+    let others: Vec<String> = std::fs::read_dir(unpacked)
+        .map_err(|error| error.to_string())?
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name != "package")
+        .collect();
+    if !root.is_dir() || !others.is_empty() {
+        return Err("it is not an npm package (one folder `package/` at its top)".to_owned());
+    }
+    let text = std::fs::read_to_string(root.join("package.json")).map_err(|_| "it has no package/package.json".to_owned())?;
+    let manifest: Value = serde_json::from_str(&text).map_err(|error| format!("its package.json is not JSON: {error}"))?;
+    let field = |name: &str| manifest.get(name).and_then(Value::as_str).unwrap_or_default().to_owned();
+    if field("name") != package || field("version") != version.to_string() {
+        return Err(format!("its package.json is {}@{}, and the kit index lists {package}@{version}", field("name"), field("version")));
+    }
+    std::fs::remove_file(root.join("package.json")).map_err(|error| error.to_string())?;
+    Ok(root)
 }
 
 /// Whether this program speaks `protocol`, a kit's (`name`); else why not and what to do.

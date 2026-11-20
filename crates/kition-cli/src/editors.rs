@@ -154,21 +154,21 @@ impl Editors {
         let Some((name, kit)) = loaded.index.kit(name) else { return Err(format!("no kit named `{name}` is in the kit index")) };
         let entry = kit.versions.get(&version.to_string()).ok_or_else(|| format!("{name} {version} is not in the kit index"))?;
         let package = entry.ui.as_ref().ok_or_else(|| format!("the kit index lists no editor package for {name} {version}"))?;
-        let location = crate::fetch::resolve(&loaded.location, &package.url)?;
+        let location = format!("{}@{version}", package.package);
         let tmp = self.store.home().tmp();
         std::fs::create_dir_all(&tmp).map_err(|error| format!("cannot write {}: {error}", tmp.display()))?;
         let work = crate::fetch::scratch(&tmp, &format!("editor-{name}-{version}"));
         std::fs::create_dir_all(&work).map_err(|error| format!("cannot write {}: {error}", work.display()))?;
         let done = (|| {
-            let file = work.join("package.tar.gz");
-            let sha256 = crate::fetch::download(&location, package.size, &file, &mut |done| progress(done, package.size))?;
-            if sha256 != package.sha256 {
-                return Err(format!("{location}: its SHA-256 is {sha256}, and the kit index gives {}: refused", package.sha256));
-            }
+            let file = work.join("package.tgz");
+            crate::registry::download(&loaded.registries, &package.package, &version.to_string(), package.size, &package.integrity, &file, &mut |done| {
+                progress(done, package.size)
+            })?;
             let unpacked = work.join("unpacked");
             std::fs::create_dir_all(&unpacked).map_err(|error| error.to_string())?;
             crate::store::unpack(&file, &unpacked).map_err(|why| format!("{location}: {why}: refused"))?;
-            let top = package_top(&unpacked).map_err(|why| format!("{location}: {why}: refused"))?;
+            let root = crate::store::npm_root(&unpacked, &package.package, version).map_err(|why| format!("{location}: {why}: refused"))?;
+            let top = package_top(&root).map_err(|why| format!("{location}: {why}: refused"))?;
             let ready = work.join(version.to_string());
             std::fs::rename(&top, &ready).map_err(|error| error.to_string())?;
             if read_installed(&ready, name).is_none() {

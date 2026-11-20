@@ -1,8 +1,8 @@
 /**
  * Every kit's editor in the gateway's page (`pnpm test:gateway:smoke`): for each of the kits the
  * SDK publishes, a sample document in a workspace whose Kition home has no kit installed; the page
- * installs the kit's editor package on first use (the kit index's release asset, its download
- * followed), mounts it, and is opened again warm. It records per kit the version, the first and
+ * installs the kit's editor package on first use (its npm package @kition/kit-<kit>-ui, from the
+ * registries, its download followed), mounts it, and is opened again warm. It records per kit the version, the first and
  * the warm opening time, and the console errors, in GATEWAY_E2E_CACHE/smoke.json, and prints the
  * table. Table and Note must open; the others are reported as they are. Each editor downloaded is
  * kept at once, so a first run cut short by the ten-minute limit of a test step goes on where it

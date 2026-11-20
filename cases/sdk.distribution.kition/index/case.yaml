@@ -2,12 +2,12 @@ format: 1
 id: sdk.distribution.kition/index
 feature: sdk.distribution.kition
 intent: >-
-  The release tool archives kition per platform (plain files at the top, the executable
-  executable) and nothing else: no kit archive and no kit index, which the kit repositories and
-  tools/kits-index.mjs publish; a platform it does not know, a folder without kition, or no
-  platform folder at all is refused. The release manifest names the kition archives and the
-  installers, has no kit archives, and refuses a release missing kition for a platform or holding
-  any other archive, a kit archive among them (the kit index snapshot a release carries is
+  The release tool archives kition per platform (plain files at the top, the executable executable)
+  and nothing else: no kit package and no kit index, which the kit repositories and tools/kits-
+  index.mjs publish on npm; a platform it does not know, a folder without kition, or no platform
+  folder at all is refused. The release manifest names the kition archives and the installers, has
+  no kit archives, and refuses a release missing kition for a platform or holding any other archive,
+  a kit package among them (the kit index snapshot a release carries is
   sdk.distribution.release/index-snapshot).
 layer: gate
 dimension: platform

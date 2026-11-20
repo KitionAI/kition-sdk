@@ -68,8 +68,9 @@ export function supportedPlatforms(): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
-const INSTALL_SH = 'curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh'
-const INSTALL_PS1 = 'irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex'
+// The installers ride in this package (dist/install.sh, dist/install.ps1); unpkg serves its files.
+const INSTALL_SH = 'curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh'
+const INSTALL_PS1 = 'irm https://unpkg.com/@kition/cli/dist/install.ps1 | iex'
 
 export function resolveKition(machine: Machine): Resolved {
   const named = machine.env[BINARY_VARIABLE]

@@ -52,14 +52,14 @@ function schemaText(kit, pinned, packageDir) {
   const shipped = join(packageDir, 'model/schema.json')
   if (existsSync(shipped)) return { text: readFileSync(shipped, 'utf8'), from: `${kit}-ui/model/schema.json` }
   const repo = join(reposDir, `kition-${kit}`)
-  if (!existsSync(repo)) throw new Error(`${kit}-ui ships no model/schema.json and ${repo} is not a checkout of ${pinned.repository}`)
+  if (!existsSync(repo)) throw new Error(`${kit}-ui ships no model/schema.json and ${repo} is not a checkout of the kit's repository`)
   const git = (...rest) => execFileSync('git', ['-C', repo, ...rest], { encoding: 'utf8', maxBuffer: 64 << 20 })
   const manifest = JSON.parse(git('show', `${pinned.commit}:kit.json`))
   // A contract 1 kit may name no schema in kit.json (K12) yet keep one where the KDM crates do.
   const files = new Set(git('ls-tree', '-r', '--name-only', pinned.commit).split('\n'))
   const path = manifest.model?.schema ?? CONVENTIONAL.find((candidate) => files.has(candidate))
-  if (!path) throw new Error(`${pinned.repository} ${pinned.commit}: kit.json names no model.schema and no ${CONVENTIONAL.join(' or ')}`)
-  return { text: git('show', `${pinned.commit}:${path}`), from: `${pinned.repository} ${pinned.commit.slice(0, 12)}:${path}` }
+  if (!path) throw new Error(`kition-${kit} ${pinned.commit}: kit.json names no model.schema and no ${CONVENTIONAL.join(' or ')}`)
+  return { text: git('show', `${pinned.commit}:${path}`), from: `kition-${kit} ${pinned.commit.slice(0, 12)}:${path}` }
 }
 
 try {

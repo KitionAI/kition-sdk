@@ -22,45 +22,52 @@ npx -y @kition/cli mcp --workspace <folder>
 ```
 
 ```sh
-# without Node.js, macOS and Linux (glibc): the latest release, into ~/.kition/bin/kition
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh
-# a given SDK version
-curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh -s -- 0.5.2
+# without Node.js, macOS and Linux (glibc): the latest kition from npm, into ~/.kition/bin/kition
+curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh
+# a given version
+curl -fsSL https://unpkg.com/@kition/cli/dist/install.sh | sh -s -- 0.6.0
+# the same script from a registry or mirror, out of @kition/cli's tarball (a version is needed)
+curl -fsSL https://registry.npmmirror.com/@kition/cli/-/cli-0.6.0.tgz | tar -xzO package/dist/install.sh | sh
 ```
 
 ```powershell
 # without Node.js, Windows (x64; Windows 11 on Arm runs it by emulation): into %USERPROFILE%\.kition\bin\kition.exe
-irm https://github.com/KitionAI/kition-sdk/releases/latest/download/install.ps1 | iex
+irm https://unpkg.com/@kition/cli/dist/install.ps1 | iex
 ```
 
 The npm package `@kition/cli` (`packages/kition` in kition-sdk) is a small Node launcher: its
 `kition` command starts the `kition` of the optional package `@kition/cli-<platform>`, which npm
 installs beside it on `darwin-arm64`, `darwin-x64`, `linux-arm64` and `linux-x64` (glibc) and
 `win32-x64`, with the same arguments, standard input, output and error, and exits as it does. It
-is the same `kition` as the release's archives. Installed with `--omit=optional` (or
+is the same `kition` the installers install. Installed with `--omit=optional` (or
 `--no-optional`), on another platform, or on Linux with musl (Alpine), there is no `kition` for
 it, and the command says so on standard error and names `install.sh`. `npm install -g @kition/cli`
 again upgrades it; the kits in the store stay.
 
-The scripts take the `kition-<version>-<platform>.tar.gz` of this machine's platform from the SDK
-release ([distribution.md](distribution.md)), check it against the release's `SHA256SUMS`, check
-that it runs, and move it into `$KITION_HOME/bin` (`~/.kition/bin`) with one rename. They never
-ask for administrator rights and never change a shell profile or the `PATH`: they print the line
-to add. `install.sh` refuses Linux with the musl C library (Alpine) and says so; `kition` is built
-for glibc 2.17 or later. Both read `KITION_HOME`, `KITION_VERSION` (as the argument) and `KITION_RELEASES_URL`,
-another address laid out like `https://github.com/KitionAI/kition-sdk/releases` (a mirror). By
-hand:
+The scripts (`install/` in kition-sdk, published in `@kition/cli` as `dist/install.sh` and
+`dist/install.ps1`) need neither Node.js nor npm, only `curl` (or `wget`) and `tar`. They go
+through [the registries](#the-registries) in order: from the first that serves it, they read the
+metadata of `@kition/cli-<platform>` for this machine (its `latest`, or the version given),
+download its tarball, check it against the integrity (SHA-512) the metadata gives, check that its
+`bin/kition` runs, and move it into `$KITION_HOME/bin` (`~/.kition/bin`) with one rename. A
+registry that does not answer within 5 seconds, lacks the version or serves other bytes passes
+to the next; when none serves it, nothing is installed and the message names every registry tried
+and why. They never ask for administrator rights and never change a shell profile or the `PATH`:
+they print the line to add. `install.sh` refuses Linux with the musl C library (Alpine) and says
+so; `kition` is built for glibc 2.17 or later. Both read `KITION_HOME`, `KITION_VERSION` (as the
+argument) and `KITION_NPM_REGISTRY`. By hand:
 
 ```sh
-v=0.5.2 p=darwin-arm64
-base=https://github.com/KitionAI/kition-sdk/releases/download/sdk-v$v
-curl -fsSLO "$base/SHA256SUMS" && curl -fsSLO "$base/kition-$v-$p.tar.gz"
-grep " kition-$v-$p.tar.gz\$" SHA256SUMS | shasum -a 256 -c
-mkdir -p ~/.kition/bin && tar -xzf "kition-$v-$p.tar.gz" -C ~/.kition/bin kition
+v=0.6.0 p=darwin-arm64 r=https://registry.npmjs.org/      # or https://registry.npmmirror.com/
+curl -fsSL "$r@kition%2fcli-$p/$v" | grep -o '"integrity":"[^"]*"'
+curl -fsSLO "$r@kition/cli-$p/-/cli-$p-$v.tgz"
+printf 'sha512-%s\n' "$(openssl dgst -sha512 -binary "cli-$p-$v.tgz" | openssl base64 -A)"   # the same
+mkdir -p ~/.kition/bin && tar -xzf "cli-$p-$v.tgz" -O package/bin/kition > ~/.kition/bin/kition && chmod 755 ~/.kition/bin/kition
 ```
 
-Running `install.sh` again replaces `kition` with the release's; the kits in the store stay.
-`kition --version` names the SDK version it came with.
+Running `install.sh` again replaces `kition` with the latest; the kits in the store stay.
+`kition --version` names the SDK version it came with. `kition` has no update command of its
+own: run the installer again, or `npm install -g @kition/cli`.
 
 ## Commands
 
@@ -155,8 +162,8 @@ as an install from the index does (its `kit.json` is `kit.<name>` at a semver ve
 `kits/<kit>/<version>/` with the same one rename. A kit of another protocol is refused with the
 message an install gives. `<path>` is one of:
 
-- a kit archive laid out like the index's: a `.tar.gz` with `kit.json` and the executable at its
-  top (what `kit pack` writes);
+- a kit archive: a `.tar.gz` with `kit.json` and the executable at its top (what `kit pack`
+  writes);
 - a folder holding `kit.json` and the executable it names (`headless.executable`);
 - a kit executable, whose `kit.json` is the nearest one above it naming it, as `--kit` finds it
   (`kition kit add ../kition-board/target/release/kition-board`).
@@ -353,10 +360,11 @@ bridge stream a signed URL.
 ### Editor packages
 
 A kit's editor package is its own editor, engine and fonts, as a page loads it in a frame over the
-Kit UI protocol (the `kition-<kit>-<version>.tgz` asset of the kit repository's `package-v<version>`
-Release; the index lists it as the version's `ui`). `kition kit install` and `kition kit upgrade`
-install it with the kit, checked against the size and SHA-256 the index gives (refused, and nothing
-installed, on any difference, or when it is not that kit version's editor), into
+Kit UI protocol (the npm package `@kition/kit-<kit>-ui` at the kit's version, which the kit
+repository publishes; the index lists it as the version's `ui`). `kition kit install` and `kition
+kit upgrade` install it with the kit from [the registries](#the-registries), checked against the
+size and integrity the index gives (refused, and nothing installed, on any difference, or when it
+is not that kit version's editor), into
 `kits/<kit>/ui/<version>/`; an upgrade removes the older editors with the older versions, and
 `kition kit remove` removes them all. The gateway installs a kit's editor the first time its page
 opens a file of the kit (the page shows the download's progress), as the version of the kit in use,
@@ -390,11 +398,12 @@ or the newest the index offers when none is installed. `kition kit list` shows i
 
 ```text
 $ kition doctor
-kition 0.5.2 (kit protocol kition-kit/1, index format 1) on darwin-arm64
+kition 0.6.0 (kit protocol kition-kit/1, index format 2) on darwin-arm64
 ok    home          /Users/me/.kition (writable)
 fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)
-ok    index         https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json: read now, 16 kits
+info  registries    kits and the index come from https://registry.npmjs.org/, https://registry.npmmirror.com/
+ok    index         npm:@kition/kits-index: read now, 16 kits
 ok    kit note      0.3.0 answers kit.initialize (/Users/me/.kition/kits/note/0.3.0/kition-note)
 ok    agent claude  Claude Code: kition registered: ...
 info  agent codex   Codex: not here (no `codex` on the PATH)
@@ -425,10 +434,11 @@ The Kition home is `~/.kition` on every system (`%USERPROFILE%\.kition` on Windo
   names beside it. Anything else is not a kit and is left alone.
 - **In use** is the version `pinned` names, when that version is installed; otherwise the newest
   installed version (semver).
-- **Installing** downloads the archive into `tmp/`, checks its size and SHA-256 against the index,
-  unpacks it there, checks the unpacked `kit.json` (id, version, protocol, executable) against the
-  index, and moves the finished folder to `kits/<kit>/<version>/` with one rename. An archive entry
-  that is not a plain file or folder (a link, a device) or whose path leaves the folder (`..`, an
+- **Installing** downloads the kit's npm package for this platform into `tmp/` from
+  [the registries](#the-registries), checks its size and integrity against the index, unpacks it
+  there, checks its `package.json` (the package and version the index names) and the unpacked
+  `kit.json` (id, version, protocol, executable) against the index, and moves the finished
+  folder to `kits/<kit>/<version>/` with one rename. An archive entry that is not a plain file or folder (a link, a device) or whose path leaves the folder (`..`, an
   absolute path) refuses the whole archive. A failed or interrupted install leaves nothing in
   `kits/`; what it left in `tmp/` is cleared a day later. Two programs installing the same version
   at once both end with the one folder that was renamed into place first.
@@ -447,7 +457,7 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kits": {
     "note": {
       "id": "kit.note",
@@ -457,9 +467,10 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
         "0.3.0": {
           "protocol": "kition-kit/1",
           "platforms": {
-            "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 11534336, "sha256": "<64 hex digits>" },
-            "linux-x64": { "url": "https://example.com/kits/kition-note-0.3.0-linux-x64.tar.gz", "size": 12058624, "sha256": "<64 hex digits>" }
-          }
+            "darwin-arm64": { "package": "@kition/kit-note-darwin-arm64", "size": 11534336, "integrity": "sha512-<88 base64 characters>" },
+            "linux-x64": { "package": "@kition/kit-note-linux-x64", "size": 12058624, "integrity": "sha512-<88 base64 characters>" }
+          },
+          "ui": { "package": "@kition/kit-note-ui", "size": 9437184, "integrity": "sha512-<88 base64 characters>" }
         }
       }
     }
@@ -472,7 +483,7 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
   install for a file.
 - `versions` is keyed by semver. `protocol` is the Kit Process Protocol the executable speaks, as
   its `kit.json` says (`headless.protocol`). `kition` installs the newest version that speaks its
-  own protocol and has an archive for this platform, and refuses another protocol, saying to
+  own protocol and has a package for this platform, and refuses another protocol, saying to
   upgrade `kition` when the kit's is newer.
 - A version installed here that is newer than every version the index offers (the index went
   back to an older number, or the kit came by `kit add`) stays in use: `kit list` marks it
@@ -481,32 +492,56 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
 - Platforms are `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64` (glibc) and `win32-x64`,
   as in the SDK release ([distribution.md](distribution.md)). A kit version need not have every
   platform.
-- An archive is a `.tar.gz` with `kit.json` and the executable (`kition-<kit>`, `.exe` on Windows)
-  at its top. Its `url` is an `https` address or a path; a relative one is read beside the index.
+- Each entry names an npm package of that version, `@kition/kit-<kit>-<platform>` (the headless
+  kit: `kit.json` and the executable `kition-<kit>`, `.exe` on Windows, at the package's top) or
+  `@kition/kit-<kit>-ui` (`ui`: the editor, the folder `<kit>-ui/`), with its tarball's size and npm's
+  integrity of it. The bytes are refused unless they have both, whichever registry served them.
 - `kition` reads the `schemaVersion` it was built for, and asks to be upgraded for a newer one.
 
-The default index is `https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/kits-index.json`,
-gathered from the kit repositories: each kit's `package-v<version>` Releases carry its archives and
-an index fragment, and kition-sdk's `kits-index` workflow merges every kit's fragments into this one
-file, at the archives' addresses in the kit repositories. Every kit and every version a kit
-repository has published with its archives is in it, whether or not an SDK release bundles that
-kit, and a new kit version is in it within the hour
-([distribution.md](distribution.md#kit-archives-and-the-kit-index)). Each SDK release's
-`kits-index.json` is only a snapshot of it as of the release, for `kition` 0.3.0 and 0.4.0, whose
-default was `https://github.com/KitionAI/kition-sdk/releases/latest/download/kits-index.json`
-([distribution.md](distribution.md#the-snapshot-in-each-release)).
-`KITION_INDEX` or `--index` name another: an address, or a file on this machine (an index you made,
-a mirror on a shared drive). Each good read is kept in `cache/`, so the installed kits and the last
-known index stay visible without a network.
+The default index is the npm package `@kition/kits-index`: `kition` reads the metadata of its
+`latest` from the first registry that answers, downloads that version from it, checks it against
+the integrity the metadata gives, and reads its `kits-index.json`. kition-sdk's `kits-index`
+workflow publishes it from the registry metadata of every kit's packages, which each kit
+repository publishes on npm: every kit and every version a kit repository has published is in
+it, whether or not an SDK release bundles that kit, and a new kit version is in it within the hour
+([distribution.md](distribution.md#kit-packages-and-the-kit-index)). `kition` 0.5.2 and earlier
+read an index on GitHub instead, which no longer changes; upgrade them
+([distribution.md](distribution.md#the-kitions-before-npm)). `KITION_INDEX` or `--index` name
+another index: an address, or a file on this machine (an index you made, a mirror on a shared
+drive); its packages still come from the registries. Each good read is kept in `cache/`, so the
+installed kits and the last known index stay visible without a network.
+
+## The registries
+
+Kits, their editors, the kit index and the installers' `kition` all come from npm registries, in
+this order, each once:
+
+1. `KITION_NPM_REGISTRY`: one address, or several separated by commas;
+2. npm's own setting, read without npm: `@kition:registry` from the `.npmrc` (the file
+   `npm_config_userconfig` names, else `~/.npmrc`), else `npm_config_registry`, else that file's
+   `registry` (quotes taken off, `${VAR}` expanded);
+3. `https://registry.npmjs.org/`;
+4. `https://registry.npmmirror.com/`, npmjs.org's mirror, reachable from mainland China.
+
+A registry that does not connect within 5 seconds, answers an error, or lacks the package passes
+to the next. A download cut in the middle resumes once from where it stopped (an HTTP range),
+else passes to the next registry. The bytes are always checked against the size and integrity the
+index (or, for the index itself and the installers, the registry's metadata) gives, whatever
+registry served them; a registry serving other bytes is refused and the next one tried. When none
+serves it, the message names every registry tried and why. `kition doctor` lists the registries
+it uses. Proxies come from `HTTPS_PROXY` and the others below; no token is sent, as every
+`@kition` package is public.
 
 ## Environment
 
 | Variable | Meaning |
 | --- | --- |
 | `KITION_HOME` | The Kition home, instead of `~/.kition` |
-| `KITION_INDEX` | The kit index: an `https` address or a file |
+| `KITION_INDEX` | The kit index: an `https` address or a file, instead of the npm package `@kition/kits-index` |
+| `KITION_NPM_REGISTRY` | npm registries to try first, separated by commas ([the registries](#the-registries)) |
+| `npm_config_registry`, `npm_config_userconfig` | npm's own settings, read as npm reads them ([the registries](#the-registries)) |
 | `KITION_KIT_<KIT>_BINARY` | A kit executable to use instead of the store's (development builds), as for `kition-kits-mcp` |
-| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | Proxies for reading the index and downloading kits (lowercase forms too) |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | Proxies for reading the index and downloading kits and editors (lowercase forms too) |
 
 Downloads use HTTPS with the Mozilla root certificates built into `kition` (rustls); nothing
 depends on the system's TLS library.

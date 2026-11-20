@@ -2,71 +2,135 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/KitionAI/kition-sdk/schemas/kits-index.schema.json",
   "title": "Kition kit index (kits-index.json)",
-  "description": "Every kit the `kition` command line can install: per kit its id, display name and file extensions; per version the Kit Process Protocol it speaks and, per platform, its archive (a .tar.gz with kit.json and the kit's executable at its top) with size and SHA-256. `kition` reads exactly the `schemaVersion` it was built for and asks to be upgraded for a newer one. See kition-sdk's docs/sdk/cli.md.",
+  "description": "Every kit the `kition` command line can install: per kit its id, display name and file extensions; per version the Kit Process Protocol it speaks and, per platform, the npm package holding its kit (kit.json and the kit's executable at the package's top) with the tarball's size and npm's integrity; per version its editor package. kition downloads the packages from npm registries (its own list: KITION_NPM_REGISTRY, npm's setting, registry.npmjs.org, registry.npmmirror.com) and refuses any whose integrity differs. `kition` reads exactly the `schemaVersion` it was built for and asks to be upgraded for a newer one. See kition-sdk's docs/sdk/cli.md and docs/sdk/distribution.md.",
   "type": "object",
-  "required": ["schemaVersion", "kits"],
+  "required": [
+    "schemaVersion",
+    "kits"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "schemaVersion": { "const": 1, "description": "The index format. A change that an older kition would misread raises it." },
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 2,
+      "description": "The index format: 2, npm packages (format 1 named GitHub Release addresses). A change that an older kition would misread raises it."
+    },
     "kits": {
       "type": "object",
       "description": "Each kit by its short name: `note` for `kit.note`.",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9]*$" },
-      "additionalProperties": { "$ref": "#/$defs/kit" }
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/kit"
+      }
     }
   },
   "$defs": {
     "kit": {
       "type": "object",
-      "required": ["id", "name", "extensions", "versions"],
+      "required": [
+        "id",
+        "name",
+        "extensions",
+        "versions"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^kit\\.[a-z][a-z0-9]*$", "description": "The kit.json `id`: `kit.` and the short name." },
-        "name": { "type": "string", "minLength": 1, "description": "The kit.json `name`." },
+        "id": {
+          "type": "string",
+          "pattern": "^kit\\.[a-z][a-z0-9]*$",
+          "description": "The kit.json `id`: `kit.` and the short name."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The kit.json `name`."
+        },
         "extensions": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "description": "The extensions it edits (kit.json formats with role `edit`), lowercase, without the dot.",
-          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" }
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*$"
+          }
         },
         "views": {
           "type": "array",
           "uniqueItems": true,
           "description": "The extensions it only views (kit.json formats with role `view` that no `edit` format covers), lowercase, without the dot: an editor opens them read-only. Optional.",
-          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" }
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*$"
+          }
         },
         "versions": {
           "type": "object",
           "description": "Each published version, by its semver.",
-          "propertyNames": { "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
-          "additionalProperties": { "$ref": "#/$defs/version" }
+          "propertyNames": {
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/version"
+          }
         }
       }
     },
     "version": {
       "type": "object",
-      "required": ["protocol", "platforms"],
+      "required": [
+        "protocol",
+        "platforms"
+      ],
       "properties": {
-        "protocol": { "type": "string", "pattern": "^kition-kit/[0-9]+$", "description": "The Kit Process Protocol the executable speaks, as its kit.json says (`headless.protocol`). kition installs only a version that speaks its own." },
+        "protocol": {
+          "type": "string",
+          "pattern": "^kition-kit/[0-9]+$",
+          "description": "The Kit Process Protocol the executable speaks, as its kit.json says (`headless.protocol`). kition installs only a version that speaks its own."
+        },
         "platforms": {
           "type": "object",
-          "description": "The archive for each platform: darwin-arm64, darwin-x64, linux-arm64, linux-x64 (glibc), win32-x64.",
-          "propertyNames": { "pattern": "^[a-z0-9]+-[a-z0-9]+$" },
-          "additionalProperties": { "$ref": "#/$defs/archive" }
+          "description": "The kit's npm package for each platform, @kition/kit-<kit>-<platform>: darwin-arm64, darwin-x64, linux-arm64, linux-x64 (glibc), win32-x64.",
+          "propertyNames": {
+            "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/archive"
+          }
         },
         "ui": {
           "$ref": "#/$defs/archive",
-          "description": "The version's editor package, the same for every platform: a .tar.gz (the kit repository's Release asset kition-<kit>-<version>.tgz) holding one folder <kit>-ui/ with the editor's index.html, its engine and fonts, and the kit's kit.json. kition installs it beside the headless kit (kits/<kit>/ui/<version>/) and kition gateway serves it to its editor page. Absent for a version published without one."
+          "description": "The version's editor package, the same for every platform: the npm package @kition/kit-<kit>-ui, holding one folder <kit>-ui/ with the editor's index.html, its engine and fonts, and the kit's kit.json. kition installs it beside the headless kit (kits/<kit>/ui/<version>/) and kition gateway serves it to its editor page. Absent for a version published without one."
         }
       }
     },
     "archive": {
       "type": "object",
-      "required": ["url", "size", "sha256"],
+      "required": [
+        "package",
+        "size",
+        "integrity"
+      ],
+      "additionalProperties": false,
+      "description": "One npm package at the version it is listed under; its tarball is <registry>/<package>/-/<name>-<version>.tgz on every registry.",
       "properties": {
-        "url": { "type": "string", "minLength": 1, "description": "An https address, or a path; a relative one is read beside the index." },
-        "size": { "type": "integer", "minimum": 1, "description": "Bytes." },
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        "package": {
+          "type": "string",
+          "pattern": "^@kition/kit-[a-z][a-z0-9]*-[a-z0-9-]+$",
+          "description": "@kition/kit-<kit>-<platform> or @kition/kit-<kit>-ui."
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The tarball's bytes."
+        },
+        "integrity": {
+          "type": "string",
+          "pattern": "^sha512-[A-Za-z0-9+/]{86}==$",
+          "description": "npm's dist.integrity of the tarball: its SHA-512, base64."
+        }
       }
     }
   }
