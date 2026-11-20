@@ -1,0 +1,25 @@
+format: 1
+id: sdk.gateway.security/kit-files
+feature: sdk.gateway.security
+intent: >-
+  /kit-files/ serves visible workspace files with X-Content-Type-Options nosniff and, for HTML,
+  XHTML, SVG and XML, Content-Security-Policy sandbox; single byte ranges, HEAD stamps and
+  If-Modified-Since work; hidden files, folders, missing files and links out of the workspace or
+  into its hidden store answer 404 alike; nothing is written through it.
+layer: gate
+dimension: security
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests/security.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: security, filter: kit_files_serve_visible_workspace_files_only_and_harden_them }
+  - cargo-test: { package: kition-kits-http, filter: "kit_files::" }
+  - cargo-test: { package: kition-http-guard, filter: "files::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

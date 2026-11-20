@@ -1,0 +1,17 @@
+format: 1
+id: regressions/issue-hidden-link-write
+feature: sdk.gateway.security
+intent: >-
+  A link inside the workspace into its hidden store (.kition/) passed the workspace check, so an
+  editor's save wrote through it into the store. A path whose real location is hidden is refused
+  as the hidden path itself is, for a save and for a new file.
+layer: gate
+dimension: security
+source: { kind: synthetic, from: Gateway security tests, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: security, filter: file_routes_stay_inside_the_workspace }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 120

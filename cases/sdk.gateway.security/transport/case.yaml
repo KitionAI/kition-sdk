@@ -1,0 +1,26 @@
+format: 1
+id: sdk.gateway.security/transport
+feature: sdk.gateway.security
+intent: >-
+  On every gateway route a non-loopback Host (DNS rebinding) and a foreign, other-local-port,
+  null, file or empty Origin get 403 before routing, preflights included, with no
+  Access-Control-Allow-Origin, and change nothing even with the token; every route but GET /health
+  answers 401 api_token without the token in Kition-Token (a wrong one, a bearer credential, a
+  cookie, a query parameter or another header are not it), /api/v1/mcp/kits included.
+layer: gate
+dimension: security
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests/security.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: security, filter: every_route_but_health_needs_the_token }
+  - cargo-test: { package: kition-kits-http, test: security, filter: a_foreign_host_or_origin_is_refused_before_routing }
+  - cargo-test: { package: kition-http-guard, filter: "cors::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

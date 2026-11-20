@@ -1895,6 +1895,30 @@ features:
     cases:
       - sdk.agent.gateway-relay/live-and-fallback
     since: "2026-11-19"
+  - id: sdk.gateway.security
+    title: "The gateway refuses non-loopback Hosts and foreign or null Origins before routing, needs the token in Kition-Token on every route but /health (constant-time, no cookie, no wildcard CORS), keeps files, grants and drafts inside the canonical workspace (no .., absolute, hidden or linked-out path), serves workspace files with nosniff and a sandboxing CSP, signs GET URLs per path until they expire, draws bridge session ids at random, takes no path from a grant's caller, and reads a file only if it is the one it checked"
+    dimension: [security, data-safety]
+    priority: P0
+    status: partial
+    gap: "A swap timed into the re-check's own gap (between resolving the path and reading the file there) and hard links to files outside the workspace are not caught; writes still rename onto a path checked before; a person's pick is still the token holder's word"
+    paths:
+      - crates/kition-http-guard/src/**
+      - crates/kition-kits-http/src/**
+      - crates/kition-kits-http/tests/security.rs
+      - crates/kition-kits-http/tests/grant_routes.rs
+      - crates/kition-kits/src/bridge.rs
+      - crates/kition-kits/src/manager.rs
+      - crates/kition-kit-host/src/files.rs
+    cases:
+      - sdk.gateway.security/transport
+      - sdk.gateway.security/workspace-paths
+      - sdk.gateway.security/kit-files
+      - sdk.gateway.security/signed-urls
+      - regressions/issue-bridge-session-ids
+      - regressions/issue-grant-caller-path
+      - regressions/issue-link-swap-read
+      - regressions/issue-hidden-link-write
+    since: "2026-11-19"
   - id: sdk.cli.usage
     title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"
     dimension: [platform, ai]

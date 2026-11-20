@@ -1,0 +1,24 @@
+format: 1
+id: sdk.gateway.security/signed-urls
+feature: sdk.gateway.security
+intent: >-
+  A signed GET URL (HMAC-SHA-256 keyed with the launch's token) reads its file or lent folder and
+  opens the bridge stream until it expires; it is refused for another file, a later expiry,
+  another token, a write, a route that takes no signed URL (the API, /mcp/kits, bridge answers),
+  and malformed stamps; the signature matches Kition runtime's contract example.
+layer: gate
+dimension: security
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests/security.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: security, filter: signed_urls_read_their_scope_until_they_expire }
+  - cargo-test: { package: kition-http-guard, filter: "gate::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

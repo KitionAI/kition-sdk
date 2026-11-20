@@ -1,0 +1,27 @@
+format: 1
+id: sdk.gateway.security/workspace-paths
+feature: sdk.gateway.security
+intent: >-
+  The gateway's file, grant and draft routes stay inside the canonical workspace: .., absolute
+  paths (inside the workspace too), hidden segments, and links out of the workspace or into its
+  hidden store are refused and nothing is written there; grants offer nothing outside the
+  workspace or hidden, confine a session's document, and stop reading a file that became a link
+  out after its grant.
+layer: gate
+dimension: security
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: security, filter: file_routes_stay_inside_the_workspace }
+  - cargo-test: { package: kition-kits-http, test: grant_routes, filter: offers_nothing_outside_the_workspace }
+  - cargo-test: { package: kition-kits-http, test: draft_routes, filter: draft_routes_refuse_paths_outside_the_workspace }
+  - cargo-test: { package: kition-kits-http, filter: workspace_paths_are_relative_plain_and_visible }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

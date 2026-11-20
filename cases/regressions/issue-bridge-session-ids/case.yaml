@@ -1,0 +1,17 @@
+format: 1
+id: regressions/issue-bridge-session-ids
+feature: sdk.gateway.security
+intent: >-
+  Kit AI bridge session ids were a counter (1, 2, 3, ...), so a caller could answer for an editor
+  window it was never told about. They are drawn at random from 53 bits (a JavaScript number holds
+  them exactly), distinct, and never sequential.
+layer: gate
+dimension: security
+source: { kind: probe, from: DeepSeek Harness gateway probe 2026-11-19, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits, filter: session_ids_are_drawn_not_counted }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 120

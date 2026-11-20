@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-grant-caller-path
+feature: sdk.gateway.security
+intent: >-
+  POST /kits/grants took the path of the file the person picked from its caller, so whoever could
+  call it granted a kit any workspace file it named. A grant now names a choice the server offered
+  to that session (POST /kits/grants/choices) and takes no path; a path, a made-up choice, another
+  session's choice, an expired one, and a new file name that is not one plain visible name grant
+  nothing.
+layer: gate
+dimension: security
+source: { kind: probe, from: DeepSeek Harness gateway probe 2026-11-19, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: grant_routes, filter: a_grant_takes_no_path_from_its_caller }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 120

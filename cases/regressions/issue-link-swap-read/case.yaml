@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-link-swap-read
+feature: sdk.gateway.security
+intent: >-
+  A workspace file was checked (links followed, inside the workspace) and then opened by path, so
+  a link swapped in between led the read out of the workspace. open_inside opens the checked real
+  path, checks again after the open, and refuses a file that is not the one at the checked path:
+  a link flipping between a file inside and one outside never lets the outside file be read.
+layer: gate
+dimension: security
+source: { kind: probe, from: DeepSeek Harness gateway probe 2026-11-19, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit-host, filter: a_link_swapped_between_check_and_open_never_leads_out }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 120

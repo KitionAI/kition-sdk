@@ -1671,13 +1671,18 @@ impl KitManager {
             absolute.push(part);
         }
         // Where the path really leads: its nearest existing folder, resolved, so a link out of
-        // the workspace is refused for a new file too.
+        // the workspace is refused for a new file too, and a link into a hidden folder (the
+        // host's own `.kition/`) is refused as the hidden path itself would be.
+        let hidden = |real: &Path| {
+            !own && real.strip_prefix(workspace).is_ok_and(|inside| inside.components().any(|part| part.as_os_str().to_string_lossy().starts_with('.')))
+        };
         let existing = absolute.ancestors().find(|ancestor| ancestor.exists()).unwrap_or(workspace);
         match std::fs::canonicalize(existing) {
-            Ok(real) if real.starts_with(workspace) => Ok(match std::fs::canonicalize(&absolute) {
+            Ok(real) if real.starts_with(workspace) && !hidden(&real) => Ok(match std::fs::canonicalize(&absolute) {
                 Ok(real) => real,
                 Err(_) => absolute,
             }),
+            Ok(real) if real.starts_with(workspace) => Err(KitError::NotAllowed(format!("`{path}` leads to a hidden file or folder"))),
             _ => Err(outside()),
         }
     }
