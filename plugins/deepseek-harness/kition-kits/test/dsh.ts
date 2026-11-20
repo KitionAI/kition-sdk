@@ -66,9 +66,18 @@ export async function kitionRegistry(base: string, kition: string) {
  * registry), the executable is byte for byte `kition`, the one packed, and it has the gateway
  * command. Throws saying which does not hold.
  */
-export function checkOwnKition(base: string, profile: string, kition: string, requests: string[]) {
+export async function checkOwnKition(base: string, profile: string, kition: string, requests: string[] | (() => string[])) {
   const key = `${process.platform}-${process.arch}`
-  assertServed(requests, ['@kition/cli', `@kition/cli-${key}`])
+  // The registry runs in a process of its own and reports what it served on its standard error,
+  // which this process reads only once its event loop runs again (the install was synchronous).
+  const served = () => (typeof requests === 'function' ? requests() : requests)
+  for (const deadline = Date.now() + 10_000; Date.now() < deadline; await new Promise((resolve) => setTimeout(resolve, 100))) {
+    try {
+      assertServed(served(), ['@kition/cli', `@kition/cli-${key}`])
+      break
+    } catch {}
+  }
+  assertServed(served(), ['@kition/cli', `@kition/cli-${key}`])
   const own = path.join(base, 'dsh/profiles', profile, 'node_modules', `@kition/cli-${key}`, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition')
   if (!fs.existsSync(own)) throw new Error(`the install brought no kition of the plugin's own (${own})`)
   const digest = (file: string) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')

@@ -77,7 +77,7 @@ test.beforeAll(async () => {
   delete env.KITION_BIN
   const dump = installProfile(runtime, env, PROFILE, registry.archive)
   // From the local registry, the packed kition itself, with the gateway command.
-  const own = checkOwnKition(base, PROFILE, kition, registry.requests)
+  const own = await checkOwnKition(base, PROFILE, kition, registry.requests)
   expect(fs.existsSync(own), 'the install brought the plugin’s own kition').toBe(true)
   expect(dump).toContain('# == @kition/dsh-kits')
   dsh = await startWeb(runtime, env, PROFILE, [path.join(here, 'scripted-route.cordis.patch.yml')])

@@ -115,7 +115,7 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
     // With the plugin came its kition: @kition/cli and this platform's package.
     expect(fs.existsSync(path.join(base, `dsh/profiles/desktop/node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition`))).toBe(true)
     // From the local registry, the packed kition itself, with the gateway command.
-    expect(checkOwnKition(base, 'desktop', kition, registry.requests.slice(before))).toContain('bin/kition')
+    expect(await checkOwnKition(base, 'desktop', kition, () => registry.requests.slice(before))).toContain('bin/kition')
     mark('plugin installed')
   })
 
@@ -251,7 +251,7 @@ test('the Plugins page installs the plugin by its name, with its own kition; a .
       await page.screenshot({ path: path.join(shots, 'dsh-desktop-plugins-page-installed.png') })
       expect(fs.existsSync(path.join(own, `dsh/profiles/desktop/node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition`)), 'the plugin’s own kition came with it').toBe(true)
       // By name, from the local registry too: the plugin, and the packed kition itself, with the gateway command.
-      expect(checkOwnKition(own, 'desktop', kition, registry.requests.slice(before))).toContain('bin/kition')
+      expect(await checkOwnKition(own, 'desktop', kition, () => registry.requests.slice(before))).toContain('bin/kition')
       expect(assertServed(registry.requests.slice(before), ['@kition/dsh-kits']).length, 'the registry served the plugin').toBeGreaterThan(0)
     })
     // Whatever the page says about applying it, a new start has it.
