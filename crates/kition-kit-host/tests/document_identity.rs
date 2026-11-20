@@ -33,15 +33,17 @@ fn workspace(name: &str) -> PathBuf {
 }
 
 async fn launch(dir: &Path, file_replica: bool) -> Option<HeadlessKit> {
+    launch_with(dir, if file_replica { &[("KITION_KIT_MOCK_FILE_REPLICA", "1")] } else { &[] }).await
+}
+
+async fn launch_with(dir: &Path, env: &[(&str, &str)]) -> Option<HeadlessKit> {
     let Some(mock) = common::workspace_binary("kition-kit-mock") else {
         eprintln!("skipped: build kition-kit-mock first (cargo build -p kition-kit-mock)");
         return None;
     };
     let mut options = LaunchOptions::new(&mock);
     options.workspace = Some(dir.to_path_buf());
-    if file_replica {
-        options.env.push(("KITION_KIT_MOCK_FILE_REPLICA".into(), "1".into()));
-    }
+    options.env.extend(env.iter().map(|(name, value)| ((*name).into(), (*value).into())));
     Some(HeadlessKit::launch(options).await.unwrap())
 }
 
@@ -156,6 +158,39 @@ async fn a_file_that_embeds_its_replica_tells_its_identity_and_forks_into_a_new_
     assert_eq!(taken.reason(), Some("file_conflict"), "{taken}");
     assert!(detail(&taken).contains("never replaces"), "{taken}: {:?}", taken.data());
     assert_eq!(kit.identity("b.mocktext", LIMIT).await.unwrap().doc_id.as_deref(), Some(fork_id.as_str()), "the first fork is kept");
+    kit.shutdown(Duration::from_secs(5)).await;
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// regressions/issue-kdm-shallow-export: the fork is a shallow replica (KitModel M16a). The mock
+/// answers `model.export` as a kit on the change exchange does (the changes since `since`, every
+/// change without one), so a host's draft of the fork (`model.export`, then `model.open`) opens,
+/// edits through `model.batch`, and merges back with `model.import`; before, every change of a
+/// fork did not load ("meta.kit is missing").
+#[tokio::test]
+async fn a_draft_of_a_forked_file_opens_from_its_changes_and_merges_back() {
+    let dir = workspace("fork-draft");
+    let Some(kit) = launch_with(&dir, &[("KITION_KIT_MOCK_FILE_REPLICA", "1"), ("KITION_KIT_MOCK_REPLICA", "full")]).await else { return };
+    made(&kit, "a.mocktext").await;
+    kit.fork("a.mocktext", "b.mocktext", LIMIT).await.unwrap();
+    let state = kit.open("b.mocktext", false, LIMIT).await.unwrap();
+    let fork = state["documentId"].clone();
+    let all = kit.request("model.export", json!({ "documentId": fork }), LIMIT).await.unwrap();
+    let draft = kit.request("model.open", json!({ "name": "b.mocktext", "snapshot": all["changes"] }), LIMIT).await.unwrap();
+    let draft = draft["documentId"].clone();
+    let base = kit.request("model.version", json!({ "documentId": draft }), LIMIT).await.unwrap()["version"].clone();
+    let edit = json!({ "ops": [{ "op": "create", "type": "Tag", "in": "root.tags", "fields": { "name": "drafted" } }] });
+    batch(&kit, &draft, edit).await.unwrap();
+    let changes = kit.request("model.export", json!({ "documentId": draft, "since": base }), LIMIT).await.unwrap();
+    kit.request("model.import", json!({ "documentId": fork, "changes": changes["changes"] }), LIMIT).await.unwrap();
+    let inventory = batch(&kit, &fork, json!({ "ops": [], "objects": true })).await.unwrap();
+    let load: Vec<Value> = inventory["objects"].as_array().unwrap().iter().map(|object| json!({ "target": object["id"] })).collect();
+    let loaded = batch(&kit, &fork, json!({ "ops": [], "load": load })).await.unwrap();
+    let names: Vec<&str> = loaded["loaded"].as_array().unwrap().iter().filter_map(|object| object["fields"]["name"].as_str()).collect();
+    assert!(names.contains(&"drafted") && names.contains(&"kept"), "{loaded}");
+    // Every change of the fork after the merge still opens as the document.
+    let again = kit.request("model.export", json!({ "documentId": fork }), LIMIT).await.unwrap();
+    kit.request("model.open", json!({ "name": "b.mocktext", "snapshot": again["changes"] }), LIMIT).await.unwrap();
     kit.shutdown(Duration::from_secs(5)).await;
     let _ = std::fs::remove_dir_all(dir);
 }

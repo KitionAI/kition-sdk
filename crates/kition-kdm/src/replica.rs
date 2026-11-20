@@ -470,7 +470,17 @@ impl Replica {
 
     /// The changes this replica has that a replica at `since` lacks.
     /// Exported bytes carry this document's id; see [`Replica::import_changes`].
+    ///
+    /// With `Version::empty()` (every change) the bytes always [`Replica::load`] as this document.
+    /// A shallow replica (rule M16a) has no changes before its root, so for a `since` that does
+    /// not reach its root (the empty version above all) it answers its snapshot: its state at the
+    /// root with every change after it, which loads as a shallow replica with the same root and
+    /// imports into any replica that has the root, as these changes would. On a full replica, and
+    /// for a `since` at or after the root, the bytes are the changes alone.
     pub fn export_changes(&self, since: &Version) -> Result<Vec<u8>> {
+        if !self.reaches(since) {
+            return self.snapshot();
+        }
         let bytes = self.doc.export(ExportMode::updates(&since.0)).map_err(|error| KdmError::Encoding(error.to_string()))?;
         Ok(envelope::wrap(self.doc_id, bytes))
     }

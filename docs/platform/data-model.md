@@ -309,7 +309,11 @@ TypeScript) makes one: a replica of the new `doc_id` with the same objects,
 (the document's `meta` and the byte envelope). It carries no history: the copy
 is a shallow replica rooted at its own first change, so deleted content,
 earlier versions and the source's `docId` stay behind, it forks a draft only
-at its current version, and its undo starts empty. A blob is its
+at its current version, and its undo starts empty. Asked for every change
+(`export_changes` since the empty version), it answers its snapshot, which
+loads as the copy (M14), so the object model over a kit's change exchange
+and an agent's draft (`model.export`, then `model.open`) work on a copy as on
+any document, with nothing in the kit. A blob is its
 content-addressed reference, kept as it is; a host whose blob store is per
 document copies the referenced blobs with it. Copies refuse each other's and
 the source's changes, drafts and snapshots (`WrongDocument`). There is no

@@ -431,10 +431,20 @@ export class Replica {
     return read.objectsOfType(this.doc, ty)
   }
 
-  /** The changes this replica has that a replica at `since` lacks, labelled with this document's id. */
+  /**
+   * The changes this replica has that a replica at `since` lacks, labelled with this document's id.
+   *
+   * With `Version.empty()` (every change) the bytes always `load` as this document. A shallow
+   * replica (rule M16a) has no changes before its root, so for a `since` that does not reach its
+   * root (the empty version above all) it answers its snapshot: its state at the root with every
+   * change after it, which loads as a shallow replica with the same root and imports into any
+   * replica that has the root, as these changes would. On a full replica, and for a `since` at or
+   * after the root, the bytes are the changes alone.
+   */
   exportChanges(since: Version = Version.empty()): Uint8Array {
     this.checkOpen()
     if (!(since instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
+    if (!this.reaches(since)) return this.snapshot()
     let bytes: Uint8Array
     try {
       bytes = this.doc.export({ mode: 'update', from: since.toEngine() })

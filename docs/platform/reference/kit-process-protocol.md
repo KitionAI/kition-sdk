@@ -433,7 +433,10 @@ not found`.
   stay behind), empty undo, and a new `docId` the kit makes and answers; the
   host supplies none, as it supplies no `documentId`. Everything else in the
   file is kept. The source and the fork refuse each other's changes (M17),
-  and a fork of a fork is another new document.
+  and a fork of a fork is another new document. The fork's replica is
+  shallow (M16a); its every change (`model.export` without `since`) still
+  opens with `model.open` (M14), so the object model and drafts need nothing
+  more from the kit.
 - A replica the kit cannot read (damaged, of another kit, of a newer schema)
   is `-32012 unsupported_format`, never `null`: a host must not take a file
   it cannot read as one without identity.

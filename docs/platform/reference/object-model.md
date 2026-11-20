@@ -215,7 +215,9 @@ strings.
   still import. Damaged blobs refuse the call (`invalid_params`, without
   `refused`) before anything is imported, and the document stays open.
 - `model.export` answers the document's changes since the encoded KDM
-  version `since` (every change when omitted), in the KDM envelope. A kit
+  version `since` (every change when omitted), in the KDM envelope; every
+  change always opens with `model.open` (KitModel M14: a shallow replica,
+  such as a file `document.fork` made, answers its snapshot). A kit
   whose changes reference blobs (such as painted pixels) also answers
   `blobs`, the ones a replica at `since` needs for them (every blob the
   document references when `since` is omitted), encoded as for `model.open`;

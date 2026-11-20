@@ -1001,9 +1001,19 @@ impl Kit {
             }
             "model.export" if *FILE_REPLICA || matches!(REPLICA.as_str(), "full" | "export") => {
                 let id = document_param(&params)?;
+                // A file that keeps its replica answers as a kit on the change exchange does
+                // (`with_replica_port`): the replica's changes since `since`, every change without
+                // one. The other modes answer a snapshot.
+                let since = match params["since"].as_str() {
+                    Some(since) if *FILE_REPLICA => base64::decode(since)
+                        .and_then(|bytes| kition_kdm::Version::decode(&bytes).ok())
+                        .ok_or_else(|| RpcError::invalid_params("`since` is a base64 version, as `model.version` answers it"))?,
+                    _ => kition_kdm::Version::empty(),
+                };
                 self.with_document(&id, |document| {
-                    let snapshot = document.model()?.snapshot().map_err(|error| RpcError::internal(error.to_string()))?;
-                    Ok(json!({ "changes": base64::encode(&snapshot) }))
+                    let replica = document.model()?;
+                    let bytes = if *FILE_REPLICA { replica.export_changes(&since) } else { replica.snapshot() };
+                    Ok(json!({ "changes": base64::encode(&bytes.map_err(|error| RpcError::internal(error.to_string()))?) }))
                 })
             }
             "model.open" if REPLICA.as_str() == "full" => {

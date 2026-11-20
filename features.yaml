@@ -1,6 +1,6 @@
 format: 1
 kit: sdk
-updated: "2026-11-19"
+updated: "2026-11-20"
 gate_budget_s: 600
 features:
   - id: sdk.agent.close-completion
@@ -113,7 +113,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, packages/kdm/src/replica.ts]
-    cases: [sdk.model.new-document/copy]
+    cases: [sdk.model.new-document/copy, regressions/issue-kdm-shallow-export]
     since: "2026-11-19"
   - id: sdk.host.document-fork
     title: A host reads the docId a file carries and forks a file into a new document through the kit (Kit Process Protocol document.identity, document.fork)

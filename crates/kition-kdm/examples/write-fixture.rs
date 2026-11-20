@@ -6,11 +6,14 @@
 //! with more edits after its root; `... -- <dir> new-document` writes only
 //! `rust-new-document.bin` and `rust-new-document.json`, the committed `<dir>/rust-page.bin` copied
 //! as a new document (`Replica::copy_as_new_document`) under docId
-//! `01920000-0000-7000-8000-000000000002`.
+//! `01920000-0000-7000-8000-000000000002`; `... -- <dir> shallow-export` writes only
+//! `rust-shallow-export.bin` and `rust-shallow-export.json`, the committed
+//! `<dir>/rust-new-document.bin` (a shallow replica) with its page retitled, as it answers every
+//! change (`export_changes(&Version::empty())`).
 
 use std::sync::Arc;
 
-use kition_kdm::{ActorId, DocId, Origin, Replica, Schema};
+use kition_kdm::{ActorId, DocId, Origin, Replica, Schema, Version};
 use serde_json::{Map, Value, json};
 
 fn fields(value: Value) -> Map<String, Value> {
@@ -25,6 +28,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let copy = page.copy_as_new_document(DocId::parse("01920000-0000-7000-8000-000000000002")?, ActorId::from_u64(8)?)?;
         std::fs::write(format!("{dir}/rust-new-document.bin"), copy.snapshot()?)?;
         std::fs::write(format!("{dir}/rust-new-document.json"), copy.state_json()?.to_string())?;
+        println!("{}", copy.state_hash()?);
+        return Ok(());
+    }
+    if std::env::args().nth(2).as_deref() == Some("shallow-export") {
+        let mut copy = Replica::load(schema, &std::fs::read(format!("{dir}/rust-new-document.bin"))?, ActorId::from_u64(9)?)?;
+        let page = copy.objects_of_type("Page").into_iter().next().ok_or("no page")?;
+        copy.transact(&Origin::person("user:fixture"), |tx| tx.set(&page, "title", json!("Forked page")))?;
+        std::fs::write(format!("{dir}/rust-shallow-export.bin"), copy.export_changes(&Version::empty())?)?;
+        std::fs::write(format!("{dir}/rust-shallow-export.json"), copy.state_json()?.to_string())?;
         println!("{}", copy.state_hash()?);
         return Ok(());
     }

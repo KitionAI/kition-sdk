@@ -251,7 +251,13 @@ A kit on the KDM ships `model/schema.json`:
   (`export_changes(since)`), imports changes in any order and any number of
   times (`import_changes`), and reports which objects each import changed.
   A shallow replica (M16a) refuses only changes that depend on history
-  before its root.
+  before its root. Every change (`since` the empty version) always loads
+  (`load`) as the document: a shallow replica has no changes before its
+  root, so for a `since` that does not reach its root it exports its
+  snapshot (its state at the root with every change after it), which loads
+  as a shallow replica with the same root and imports into any replica that
+  has the root. A full replica, and a `since` at or after the root, export
+  the changes alone.
 - **M15** Every replica that has the same changes **and the same schema**
   has the same canonical state: the document as JSON with keys sorted
   (`state_json`), identical in the Rust and TypeScript implementations. The
@@ -270,6 +276,9 @@ A kit on the KDM ships `model/schema.json`:
   shallow with the same root. A shallow replica edits, exports, imports,
   merges drafts, and converges like a full one (M14, M15), and its
   canonical state is the same as a full replica's with the same changes.
+  Asked for every change, it answers bytes that load (M14), so whatever
+  opens a document from "every change" (the object model over the change
+  exchange, an agent's draft) works on it unchanged.
   It has no history before its root: undo covers only its own transactions
   since it was loaded (as for any loaded replica, M12), and it forks a
   draft (A12) only at its current version. Earlier versions, blame, and

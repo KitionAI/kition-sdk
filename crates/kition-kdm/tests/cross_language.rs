@@ -76,3 +76,28 @@ fn a_typescript_copy_as_a_new_document_opens_with_the_new_id_and_the_same_conten
     let changes = copy.export_changes(&source.version()).unwrap();
     assert!(matches!(source.import_changes(&changes), Err(kition_kdm::KdmError::WrongDocument { .. })));
 }
+
+/// regressions/issue-kdm-shallow-export: a shallow replica's export of every change, made by the
+/// TypeScript KDM (`fixtures/ts-shallow-export.*`: the committed `ts-new-document.bin` with its
+/// page retitled, `exportChanges(Version.empty())`, written by
+/// `KDM_WRITE_SHALLOW_EXPORT_FIXTURE=1 pnpm vitest run packages/kdm/test/write-ts-fixture.test.ts`),
+/// loads here as the forked document with its edit, as a shallow replica.
+#[test]
+fn a_typescript_shallow_export_of_every_change_loads_as_the_document() {
+    let exported = Replica::load(schema(), include_bytes!("fixtures/ts-shallow-export.bin"), ActorId::from_u64(17).unwrap()).unwrap();
+    let copy = Replica::load(schema(), include_bytes!("fixtures/ts-new-document.bin"), ActorId::from_u64(18).unwrap()).unwrap();
+    assert_eq!(exported.doc_id(), DocId::parse("01920000-0000-7000-8000-0000000000ab").unwrap());
+    assert!(exported.is_shallow());
+    assert_eq!(exported.shallow_root(), copy.shallow_root());
+    let state = exported.state_json().unwrap().to_string();
+    assert_eq!(
+        exported.state_hash().unwrap(),
+        include_str!("fixtures/ts-shallow-export.sha256"),
+        "canonical state differs from fixtures/ts-shallow-export.json:\n{state}"
+    );
+    let page = exported.objects_of_type("Page").into_iter().next().unwrap();
+    assert_eq!(exported.get(&page, "title").unwrap(), serde_json::json!("Forked page"));
+    // Exported again from here, every change still loads.
+    let again = Replica::load(schema(), &exported.export_changes(&kition_kdm::Version::empty()).unwrap(), ActorId::from_u64(19).unwrap()).unwrap();
+    assert_eq!(again.state_hash().unwrap(), exported.state_hash().unwrap());
+}

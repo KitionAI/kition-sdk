@@ -444,6 +444,35 @@ fn an_exchange_edits_the_engine_through_its_changes() {
     assert_eq!(described["rootId"], json!(board(document.0.replica()).to_string()));
 }
 
+/// regressions/issue-kdm-shallow-export: a document forked as a new document
+/// (`copy_as_new_document`, what `document.fork` writes into a file) is a shallow replica. The
+/// object model over the change exchange loads the engine's "every change" export, and an agent's
+/// draft opens from it; both work on a fork as on any document, and the draft merges back.
+#[test]
+fn an_exchange_and_a_draft_work_on_a_document_forked_as_a_new_document() {
+    let source = open();
+    let fork = source.0.replica().copy_as_new_document(DocId::new(), ActorId::from_u64(2).unwrap()).unwrap();
+    assert!(fork.is_shallow());
+    let mut document = NotesDocument(KitSession::from_replica(fork, Box::new(MemoryBlobs::default())).unwrap(), Vec::new(), Value::Null);
+    let mut exchange = Exchange::new();
+    let described = exchange.describe(&mut document).unwrap();
+    assert_eq!(described["rootId"], json!(board(document.0.replica()).to_string()));
+    let answer = exchange.batch(&mut document, &add_notes(), false).unwrap();
+    assert_eq!(answer["loaded"][1]["fields"], json!({ "body": "second", "done": true }));
+    assert_eq!(document.0.model().0, vec!["second".to_owned()]);
+    // An agent's draft: every change, opened as a replica of its own, edited, and merged back.
+    let all = document.model_export(&[]).unwrap();
+    let mut draft = NotesDocument::model_open_replica("ideas.notes", &all, &[]).unwrap();
+    assert_eq!(draft.0.replica().doc_id(), document.0.replica().doc_id());
+    let base = draft.0.version();
+    let mut draft_exchange = Exchange::new();
+    draft_exchange.batch(&mut draft, &json!({ "ops": [{ "op": "set", "target": "root", "field": "title", "value": "Drafted" }] }), false).unwrap();
+    let changes = draft.model_export(&base.encode()).unwrap();
+    document.model_import(&changes).unwrap();
+    let read = exchange.batch(&mut document, &json!({ "load": [{ "target": "root", "fields": ["title"] }] }), false).unwrap();
+    assert_eq!(read["loaded"][0]["fields"]["title"], "Drafted");
+}
+
 #[test]
 fn a_replica_opens_without_a_file_and_refuses_what_validate_cannot_repair() {
     let mut first = open();

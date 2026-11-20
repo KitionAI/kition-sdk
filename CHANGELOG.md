@@ -4,6 +4,15 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A forked document's every change loads** (KitModel M14, M16a). A shallow replica, above all
+  a copy as a new document and so every file `document.fork` writes, answered `export_changes`
+  since the empty version (`exportChanges()` in TypeScript) with only the changes after its root,
+  which `Replica::load` refused ("meta.kit is missing"): the object model over a kit's change
+  exchange (`Headless::with_replica_port`: `model.batch`, `model.describe`) and agent drafts
+  (`model.export`, then `model.open`) failed on every forked file. For a `since` that does not
+  reach its root it now answers its snapshot, which loads as the document and imports into any
+  replica that has the root; a full replica's export, and one since a version at or after the
+  root, are unchanged. Kits need no workaround (regressions/issue-kdm-shallow-export).
 - **Kit Process Protocol: `document.identity` and `document.fork`** (section 5.6, feature
   `document.identity`). A host reads the `docId` a file carries (`{ docId }`, `null` for none) and
   forks a file into a new document (`{ file, target }` → `{ docId, name, version }`: the embedded

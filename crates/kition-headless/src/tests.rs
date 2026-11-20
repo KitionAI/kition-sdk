@@ -799,6 +799,42 @@ fn opens_a_replica_without_a_file_and_imports_exports_and_saves_it() {
     assert!(session.model("model.open", json!({ "name": "ideas.notes", "snapshot": base64::encode(&snapshot) })).is_err());
 }
 
+/// regressions/issue-kdm-shallow-export: a kit on the change exchange (`with_replica_port`) serves
+/// a document forked as a new document (a shallow replica, KitModel M16a), as a file
+/// `document.fork` wrote or a room started from such a file holds it: `model.batch` and
+/// `model.describe` read it, and an agent's draft (`model.export`, then `model.open`) opens, edits
+/// and merges back with `model.import`.
+#[test]
+fn a_replica_port_kit_serves_a_forked_document_and_its_drafts() {
+    use kition_kit::kdm::{ActorId, DocId};
+
+    let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
+    let source = <notes::NotesDocument as KitDocument>::create("ideas.notes", 1, 1).unwrap();
+    let fork = source.session().replica().copy_as_new_document(DocId::new(), ActorId::random()).unwrap();
+    assert!(fork.is_shallow());
+    let opened = kit.model("model.open", json!({ "name": "ideas.notes", "snapshot": base64::encode(&fork.snapshot().unwrap()) })).unwrap();
+    let id = opened["documentId"].as_str().unwrap().to_owned();
+    let described = kit.model("model.describe", json!({ "documentId": id })).unwrap();
+    assert!(described["rootId"].is_string(), "{described}");
+    let mut request = notes::add_notes();
+    request["documentId"] = json!(id);
+    let answer = kit.model("model.batch", request).unwrap();
+    assert_eq!(answer["loaded"][1]["fields"], json!({ "body": "second", "done": true }));
+
+    // The draft: every change of the fork, opened as a document of its own.
+    let exported = kit.model("model.export", json!({ "documentId": id })).unwrap();
+    let draft = kit.model("model.open", json!({ "name": "ideas.notes", "snapshot": exported["changes"] })).unwrap();
+    let draft = draft["documentId"].as_str().unwrap().to_owned();
+    let base = kit.model("model.version", json!({ "documentId": draft })).unwrap()["version"].clone();
+    let rename = json!({ "documentId": draft, "ops": [{ "op": "set", "target": "root", "field": "title", "value": "Drafted" }] });
+    kit.model("model.batch", rename).unwrap();
+    let changes = kit.model("model.export", json!({ "documentId": draft, "since": base })).unwrap();
+    kit.model("model.import", json!({ "documentId": id, "changes": changes["changes"] })).unwrap();
+    let read = kit.model("model.batch", json!({ "documentId": id, "load": [{ "target": "root", "fields": ["title", "notes"] }] })).unwrap();
+    assert_eq!(read["loaded"][0]["fields"]["title"], "Drafted");
+    assert_eq!(read["loaded"][0]["fields"]["notes"].as_array().map(Vec::len), Some(1), "{read}");
+}
+
 #[test]
 fn base64_round_trips() {
     for bytes in [&b""[..], b"f", b"fo", b"foo", b"\x00\xff\x10binary"] {
