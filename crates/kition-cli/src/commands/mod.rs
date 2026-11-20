@@ -2,6 +2,7 @@
 
 pub mod agent;
 pub mod doctor;
+pub mod gateway;
 pub mod help;
 pub mod kit;
 pub mod progress;

@@ -1,0 +1,26 @@
+format: 1
+id: sdk.cli.gateway/lifecycle
+feature: sdk.cli.gateway
+intent: >-
+  kition gateway --workspace binds 127.0.0.1 on a port the system picks, prints one JSON ready
+  line without the token, and writes KITION_HOME/run/<key>.json (0600 in a 0700 folder) with the
+  token; /health is open and everything else needs the token; a second gateway for the same
+  canonical workspace prints gateway-running and exits 3; kition doctor names the running
+  gateway; SIGTERM and SIGINT stop it and remove its lockfile; a stale lockfile is replaced; it
+  stops when stdin closes with --stdin-lifetime and after --idle-timeout.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/gateway.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: gateway, filter: a_gateway_ }
+  - cargo-test: { package: kition-cli, filter: "commands::gateway::" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

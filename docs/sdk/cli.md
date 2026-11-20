@@ -80,6 +80,7 @@ kition agent list [--workspace <folder>]
 # servers
 kition mcp [--workspace <folder>] [options]   # the kits' MCP server on stdio
 kition serve --workspace <folder> [...]       # the Kits Service API on stdio (hosts.md)
+kition gateway --workspace <folder> [...]     # one workspace's kits on loopback HTTP (below)
 # troubleshooting
 kition doctor [--json]
 kition --version
@@ -267,6 +268,66 @@ kit's `kit.json` (its commands, its object model, whether it keeps drafts), whic
 kit. A client that does not follow `tools/list_changed` sees the new tools when it starts the
 server again; by then the kit is installed.
 
+## The gateway
+
+`kition gateway --workspace <folder>` serves one workspace's kits on `http://127.0.0.1:<port>`,
+as the one process that holds them: the Kit AI bridge to kit editors attached to it, the
+workspace's files for those editors, file grants, the agent's drafts for the person to review,
+and the kits' MCP server. A `kition mcp` started for the same workspace relays to it
+([agent.md](agent.md#editors-attached-to-a-gateway)), so an agent's edit of a file open in such an
+editor happens in the editor. It serves no editor page and no editor packages yet: an editor
+attaches through the bridge routes below.
+
+```sh
+kition gateway --workspace <folder> [--port <n>] [--stdin-lifetime] [--idle-timeout <seconds>]
+               [--unified] [--drafts] [--kit <path>] [--kits-dir <folder>] [...]
+```
+
+- `--port <n>`: the port; by default 0, a free one the system picks. It listens on 127.0.0.1 only.
+- `--stdin-lifetime`: stop when stdin closes, so the process that started it takes it along.
+- `--idle-timeout <seconds>`: stop after this long with no request and no editor attached.
+- The kit options of `kition mcp` (`--unified`, `--drafts`, `--guard`, `--require-basis`, `--kit`,
+  `--kits-dir`, `--sandbox`, `--index`, `--no-install`, `--call-timeout-secs`,
+  `--idle-timeout-secs`, `--memory-limit-mib`) choose its kits and its MCP server as they do there.
+
+On start it prints one JSON line on stdout, then serves:
+
+```text
+$ kition gateway --workspace ~/notes
+{"apiPrefix":"/api/v1","kition":"gateway-ready","lockfile":"/Users/me/.kition/run/f35a82c17e3c034a0f3ea7e8bf34423c.json","pid":32783,"port":51512,"protocol":"kition-gateway/1","url":"http://127.0.0.1:51512","version":"0.5.2","workspace":"/Users/me/notes"}
+```
+
+The token every request needs is not on stdout, which supervisors and terminals tend to keep: it
+is in the lockfile, `KITION_HOME/run/<key>.json`, readable by this account only (`0600`, in a
+`0700` folder), with the same fields as the ready line but `kition` and `lockfile`, and also
+`format` (1), `token` (64 hex digits, new for each start), `unified` and `started` (Unix seconds).
+`<key>` is the first 32 hex digits of the SHA-256 of the canonical workspace path. The gateway
+removes its lockfile when it stops.
+
+One gateway serves a workspace. A second one for the same folder (however it is spelled) finds
+the first through its lockfile, prints `{"kition":"gateway-running", ...}` with the first one's
+fields, says so on stderr, and exits with status 3. A lockfile whose gateway is gone (nothing
+answers at its address with its token, process id and workspace) is replaced. The gateway stops
+on SIGINT, SIGTERM or SIGHUP (and as above), finishes what it is answering, saves and stops its
+kits, and removes its lockfile.
+
+Every request but `GET /health` needs the token in the `Kition-Token` header (a signed URL stands
+in for it on the reads that cannot carry a header); a request whose `Host` is not
+`127.0.0.1`, `localhost` or `[::1]`, or that comes from another origin (`null` included), gets
+`403` before anything else. The routes, under `/api/v1` unless shown otherwise:
+
+| Route | What |
+| --- | --- |
+| `GET /health` (no token) | `{"code":200,"message":"success","data":"healthy"}` |
+| `GET /gateway` | its `protocol`, `version`, `pid`, `workspace`, `unified` and `started` |
+| `GET /kits` | the kits and whether each is installed |
+| `PUT /kits/files?path=[&document=]` | an editor saves its document or writes a new file |
+| `/kits/grants/*` | file grants for an editor's kit (KitFiles); the person picks among `POST /kits/grants/choices` |
+| `GET /kits/bridge`, `POST /kits/bridge?session=` | the Kit AI bridge to an attached editor |
+| `GET /kits/drafts`, `GET /kits/drafts/compare`, `POST /kits/drafts/merge`, `POST /kits/drafts/discard` | the person's review of the agent's drafts |
+| `POST /mcp/kits` | the kits' MCP server (Streamable HTTP, one JSON answer per message) |
+| `GET /kit-files/<path>` (no prefix) | workspace files as kits read them: no hidden file, nothing a link leads to outside |
+
 ## When something is wrong
 
 `kition doctor` checks, in order:
@@ -284,6 +345,8 @@ server again; by then the kit is installed.
 - each installed kit in use, started as a host starts it and asked `kit.initialize`: the version
   it answers, or why it did not start (an answer that is not its `kit.json`'s id and version is a
   failure too);
+- which `kition gateway`s run, for which workspace, and how many lockfiles gateways that stopped
+  left (the next gateway for that workspace replaces them), for information;
 - which agents have `kition` registered (Claude Code and Codex through `claude mcp get kition`
   and `codex mcp get kition`; Cursor's two files), for information.
 

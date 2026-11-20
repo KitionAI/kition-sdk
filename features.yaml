@@ -1859,6 +1859,25 @@ features:
       - sdk.host.kits-http/routes
       - regressions/issue-mcp-http-connections
     since: "2026-11-19"
+  - id: sdk.cli.gateway
+    title: "kition gateway --workspace serves one workspace's kits on 127.0.0.1 as the one process that holds them: a JSON ready line on stdout without the token, a 0600 lockfile under KITION_HOME/run/ with the token, one gateway per canonical workspace (exit 3 for a second, a stale lockfile replaced), and a clean stop on SIGINT, SIGTERM, SIGHUP, stdin closing (--stdin-lifetime) or idleness (--idle-timeout); kition doctor names the running gateways"
+    dimension: [platform, ai]
+    priority: P1
+    status: partial
+    gap: It serves no editor page and no editor packages yet (/page/, /kits-ui/); editors attach through the bridge API only
+    paths:
+      - crates/kition-cli/src/gateway.rs
+      - crates/kition-cli/src/commands/gateway.rs
+      - crates/kition-cli/src/commands/doctor.rs
+      - crates/kition-cli/src/commands/help.rs
+      - crates/kition-cli/src/main.rs
+      - crates/kition-cli/tests/gateway.rs
+      - crates/kition-kits-http/src/gateway.rs
+      - crates/kition-kits/src/cli/mcp.rs
+      - docs/sdk/cli.md
+    cases:
+      - sdk.cli.gateway/lifecycle
+    since: "2026-11-19"
   - id: sdk.cli.usage
     title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"
     dimension: [platform, ai]

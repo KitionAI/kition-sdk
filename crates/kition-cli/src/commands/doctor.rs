@@ -83,6 +83,7 @@ pub fn run(args: &[String]) -> ExitCode {
     if let Some(home) = &home {
         checks.push(check_index(home, &source));
         checks.extend(check_kits(&Store::new(home.clone())));
+        checks.push(check_gateways(home));
     }
     let here = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     checks.extend(agent::registrations(&here).into_iter().map(check_agent));
@@ -117,6 +118,30 @@ pub fn run(args: &[String]) -> ExitCode {
         }
     }
     if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+}
+
+/// The gateways whose lockfiles are in the home's `run/` (`kition gateway`): which serve which
+/// workspace, and which lockfiles are left by gateways that are gone (the next gateway for that
+/// workspace replaces them). For information only.
+fn check_gateways(home: &Home) -> Check {
+    let lockfiles: Vec<PathBuf> = std::fs::read_dir(kition_cli::gateway::run_dir(home))
+        .map(|entries| {
+            entries.filter_map(Result::ok).map(|entry| entry.path()).filter(|path| path.extension().is_some_and(|extension| extension == "json")).collect()
+        })
+        .unwrap_or_default();
+    let mut live = Vec::new();
+    let mut stale = 0;
+    for path in &lockfiles {
+        match kition_cli::gateway::read(path) {
+            Some(lock) if kition_cli::gateway::identity(&lock).is_some() => live.push(format!("{} at {} (pid {})", lock.workspace, lock.url, lock.pid)),
+            _ => stale += 1,
+        }
+    }
+    let mut detail = if live.is_empty() { "none running".to_owned() } else { format!("{} running: {}", live.len(), live.join("; ")) };
+    if stale > 0 {
+        detail.push_str(&format!("; {stale} lockfile{} left by gateways that stopped", if stale == 1 { "" } else { "s" }));
+    }
+    Check::new("gateways", Status::Info, detail, None)
 }
 
 /// The home, and whether a file can be written there (or, when it is not made yet, in the

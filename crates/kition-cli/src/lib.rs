@@ -9,6 +9,7 @@
 //! put in place by one rename. See `docs/sdk/cli.md`.
 
 pub mod fetch;
+pub mod gateway;
 pub mod home;
 pub mod index;
 pub mod launcher;

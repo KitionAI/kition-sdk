@@ -4,6 +4,13 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **`kition gateway --workspace <folder>`**: one workspace's kits on loopback HTTP
+  (`http://127.0.0.1:<port>`, port 0 by default), as the one process that holds them: the Kit AI
+  bridge to attached kit editors, `/kit-files/` reads, file grants, the person's draft review and
+  the kits' MCP server (`POST /api/v1/mcp/kits`). It prints a JSON ready line (no token), keeps
+  its token in a 0600 lockfile under `KITION_HOME/run/`, serves one workspace once (a second
+  gateway exits with status 3), and stops on SIGINT, SIGTERM, SIGHUP, `--stdin-lifetime` or
+  `--idle-timeout`. It serves no editor page yet. `kition doctor` names the running gateways.
 - **The kits' HTTP API is an SDK crate**, `kition-kits-http`, ported from Kition's runtime with
   its route paths, envelope and error codes, behind a transport guard of its own,
   `kition-http-guard` (loopback `Host` and `Origin` fence, the per-launch token, signed GET URLs).

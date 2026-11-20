@@ -5,7 +5,7 @@ mod commands;
 
 use std::process::ExitCode;
 
-use commands::{agent, doctor, help, kit};
+use commands::{agent, doctor, gateway, help, kit};
 use kition_cli::index::{self, Source};
 use kition_cli::{VERSION, supply};
 
@@ -33,6 +33,7 @@ fn main() -> ExitCode {
         Some("agent") => agent::run(rest),
         Some("doctor") => doctor::run(rest),
         Some("mcp") => mcp(rest.to_vec()),
+        Some("gateway") => gateway_command(rest.to_vec()),
         Some("serve") => serve(args),
         Some(other) if other.starts_with('-') => {
             eprintln!("kition: unknown option {other}\nrun `kition --help` for the commands");
@@ -63,20 +64,33 @@ fn take_store_flags(args: Vec<String>) -> Result<(Vec<String>, Option<String>, b
     Ok((rest, index, installs))
 }
 
+/// The kit store `kition mcp` and `kition gateway` serve from, with the index and install flags.
+fn store_for(command: &'static str, index: Option<String>, installs: bool) -> kition_kits::cli::mcp::Store {
+    let source = Source::choose(index.as_deref());
+    let kits: Box<dyn FnOnce() -> _ + Send> = Box::new(move || match kit::store() {
+        Ok(store) => supply::for_mcp(store, source, installs),
+        Err(message) => {
+            eprintln!("kition {command}: {message}");
+            (Vec::new(), None)
+        }
+    });
+    kition_kits::cli::mcp::Store { usage: MCP_STORE_USAGE, kits }
+}
+
 fn mcp(args: Vec<String>) -> ExitCode {
     let (rest, index, installs) = match take_store_flags(args) {
         Ok(taken) => taken,
         Err(message) => return help::mistake(&["mcp"], message),
     };
-    let source = Source::choose(index.as_deref());
-    let kits: Box<dyn FnOnce() -> _> = Box::new(move || match kit::store() {
-        Ok(store) => supply::for_mcp(store, source, installs),
-        Err(message) => {
-            eprintln!("kition mcp: {message}");
-            (Vec::new(), None)
-        }
-    });
-    kition_kits::cli::mcp::main("kition mcp", rest.into_iter(), Some(kition_kits::cli::mcp::Store { usage: MCP_STORE_USAGE, kits }))
+    kition_kits::cli::mcp::main("kition mcp", rest.into_iter(), Some(store_for("mcp", index, installs)))
+}
+
+fn gateway_command(args: Vec<String>) -> ExitCode {
+    let (rest, index, installs) = match take_store_flags(args) {
+        Ok(taken) => taken,
+        Err(message) => return help::mistake(&["gateway"], message),
+    };
+    gateway::run(rest, store_for("gateway", index, installs))
 }
 
 fn serve(args: Vec<String>) -> ExitCode {

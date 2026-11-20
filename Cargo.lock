@@ -1122,12 +1122,15 @@ dependencies = [
 name = "kition-cli"
 version = "0.5.2"
 dependencies = [
+ "axum",
  "flate2",
  "hex",
  "jsonschema",
+ "kition-http-guard",
  "kition-kit-host",
  "kition-kit-process-protocol",
  "kition-kits",
+ "kition-kits-http",
  "rand 0.9.5",
  "semver",
  "serde",

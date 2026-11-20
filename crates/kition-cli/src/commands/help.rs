@@ -25,6 +25,7 @@ agents:
 servers:
   kition mcp [--workspace <folder>]        the kits' MCP server on stdio (default: this folder)
   kition serve --workspace <folder>        the Kits Service API on stdio
+  kition gateway --workspace <folder>      one workspace's kits on loopback HTTP, for editors
 
 troubleshooting:
   kition doctor [--json]                   check kition, its home, PATH, index, kits and agents
@@ -170,11 +171,38 @@ usage: kition doctor [--json] [--index <address or file>]
 Checks kition: its version and protocol; the Kition home and whether it can be written; whether
 the folder holding this kition (installed with npm: npm's kition command) is on the PATH; whether
 the kit index can be read now (or how old the kept copy is); each installed kit in use, started
-and asked kit.initialize; and which agents have kition registered. Each failed check ends with
-the command that fixes it; the exit status is 1 when any check failed.
+and asked kit.initialize; which kition gateways run, for which workspace; and which agents have
+kition registered. Each failed check ends with the command that fixes it; the exit status is 1
+when any check failed.
 
   --json    the same as JSON: version, protocol, platform, ok, and checks (name, status ok, warn,
             fail or info, detail, fix)
+";
+
+const GATEWAY: &str = "\
+usage: kition gateway --workspace <folder> [--port <n>] [--stdin-lifetime] [--idle-timeout <s>]
+                      [kit options of kition mcp]
+
+Serves one workspace's kits on http://127.0.0.1:<port>, as the one process that holds them: the
+Kit AI bridge to kit editors attached to it, the workspace's files for them, file grants, the
+agent's drafts for review, and the kits' MCP server, to which kition mcp for the same workspace
+relays (kition mcp --help). It serves no editor page itself yet. Every request but GET /health
+needs the token in the Kition-Token header; non-loopback hosts and other origins are refused.
+
+On start it prints one JSON line on stdout, {\"kition\":\"gateway-ready\", \"url\", \"port\",
+\"pid\", \"workspace\", \"protocol\", \"version\", \"apiPrefix\", \"lockfile\"}, and writes the
+lockfile KITION_HOME/run/<key>.json (readable by this account only) with the same and the token.
+A gateway already serving the workspace makes it print {\"kition\":\"gateway-running\", ...} and
+exit with status 3. It stops on SIGINT, SIGTERM or SIGHUP, saves and stops its kits, and removes
+its lockfile.
+
+  --workspace <folder>   the folder it serves (one per gateway)
+  --port <n>             the port (default 0: one the system picks)
+  --stdin-lifetime       stop when stdin closes, so the process that started it takes it along
+  --idle-timeout <s>     stop after this many seconds with no request and no editor attached
+  --unified, --drafts, --guard, --require-basis, --kit, --kits-dir, --sandbox, --index,
+  --no-install, --call-timeout-secs, --idle-timeout-secs, --memory-limit-mib
+                         as kition mcp takes them (kition mcp --help)
 ";
 
 /// The usage of `kition <path>` (`["kit", "install"]`), when it has one of its own.
@@ -194,6 +222,7 @@ pub fn of(path: &[&str]) -> Option<&'static str> {
         ["agent", "remove"] => AGENT_REMOVE,
         ["agent", "list"] => AGENT_LIST,
         ["doctor"] => DOCTOR,
+        ["gateway"] => GATEWAY,
         _ => return None,
     })
 }
@@ -204,6 +233,7 @@ pub const COMMANDS: &[(&str, &[&str])] = &[
     ("agent", &["add", "remove", "list"]),
     ("mcp", &[]),
     ("serve", &[]),
+    ("gateway", &[]),
     ("doctor", &[]),
 ];
 

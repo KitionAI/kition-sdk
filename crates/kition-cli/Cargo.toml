@@ -1,6 +1,6 @@
 [package]
 name = "kition-cli"
-description = "kition, the Kition command line: a kit store under ~/.kition filled from a kit index, and the kits' MCP server and Kits Service on the store's kits."
+description = "kition, the Kition command line: a kit store under ~/.kition filled from a kit index, and the kits' MCP server, Kits Service and loopback gateway on the store's kits."
 # The SDK version (sdk.json `version`), which `kition --version` states; a test keeps them equal.
 version = "0.5.2"
 edition.workspace = true
@@ -17,7 +17,9 @@ name = "kition"
 path = "src/main.rs"
 
 [dependencies]
+kition-http-guard = { path = "../kition-http-guard" }
 kition-kits = { path = "../kition-kits" }
+kition-kits-http = { path = "../kition-kits-http" }
 kition-kit-host = { path = "../kition-kit-host" }
 kition-kit-process-protocol = { path = "../kition-kit-process-protocol" }
 
@@ -32,8 +34,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"
 tar = { version = "0.4", default-features = false }
-# `kition doctor` starts the installed kits at once, on kition-kits' runtime.
-tokio = { version = "1", features = ["rt"] }
+# `kition doctor` starts the installed kits at once, on kition-kits' runtime; `kition gateway`
+# serves HTTP on it (axum, as kition-kits-http uses it) and `kition mcp` relays on it.
+axum = "0.8"
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 url = "2"
 
