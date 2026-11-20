@@ -501,7 +501,12 @@ test('in Chinese and dark, in a narrower window: the cards, a tab’s marks, the
           for (const child of card.querySelectorAll<HTMLElement>('*')) if (child.scrollWidth > child.clientWidth + 1 && getComputedStyle(child).textOverflow !== 'ellipsis') found.push(`card ${index}: ${child.tagName} ${child.textContent?.slice(0, 30)} overflows`)
           return found
         }), chinese.source)
-    await expect.poll(problems, { timeout: 15_000 }).toEqual([])
+    const of = async (kind: string) => (await problems()).filter((problem) => problem.endsWith(kind))
+    await expect.poll(() => of(' outside'), { timeout: 15_000 }).toEqual([])
+    await expect.poll(() => of(' not in Chinese'), { timeout: 15_000 }).toEqual([])
+    await expect.poll(() => of(' overflows'), { timeout: 15_000 }).toEqual([])
+    // Settled: none of them, in one look.
+    expect(await problems()).toEqual([])
     await page.screenshot({ path: path.join(shots, 'dsh-zh-dark-cards.png') })
     await drafted.locator('[data-kition-card-action="open"]').click()
     const mark = page.locator('[data-kition-draft]').first()
