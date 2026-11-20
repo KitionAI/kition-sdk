@@ -5,7 +5,7 @@
  */
 
 /** A kit as `GET /api/v1/kits` lists it. */
-export type KitStatus = { id: string; name: string; extensions: string[]; creates: string[]; installed: boolean }
+export type KitStatus = { id: string; name: string; extensions: string[]; views?: string[]; creates: string[]; installed: boolean }
 
 /** The extensions a kit opens, by role. */
 export type KitFormats = { id: string; edit: string[]; view?: string[] }
@@ -42,3 +42,14 @@ export function chooseKit(kits: KitFormats[], path: string): { id: string; edits
 
 /** The kit's short name: `table` for `kit.table`. */
 export const shortName = (id: string) => id.replace(/^kit\./, '')
+
+/**
+ * Extra host shortcuts from the page's address (`keys=Cmd+Alt+, Cmd+Alt+W`, space-separated): what
+ * a framing host binds besides the defaults (a browser host binds with Alt, the browser owning
+ * Cmd+N and its kind). Only modifier shortcuts are taken.
+ */
+export function shortcutsFrom(value: string | null): string[] {
+  if (!value) return []
+  const valid = /^(?:(?:Cmd|Ctrl|Alt|Shift)\+)+(?:[A-Za-z0-9]|F[0-9]{1,2}|[,./\\;'`\[\]=-]|Enter|Backspace|Delete)$/
+  return [...new Set(value.split(/\s+/).filter((key) => valid.test(key)))].slice(0, 32)
+}

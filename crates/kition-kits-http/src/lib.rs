@@ -206,14 +206,14 @@ fn known_kits(kits: &KitManager) -> Vec<Value> {
     for kit in kits.supply().map(|supply| supply.available()).unwrap_or_default() {
         if !known.iter().any(|status| status["id"] == kit.id) {
             let creates: Vec<&str> = kit.creates.iter().map(|(extension, _)| *extension).collect();
-            known.push(json!({ "id": kit.id, "name": kit.name, "extensions": kit.extensions, "creates": creates, "installed": false }));
+            known.push(json!({ "id": kit.id, "name": kit.name, "extensions": kit.extensions, "views": kit.views, "creates": creates, "installed": false }));
         }
     }
     known
 }
 
 /// `GET /kits`: the kits and whether each is installed, those a supply installs on first use
-/// included.
+/// included; `extensions` they edit, `views` they open read-only.
 async fn list(State(state): State<KitsState>, _caller: RequireToken) -> Response {
     ok(json!({ "kits": known_kits(&state.kits) }))
 }

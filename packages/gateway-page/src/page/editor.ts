@@ -47,6 +47,8 @@ export class EditorView {
   private draft: GatewayPageDraft = null
   private readonly held = { version: null as string | null }
   private reviewing: { close: () => void } | null = null
+  /** The kit only views the file's type: the editor opens it read-only. */
+  private readOnly = false
 
   constructor(
     private readonly gateway: Gateway,
@@ -54,18 +56,21 @@ export class EditorView {
     readonly path: string,
     private readonly root: HTMLElement,
     private readonly direct: boolean,
+    private readonly shortcuts: string[] = [],
+    /** Whether the editor takes the keyboard focus when it opens. */
+    private readonly takesFocus = true,
   ) {}
 
   /** What a test or a host may read. */
   get state() {
-    return { path: this.path, kit: this.kit?.id ?? null, status: this.status, dirty: this.dirty, revision: this.revision, draft: this.draft, connection: this.connection }
+    return { path: this.path, kit: this.kit?.id ?? null, status: this.status, dirty: this.dirty, readOnly: this.readOnly, revision: this.revision, draft: this.draft, connection: this.connection }
   }
 
   private report(status: GatewayPageStatus, extra: { progress?: { done: number; total: number }; detail?: string } = {}) {
     this.status = status
     this.root.dataset.status = status
     document.title = `${nameOf(this.path)}${this.dirty ? ' •' : ''} — Kition`
-    post({ type: 'state', path: this.path, title: nameOf(this.path), kit: this.kit?.id ?? null, status, dirty: this.dirty, ...extra })
+    post({ type: 'state', path: this.path, title: nameOf(this.path), kit: this.kit?.id ?? null, status, dirty: this.dirty, readOnly: this.readOnly, ...extra })
   }
 
   private show(node: HTMLElement | null) {
@@ -85,10 +90,11 @@ export class EditorView {
     try {
       const [{ kits }, { editors }] = await Promise.all([this.gateway.json<{ kits: KitStatus[] }>('api/v1/kits'), this.gateway.json<{ editors: Record<string, EditorEntry> }>('api/v1/kits/editors')])
       const chosen = chooseKit(
-        kits.map((kit) => ({ id: kit.id, edit: kit.extensions })),
+        kits.map((kit) => ({ id: kit.id, edit: kit.extensions, view: kit.views ?? [] })),
         this.path,
       )
       this.kit = chosen ? (kits.find((kit) => kit.id === chosen.id) ?? null) : null
+      this.readOnly = chosen !== null && !chosen.edits
       if (!this.kit) {
         this.show(panel('no-kit', t('noKitTitle', { name: nameOf(this.path) }), t('noKit', { extension: extensionOf(this.path) || '?' })))
         this.report('no-kit')
@@ -170,7 +176,7 @@ export class EditorView {
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null)) as PackageManifest | null
     const editorState = declaredEditorState(manifest)
-    const readOnly = false
+    const readOnly = this.readOnly
     const files = manifest?.files ? filesOption(this.gateway, kit.id, this.path, manifest.files, readOnly, (path) => path === this.path && this.dirty) : null
     if (files) this.cleanups.push(() => void files.end())
     const lend = { root: await this.lendRoot(), folder: this.path.split('/').slice(0, -1).join('/') }
@@ -194,10 +200,10 @@ export class EditorView {
         signal: abandon.signal,
         origin: location.origin,
         host: { name: 'Kition gateway', version: '0.5.2' },
-        document: { path: this.path, name: nameOf(this.path), bytes: file.bytes, version: file.stamp, lend },
+        document: { path: this.path, name: nameOf(this.path), bytes: file.bytes, version: file.stamp, lend, readOnly },
         theme: kitTheme(),
         locale: kitLocale(),
-        shortcuts: HOST_SHORTCUTS,
+        shortcuts: [...new Set([...HOST_SHORTCUTS, ...this.shortcuts])],
         ...(narrow ? { ui: { modes: { default: 'focus' } } } : {}),
         ...(files ? { files: files.option } : {}),
         handlers: {
@@ -239,7 +245,7 @@ export class EditorView {
     )
     this.cleanups.push(() => connection.close())
     this.watchDrafts()
-    connection.focus()
+    if (this.takesFocus) connection.focus()
   }
 
   /** The banner while the agent has a headless draft of the file, following it. */
@@ -253,8 +259,11 @@ export class EditorView {
       const found = listed.drafts.find((draft) => draft.path === this.path)
       const next: GatewayPageDraft = found ? { state: found.state === 'ready' ? 'ready' : 'open', stale: Boolean(found.stale), updated: found.updated ?? null } : null
       if (JSON.stringify(next) !== JSON.stringify(this.draft)) {
+        const had = this.draft !== null
         this.draft = next
         post({ type: 'draft', path: this.path, draft: next })
+        // Merged elsewhere (a host's review card, another page): the editor takes the merged file.
+        if (had && !next && !this.reviewing && !this.dirty) void this.followMerge()
       }
       if (!next) {
         banner.hidden = true
@@ -304,7 +313,8 @@ export class EditorView {
   /** The file was replaced by a merge: the editor takes the new version (it has no unsaved edits). */
   private async followMerge() {
     const version = await stampFile(this.gateway, this.path)
-    if (!version || !this.connection) return
+    // A discard leaves the file as it was.
+    if (!version || !this.connection || version === this.held.version) return
     this.held.version = version
     this.connection.fileChanged(version)
   }

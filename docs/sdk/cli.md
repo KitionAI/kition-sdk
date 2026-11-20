@@ -331,7 +331,7 @@ in for it on the reads that cannot carry a header); a request whose `Host` is no
 | --- | --- |
 | `GET /health` (no token) | `{"code":200,"message":"success","data":"healthy"}` |
 | `GET /gateway` | its `protocol`, `version`, `pid`, `workspace`, `unified` and `started` |
-| `GET /kits` | the kits and whether each is installed |
+| `GET /kits` | the kits, the extensions each edits (`extensions`) and only views (`views`, opened read-only), and whether each is installed |
 | `GET /kits/editors` | each kit's editor package: the version a page loads, whether it is installed (`base`, where from), whether the index offers it, its download |
 | `POST /kits/editors/install` | `{kit}`: installs the kit's editor package (`202`); `GET /kits/editors` follows the download |
 | `PUT /kits/files?path=[&document=][&expected=]` | an editor saves its document (only over the version `expected` names, else `409 file_conflict`) or writes a new file; answers the new `version` |

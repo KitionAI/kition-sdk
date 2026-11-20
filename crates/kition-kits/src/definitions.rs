@@ -31,6 +31,9 @@ pub struct KitDefinition {
     pub name: &'static str,
     /// Lowercase extensions, without the dot, that open in this kit: its `edit` formats.
     pub extensions: &'static [&'static str],
+    /// Lowercase extensions it only views (its `view` formats it does not also edit): an editor
+    /// opens them read-only; the agent's tools do not take them.
+    pub views: &'static [&'static str],
     /// The extensions it creates new documents in (`kit.json` `creates[].extension`), with the
     /// type id of each (`creates[].id`).
     pub creates: &'static [(&'static str, &'static str)],
@@ -171,6 +174,16 @@ impl KitDefinition {
         if extensions.is_empty() {
             return Err(format!("{id}: kit.json declares no `edit` format"));
         }
+        let mut views: Vec<String> = Vec::new();
+        for format in manifest.get("formats").and_then(Value::as_array).into_iter().flatten() {
+            if format.get("role").and_then(Value::as_str) == Some("view") {
+                for extension in extension_list(&format["extensions"]) {
+                    if !extensions.contains(&extension) && !views.contains(&extension) {
+                        views.push(extension);
+                    }
+                }
+            }
+        }
         let creates: Vec<(String, String)> = manifest
             .get("creates")
             .and_then(Value::as_array)
@@ -237,6 +250,7 @@ impl KitDefinition {
             id: leak(id),
             name: leak(name),
             extensions: leak_all(extensions.into_iter().map(leak).collect()),
+            views: leak_all(views.into_iter().map(leak).collect()),
             creates: leak_all(creates.into_iter().map(|(extension, kind)| (leak(extension), leak(kind))).collect()),
             base_name: leak(base_name),
             exports: leak_all(exports.into_iter().map(leak).collect()),
@@ -693,6 +707,7 @@ mod tests {
         let kit = KitDefinition::from_manifest(&manifest()).unwrap_or_else(|error| panic!("{error}"));
         assert_eq!((kit.id, kit.name, kit.short_name()), ("kit.sample", "Sample", "sample"));
         assert_eq!(kit.extensions, ["ksample"], "only the edit formats open in the kit");
+        assert_eq!(kit.views, ["svg"], "the view formats open read-only");
         assert_eq!(kit.creates, [("ksample", "sample")]);
         assert_eq!(kit.base_name, "Untitled sample");
         assert_eq!(kit.exports, ["png", "jpg"], "exports and the files it creates beside its documents");
@@ -700,6 +715,18 @@ mod tests {
         assert_eq!((kit.agent.prefix, kit.agent.noun, kit.agent.command, kit.agent.render), ("sample", "sample drawing", "shape.circle", Some("file.render")));
         let Some(export) = &kit.agent.export else { panic!("agent.export is read") };
         assert_eq!((export.command, export.formats, export.data, export.params), ("file.exportBytes", &["png"][..], "data", r#"{"ids":[]}"#));
+    }
+
+    #[test]
+    fn a_format_the_kit_edits_is_no_view_format_too() {
+        let mut both = manifest();
+        both["formats"] = json!([
+            { "id": "a", "extensions": ["ksample", "html"], "role": "edit" },
+            { "id": "b", "extensions": ["html", "htm", "svg"], "role": "view" },
+            { "id": "c", "extensions": ["svg"], "role": "view" }
+        ]);
+        let kit = KitDefinition::from_manifest(&both).unwrap_or_else(|error| panic!("{error}"));
+        assert_eq!(kit.views, ["htm", "svg"]);
     }
 
     #[test]

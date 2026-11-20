@@ -4,7 +4,7 @@ import { answer, backoff, events, failure, type BridgeEditor } from '../src/page
 import { cleanPath, encodePath, gatewayRoot } from '../src/page/gateway'
 import { packReplica, readable, unpackReplica } from '../src/page/host'
 import { agentInspect } from '../src/page/inspect'
-import { chooseKit, extensionOf } from '../src/page/kits'
+import { chooseKit, extensionOf, shortcutsFrom } from '../src/page/kits'
 
 describe('the gateway page: addresses and the kit a file opens in', () => {
   it('finds the gateway root before page/, under any prefix and through a signed page address', () => {
@@ -38,6 +38,13 @@ describe('the gateway page: addresses and the kit a file opens in', () => {
     expect(chooseKit(kits, 'README')).toBeNull()
     expect(chooseKit(kits, 'x.ktable')).toBeNull()
     expect(extensionOf('a/b.c/.hidden')).toBe('')
+  })
+
+  it('takes the host shortcuts a framing host adds from the address, and nothing else', () => {
+    expect(gatewayPageAddress('/kition/', 'a.md', { keys: ['Cmd+Alt+,', 'Cmd+Alt+W'] })).toBe('/kition/page/?path=a.md&keys=Cmd%2BAlt%2B%2C+Cmd%2BAlt%2BW')
+    expect(shortcutsFrom('Cmd+Alt+, Cmd+Alt+W Cmd+Alt+W')).toEqual(['Cmd+Alt+,', 'Cmd+Alt+W'])
+    expect(shortcutsFrom('a Cmd+ <script> Alt+F12 Shift+Enter')).toEqual(['Alt+F12', 'Shift+Enter'])
+    expect(shortcutsFrom(null)).toEqual([])
   })
 
   it('builds the addresses a host frames and reads only its own messages', () => {

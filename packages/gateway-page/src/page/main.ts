@@ -16,6 +16,7 @@ import { localeFrom, setLocale, t } from './i18n'
 import { listen, post } from './parent'
 import { mountReview } from './review'
 import { schemeFrom, setScheme } from './theme'
+import { shortcutsFrom } from './kits'
 import { h, panel } from './ui'
 
 const params = new URLSearchParams(location.search)
@@ -67,7 +68,7 @@ async function start() {
     post({ type: 'ready', view, path })
     return
   }
-  const editor = new EditorView(gateway, bridge, path, app, gateway.session !== null)
+  const editor = new EditorView(gateway, bridge, path, app, gateway.session !== null, shortcutsFrom(params.get('keys')), params.get('focus') !== 'no')
   gateway.onUnauthorized = () => undefined
   ;(window as unknown as { kitionGatewayPage: unknown }).kitionGatewayPage = {
     get state() {
@@ -91,6 +92,9 @@ async function start() {
         break
       case 'focus':
         editor.focus()
+        break
+      case 'review':
+        editor.review()
         break
     }
   })

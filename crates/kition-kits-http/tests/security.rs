@@ -28,6 +28,7 @@ static MOCK: KitDefinition = KitDefinition {
     id: "kit.mock",
     name: "Mock kit",
     extensions: &["mocktext"],
+    views: &[],
     creates: &[("mocktext", "mock.text")],
     base_name: "Untitled Mock kit",
     exports: &["mockout"],

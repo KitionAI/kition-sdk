@@ -20,7 +20,7 @@ any prefix works.
 
 | Address | What |
 | --- | --- |
-| `<root>page/?path=<file>[&theme=light\|dark][&locale=en\|zh]` | the editor of the workspace file `<file>` (workspace-relative, `/`-separated) |
+| `<root>page/?path=<file>[&theme=light\|dark][&locale=en\|zh][&keys=<shortcuts>][&focus=no]` | the editor of the workspace file `<file>` (workspace-relative, `/`-separated) |
 | `<root>page/review?path=<file>[&theme=…][&locale=…]` | the review of the agent's draft of `<file>` |
 | `<root>kits-ui/<kit>@<version>/<file>` | a kit's editor package (the page frames `index.html`) |
 | `<root>kit-files/<path>` | workspace files as kits read them |
@@ -28,7 +28,14 @@ any prefix works.
 
 The kit is chosen by the file's extension among the kits the gateway serves and those its kit index
 offers: a kit that edits the extension wins over one that only views it (`.html` and `.htm` go to
-the HTML kit, not to Doc). The editor package is the version of the kit in use (else the newest the
+the HTML kit, not to Doc). A type no kit edits but some kit views (its `view` formats, which
+`GET /api/v1/kits` lists as `views`: Vector's `.svg`, Sheet's `.csv`, Design's `.fig`) opens in that
+kit's editor read-only: nothing is saved, and the agent's runs on the open file are refused.
+
+`keys` adds shortcuts the editor leaves to the host besides the page's own (space-separated, as kits
+write them: `keys=Cmd+Alt+, Cmd+Alt+W`): a browser host binds its own with Alt, the browser keeping
+Cmd+N and its kind. `focus=no` opens the editor without taking the keyboard focus (a window the
+person watches while typing elsewhere). The editor package is the version of the kit in use (else the newest the
 index offers); when it is not installed the page installs it and shows the download's progress.
 
 The page shows a state instead of the editor when it cannot open the file, and tells the host
@@ -120,7 +127,7 @@ The page tells the host:
 | `type` | Fields | When |
 | --- | --- | --- |
 | `ready` | `view` (`editor`, `review`), `path` (`null` without a valid one) | once, when it listens |
-| `state` | `path`, `title` (the file's name), `kit` (its id or `null`), `status` (see [Addresses](#addresses): `opening`, `downloading`, `open`, `missing`, `no-kit`, `not-installed`, `unreachable`, `failed`), `dirty`, `progress?` `{done, total}`, `detail?` | every change: opening, the download, each edit (`dirty`) |
+| `state` | `path`, `title` (the file's name), `kit` (its id or `null`), `status` (see [Addresses](#addresses): `opening`, `downloading`, `open`, `missing`, `no-kit`, `not-installed`, `unreachable`, `failed`), `dirty`, `readOnly` (a view-only format), `progress?` `{done, total}`, `detail?` | every change: opening, the download, each edit (`dirty`) |
 | `shortcut` | `key` `{key, code, meta?, ctrl?, shift?, alt?}` | a host shortcut pressed in the editor (Cmd+N, Cmd+O, Cmd+W, Cmd+T, Cmd+,, Cmd+Q, Cmd+P, Cmd+.); the editor keeps every other key, Cmd+S included |
 | `request-close` | `path`, `dirty` | the person pressed Cmd+W (Ctrl+W) in the editor: close the tab, asking first when `dirty` |
 | `draft` | `path`, `draft` (`null`, or `{state: 'open'\|'ready', stale, updated}`) | the agent's headless draft of the file appeared, changed, became ready, or went |
@@ -135,11 +142,12 @@ The host tells the page:
 | `locale` | `locale` (`en`, `zh`) | shows that language, the editor's included |
 | `save` | | saves the file now; answers `saved` |
 | `focus` | | gives the editor the keyboard focus |
+| `review` | | opens the review of the agent's draft of the file over the editor |
 
 The draft banner ("An agent drafted changes to this file — Review") opens the review over the
 editor; Merge and Discard there are the person's only, never the agent's (decision R9: an agent's
 draft is always a headless draft, even when the file is open). After a merge the editor takes the
-merged file. A merge refused as `stale` (the file changed since the draft forked) says so and offers
+merged file, also one made outside the page (a host's review card). A merge refused as `stale` (the file changed since the draft forked) says so and offers
 "Merge and overwrite" instead. With unsaved edits in the editor, Merge is refused until they are
 saved.
 

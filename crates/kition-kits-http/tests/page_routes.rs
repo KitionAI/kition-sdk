@@ -31,6 +31,7 @@ static MOCK: KitDefinition = KitDefinition {
     id: "kit.mock",
     name: "Mock kit",
     extensions: &["mocktext"],
+    views: &["mockview"],
     creates: &[("mocktext", "mock.text")],
     base_name: "Untitled Mock kit",
     exports: &[],
@@ -258,6 +259,19 @@ async fn editor_packages_are_served_from_the_store_and_listed_and_installed_for_
     assert_eq!((started.status, started.data()["started"].clone()), (StatusCode::ACCEPTED, json!(true)));
     assert_eq!(f.store.installs.lock().unwrap().as_slice(), ["mock"]);
     assert_eq!(call(&f.app, "POST", &api("/kits/editors/install"), Some(json!({ "kit": "nothing" }))).await.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_kits_list_what_each_edits_and_what_it_only_views() {
+    let f = fixture();
+    let listed = call(&f.app, "GET", &api("/kits"), None).await;
+    let kit = &listed.data()["kits"][0];
+    assert_eq!(
+        (kit["id"].clone(), kit["extensions"].clone(), kit["views"].clone()),
+        (json!("kit.mock"), json!(["mocktext"]), json!(["mockview"])),
+        "{}",
+        listed.json
+    );
 }
 
 #[tokio::test]

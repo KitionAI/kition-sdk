@@ -134,6 +134,8 @@ pub struct KitStatus {
     pub id: &'static str,
     pub name: &'static str,
     pub extensions: Vec<&'static str>,
+    /// Extensions it opens to view only, read-only.
+    pub views: Vec<&'static str>,
     /// Extensions this kit can create new documents in.
     pub creates: Vec<&'static str>,
     pub installed: bool,
@@ -643,6 +645,7 @@ impl KitManager {
                 id: kit.id,
                 name: kit.name,
                 extensions: kit.extensions.to_vec(),
+                views: kit.views.to_vec(),
                 creates: kit.creates.iter().map(|(extension, _)| *extension).collect(),
                 installed: binary.as_deref().is_some_and(Path::is_file),
             })

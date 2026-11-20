@@ -16,6 +16,7 @@ static GENERIC: KitDefinition = KitDefinition {
     id: "kit.<kit>",
     name: "<Kit>",
     extensions: &[],
+    views: &[],
     creates: &[],
     base_name: "Untitled <kit>",
     exports: &[],

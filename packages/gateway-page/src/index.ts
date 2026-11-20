@@ -44,6 +44,8 @@ export type GatewayPageMessage =
       kit: string | null
       status: GatewayPageStatus
       dirty: boolean
+      /** The kit only views the file's type: the editor shows it read-only. */
+      readOnly?: boolean
       progress?: { done: number; total: number }
       detail?: string
     }
@@ -68,6 +70,8 @@ export type GatewayPageCommand =
   | { kitionGatewayPage: 1; type: 'save' }
   /** Give the editor the keyboard focus. */
   | { kitionGatewayPage: 1; type: 'focus' }
+  /** Open the review of the agent's draft of the file over the editor. */
+  | { kitionGatewayPage: 1; type: 'review' }
 
 /** Whether `data` is a message of this protocol (either way). */
 export function isGatewayPageMessage(data: unknown): data is GatewayPageMessage | GatewayPageCommand {
@@ -78,12 +82,16 @@ export function isGatewayPageMessage(data: unknown): data is GatewayPageMessage 
  * The page's address under `prefix` (where a same-origin proxy serves the gateway, `/kition/` for
  * example; `/` for the gateway itself) for the workspace file `path`: `<prefix>page/?path=...`, or
  * the review of its draft, `<prefix>page/review?path=...`. `theme` and `locale` set what it shows
- * first (`theme=light|dark`, `locale=en|zh`).
+ * first (`theme=light|dark`, `locale=en|zh`); `keys` are host shortcuts the editor leaves to the host
+ * besides the page's own (`keys=Cmd+Alt+, Cmd+Alt+W`); `focus: false` (`focus=no`) opens the editor
+ * without taking the keyboard focus (a window the person watches while typing elsewhere).
  */
-export function gatewayPageAddress(prefix: string, path: string, options: { view?: GatewayPageView; theme?: 'light' | 'dark'; locale?: 'en' | 'zh' } = {}) {
+export function gatewayPageAddress(prefix: string, path: string, options: { view?: GatewayPageView; theme?: 'light' | 'dark'; locale?: 'en' | 'zh'; keys?: string[]; focus?: boolean } = {}) {
   const base = prefix.endsWith('/') ? prefix : `${prefix}/`
   const query = new URLSearchParams({ path })
   if (options.theme) query.set('theme', options.theme)
   if (options.locale) query.set('locale', options.locale)
+  if (options.keys?.length) query.set('keys', options.keys.join(' '))
+  if (options.focus === false) query.set('focus', 'no')
   return `${base}page/${options.view === 'review' ? 'review' : ''}?${query.toString()}`
 }
