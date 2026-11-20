@@ -8,7 +8,7 @@ file they asked about) with the file, with the bash tool. The launcher is `../..
 relative to this skill's base directory; give its full path, and quote the file's:
 
 ```sh
-node <base directory>/../../bin/kits-mcp.mjs drafts compare <file> --previews --workspace "${KITION_WORKSPACE:-$PWD}"
+node <base directory>/../../bin/kits-mcp.mjs drafts compare <file> --previews --workspace "$PWD"
 ```
 
 It prints JSON: what the merge would change and, with `--previews`, a rendering of each side. Tell the

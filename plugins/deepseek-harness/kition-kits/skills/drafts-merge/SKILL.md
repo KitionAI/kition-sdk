@@ -9,7 +9,7 @@ Run, with the bash tool, the launcher `../../bin/kits-mcp.mjs` relative to this 
 directory (give its full path) and the file's path quoted:
 
 ```sh
-node <base directory>/../../bin/kits-mcp.mjs drafts merge <file> --workspace "${KITION_WORKSPACE:-$PWD}"
+node <base directory>/../../bin/kits-mcp.mjs drafts merge <file> --workspace "$PWD"
 ```
 
 If it answers `stale`, the file changed since the draft began: tell the person, and only add

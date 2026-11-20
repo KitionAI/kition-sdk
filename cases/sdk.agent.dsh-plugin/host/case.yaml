@@ -1,0 +1,31 @@
+format: 1
+id: sdk.agent.dsh-plugin/host
+feature: sdk.agent.dsh-plugin
+intent: >-
+  The plugin's host module finds kition (KITION_BIN, a kition KITION_KITS_MCP, the PATH, then
+  ~/.kition/bin, ~/.cargo/bin, /usr/local/bin and /opt/homebrew/bin) and answers at once with how to
+  install it when there is none; it starts one kition gateway --stdin-lifetime per canonical
+  workspace on first need with the launcher's kit options, reuses it, reuses one another process
+  runs (its lockfile, exit 3), starts another with a new token after it dies, says why when it cannot
+  start, and stops the ones it started with the host; its /kition/ proxy refuses whatever DeepSeek
+  Harness's login refuses before reading or starting anything, opens only a file inside a known
+  session's workspace, answers 404 for a workspace key no session works in and never climbs out of
+  the key, forwards with the gateway's Host and token and without Origin, Cookie, Referer or the
+  browser's Kition-Token, streams an event stream event by event, passes ranges and an 8 MiB body
+  through as they are, and answers 502 with a reason when the gateway does not answer; its kit tools
+  run each call on the gateway of the calling session's own workspace.
+layer: gate
+source:
+  kind: synthetic
+  from: tools/dsh-plugin-host.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/dsh-plugin-host.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 120

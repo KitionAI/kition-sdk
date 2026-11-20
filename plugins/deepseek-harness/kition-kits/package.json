@@ -1,7 +1,7 @@
 {
   "name": "@kition/dsh-kits",
   "version": "0.5.2",
-  "description": "The Kition kits in DeepSeek Harness: their KHP tools through Kition's MCP server, an editing skill per kit, and the person's draft review.",
+  "description": "The Kition kits in DeepSeek Harness: each kit file opens in its own Kition editor in the right sidebar, an agent’s edits appear there live, and agents get the kits’ KHP tools, an editing skill per kit and the person’s draft review.",
   "license": "Apache-2.0",
   "homepage": "https://kition.ai",
   "repository": {
@@ -9,11 +9,37 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "plugins/deepseek-harness/kition-kits"
   },
-  "keywords": ["deepseek-harness", "dsh", "dsh-plugin", "kition", "khp", "kits", "mcp"],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "kition",
+    "khp",
+    "kits",
+    "mcp"
+  ],
   "publishConfig": {
     "access": "public"
   },
-  "files": ["cordis.patch.yml", "kition-kits.http.cordis.patch.yml", "bin/kits-mcp.mjs", "skills", "README.md"],
+  "main": "./lib/host.mjs",
+  "exports": {
+    ".": "./lib/host.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "bin/kits-mcp.mjs",
+    "lib/forward.mjs",
+    "lib/gateways.mjs",
+    "lib/host.mjs",
+    "lib/kition.mjs",
+    "lib/mcp.mjs",
+    "lib/routes.mjs",
+    "lib/tools.mjs",
+    "lib/workspaces.mjs",
+    "skills",
+    "README.md"
+  ],
   "engines": {
     "dsh": ">=0.2.2-rc.5 <0.3.0-0"
   },

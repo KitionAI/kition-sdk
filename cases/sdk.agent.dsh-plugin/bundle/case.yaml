@@ -2,12 +2,14 @@ format: 1
 id: sdk.agent.dsh-plugin/bundle
 feature: sdk.agent.dsh-plugin
 intent: >-
-  @kition/dsh-kits is a DeepSeek Harness bundle at the SDK's version that ships every file it lists:
-  its manifest declares the patch and a DeepSeek Harness range admitting the pinned 0.2.2-rc.5 and
-  no 0.3.0 prerelease; the patch inserts the kition-kits MCP row, which starts bin/kits-mcp.mjs, and
-  the kition-kits-skills row; the http patch overrides the MCP row by id; it has an editing skill
-  per published kit and the four draft skills, of which only the person starts merge and discard;
-  and its launcher finds the server and passes the options as the Claude Code plugin's does.
+  @kition/dsh-kits is a DeepSeek Harness bundle at the SDK's version that ships every file it lists
+  and only its host module, its launcher, its patch, its skills and its README: its manifest
+  declares the patch, the host module as its main export, and a DeepSeek Harness range admitting
+  the pinned 0.2.2-rc.5 and no 0.3.0 prerelease; the host module imports only Node's modules and
+  its own; the patch inserts the host module by the package's name and the skills row, and no MCP
+  server row bound to a folder; it has an editing skill per published kit and the four draft
+  skills, of which only the person starts merge and discard; and its launcher finds the server
+  (where install.sh puts kition too) and passes the options as the Claude Code plugin's does.
 layer: gate
 source:
   kind: synthetic

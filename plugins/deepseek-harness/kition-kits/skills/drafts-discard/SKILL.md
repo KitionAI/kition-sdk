@@ -9,7 +9,7 @@ message. Run, with the bash tool, the launcher `../../bin/kits-mcp.mjs` relative
 base directory (give its full path) and the file's path quoted:
 
 ```sh
-node <base directory>/../../bin/kits-mcp.mjs drafts discard <file> --workspace "${KITION_WORKSPACE:-$PWD}"
+node <base directory>/../../bin/kits-mcp.mjs drafts discard <file> --workspace "$PWD"
 ```
 
 Report the result as it is. The file itself is not changed.

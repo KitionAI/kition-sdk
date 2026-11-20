@@ -5,8 +5,10 @@
 //
 //   KITION_KITS_MCP      the server executable: `kition` (started as `kition mcp`) or a
 //                        kition-kits-mcp; default: `kition` on the PATH (`npm install -g
-//                        @kition/cli`, or install.sh's ~/.kition/bin), else kition-kits-mcp on the
-//                        PATH, else `npx -y @kition/cli mcp`, the npm package, which brings kition
+//                        @kition/cli`), else where kition installs to (install.sh's ~/.kition/bin,
+//                        ~/.cargo/bin, /usr/local/bin, /opt/homebrew/bin: DeepSeek Harness Desktop's
+//                        PATH often has none of them), else kition-kits-mcp on the PATH, else
+//                        `npx -y @kition/cli mcp`, the npm package, which brings kition
 //                        for this platform. kition installs each kit in ~/.kition/kits on first
 //                        use when no kits are given here
 //   KITION_KITS_DIR      a folder with one folder per installed kit (kit.json beside its executable)
@@ -18,33 +20,8 @@
 //
 // An option set to an empty string, or to an unexpanded `${...}` reference, is unset.
 import { spawn } from 'node:child_process'
-import fs from 'node:fs'
-import path from 'node:path'
 
-const windows = process.platform === 'win32'
-const unset = (value) => value === undefined || value === '' || value.includes('${')
-
-/** The executable `name` on the PATH, or null. */
-function onPath(name) {
-  const extensions = windows ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean) : ['']
-  for (const dir of (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)) {
-    for (const extension of extensions) {
-      const candidate = path.join(dir, name + extension)
-      if (executable(candidate)) return candidate
-    }
-  }
-  return null
-}
-
-function executable(file) {
-  try {
-    if (!fs.statSync(file).isFile()) return false
-    fs.accessSync(file, windows ? fs.constants.F_OK : fs.constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
+import { executable, isKition, kitOptions, onPath, unset, wellKnownKition, windows } from '../lib/kition.mjs'
 
 function fail(message) {
   process.stderr.write(`kition-kits: ${message}\n`)
@@ -60,7 +37,7 @@ let prefix = []
 if (unset(command)) {
   // An unset option must not reach the server's environment as a path.
   delete env.KITION_KITS_MCP
-  command = onPath('kition') ?? onPath('kition-kits-mcp')
+  command = onPath('kition') ?? wellKnownKition().find(executable) ?? onPath('kition-kits-mcp')
   if (!command) {
     const npx = onPath('npx')
     if (npx) {
@@ -79,20 +56,9 @@ if (unset(command)) {
   fail(`KITION_KITS_MCP is ${command}, which is not an executable file. Set it to a kition or kition-kits-mcp executable, or leave it unset.`)
 }
 // kition serves the kits as `kition mcp`, with kition-kits-mcp's arguments.
-if (prefix.length === 0 && path.basename(command, windows ? path.extname(command) : '') === 'kition') prefix = ['mcp']
+if (prefix.length === 0 && isKition(command)) prefix = ['mcp']
 
-const options = []
-if (!unset(env.KITION_KITS_DIR)) options.push('--kits-dir', env.KITION_KITS_DIR)
-if (!unset(env.KITION_KIT_REPOS)) {
-  const repos = env.KITION_KIT_REPOS
-  const entries = fs.existsSync(repos) ? fs.readdirSync(repos).filter((name) => name.startsWith('kition-')).sort() : []
-  for (const repo of entries) {
-    const kit = repo.slice('kition-'.length)
-    const built = path.join(repos, repo, 'target', 'debug', `kition-${kit}${windows ? '.exe' : ''}`)
-    if (fs.existsSync(path.join(repos, repo, 'kit.json')) && executable(built)) options.push('--kit', built)
-  }
-}
-if (serving && (unset(env.KITION_KITS_UNIFIED) ? 'true' : env.KITION_KITS_UNIFIED) === 'true') options.push('--unified')
+const options = kitOptions(env, { unified: serving })
 
 // npx is a .cmd script on Windows, which only a shell starts.
 const shell = windows && /\.(cmd|bat)$/i.test(command)

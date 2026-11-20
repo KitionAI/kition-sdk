@@ -1,13 +1,13 @@
-# @kition/dsh-kits: the Kition kits in DeepSeek Harness, without Kition running (`KitAgent 1.4` D1).
+# @kition/dsh-kits: the Kition kits in DeepSeek Harness.
 #
 # Two rows, both on the host:
 #
-# - kition-kits: Kition's MCP server through DeepSeek Harness's own MCP client. bin/kits-mcp.mjs
-#   finds the server (KITION_KITS_MCP, else kition on the PATH as `kition mcp`, else
-#   kition-kits-mcp, else `npx -y @kition/cli mcp`) and serves one workspace folder:
-#   KITION_WORKSPACE, else the folder dsh started in. Its tools are mcp__kition__kit_<action>.
-#   (DeepSeek Harness 0.2.2-rc.5's MCP client has no on-demand tool loading: every request
-#   carries the tools' definitions.)
+# - kition-kits-host: this package's host module (lib/host.mjs). It starts a `kition gateway` for a
+#   session's workspace folder when something needs it, registers the kits' tools
+#   (mcp__kition__kit_<action>) so each session's calls reach its own folder's gateway, and, in a
+#   profile with the browser UI, serves the gateway's editor page same-origin under /kition/ behind
+#   DeepSeek Harness's login. Loading the package by its name also loads its browser module
+#   (`dsh.client`): kit files open in their Kition editor in the right sidebar.
 # - kition-kits-skills: this package's skills (an editing skill per kit, and the person's draft
 #   review) in every agent's skill catalog, from the host's global skill layer.
 #
@@ -16,15 +16,8 @@
 #   dsh plugin --profile <profile> add @kition/dsh-kits
 
 - insert:
-    - id: kition-kits
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: kition
-        transport: stdio
-        command: !!js process.execPath
-        args: !!js "[process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@kition/dsh-kits/package.json')), 'bin', 'kits-mcp.mjs'), '--workspace', process.env.KITION_WORKSPACE || process.cwd()]"
-        # A run of edits on a large document can take a while.
-        toolCallTimeoutMs: 180000
+    - id: kition-kits-host
+      name: '@kition/dsh-kits'
     - id: kition-kits-skills
       name: '@deepseek-ai/dsh-skill-filesystem'
       config:

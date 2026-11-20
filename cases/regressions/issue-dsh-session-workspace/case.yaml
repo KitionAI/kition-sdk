@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-dsh-session-workspace
+feature: sdk.agent.dsh-plugin
+intent: >-
+  The DeepSeek Harness plugin ran one kits MCP server for the whole host, on KITION_WORKSPACE or the
+  host's own folder, which in DeepSeek Harness Desktop is the profile's folder and with several
+  projects is at most one of them, and which never relayed to the gateway of an open editor's
+  folder. Its patch has no MCP server row bound to a folder any more, and its kit tools run each
+  call on the gateway of the calling session's own workspace: two sessions in two folders each
+  reach their own.
+layer: gate
+source:
+  kind: probe
+  from: tools/dsh-plugin-host.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/dsh-plugin-host.test.mjs, -t, issue-dsh-session-workspace]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 120

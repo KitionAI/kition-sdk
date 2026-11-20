@@ -706,15 +706,18 @@ features:
       - regressions/issue-agent-cube-guide
     since: "2026-11-16"
   - id: sdk.agent.dsh-plugin
-    title: The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add and gives agents the kits' tools, an editing skill per published kit and the person's draft review
+    title: "The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add and gives agents the kits' tools, which its host module registers so each session's calls reach a kition gateway for its own workspace folder (one per folder, started on need, reused, stopped with the host), an editing skill per published kit and the person's draft review"
     dimension: [ai, platform]
     priority: P1
     status: has
     paths:
       - plugins/deepseek-harness/kition-kits/**
       - tools/dsh-plugin.test.mjs
+      - tools/dsh-plugin-host.test.mjs
     cases:
       - sdk.agent.dsh-plugin/bundle
+      - sdk.agent.dsh-plugin/host
+      - regressions/issue-dsh-session-workspace
     since: "2026-11-19"
   - id: sdk.agent.headless-drafts
     title: An agent's headless drafts through kition-kits-mcp, which only the person reviews, merges or discards

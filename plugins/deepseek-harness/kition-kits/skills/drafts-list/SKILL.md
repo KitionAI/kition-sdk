@@ -7,7 +7,7 @@ List the drafts with the bash tool. The launcher is `../../bin/kits-mcp.mjs`, re
 skill's base directory; give its full path:
 
 ```sh
-node <base directory>/../../bin/kits-mcp.mjs drafts list --workspace "${KITION_WORKSPACE:-$PWD}"
+node <base directory>/../../bin/kits-mcp.mjs drafts list --workspace "$PWD"
 ```
 
 It prints JSON. Show the person each draft's file, `state` and `stale`, and say that they review a

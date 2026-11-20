@@ -1,7 +1,7 @@
 // The kition-kits DeepSeek Harness plugin (plugins/deepseek-harness/kition-kits, @kition/dsh-kits):
-// its bundle manifest, its two patches, its skills and its launcher. Its generated kit skills are
-// checked against their guides by tools/agent-plugin.test.mjs; a real DeepSeek Harness runs it in
-// the plugin's test/e2e.sh.
+// its bundle manifest, its patch, its skills and its launcher. Its host module is tested in
+// tools/dsh-plugin-host.test.mjs, its generated kit skills against their guides in
+// tools/agent-plugin.test.mjs; a real DeepSeek Harness runs it in the plugin's test/e2e.sh.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -22,9 +22,6 @@ const js = { tag: 'tag:yaml.org,2002:js', resolve: (source) => ({ js: source }) 
 const patch = (file) => YAML.parse(fs.readFileSync(path.join(plugin, file), 'utf8'), { customTags: [js] })
 const frontmatter = (text) => Object.fromEntries([...text.split('---')[1].matchAll(/^([a-z-]+): (.*)$/gm)].map(([, key, value]) => [key, value]))
 
-// The keys DeepSeek Harness 0.2.2-rc.5's dsh-mcp-client accepts, by transport.
-const MCP_KEYS = ['serverName', 'command', 'args', 'env', 'cwd', 'url', 'headers', 'toolCallTimeoutMs', 'startupTimeoutMs', 'closeTimeoutMs', 'expandTemplates', 'failOnStartupError', 'maxInstructionBytes', 'reconnect', 'transport']
-
 describe('the bundle manifest', () => {
   it('is a public package at the SDK version that DeepSeek Harness installs as a bundle', () => {
     expect(manifest.name).toBe('@kition/dsh-kits')
@@ -36,6 +33,12 @@ describe('the bundle manifest', () => {
     expect(manifest.dsh.bundle.patch).toBe('./cordis.patch.yml')
   })
 
+  it('has a host module as its main export', () => {
+    expect(manifest.main).toBe('./lib/host.mjs')
+    expect(manifest.exports['.']).toBe('./lib/host.mjs')
+    expect(manifest.exports['./package.json']).toBe('./package.json')
+  })
+
   it('admits the pinned DeepSeek Harness release and no 0.3.0 prerelease', () => {
     expect(manifest.dsh.target).toBe('0.2.2-rc.5')
     expect(manifest.dsh.commit).toMatch(/^[0-9a-f]{8,40}$/)
@@ -43,16 +46,21 @@ describe('the bundle manifest', () => {
     expect(manifest.engines.dsh).toBe(`>=${manifest.dsh.target} <0.3.0-0`)
   })
 
-  it('lists files that exist, and packs them without its tests', () => {
+  it('lists files that exist, and packs the host module, the launcher and the skills, and nothing else', () => {
     for (const entry of manifest.files) expect(fs.existsSync(path.join(plugin, entry)), entry).toBe(true)
     const [packed] = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: plugin, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))
     const files = packed.files.map((file) => file.path).sort()
-    expect(files).toContain('bin/kits-mcp.mjs')
-    expect(files).toContain('cordis.patch.yml')
-    expect(files).toContain('kition-kits.http.cordis.patch.yml')
+    const code = files.filter((file) => !file.startsWith('skills/'))
+    expect(code).toEqual(
+      ['README.md', 'bin/kits-mcp.mjs', 'cordis.patch.yml', 'lib/forward.mjs', 'lib/gateways.mjs', 'lib/host.mjs', 'lib/kition.mjs', 'lib/mcp.mjs', 'lib/routes.mjs', 'lib/tools.mjs', 'lib/workspaces.mjs', 'package.json'].sort(),
+    )
     expect(files).toContain('skills/drafts-merge/SKILL.md')
     for (const kit of PUBLISHED_KITS) expect(files).toContain(`skills/${kit}-editing/SKILL.md`)
-    expect(files.filter((file) => file.startsWith('test/'))).toEqual([])
+    // The host module needs nothing installed: only Node's own modules and its own files.
+    for (const file of code.filter((name) => name.startsWith('lib/') && name.endsWith('.mjs'))) {
+      const imports = [...fs.readFileSync(path.join(plugin, file), 'utf8').matchAll(/^import .* from '([^']+)'/gm)].map((match) => match[1])
+      for (const specifier of imports) expect(specifier, `${file} imports ${specifier}`).toMatch(/^(node:|\.\/)/)
+    }
   })
 })
 
@@ -68,23 +76,17 @@ describe('the patches', () => {
   }
   const real = (file) => fs.realpathSync(file)
 
-  it('insert the MCP server row, which starts the launcher with dsh’s own Node on the workspace', () => {
+  it('inserts the host module, by the package’s name, and no MCP server row bound to a folder', () => {
     const [{ insert }] = patch('cordis.patch.yml')
-    const row = insert.find((entry) => entry.id === 'kition-kits')
-    expect(row.name).toBe('@deepseek-ai/dsh-mcp-client')
-    expect(row.config.serverName).toBe('kition')
-    expect(row.config.transport).toBe('stdio')
-    expect(row.config.command.js).toBe('process.execPath')
-    for (const key of Object.keys(row.config)) expect(MCP_KEYS, key).toContain(key)
-    const [launcher, ...rest] = evaluate(row.config.args, { KITION_WORKSPACE: '/w' })
-    expect(real(launcher)).toBe(real(path.join(plugin, 'bin/kits-mcp.mjs')))
-    expect(rest).toEqual(['--workspace', '/w'])
-    expect(evaluate(row.config.args, {})[2]).toBe(process.cwd())
+    const row = insert.find((entry) => entry.id === 'kition-kits-host')
+    expect(row).toEqual({ id: 'kition-kits-host', name: '@kition/dsh-kits' })
+    expect(insert.filter((entry) => entry.name === '@deepseek-ai/dsh-mcp-client')).toEqual([])
+    expect(fs.existsSync(path.join(plugin, 'kition-kits.http.cordis.patch.yml'))).toBe(false)
   })
 
   it('insert the skills row, with only the plugin’s skills', () => {
     const [{ insert }] = patch('cordis.patch.yml')
-    expect(insert.map((entry) => entry.id)).toEqual(['kition-kits', 'kition-kits-skills'])
+    expect(insert.map((entry) => entry.id)).toEqual(['kition-kits-host', 'kition-kits-skills'])
     const row = insert.find((entry) => entry.id === 'kition-kits-skills')
     expect(row.name).toBe('@deepseek-ai/dsh-skill-filesystem')
     expect(row.config.providerName).toBe('kition-kits')
@@ -93,16 +95,6 @@ describe('the patches', () => {
     expect(real(evaluate(row.config.customSkillDirs[0]))).toBe(real(path.join(plugin, 'skills')))
   })
 
-  it('let a running Kition take the MCP row over by its id, restating every key', () => {
-    const rows = patch('kition-kits.http.cordis.patch.yml')
-    expect(rows).toHaveLength(1)
-    const [row] = rows
-    expect(row.id).toBe('kition-kits')
-    expect(row.config.serverName).toBe('kition')
-    expect(row.config.transport).toBe('streamable-http')
-    expect(evaluate(row.config.url, { KITION_MCP_URL: 'http://127.0.0.1:1/api/v1/mcp/kits' })).toBe('http://127.0.0.1:1/api/v1/mcp/kits')
-    for (const key of Object.keys(row.config)) expect(MCP_KEYS, key).toContain(key)
-  })
 })
 
 describe('the skills', () => {
@@ -143,11 +135,14 @@ describe('the launcher', () => {
     if (executable) fs.writeFileSync(path.join(repos, repo, 'target/debug', executable), '', { mode: 0o755 })
     if (kit) fs.writeFileSync(path.join(repos, repo, 'kit.json'), '{}')
   }
+  // A HOME of its own: a kition installed in the HOME of the machine running the tests is not found.
+  const home = path.join(dir, 'home')
+  fs.mkdirSync(home, { recursive: true })
   const run = (args, env) =>
-    execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), ...args], { env: { PATH: '/usr/bin:/bin', ...env }, encoding: 'utf8' }).trim().split('\n')
+    execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), ...args], { env: { PATH: '/usr/bin:/bin', HOME: home, ...env }, encoding: 'utf8' }).trim().split('\n')
   const failure = (args, env) => {
     try {
-      execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), ...args], { env: { PATH: '/usr/bin:/bin', ...env }, encoding: 'utf8', stdio: 'pipe' })
+      execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), ...args], { env: { PATH: '/usr/bin:/bin', HOME: home, ...env }, encoding: 'utf8', stdio: 'pipe' })
     } catch (error) {
       return { status: error.status, stderr: error.stderr }
     }
@@ -206,5 +201,15 @@ describe('the launcher', () => {
     const failing = path.join(dir, 'failing')
     fs.writeFileSync(failing, '#!/bin/sh\nexit 3\n', { mode: 0o755 })
     expect(failure(['--workspace', '/w'], { KITION_KITS_MCP: failing }).status).toBe(3)
+  })
+})
+
+describe('the launcher, where DeepSeek Harness Desktop’s PATH has no kition', () => {
+  it('finds kition where install.sh puts it', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-kits-home-'))
+    fs.mkdirSync(path.join(home, '.kition/bin'), { recursive: true })
+    fs.writeFileSync(path.join(home, '.kition/bin/kition'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 })
+    const printed = execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), 'drafts', 'list', '--workspace', '/w'], { env: { PATH: '/usr/bin:/bin', HOME: home }, encoding: 'utf8' })
+    expect(printed.trim().split('\n')).toEqual(['mcp', 'drafts', 'list', '--workspace', '/w'])
   })
 })

@@ -5,7 +5,8 @@
 #
 # Installs the published dsh runtime into a cache folder on first run (DSH_KITS_CACHE, about 1 GB),
 # installs this plugin's folder with `dsh plugin add` into the headless profile of a DSH_HOME of
-# its own, and runs one task on a copy of the note: kit_inspect through the plugin's MCP server,
+# its own, and runs one task on a copy of the note: kit_inspect through the plugin's kit tools (on
+# the gateway the plugin starts for the session's folder),
 # then the launcher's `drafts list` with the bash tool, as the draft skills run it. Needs Node.js
 # 24.9 or later and pnpm on the PATH. The kit repositories folder must hold a debug build of the
 # Note kit (kition-note/target/debug/kition-note); no kit is downloaded.
@@ -13,7 +14,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 plugin="$(dirname "$here")"
 sdk="$(cd "$plugin/../../.." && pwd)"
-server="${1:?kition or kition-kits-mcp}"; repos="${2:?folder of kit repositories}"; fixture="${3:?a .md file}"
+server="${1:?kition}"; repos="${2:?folder of kit repositories}"; fixture="${3:?a .md file}"
 server="$(cd "$(dirname "$server")" && pwd)/$(basename "$server")"; repos="$(cd "$repos" && pwd)"
 node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 9)) { console.error(`DeepSeek Harness needs Node.js 24.9 or later, not ${process.versions.node}`); process.exit(1) }'
 target="$(node -p "require('$plugin/package.json').dsh.target")"
@@ -36,7 +37,7 @@ sleep 1
 # The server: this kition with the built kits, in a Kition home of its own that installs nothing.
 status=0
 (cd "$work/workspace" && SCRIPTED_PORT="$port" SCRIPTED_API_KEY=scripted KITION_KITS_MCP="$server" \
-  KITION_KIT_REPOS="$repos" KITION_HOME="$work/kition" KITION_INDEX="$work/kition/no-index.json" \
+  KITION_BIN="$server" KITION_KIT_REPOS="$repos" KITION_HOME="$work/kition" KITION_INDEX="$work/kition/no-index.json" \
   "$dsh" --profile headless --patch "$here/scripted-route.cordis.patch.yml" "Inspect notes/Plan.md with the Kition tools.") \
   > "$work/stdout" || status=$?
 echo "dsh exit $status"
