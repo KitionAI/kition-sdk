@@ -36,6 +36,14 @@ const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$
 
 const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 
+/** The tool actions that edit a file in place, live when an editor has it open. */
+const LIVE_EDITS = new Set(['run', 'batch'])
+/** A kit tool's action: `kit_run` → `run`, `note_draft_ready` → `draft_ready`. */
+const actionOf = (name) => {
+  const at = name.indexOf('_')
+  return at > 0 ? name.slice(at + 1) : name
+}
+
 /**
  * What a kit tool call did to which file, as the session log keeps it (`presentationMeta`) for the
  * browser module's review cards: `{ kition: 1, tool, path, kit, live, draft, saved, created }`.
@@ -95,11 +103,14 @@ export const contentText = (content, reason) => projectContent(content, null, re
  *   gateways: import('./gateways.mjs').Gateways,
  *   mcp: import('./mcp.mjs').GatewayMcp,
  *   log?: (message: string) => void,
+ *   beforeEdit?: ((sessionId: string, path: string) => Promise<unknown>) | null,
  * }} options
  */
 export class KitTools {
-  constructor({ ctx, register, gateways, mcp, log = () => {} }) {
+  constructor({ ctx, register, gateways, mcp, log = () => {}, beforeEdit = null }) {
     this.ctx = ctx
+    /** Told before a call edits a file live (the live window's handshake, lib/live.mjs); never fails the call. */
+    this.beforeEdit = beforeEdit
     this.registerTool = register
     this.gateways = gateways
     this.mcp = mcp
@@ -242,6 +253,11 @@ export class KitTools {
       execute: async (args, exec) => {
         const workspace = this.workspaceOf(exec)
         const connection = this.connectionOf(exec?.agent)
+        const sessionId = exec?.agent?.session?.id
+        // A live edit of a file: the person's live window may open it first, so the edit runs there.
+        if (this.beforeEdit && LIVE_EDITS.has(actionOf(raw)) && isRecord(args) && args.draft !== true && typeof args.path === 'string' && typeof sessionId === 'string') {
+          await this.beforeEdit(sessionId, args.path).catch(() => undefined)
+        }
         let answer
         try {
           answer = await this.call(workspace, connection, raw, isRecord(args) ? args : {}, exec?.signal)

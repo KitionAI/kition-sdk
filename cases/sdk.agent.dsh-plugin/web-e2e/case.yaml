@@ -3,7 +3,7 @@ id: sdk.agent.dsh-plugin/web-e2e
 feature: sdk.agent.dsh-plugin
 intent: >-
   In the published DeepSeek Harness 0.2.2-rc.5's web UI, with the packed plugin installed by dsh
-  plugin add into a profile from the web template, the real Table, Note and Sheet kits (headless
+  plugin add into a profile from the web template, the real Table, Note and Sheet kits and Vector's editor (headless
   and editor packages from the kit index's release assets; GATEWAY_E2E_INDEX names an index with
   editor packages, kept in GATEWAY_E2E_CACHE), the real kition gateway the host module starts and a
   scripted model that takes images, all under a HOME of its own: /kition/ answers 401 without
@@ -11,7 +11,8 @@ intent: >-
   .ktable clicked in the file tree opens the real Table editor in the right sidebar in a frame named
   dsh-sidebar-html-<tab> with data-html-preview; DeepSeek Harness's settings shortcut pressed in the
   editor opens its settings, and its language reaches the page and back; a cell edited marks the tab
-  unsaved, closing the tab then asks first and keeps it when declined, and Cmd+S saves the file on
+  unsaved, reloading DeepSeek Harness then asks (the browser's question) and keeps it when declined,
+  closing the tab asks first and keeps it when declined, and Cmd+S saves the file on
   disk; a .md keeps DeepSeek Harness's Markdown preview and offers Kition Note under Open with,
   which opens the real Note editor, follows the theme, marks unsaved edits on DeepSeek Harness's
   tab and asks before it closes; the scripted agent's mcp__kition__kit_run arrives in the open
@@ -19,13 +20,22 @@ intent: >-
   image, the kits' instructions are the system prompt's MCP server section, read_mcp_resource reads
   the Note kit's manifest, a gateway killed and started again (a new token) takes the next edit
   live in the same editor, its draft leaves the file unchanged and shows the page's banner, and a
-  draft of a file open in a Kition tab marks the tab; review cards at each turn's tail: an edit of a
-  file not open opens a live window without taking the keyboard from the composer and its card's
-  Open opens it, a draft's card offers Review (the page's review), Merge (the file and the open
-  editor follow), Discard (after the person confirms) and, for a stale draft, only Merge and
-  overwrite, and the conversation reloaded shows the same cards in the same states; the live window
-  turned off on the plugin's page is written to the profile and opens nothing; a .csv opens
-  read-only in Kition Sheet; the gateway's lockfile is gone once DeepSeek Harness stops.
+  draft of a file open in a Kition tab marks the tab; closing unsaved edits asks in a dialog in the
+  page; review cards at each turn's tail, every action a real pointer click: the turn's first edit
+  of a file not open runs live, in a live window that opens beside the conversation (right of the
+  composer, covering neither it nor the cards) without taking the keyboard from the composer, and
+  its card's Open opens it; a draft's card offers Review (the page's review in the right sidebar's
+  tab, at the tab's width, the banner hidden behind it), Merge (the file and the open editor
+  follow), Discard (after the person confirms in the page's dialog) and, for a stale draft, only
+  Merge and overwrite; a draft merged with the CLI shows as no longer there; the conversation
+  reloaded, and another browser, show the same cards in the same states; in Chinese, dark and a
+  narrower window every card's buttons lie inside it in Chinese and nothing in it overflows, the
+  tab's Draft mark is whole and clear of the faded end under the tab's close button, the review's
+  buttons sit on the frame's bottom edge, the discard question and the settings card are in Chinese
+  and the settings card does not overflow; the live window turned off
+  on the plugin's page is written to the profile and opens nothing; a .csv opens read-only in
+  Kition Sheet, and a .svg in Kition Vector with only its editor package installed, the kit index
+  naming the kit that views it; the gateway's lockfile is gone once DeepSeek Harness stops.
 layer: gate
 dimension: platform
 source:

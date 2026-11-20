@@ -22,10 +22,12 @@
 import * as React from 'react'
 import { baseName, extensionOf, parseFileAddress } from './address'
 import { makeFrame, PageFrame, type Language, type PageState, type Scheme } from './frame'
-import { compare, discard, draftingTurnOf, draftsOf, exists, merge, noteDraftingTurn, openFile, outcomeOf, rememberOutcome, subscribeDraftingTurns, type Comparison, type Opened } from './gateway'
+import { compare, discard, draftingTurnOf, draftingTurnsOf, draftingVersionNow, draftsOf, exists, merge, noteDraftingTurn, openFile, reviewsOf, route, subscribeDraftingTurns, type Comparison, type Opened } from './gateway'
 import { en, fill, NAMESPACE, zh, type Key } from './i18n'
 import { kitName, KIT_EXTENSIONS, KIT_FORMATS, PREVIEW_EXTENSIONS, TAB_EXTENSIONS } from './kits'
-import { cardActions, cardState, kitTurnDefinition, type CardState, type KitTurnData, type KitTurnFile } from './turn'
+import { cardActions, cardState, draftedAt, kitTurnDefinition, outcomeFor, type CardState, type KitTurnData, type KitTurnFile } from './turn'
+import { ask } from './dialog'
+import { liveWindowRect } from './placement'
 
 const h = React.createElement
 
@@ -80,7 +82,7 @@ class Environment {
 
 const environment = new Environment()
 
-type OpenPage = PageState & { name: string; path: string; sessionId: string | null; frame: PageFrame }
+type OpenPage = PageState & { name: string; path: string; sessionId: string | null; frame: PageFrame; tabId: string; floating: boolean }
 /** Each open Kition view, by tab id: its title and close guard read it, cards and the float too. */
 const pages = new Map<string, OpenPage>()
 const pageListeners = new Set<() => void>()
@@ -113,19 +115,32 @@ function fileAddress(sessionId: string, path: string) {
 }
 
 /**
- * Opens a session's file in a Kition tab: docked, or in a floating window. The keyboard stays where
- * the person had it (a floating window never takes it from the composer).
+ * Opens a session's file in a Kition tab, in the sidebar (`sidebar`) or as a live window the
+ * person watches (`live`): floating beside the conversation where it fits, else in the sidebar.
+ * The keyboard stays where the person had it.
  */
-function openInSidebar(sessionId: string, path: string, destination: 'sidebar' | 'float' = 'sidebar') {
+function openInSidebar(sessionId: string, path: string, destination: 'sidebar' | 'live' = 'sidebar') {
   const sidebar = environment.sidebar
   if (typeof sidebar?.openResource !== 'function') return false
   const active = document.activeElement as HTMLElement | null
+  const address = fileAddress(sessionId, path)
+  const composer = document.querySelector('[data-composer-input]')?.closest('form, [class*="input"], [class*="Input"]') ?? document.querySelector('[data-composer-input]')
+  const rect = destination === 'live' ? liveWindowRect({ width: innerWidth, height: innerHeight }, composer?.getBoundingClientRect() ?? null) : null
+  const collapsed = typeof sidebar.isExpanded === 'function' ? !sidebar.isExpanded() : false
   try {
-    sidebar.openResource(fileAddress(sessionId, path), { kind: TAB_TYPE, revealIfOpened: true, ...(destination === 'float' ? { destination: 'float', params: { float: true } } : {}) })
+    sidebar.openResource(address, { kind: TAB_TYPE, revealIfOpened: true, ...(destination === 'live' ? { params: { live: true } } : {}) })
+    if (rect && typeof sidebar.float === 'function' && typeof sidebar.tabsIn === 'function') {
+      // A floating window at a place of our choosing: DeepSeek Harness takes a rectangle when a docked tab floats.
+      const tab = (sidebar.tabsIn(sessionId) as Array<{ id: string; contentId: string; kind: string }>).find((record) => record.contentId === address && record.kind === TAB_TYPE)
+      if (tab) {
+        sidebar.float(tab.id, rect)
+        if (collapsed && sidebar.isExpanded?.()) sidebar.toggleExpanded?.()
+      }
+    }
   } catch {
     return false
   }
-  if (destination === 'float' && active && active !== document.body) requestAnimationFrame(() => active.focus({ preventScroll: true }))
+  if (destination === 'live' && active && active !== document.body) requestAnimationFrame(() => active.focus({ preventScroll: true }))
   return true
 }
 
@@ -162,8 +177,10 @@ type ViewProps = {
   close?: () => void
   /** Whether closing asks here (a host without a close guard for the tab's kind). */
   guardClose: () => boolean
-  /** A floating window the person watches: the editor does not take the keyboard. */
+  /** A live window the person watches: the editor does not take the keyboard. */
   watching?: boolean
+  /** The tab floats. */
+  floating?: boolean
   /** Told when the page shows the file (a document preview reports it loaded). */
   onOpen?: () => void
 }
@@ -197,9 +214,11 @@ function KitionView(props: ViewProps) {
     url.searchParams.set('locale', environment.language)
     if (environment.keys.length) url.searchParams.set('keys', environment.keys.join(' '))
     if (props.watching) url.searchParams.set('focus', 'no')
+    // The tab's close guard asks; and the app's unload is asked about once, at the top (unloadGuard).
+    url.searchParams.set('closing', 'host')
     const frame = makeFrame(props.tabId, url.href, `Kition ${fileName}`)
     const reviewKey = `${sessionId}:${opened.path}`
-    const remember = (state: PageState) => setPage(props.tabId, { ...state, name: fileName, path: opened.path, sessionId: sessionId ?? null, frame: page })
+    const remember = (state: PageState) => setPage(props.tabId, { ...state, name: fileName, path: opened.path, sessionId: sessionId ?? null, frame: page, tabId: props.tabId, floating: latest.current.floating === true })
     const page: PageFrame = new PageFrame(
       frame,
       {
@@ -211,13 +230,12 @@ function KitionView(props: ViewProps) {
         },
         shortcut: forwardShortcut,
         requestClose: (dirty) => {
-          if (latest.current.guardClose() && dirty && !window.confirm(environment.t('closeDirty', { name: fileName }))) return
-          latest.current.close?.()
+          if (latest.current.guardClose() && dirty) void confirmClose(props.tabId, () => latest.current.close?.())
+          else latest.current.close?.()
         },
-        reviewed: (outcome) => {
-          const turn = sessionId ? draftingTurnOf(sessionId, opened.path) : null
-          if (sessionId && turn !== null) rememberOutcome(sessionId, opened.path, turn, outcome)
+        reviewed: () => {
           void draftsOf(opened.key).refresh()
+          if (sessionId) void reviewsOf(sessionId).refresh()
         },
       },
       environment.scheme,
@@ -268,18 +286,23 @@ function TabBody(props: any) {
     tabId: info.tab.id,
     close: () => info.tab.actions?.close?.(),
     guardClose: () => !guards.kition,
-    watching: params.float === true || info.panel?.isFloating === true,
+    watching: params.live === true || params.float === true,
+    floating: info.panel?.isFloating === true,
   })
 }
 
-/** The marks after a tab's name: `●` while it has unsaved edits, a Draft mark while an agent's draft waits, Read-only. */
-function marks(page: OpenPage | undefined, env: Environment) {
+/**
+ * A tab's title: its marks, then its name. The marks come first because DeepSeek Harness's tab is at
+ * most 170 px wide and fades its title's last 30 px under the close button: a long name is cut, the
+ * marks never are. `●` while it has unsaved edits, a Draft mark while an agent's draft waits, Read-only.
+ */
+function titled(name: string, page: OpenPage | undefined, env: Environment) {
+  const mark = { flex: 'none', fontSize: '10px', lineHeight: '14px', padding: '0 4px', borderRadius: '6px', whiteSpace: 'nowrap' } as const
   return [
-    page?.dirty ? h('span', { key: 'dirty', 'data-kition-dirty': '', 'aria-label': 'unsaved', style: { marginLeft: '4px' } }, '●') : null,
-    page?.readOnly ? h('span', { key: 'ro', 'data-kition-readonly': '', style: { marginLeft: '6px', fontSize: '10px', opacity: 0.7, whiteSpace: 'nowrap' } }, env.t('readOnly')) : null,
-    page?.draft
-      ? h('span', { key: 'draft', 'data-kition-draft': page.draft.state, title: env.t('draftTitle'), style: { marginLeft: '6px', fontSize: '10px', padding: '0 4px', borderRadius: '6px', whiteSpace: 'nowrap', background: 'rgba(255,170,0,0.25)' } }, env.t('draft'))
-      : null,
+    page?.dirty ? h('span', { key: 'dirty', 'data-kition-dirty': '', 'aria-label': env.t('unsaved'), title: env.t('unsaved'), style: { flex: 'none' } }, '●') : null,
+    page?.draft ? h('span', { key: 'draft', 'data-kition-draft': page.draft.state, title: env.t('draftTitle'), style: { ...mark, background: 'rgba(255,170,0,0.25)' } }, env.t('draft')) : null,
+    page?.readOnly ? h('span', { key: 'ro', 'data-kition-readonly': '', style: { ...mark, opacity: 0.75, border: '1px solid currentColor', lineHeight: '12px' } }, env.t('readOnly')) : null,
+    h('span', { key: 'name', style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, name),
   ]
 }
 
@@ -287,7 +310,7 @@ function TabTitle(props: any) {
   const env = useEnvironment()
   const info = props.useTabInfo()
   React.useSyncExternalStore(subscribePages, () => pages.get(info.tab.id))
-  return h(React.Fragment, null, info.tab.title, ...marks(pages.get(info.tab.id), env))
+  return h(React.Fragment, null, ...titled(info.tab.title, pages.get(info.tab.id), env))
 }
 
 /**
@@ -301,7 +324,7 @@ function textTitle(primitives: { FileTypeIcon?: any; classifyFileType?: (name: s
     const info = props.useTabInfo()
     React.useSyncExternalStore(subscribePages, () => pages.get(info.tab.id))
     const icon = primitives?.FileTypeIcon && primitives.classifyFileType ? h(primitives.FileTypeIcon, { kind: primitives.classifyFileType(info.tab.title), size: 16, style: { flex: 'none' } }) : null
-    return h(React.Fragment, null, icon, info.tab.title, ...marks(pages.get(info.tab.id), env))
+    return h(React.Fragment, null, icon, ...titled(info.tab.title, pages.get(info.tab.id), env))
   }
 }
 
@@ -329,9 +352,50 @@ function PreviewBody(props: any) {
 /** Which tab kinds have the plugin's close guard (it asks before a tab with unsaved edits closes). */
 const guards = { kition: false, text: false }
 
+/** Tabs the person chose to close with their unsaved edits: the guard lets them go. */
+const closing = new Set<string>()
+
+/**
+ * Asks the person what becomes of a tab's unsaved edits: Save and close, Close without saving, or
+ * Keep editing. An in-page dialog: a native one (the browser's confirm) would stop the whole page,
+ * DeepSeek Harness Desktop's included, until answered.
+ */
+async function confirmClose(tabId: string, close: () => void) {
+  const page = pages.get(tabId)
+  if (!page) return close()
+  const choice = await ask(environment.t('closeDirty', { name: page.name }), [
+    { id: 'save', label: environment.t('closeSave'), primary: true },
+    { id: 'discard', label: environment.t('closeDiscard'), danger: true },
+    { id: 'keep', label: environment.t('closeKeep') },
+  ])
+  if (choice === 'save') {
+    const saved = await new Promise<boolean>((resolve) => {
+      const stop = subscribePages(() => {
+        const now = pages.get(tabId)
+        if (!now || !now.dirty) {
+          stop()
+          resolve(true)
+        }
+      })
+      page.frame.save()
+      setTimeout(() => {
+        stop()
+        resolve(!pages.get(tabId)?.dirty)
+      }, 15_000)
+    })
+    if (!saved) return
+  } else if (choice !== 'discard') return
+  closing.add(tabId)
+  close()
+  setTimeout(() => closing.delete(tabId), 2000)
+}
+
 function closeGuard(_session: string, tab: { id: string }) {
   const page = pages.get(tab.id)
-  if (page?.dirty && !window.confirm(environment.t('closeDirty', { name: page.name }))) throw new Error('Kition: the tab keeps its unsaved edits')
+  if (!page?.dirty || closing.has(tab.id)) return
+  // DeepSeek Harness takes only an answer now: keep the tab, and ask the person in the page.
+  void confirmClose(tab.id, () => environment.sidebar?.close?.(tab.id))
+  throw new Error('Kition: the tab has unsaved edits; the person is asked')
 }
 
 /* -------------------------------------------------------------------------------------------- */
@@ -406,7 +470,12 @@ function FileCard(props: { sessionId: string; turn: number; file: KitTurnFile; o
   const listed = useWatch(subscribe, () => (watch?.drafts ? (watch.drafts.get(file.path) ?? null) : undefined))
   React.useSyncExternalStore(subscribePages, () => pages.size)
   const drafted = file.operations.some((operation) => operation.writes && operation.draft && operation.phase === 'done')
-  if (drafted) noteDraftingTurn(sessionId, file.path, turn)
+  if (drafted) noteDraftingTurn(sessionId, file.path, turn, draftedAt(file))
+  // The person's reviews, as the host recorded them: the same in every browser.
+  const reviews = React.useMemo(() => reviewsOf(sessionId), [sessionId])
+  const subscribeReviews = React.useMemo(() => (listener: () => void) => reviews.subscribe(listener), [reviews])
+  useWatch(subscribeReviews, () => reviews.reviews)
+  React.useEffect(() => (watch ? watch.subscribe(() => void reviews.refresh()) : undefined), [watch, reviews])
   // The file's existence and the draft's comparison, asked again as the draft changes.
   const listedKey = listed ? `${listed.state}:${listed.stale}:${listed.updated ?? ''}` : String(listed)
   React.useEffect(() => {
@@ -421,8 +490,10 @@ function FileCard(props: { sessionId: string; turn: number; file: KitTurnFile; o
   }, [key, file.path, listedKey, drafted])
 
   // The draft the gateway lists now is the latest drafting turn's: an older turn's card shows what the person did to its own.
-  const latest = React.useSyncExternalStore(subscribeDraftingTurns, () => draftingTurnOf(sessionId, file.path)) === turn
-  const kept = outcomeOf(sessionId, file.path, turn)
+  React.useSyncExternalStore(subscribeDraftingTurns, draftingVersionNow)
+  const latest = draftingTurnOf(sessionId, file.path) === turn
+  const review = drafted ? outcomeFor(reviews.reviews, sessionId, file.path, turn, draftingTurnsOf(sessionId, file.path)) : null
+  const kept = review?.outcome ?? null
   const state = cardState(file, { draft: kept ? null : watch?.drafts ? (latest ? listed : null) : undefined, outcome: kept, exists: fileThere })
   if (state === null) return null
   const kit = file.kit?.replace(/^kit\./, '') ?? KIT_EXTENSIONS[extensionOf(file.path)] ?? null
@@ -432,18 +503,19 @@ function FileCard(props: { sessionId: string; turn: number; file: KitTurnFile; o
     shown = workspace.error === 'kition-missing' || workspace.error === 'kition-invalid' ? 'kition-missing' : 'gateway-down'
     words = env.t(shown === 'kition-missing' ? 'stateKitionMissing' : 'stateGatewayDown')
   }
-  const act = (run: () => Promise<unknown>, outcome?: 'merged' | 'discarded') => async () => {
+  const origin = { session: sessionId, turn }
+  const act = (run: () => Promise<unknown>) => async () => {
     if (!key) return
     setBusy(true)
     setProblem(null)
     try {
       await run()
-      if (outcome) rememberOutcome(sessionId, file.path, turn, outcome)
     } catch (error) {
       setProblem(env.t('failedAction', { message: (error as Error).message }))
     } finally {
       setBusy(false)
       void watch?.refresh()
+      void reviews.refresh()
     }
   }
   const actions = workspace.phase === 'failed' ? [] : cardActions(state)
@@ -479,21 +551,19 @@ function FileCard(props: { sessionId: string; turn: number; file: KitTurnFile; o
                 case 'open':
                   return button(env.t('actionOpen'), action, () => props.open(file.path), false)
                 case 'review':
-                  return button(env.t('actionReview'), action, () => {
-                    const page = openPage(sessionId, file.path)
-                    if (page && page.status === 'open') page.frame.review()
-                    else {
-                      pendingReview.add(`${sessionId}:${file.path}`)
-                      props.open(file.path)
-                    }
-                  }, false)
+                  return button(env.t('actionReview'), action, () => reviewInSidebar(sessionId, file.path), false)
                 case 'merge':
-                  return button(env.t('actionMerge'), action, act(() => merge(key!, file.path), 'merged'), busy, true)
+                  return button(env.t('actionMerge'), action, act(() => merge(key!, file.path, false, origin)), busy, true)
                 case 'overwrite':
-                  return button(env.t('actionOverwrite'), action, act(() => merge(key!, file.path, true), 'merged'), busy, true)
+                  return button(env.t('actionOverwrite'), action, act(() => merge(key!, file.path, true, origin)), busy, true)
                 case 'discard':
                   return button(env.t('actionDiscard'), action, () => {
-                    if (window.confirm(env.t('confirmDiscard', { name: baseName(file.path) }))) void act(() => discard(key!, file.path), 'discarded')()
+                    void ask(env.t('confirmDiscard', { name: baseName(file.path) }), [
+                      { id: 'discard', label: env.t('actionDiscard'), danger: true },
+                      { id: 'keep', label: env.t('keepDraft') },
+                    ]).then((choice) => {
+                      if (choice === 'discard') void act(() => discard(key!, file.path, origin))()
+                    })
                   }, busy)
               }
             }),
@@ -523,14 +593,122 @@ function TurnCards(props: any) {
 /* -------------------------------------------------------------------------------------------- */
 /* While an agent edits a file that is not open: a floating window, or the file opened.          */
 
+/**
+ * Opens the review of a file's draft at a usable size: in the right sidebar (a live window the file
+ * was in moves there), over its editor.
+ */
+function reviewInSidebar(sessionId: string, path: string) {
+  const page = openPage(sessionId, path)
+  if (page && page.status === 'open' && !page.floating) return page.frame.review()
+  const key = `${sessionId}:${path}`
+  pendingReview.add(key)
+  openInSidebar(sessionId, path, 'sidebar')
+  // A window moved into the sidebar keeps its page: ask it there.
+  setTimeout(() => {
+    const now = openPage(sessionId, path)
+    if (now && now.status === 'open' && pendingReview.delete(key)) now.frame.review()
+  }, 800)
+}
+
+/** Waits until the file's page is open (its editor attached to the gateway's bridge), at most `ms`. */
+function whenOpen(sessionId: string, path: string, ms: number) {
+  return new Promise<boolean>((resolve) => {
+    const done = (value: boolean) => {
+      stop()
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const check = () => {
+      if (openPage(sessionId, path)?.status === 'open') done(true)
+    }
+    const stop = subscribePages(check)
+    const timer = setTimeout(() => done(false), ms)
+    check()
+  })
+}
+
+/**
+ * The live window: the host module announces an agent's edit of a file before it runs it (an event
+ * stream, /kition/api/live); this opens the file, floating beside the conversation or in the
+ * sidebar, and answers once its editor is attached, so the edit runs in it and the person watches.
+ * Once per file and turn: a window the person closed stays closed for the turn. Edits the host
+ * does not announce (drafts, new files) open the window once they show in the turn.
+ */
 function LiveWatcher(props: any) {
   const timeline = props.useChat?.((snapshot: any) => snapshot.timeline)
   useEnvironment()
   const seen = React.useRef(new Set<string>())
   const sessionId = props.sessionId as string | undefined
+  const current = React.useRef<{ timeline: any }>({ timeline })
+  current.current.timeline = timeline
+  /** The turn now running, if any. */
+  const runningTurn = () => {
+    const now = current.current.timeline
+    for (const turnNumber of [...(now?.turnOrder ?? [])].reverse()) if (now.turns.get(turnNumber)?.status === 'open') return turnNumber as number
+    return null
+  }
+  const show = (path: string, turn: number | null) => {
+    if (!sessionId) return false
+    const { liveFloat, autoOpen } = environment.settings
+    if (!(liveFloat || autoOpen) || !(extensionOf(path) in KIT_EXTENSIONS)) return false
+    const once = `${sessionId}:${turn ?? 'now'}:${path}`
+    if (seen.current.has(once)) return false
+    seen.current.add(once)
+    return openInSidebar(sessionId, path, autoOpen ? 'sidebar' : 'live')
+  }
+
+  React.useEffect(() => {
+    if (!sessionId) return
+    const stop = new AbortController()
+    const answerEditing = async (event: { id?: string; path?: string; openingMs?: number }) => {
+      if (typeof event.id !== 'string' || typeof event.path !== 'string') return
+      const id = event.id
+      const answer = (state: string) => fetch(route('kition/api/live'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, state }) }).catch(() => undefined)
+      const path = event.path.replace(/^(\.\/)+/, '')
+      if (openPage(sessionId, path)?.status === 'open') return void (await answer('open'))
+      if (!show(path, runningTurn())) return void (await answer('none'))
+      // The editor loads (the first time, its kit's engine too): the host waits longer for it.
+      void answer('opening')
+      const within = typeof event.openingMs === 'number' && event.openingMs > 0 ? event.openingMs - 300 : 2700
+      await answer((await whenOpen(sessionId, path, within)) ? 'attached' : 'none')
+    }
+    void (async () => {
+      for (let attempt = 0; !stop.signal.aborted; attempt++) {
+        try {
+          const response = await fetch(route(`kition/api/live?${new URLSearchParams({ session: sessionId })}`), { credentials: 'same-origin', headers: { Accept: 'text/event-stream' }, signal: stop.signal })
+          if (!response.ok || !response.body) throw new Error(String(response.status))
+          attempt = 0
+          const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+          let buffer = ''
+          for (;;) {
+            const { value, done } = await reader.read()
+            if (done) break
+            buffer += value
+            for (let end = buffer.indexOf('\n\n'); end >= 0; end = buffer.indexOf('\n\n')) {
+              const frame = buffer.slice(0, end)
+              buffer = buffer.slice(end + 2)
+              const data = frame.split('\n').find((line) => line.startsWith('data:'))?.slice(5).trim()
+              if (!data) continue
+              let event: { id?: string; path?: string; openingMs?: number }
+              try {
+                event = JSON.parse(data)
+              } catch {
+                continue
+              }
+              void answerEditing(event)
+            }
+          }
+        } catch {
+          if (stop.signal.aborted) return
+        }
+        await new Promise((resolve) => setTimeout(resolve, Math.min(10_000, 500 * 2 ** attempt)))
+      }
+    })()
+    return () => stop.abort()
+  }, [sessionId])
+
   React.useEffect(() => {
     if (!timeline || !sessionId) return
-    const { liveFloat, autoOpen } = environment.settings
     for (const turnNumber of timeline.turnOrder ?? []) {
       const turn = timeline.turns.get(turnNumber)
       // Only a turn now running: a conversation loaded again opens nothing.
@@ -538,13 +716,11 @@ function LiveWatcher(props: any) {
       const data = turn.data?.get?.('kitionTurn') as KitTurnData | undefined
       for (const file of data?.files ?? []) {
         if (!file.operations.some((operation) => operation.writes && operation.phase !== 'failed')) continue
-        // Once a turn: a window the person closed stays closed for it.
-        const once = `${sessionId}:${turnNumber}:${file.path}`
-        if (seen.current.has(once)) continue
-        seen.current.add(once)
-        if (openPage(sessionId, file.path) || !(extensionOf(file.path) in KIT_EXTENSIONS)) continue
-        if (autoOpen) openInSidebar(sessionId, file.path, 'sidebar')
-        else if (liveFloat) openInSidebar(sessionId, file.path, 'float')
+        if (openPage(sessionId, file.path)) {
+          seen.current.add(`${sessionId}:${turnNumber}:${file.path}`)
+          continue
+        }
+        show(file.path, turnNumber)
       }
     }
   }, [timeline, sessionId, environment.version])
@@ -693,6 +869,22 @@ export function apply(ctx: Context) {
       }, `kition: close guard (${kind})`)
     }
   })
+
+  // Leaving or reloading DeepSeek Harness's web UI with unsaved edits in a Kition page asks first:
+  // the browser's own question, once, here at the top (the pages ask nothing, `closing=host`). Not
+  // in Desktop (dsh-app://): Electron shows no page's question and refuses to close the window
+  // instead, so the app could not be quit at all.
+  if (location.protocol !== 'dsh-app:') {
+    const unloadGuard = (event: BeforeUnloadEvent) => {
+      if (![...pages.values()].some((page) => page.dirty)) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    ctx.effect(() => {
+      window.addEventListener('beforeunload', unloadGuard)
+      return () => window.removeEventListener('beforeunload', unloadGuard)
+    }, 'kition: unload guard')
+  }
 
   // Extensions DeepSeek Harness previews: the kit under "Open with", after DeepSeek Harness's own (or first, as the person set).
   ctx.inject(['documentPreviews'], (inner: Context) => {

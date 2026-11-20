@@ -8,8 +8,10 @@ intent: >-
   none), publishing them at the turn's location only when there are any; a review card is there
   only for a file the turn changed, says pending, failed, edited live, edited, created, draft
   (open, ready, stale), merged, discarded, draft gone or missing as the gateway's drafts and the
-  person's own actions say, and offers Merge and Discard for a draft, Merge and overwrite only for
-  a stale one, and nothing that changes a file for any other state.
+  person's recorded reviews say (the turn's own record, else the file's first after the draft and
+  before the next turn that drafted it, never another turn's), and offers Merge and Discard for a draft, Merge and overwrite only for
+  a stale one, and nothing that changes a file for any other state; the live window's place is
+  right of the conversation column, within the page, and none where the page has no room for it.
 layer: gate
 source:
   kind: synthetic

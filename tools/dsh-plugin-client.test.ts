@@ -116,3 +116,32 @@ describe('a review card', () => {
     expect(cardActions('missing')).toEqual([])
   })
 })
+
+describe('what the person did to a turn’s draft, from the host’s records', async () => {
+  const { outcomeFor, draftedAt } = await import('../plugins/deepseek-harness/kition-kits/src/client/turn')
+  const { liveWindowRect } = await import('../plugins/deepseek-harness/kition-kits/src/client/placement')
+  const review = (at: number, outcome: 'merged' | 'discarded', session: string | null = null, turn: number | null = null) => ({ path: 'a.md', outcome, at, session, turn })
+
+  it('takes a card’s own record first, else the first editor review after the turn drafted and before a later turn drafted again', () => {
+    const drafts: Array<[number, number]> = [[2, 100], [5, 500]]
+    const reviews = [review(200, 'merged'), review(600, 'discarded'), review(700, 'merged', 's', 5)]
+    expect(outcomeFor(reviews, 's', 'a.md', 2, drafts)?.outcome).toBe('merged')
+    expect(outcomeFor(reviews, 's', 'a.md', 5, drafts)?.outcome).toBe('merged')
+    expect(outcomeFor([review(600, 'discarded')], 's', 'a.md', 5, drafts)?.outcome).toBe('discarded')
+    // A draft merged outside DeepSeek Harness leaves no record: nothing is guessed.
+    expect(outcomeFor([], 's', 'a.md', 2, drafts)).toBeNull()
+    expect(outcomeFor([review(50, 'merged')], 's', 'a.md', 2, drafts)).toBeNull()
+  })
+
+  it('knows when a turn drafted', () => {
+    const op = (time: number, draft = true) => ({ callId: String(time), action: 'run', phase: 'done' as const, writes: true, live: false, draft, created: false, time })
+    expect(draftedAt({ path: 'a.md', kit: null, operations: [op(10), op(30), op(50, false)] })).toBe(30)
+    expect(draftedAt({ path: 'a.md', kit: null, operations: [op(10, false)] })).toBeNull()
+  })
+
+  it('places the live window beside the conversation where it fits, else nowhere (the sidebar)', () => {
+    expect(liveWindowRect({ width: 1920, height: 1080 }, { right: 1300 })).toEqual({ x: 1316, y: 96, width: 588, height: 760 })
+    expect(liveWindowRect({ width: 1500, height: 950 }, { right: 1293 })).toBeNull()
+    expect(liveWindowRect({ width: 1920, height: 400 }, { right: 900 })).toBeNull()
+  })
+})

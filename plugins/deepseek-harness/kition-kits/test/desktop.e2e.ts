@@ -39,7 +39,21 @@ async function launch(): Promise<{ desktop: ElectronApplication; page: Page }> {
   const desktop = await electron.launch({ executablePath: executable, args: [`--user-data-dir=${path.join(base, 'userdata')}`], env: env as Record<string, string>, timeout: 120_000 })
   let page: Page | undefined
   await expect.poll(() => (page = desktop.windows().find((window) => window.url().startsWith('dsh-app://app'))) !== undefined, { timeout: 120_000 }).toBe(true)
+  // The test's `use` options do not reach an Electron window: its actions are bounded here.
+  page!.setDefaultTimeout(30_000)
   return { desktop, page: page! }
+}
+
+/**
+ * Closes the app. One that is still open after a minute fails the test, and is ended (the test
+ * started it): a window that refuses to close (a page's `beforeunload` in Electron, which asks
+ * nobody) would otherwise hold the test until its own timeout.
+ */
+async function quit(desktop: ElectronApplication) {
+  const closed = await Promise.race([desktop.close().then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 60_000))])
+  if (closed) return
+  desktop.process().kill('SIGKILL')
+  throw new Error('DeepSeek Harness Desktop did not close within a minute')
 }
 
 test.afterAll(() => model?.stop())
@@ -61,19 +75,32 @@ test.beforeAll(async () => {
 })
 
 test('the app’s CLI installs the plugin into the Desktop profile; a .ktable opens in the real Table editor, Cmd+W there closes the tab, an agent’s kit tool edits it live, a draft’s card merges it, the live window opens, and the settings are kept', async () => {
+  const t0 = Date.now()
+  const mark = (what: string) => console.log(`desktop: ${what} at ${Date.now() - t0} ms`)
   // The app makes its profile on its first start.
-  const first = await launch()
-  await expect.poll(() => fs.existsSync(path.join(base, 'dsh/profiles/desktop/package.json')), { timeout: 60_000 }).toBe(true)
-  await first.desktop.close()
-  // The scripted model as the profile's own layer (Desktop takes no --patch).
-  fs.copyFileSync(path.join(here, 'scripted-route.cordis.patch.yml'), path.join(base, 'dsh/profiles/desktop/cordis.patch.yml'))
-  execFileSync(cli, ['plugin', '--profile', 'desktop', 'add', pack(base)], { env, cwd: env.HOME, stdio: 'pipe' })
-  expect(JSON.parse(fs.readFileSync(path.join(base, 'dsh/profiles/desktop/package.json'), 'utf8')).dsh.profile.bundles).toContain('@kition/dsh-kits')
+  await test.step('the first start makes the profile', async () => {
+    const first = await launch()
+    mark('first window')
+    await expect.poll(() => fs.existsSync(path.join(base, 'dsh/profiles/desktop/package.json')), { timeout: 60_000 }).toBe(true)
+    mark('profile made')
+    await quit(first.desktop)
+    mark('first app closed')
+  })
+  await test.step('the app’s CLI installs the plugin', async () => {
+    // The scripted model as the profile's own layer (Desktop takes no --patch).
+    fs.copyFileSync(path.join(here, 'scripted-route.cordis.patch.yml'), path.join(base, 'dsh/profiles/desktop/cordis.patch.yml'))
+    execFileSync(cli, ['plugin', '--profile', 'desktop', 'add', pack(base)], { env, cwd: env.HOME, stdio: 'pipe', timeout: 120_000 })
+    expect(JSON.parse(fs.readFileSync(path.join(base, 'dsh/profiles/desktop/package.json'), 'utf8')).dsh.profile.bundles).toContain('@kition/dsh-kits')
+    mark('plugin installed')
+  })
 
-  const { desktop, page } = await launch()
+  const { desktop, page } = await test.step('the second start', () => launch())
+  mark('second window')
   try {
-    await page.getByRole('button', { name: 'Continue' }).click({ timeout: 20_000 }).catch(() => {})
+    // The first-run notice shows on the first start only.
+    if (await page.getByRole('button', { name: 'Continue' }).isVisible().catch(() => false)) await page.getByRole('button', { name: 'Continue' }).click()
     await page.locator('[aria-label="New session in Default workspace"]').first().dispatchEvent('click')
+    mark('session')
     await page.getByRole('button', { name: 'Close' }).first().click({ timeout: 5_000 }).catch(() => {})
     if (await page.getByRole('button', { name: 'Open right sidebar' }).isVisible().catch(() => false)) await page.getByRole('button', { name: 'Open right sidebar' }).click()
     await page.getByText('Workspace files').first().click({ timeout: 10_000 }).catch(() => {})
@@ -135,6 +162,11 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
     await page.keyboard.type('Add to the later table')
     await page.keyboard.press('Enter')
     await expect.poll(() => page.frames().find((frame) => frame.url().includes('/page/') && frame.url().includes('later.ktable'))?.url() ?? '', { timeout: 120_000 }).toContain('focus=no')
+    // The edit waited for the window's editor and ran in it, live; and the turn ends. (Quitting
+    // while a turn runs, Desktop asks first in a native message box, which nothing here answers:
+    // the test's close then waited until its timeout.)
+    await expect(page.locator('[data-kition-card="later.ktable"]').last()).toHaveAttribute('data-state', 'live', { timeout: 60_000 })
+    await expect(page.getByText('Added.', { exact: true })).toHaveCount(2, { timeout: 60_000 })
     await page.screenshot({ path: path.join(shots, 'dsh-desktop-live-window.png') })
 
     // The settings, on the plugin's page, kept in the profile.
@@ -144,7 +176,80 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
     await expect(toggle).toBeChecked()
     await toggle.click()
     await expect.poll(() => fs.readFileSync(path.join(base, 'dsh/profiles/desktop/cordis.patch.yml'), 'utf8')).toContain('liveFloat: false')
-  } finally {
-    await desktop.close()
+  } catch (error) {
+    // The test's own failure first; a close that also fails is said after it.
+    await quit(desktop).catch((closing) => console.error(`desktop: ${String(closing)}`))
+    throw error
   }
+  await test.step('the app closes', () => quit(desktop))
+})
+
+test('the Plugins page installs the plugin from a local folder (the unpacked archive); a .ktable then opens in the Table editor, and the app closes with unsaved edits in it', async () => {
+  const own = scratch('desktop-page')
+  const ownEnv = isolated(own, { KITION_INDEX: index, KITION_BIN: kition, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted' })
+  const workspace = path.join(own, 'home/Documents/deepseek-harness/default-workspace')
+  fs.mkdirSync(workspace, { recursive: true })
+  fs.copyFileSync(tableSample(), path.join(workspace, 'tasks.ktable'))
+  installKits(path.join(own, 'kition'), ['table'])
+  // The package as the Plugins page takes a local one: a folder.
+  const folder = path.join(own, 'plugin')
+  fs.mkdirSync(folder)
+  execFileSync('tar', ['-xzf', pack(own), '-C', folder, '--strip-components', '1'])
+  const open = async () => {
+    const desktop = await electron.launch({ executablePath: executable, args: [`--user-data-dir=${path.join(own, 'userdata')}`], env: ownEnv as Record<string, string>, timeout: 120_000 })
+    let page: Page | undefined
+    await expect.poll(() => (page = desktop.windows().find((window) => window.url().startsWith('dsh-app://app'))) !== undefined, { timeout: 120_000 }).toBe(true)
+    page!.setDefaultTimeout(30_000)
+    return { desktop, page: page! }
+  }
+  // The first start makes the profile; the scripted model as its own layer, as above (a profile
+  // with no model shows the welcome page's sign-in, which the test never touches).
+  await test.step('the first start makes the profile', async () => {
+    const first = await open()
+    await expect.poll(() => fs.existsSync(path.join(own, 'dsh/profiles/desktop/package.json')), { timeout: 60_000 }).toBe(true)
+    await quit(first.desktop)
+    fs.copyFileSync(path.join(here, 'scripted-route.cordis.patch.yml'), path.join(own, 'dsh/profiles/desktop/cordis.patch.yml'))
+  })
+  let { desktop, page } = await open()
+  try {
+    await test.step('the Plugins page installs the folder', async () => {
+      if (await page.getByRole('button', { name: 'Continue' }).isVisible().catch(() => false)) await page.getByRole('button', { name: 'Continue' }).click()
+      await page.getByText('Plugins', { exact: true }).first().click()
+      // "Add plugin" asks for a package name, a GitHub address or a local folder.
+      await page.getByRole('button', { name: 'Add plugin', exact: true }).first().click()
+      const dialog = page.getByRole('dialog').filter({ hasText: 'local directory path' })
+      await dialog.getByRole('textbox').fill(folder)
+      await dialog.getByRole('button', { name: 'Install', exact: true }).click()
+      // Installed, then enabled: the page's own two steps.
+      await expect(page.getByText('Installed', { exact: true })).toBeVisible({ timeout: 120_000 })
+      await page.getByRole('button', { name: 'Enable now', exact: true }).click()
+      await expect.poll(() => JSON.parse(fs.readFileSync(path.join(own, 'dsh/profiles/desktop/package.json'), 'utf8')).dsh?.profile?.bundles ?? [], { timeout: 120_000 }).toContain('@kition/dsh-kits')
+      await expect(page.getByText('@kition/dsh-kits', { exact: true }).first()).toBeVisible({ timeout: 120_000 })
+      await page.screenshot({ path: path.join(shots, 'dsh-desktop-plugins-page-installed.png') })
+    })
+    // Whatever the page says about applying it, a new start has it.
+    await quit(desktop)
+    ;({ desktop, page } = await open())
+    await test.step('a .ktable opens in the Table editor', async () => {
+      await page.locator('[aria-label="New session in Default workspace"]').first().dispatchEvent('click')
+      await page.getByRole('button', { name: 'Close' }).first().click({ timeout: 5_000 }).catch(() => {})
+      if (await page.getByRole('button', { name: 'Open right sidebar' }).isVisible().catch(() => false)) await page.getByRole('button', { name: 'Open right sidebar' }).click()
+      await page.getByText('Workspace files').first().click({ timeout: 10_000 }).catch(() => {})
+      await page.getByText('tasks.ktable', { exact: true }).first().click()
+      const frame = () => page.frames().find((candidate) => candidate.url().includes('/kition/w/') && candidate.url().includes('/page/'))
+      await expect.poll(() => !!frame(), { timeout: 60_000 }).toBe(true)
+      await frame()!.waitForFunction(() => (window as unknown as { kitionGatewayPage?: { state: { status: string } } }).kitionGatewayPage?.state.status === 'open', null, { timeout: 120_000 })
+    })
+    await test.step('with unsaved edits in the editor, the app still closes', async () => {
+      const kit = page.frames().find((candidate) => candidate.url().includes('/kits-ui/table@'))!
+      await kit.getByRole('button', { name: 'Add record' }).click()
+      await expect(kit.getByText('4 records')).toBeVisible()
+      await expect(page.locator('[data-kition-dirty]').first()).toBeVisible({ timeout: 30_000 })
+      await page.screenshot({ path: path.join(shots, 'dsh-desktop-unsaved.png') })
+    })
+  } catch (error) {
+    await quit(desktop).catch((closing) => console.error(`desktop: ${String(closing)}`))
+    throw error
+  }
+  await test.step('the app closes, unsaved edits and all', () => quit(desktop))
 })

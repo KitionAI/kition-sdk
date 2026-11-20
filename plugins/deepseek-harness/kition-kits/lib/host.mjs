@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 
 import { Freshness } from './freshness.mjs'
+import { LiveAnnouncer } from './live.mjs'
 import { catalog, connectionId, GatewayMcp } from './mcp.mjs'
 import { Gateways } from './gateways.mjs'
 import { createRoutes, PREFIX } from './routes.mjs'
@@ -48,16 +49,31 @@ const z = runtimeSchema()
 export const Config = z
   ? z
       .object({
-        liveFloat: z.boolean().default(SETTINGS.liveFloat).description('Show an agent’s edit of a Kition file that is not open in a floating window, as it happens.').volatile(),
-        openWith: z
-          .union([z.const('dsh').description('DeepSeek Harness’s preview'), z.const('kition').description('the Kition editor')])
-          .default(SETTINGS.openWith)
-          .description('What opens a Markdown, HTML, PDF, Word, Excel or PowerPoint file first.')
+        liveFloat: z
+          .boolean()
+          .default(SETTINGS.liveFloat)
+          .i18n({ en: 'Show an agent’s edit of a Kition file that is not open in a window, as it happens.', zh: 'Agent 编辑一个没有打开的 Kition 文件时，在窗口里实时显示。' })
           .volatile(),
-        autoOpen: z.boolean().default(SETTINGS.autoOpen).description('Open a file in the right sidebar after an agent’s first edit of it in a turn.').volatile(),
+        openWith: z
+          .union([z.const('dsh').i18n({ en: 'DeepSeek Harness’s preview', zh: 'DeepSeek Harness 的预览' }), z.const('kition').i18n({ en: 'the Kition editor', zh: 'Kition 编辑器' })])
+          .default(SETTINGS.openWith)
+          .i18n({ en: 'What opens a Markdown, HTML, PDF, Word, Excel, PowerPoint, CSV or SVG file first.', zh: 'Markdown、HTML、PDF、Word、Excel、PowerPoint、CSV 和 SVG 文件先用什么打开。' })
+          .volatile(),
+        autoOpen: z
+          .boolean()
+          .default(SETTINGS.autoOpen)
+          .i18n({ en: 'Open a file in the right sidebar after an agent’s first edit of it in a turn.', zh: 'Agent 在一轮里第一次编辑一个文件后，在右侧栏打开它。' })
+          .volatile(),
       })
-      .description('Kition kits')
+      .i18n({ en: 'Kition kits', zh: 'Kition 套件' })
   : undefined
+
+/** A setting's value now: a volatile field is read through its `get()`. */
+function setting(config, name) {
+  const value = config?.[name]
+  const now = typeof value?.get === 'function' ? value.get() : value
+  return now ?? SETTINGS[name]
+}
 
 /** The working folders DeepSeek Harness knows: its projects, and its live and saved sessions'. */
 async function knownFolders(ctx) {
@@ -79,11 +95,14 @@ async function sessionFolder(ctx, id) {
   return (await ctx.get('sessionPersistence')?.stat?.(id))?.header?.cwd
 }
 
-export function apply(ctx) {
+export function apply(ctx, config) {
   const logger = typeof ctx.logger === 'function' ? ctx.logger('kition') : null
   const log = (message) => (logger ? logger.info(message) : process.stderr.write(`kition: ${message}\n`))
   const gateways = new Gateways({ env: process.env, log })
   ctx.effect(() => () => gateways.stop(), 'kition: the workspaces’ gateways')
+  // The live window's handshake, while the person has it on.
+  const live = new LiveAnnouncer({ enabled: () => setting(config, 'liveFloat') !== false })
+  ctx.effect(() => () => live.close(), 'kition: the live window’s streams')
   /** The kit tools, once registered: the web routes have them listed again when a file opens. */
   let kitTools = null
   let freshness = null
@@ -93,7 +112,7 @@ export function apply(ctx) {
     name: `${name}/tools`,
     inject: ['tools'],
     async apply(inner) {
-      const tools = new KitTools({ ctx: inner, register: (definition) => inner.tools.register(definition), gateways, mcp: new GatewayMcp(), log })
+      const tools = new KitTools({ ctx: inner, register: (definition) => inner.tools.register(definition), gateways, mcp: new GatewayMcp(), log, beforeEdit: (sessionId, path) => live.announce(sessionId, path) })
       inner.effect(() => () => tools.dispose(), 'kition: kit tools')
       inner.inject(['systemPrompt'], (prompt) => {
         prompt.effect(
@@ -135,7 +154,7 @@ export function apply(ctx) {
         if (!gateway) void freshness?.check()
         else kitTools?.refresh(gateway, opener)
       }
-      const handle = createRoutes({ gateways, workspaces, rejection, log, opened })
+      const handle = createRoutes({ gateways, workspaces, rejection, log, opened, live })
       inner.effect(() => inner.webServer.register({ kind: 'prefix', path: PREFIX, handler: handle }), 'kition: /kition/ routes')
     },
   })

@@ -15,13 +15,14 @@
  *   and the page's banner;
  * - when DeepSeek Harness stops, so does the gateway.
  */
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 import { expect, test, type Frame, type Page } from '@playwright/test'
 import { index, installKits, kition } from '../../../../examples/gateway-page/e2e/helpers'
 import { noteSample, shots, tableSample } from '../../../../examples/gateway-page/e2e/page'
-import { dshRuntime, here, installProfile, isolated, pack, scratch, scriptedModel, startWeb, type Dsh } from './dsh'
+import { dshRuntime, here, installProfile, isolated, pack, plugin, repo, scratch, scriptedModel, startWeb, type Dsh } from './dsh'
 
 const PROFILE = 'kition-e2e'
 let base: string
@@ -51,7 +52,9 @@ test.beforeAll(async () => {
   fs.writeFileSync(path.join(workspace, 'notes/cards.md'), noteSample())
   fs.writeFileSync(path.join(workspace, 'notes/quiet.md'), '# Quiet\n\nNothing yet.\n')
   fs.writeFileSync(path.join(workspace, 'people.csv'), 'name,role\nAda,engineer\nGrace,admiral\n')
-  installKits(path.join(base, 'kition'), ['table', 'note', 'sheet'])
+  fs.copyFileSync(path.join(repo, '../kition-vector/examples/dusk-poster.svg'), path.join(workspace, 'poster.svg'))
+  // Vector's editor only, as its first use fetches it: its headless kit is not installed.
+  installKits(path.join(base, 'kition'), ['table', 'note', 'sheet', 'vector'])
   model = await scriptedModel({
     'Append to the plan': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/plan.md', steps: [{ command: 'block.append', params: { markdown: APPENDED } }] } }, { say: 'Appended.' }],
     'Draft the table': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', draft: true, steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: DRAFTED } } }] } }, { say: 'Drafted.' }],
@@ -61,6 +64,7 @@ test.beforeAll(async () => {
     'Card draft two': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/cards.md', draft: true, steps: [{ command: 'block.append', params: { markdown: DRAFT_TWO } }] } }, { say: 'Drafted.' }],
     'Card draft three': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/cards.md', draft: true, steps: [{ command: 'block.append', params: { markdown: DRAFT_THREE } }] } }, { say: 'Drafted.' }],
     'Read the note manifest': [{ tool: 'read_mcp_resource', arguments: { server: 'kition', uri: 'khp://kits/kit.note/kit.json' } }, { say: 'Read.' }],
+    'Card draft four': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/cards.md', draft: true, steps: [{ command: 'block.append', params: { markdown: 'Fourth draft for a card.' } }] } }, { say: 'Drafted.' }],
     'No float edit': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/quiet.md', steps: [{ command: 'block.append', params: { markdown: 'Edited without a window.' } }] } }, { say: 'Edited.' }],
     'Draft the plan': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/plan.md', draft: true, steps: [{ command: 'block.append', params: { markdown: DRAFTED } }] } }, { say: 'Drafted.' }],
   })
@@ -85,6 +89,7 @@ test.afterAll(async () => {
 async function signIn(page: Page) {
   await page.goto(dsh.url)
   await page.getByRole('button', { name: 'Continue' }).click({ timeout: 15_000 }).catch(() => {})
+  // DeepSeek Harness shows this icon on hover only.
   await page.locator('[aria-label="New session in Default workspace"]').first().dispatchEvent('click')
   await page.getByRole('button', { name: 'Close' }).first().click({ timeout: 5_000 }).catch(() => {})
 }
@@ -198,14 +203,20 @@ test('a .ktable clicked in the file tree opens the real Table editor in the righ
   await page.keyboard.type('Edited in DeepSeek Harness')
   await page.keyboard.press('Enter')
   await expect(page.locator('[data-kition-dirty]').first()).toBeVisible()
+  // Reloading DeepSeek Harness now asks too (the browser's question, once, from the top page); declined, nothing reloads.
+  const leaving = page.waitForEvent('dialog')
+  void page.evaluate(() => location.reload()).catch(() => undefined)
+  const question = await leaving
+  expect(question.type()).toBe('beforeunload')
+  expect(question.page()).toBe(page)
+  await question.dismiss()
+  await expect(page.locator('[data-kition-dirty]').first()).toBeVisible()
   // Closing the tab now asks first; kept, it keeps the edit.
-  const asked: string[] = []
-  page.once('dialog', (dialog) => {
-    asked.push(dialog.message())
-    void dialog.dismiss()
-  })
   await page.locator('[role="tab"]', { hasText: 'tasks.ktable' }).first().getByRole('button', { name: 'Close' }).click()
-  await expect.poll(() => asked).toEqual([expect.stringContaining('tasks.ktable has unsaved changes')])
+  const asked = page.locator('[data-kition-dialog]')
+  await expect(asked).toContainText('tasks.ktable has unsaved changes')
+  await asked.locator('[data-kition-dialog-choice="keep"]').click()
+  await expect(asked).toHaveCount(0)
   expect(pageFrame(page, 'tasks.ktable')).toBeDefined()
   await kit.locator('body').click({ position: { x: 178, y: 400 } })
   await page.keyboard.press('Meta+S')
@@ -243,13 +254,11 @@ test('a .md keeps DeepSeek Harness’s preview and offers Kition Note under Open
   await page.keyboard.press('End')
   await page.keyboard.type(' Typed by the person.')
   await expect(page.locator('[data-kition-dirty]').first()).toBeVisible()
-  const asked: string[] = []
-  page.once('dialog', (dialog) => {
-    asked.push(dialog.message())
-    void dialog.dismiss()
-  })
   await page.locator('[role="tab"]', { hasText: 'plan.md' }).first().getByRole('button', { name: 'Close' }).click()
-  await expect.poll(() => asked).toEqual([expect.stringContaining('plan.md has unsaved changes')])
+  const asked = page.locator('[data-kition-dialog]')
+  await expect(asked).toContainText('plan.md has unsaved changes')
+  await asked.locator('[data-kition-dialog-choice="keep"]').click()
+  await expect(asked).toHaveCount(0)
   expect(pageFrame(page, 'notes/plan.md')).toBeDefined()
   await page.mouse.click(noteBox.x + 200, noteBox.y + 520)
   await page.keyboard.press('Meta+S')
@@ -327,6 +336,25 @@ test('an agent’s draft of a file open in a Kition tab marks the tab and shows 
  * The card of `file` in the conversation's latest turn tail that has one. Its buttons are pressed
  * with a dispatched click: DeepSeek Harness's floating panel may lie over the conversation.
  */
+/** The cards test's session, by its row in the session list. */
+let cardsRow: string | null = null
+
+/** DeepSeek Harness's language, set in its settings (Ctrl+Alt+, in the web UI). */
+async function language(page: Page, to: 'zh' | 'en') {
+  await page.locator('[data-composer-input]').first().click()
+  await page.keyboard.press('Control+Alt+Comma')
+  await expect(page.getByText(to === 'zh' ? 'Language' : '语言', { exact: true }).first()).toBeVisible()
+  const from = to === 'zh' ? 'English' : /中文/
+  await page.getByRole('button', { name: from }).or(page.getByRole('combobox', { name: from })).first().click()
+  if (to === 'zh') await page.getByRole('option', { name: /中文/ }).or(page.getByRole('menuitemradio', { name: /中文/ })).or(page.getByText(/^简体中文$|^中文$/)).first().click()
+  else await page.getByRole('option', { name: 'English' }).or(page.getByRole('menuitemradio', { name: 'English' })).or(page.getByText(/^English$/)).first().click()
+  await page.keyboard.press('Escape')
+}
+
+/** Whether `inner` lies wholly inside `outer`. */
+const inside = (inner: { x: number; y: number; width: number; height: number }, outer: { x: number; y: number; width: number; height: number }) =>
+  inner.x >= outer.x - 0.5 && inner.y >= outer.y - 0.5 && inner.x + inner.width <= outer.x + outer.width + 0.5 && inner.y + inner.height <= outer.y + outer.height + 0.5
+
 const card = (page: Page, file: string) => page.locator(`[data-kition-card="${file}"]`).last()
 const say = async (page: Page, text: string) => {
   await page.locator('[data-composer-input]').first().click()
@@ -334,44 +362,57 @@ const say = async (page: Page, text: string) => {
   await page.keyboard.press('Enter')
 }
 
-test('review cards: a live edit’s card opens the file; a draft’s card reviews, merges, discards and overwrites a stale draft, and the open editor follows; a float shows an edit of a file not open without taking the keyboard; reload keeps the cards', async ({ page }) => {
+test('review cards: the first edit of a file not open runs live in the live window, which covers nothing and leaves the keyboard; Open, Review in the sidebar, Merge, Discard, Merge and overwrite with real clicks, the open editor following; a draft merged outside shows neutrally; a reload and another browser show the same cards', async ({ page, browser }) => {
   await signIn(page)
   const file = path.join(workspace, 'notes/cards.md')
 
-  // An edit of a file not open: a floating window shows it, the composer keeps the keyboard.
+  // The first edit of a file not open: the host announces it, the live window opens it and its
+  // editor attaches before the edit runs, so the edit runs there (live); the composer keeps the keyboard.
   await say(page, 'Card edit')
-  await expect(card(page, 'notes/cards.md')).toHaveAttribute('data-state', /saved|live/, { timeout: 120_000 })
-  await expect.poll(() => pageFrame(page, 'notes/cards.md')?.url() ?? '', { timeout: 60_000 }).toContain('focus=no')
+  await expect(card(page, 'notes/cards.md')).toHaveAttribute('data-state', 'live', { timeout: 120_000 })
+  expect(pageFrame(page, 'notes/cards.md')?.url() ?? '').toContain('focus=no')
+  const answered = () => model.requests.flatMap((request) => request.messages).filter((message) => message.role === 'tool').map((message) => JSON.stringify(message.content)).join('\n')
+  await expect.poll(answered).toContain('`notes/cards.md` in its open Note editor')
   expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-composer-input') ?? false)).toBe(true)
   expect(fs.readFileSync(file, 'utf8')).toContain(CARD_EDIT)
-  await page.screenshot({ path: path.join(shots, 'dsh-card-float.png') })
-  // Its card's Open opens the file in the sidebar.
-  await card(page, 'notes/cards.md').locator('[data-kition-card-action="open"]').dispatchEvent('click')
-  await expect.poll(() => page.frames().filter((frame) => frame.url().includes('/page/') && frame.url().includes(encodeURIComponent('notes/cards.md'))).length).toBeGreaterThan(0)
+  // The window does not cover the conversation: in this window there is no room beside it, so it is in the sidebar.
+  const composerBox = (await page.locator('[data-composer-input]').first().boundingBox())!
+  const windowBox = (await page.locator('iframe[data-kition-page]').last().boundingBox())!
+  expect(windowBox.x).toBeGreaterThanOrEqual(composerBox.x + composerBox.width)
+  await page.screenshot({ path: path.join(shots, 'dsh-card-live.png') })
+  // Its card's Open, a real click: the file in the sidebar.
+  await card(page, 'notes/cards.md').locator('[data-kition-card-action="open"]').click()
   const frame = pageFrame(page, 'notes/cards.md')!
   await opened(frame)
 
-  // A draft: its card offers Review, which opens the page's review, then Merge from the card.
+  // A draft: its card's Review opens the page's review in the sidebar, then Merge from the card.
   await say(page, 'Card draft one')
   const one = card(page, 'notes/cards.md')
   await expect(one).toHaveAttribute('data-state', 'draft-open', { timeout: 120_000 })
   await expect(one.locator('[data-kition-card-changes]')).toBeVisible()
-  await one.locator('[data-kition-card-action="review"]').dispatchEvent('click')
-  await expect(frame.getByTestId('draft-review')).toBeVisible()
+  await one.locator('[data-kition-card-action="review"]').click()
+  await expect.poll(async () => (await pageFrame(page, 'notes/cards.md')?.getByTestId('draft-review').isVisible().catch(() => false)) ?? false, { timeout: 30_000 }).toBe(true)
+  const reviewing = pageFrame(page, 'notes/cards.md')!
+  // The review takes the editor's place at the sidebar's width: the banner is not left behind it.
+  await expect(reviewing.getByTestId('draft-banner')).toBeHidden()
+  const review = (await reviewing.locator('.dialog').boundingBox())!
+  const reviewFrame = (await (await reviewing.frameElement()).boundingBox())!
+  expect(review.width).toBeGreaterThan(reviewFrame.width - 2)
+  await expect(reviewing.getByTestId('draft-counts')).toBeVisible({ timeout: 30_000 })
   await page.screenshot({ path: path.join(shots, 'dsh-card-review.png') })
-  await frame.locator('body').press('Escape')
-  await one.locator('[data-kition-card-action="merge"]').dispatchEvent('click')
+  await reviewing.getByTestId('dialog-close').click()
+  await one.locator('[data-kition-card-action="merge"]').click()
   await expect(one).toHaveAttribute('data-state', 'merged', { timeout: 60_000 })
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain(DRAFT_ONE)
   await expect.poll(() => inspected(pageFrame(page, 'notes/cards.md')!), { timeout: 60_000 }).toContain(DRAFT_ONE)
   await page.screenshot({ path: path.join(shots, 'dsh-card-merged.png') })
 
-  // Another draft, discarded from its card (after the person confirms).
+  // Another draft, discarded from its card (after the person confirms in the page's own dialog).
   await say(page, 'Card draft two')
   const two = card(page, 'notes/cards.md')
   await expect(two).toHaveAttribute('data-state', 'draft-open', { timeout: 120_000 })
-  page.once('dialog', (dialog) => void dialog.accept())
-  await two.locator('[data-kition-card-action="discard"]').dispatchEvent('click')
+  await two.locator('[data-kition-card-action="discard"]').click()
+  await page.locator('[data-kition-dialog-choice="discard"]').click()
   await expect(two).toHaveAttribute('data-state', 'discarded', { timeout: 60_000 })
   expect(fs.readFileSync(file, 'utf8')).not.toContain(DRAFT_TWO)
 
@@ -382,16 +423,116 @@ test('review cards: a live edit’s card opens the file; a draft’s card review
   fs.appendFileSync(file, '\nChanged by the person outside the editor.\n')
   await expect(three).toHaveAttribute('data-state', 'stale', { timeout: 60_000 })
   await expect(three.locator('[data-kition-card-action="merge"]')).toHaveCount(0)
-  await three.locator('[data-kition-card-action="overwrite"]').dispatchEvent('click')
+  await three.locator('[data-kition-card-action="overwrite"]').click()
   await expect(three).toHaveAttribute('data-state', 'merged', { timeout: 60_000 })
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain(DRAFT_THREE)
   await page.screenshot({ path: path.join(shots, 'dsh-card-overwrite.png') })
 
-  // The conversation loaded again shows the same cards.
+  // A draft merged outside DeepSeek Harness (the command line): its card says only that the draft is gone.
+  await say(page, 'Card draft four')
+  const four = card(page, 'notes/cards.md')
+  await expect(four).toHaveAttribute('data-state', 'draft-open', { timeout: 120_000 })
+  execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), 'drafts', 'merge', 'notes/cards.md', '--workspace', workspace, '--overwrite'], { env: isolated(base, { KITION_KITS_MCP: kition, KITION_INDEX: index }), stdio: 'pipe' })
+  await expect(four).toHaveAttribute('data-state', 'draft-gone', { timeout: 60_000 })
+
+  // The conversation loaded again, and in another browser, shows the same cards: the host keeps the reviews.
+  const expected = ['live', 'merged', 'discarded', 'merged', 'draft-gone']
+  const states = (on: Page) => on.locator('[data-kition-card="notes/cards.md"]').evaluateAll((cards) => cards.map((element) => element.getAttribute('data-state')))
+  // The web UI keeps the open session in the browser, not in its address: the other browser picks it in the list.
+  const row = await page.locator('[role="treeitem"][aria-selected="true"][data-row-key^="session:"]').first().getAttribute('data-row-key')
+  cardsRow = row
   await page.reload()
-  const states = () => page.locator('[data-kition-card="notes/cards.md"]').evaluateAll((cards) => cards.map((element) => element.getAttribute('data-state')))
-  await expect.poll(states, { timeout: 60_000 }).toEqual([expect.stringMatching(/saved|live/), 'merged', 'discarded', 'merged'])
+  await expect.poll(() => states(page), { timeout: 60_000 }).toEqual(expected)
   await page.screenshot({ path: path.join(shots, 'dsh-cards-reloaded.png') })
+  const other = await browser.newContext({ viewport: { width: 1500, height: 950 } })
+  try {
+    const elsewhere = await other.newPage()
+    await elsewhere.goto(dsh.url)
+    await elsewhere.getByRole('button', { name: 'Continue' }).click({ timeout: 15_000 }).catch(() => {})
+    await elsewhere.locator(`[data-row-key="${row}"]`).click()
+    await expect.poll(() => states(elsewhere), { timeout: 60_000 }).toEqual(expected)
+  } finally {
+    await other.close()
+  }
+})
+
+test('in Chinese and dark, in a narrower window: the cards, a tab’s marks, the review and the settings card are whole, unclipped and in Chinese', async ({ page }) => {
+  expect(cardsRow, 'the cards test ran first').not.toBeNull()
+  await page.setViewportSize({ width: 1180, height: 820 })
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto(dsh.url)
+  await page.getByRole('button', { name: 'Continue' }).click({ timeout: 15_000 }).catch(() => {})
+  await page.locator(`[data-row-key="${cardsRow}"]`).click()
+  await language(page, 'zh')
+  try {
+    const chinese = /[\u4e00-\u9fff]/
+    const cards = page.locator('[data-kition-card]')
+    await expect(cards.first()).toBeVisible({ timeout: 30_000 })
+    // A new draft: its card's actions, and the tab's Draft mark.
+    const before = await cards.count()
+    await say(page, 'Card draft one')
+    await expect(cards).toHaveCount(before + 1, { timeout: 120_000 })
+    const drafted = card(page, 'notes/cards.md')
+    await expect(drafted).not.toHaveAttribute('data-state', 'pending', { timeout: 120_000 })
+    const toolAnswers = () => model.requests.flatMap((request) => request.messages).filter((message) => message.role === 'tool').map((message) => JSON.stringify(message.content))
+    expect(await drafted.getAttribute('data-state'), `the agent's last tool answer: ${toolAnswers().at(-1)}`).toBe('draft-open')
+    for (const one of await cards.all()) {
+      const box = (await one.boundingBox())!
+      for (const button of await one.locator('button').all()) {
+        expect(inside((await button.boundingBox())!, box), 'a card’s button inside the card').toBe(true)
+        expect(await button.innerText()).toMatch(chinese)
+      }
+      expect(await one.evaluate((element) => [...element.querySelectorAll<HTMLElement>('*')].every((child) => child.scrollWidth <= child.clientWidth + 1 || getComputedStyle(child).textOverflow === 'ellipsis')), 'nothing in a card overflows').toBe(true)
+    }
+    await page.screenshot({ path: path.join(shots, 'dsh-zh-dark-cards.png') })
+    await drafted.locator('[data-kition-card-action="open"]').click()
+    const mark = page.locator('[data-kition-draft]').first()
+    await expect(mark).toBeVisible({ timeout: 60_000 })
+    const tab = page.locator('[role="tab"]', { has: mark }).first()
+    const tabBox = (await tab.boundingBox())!
+    const markBox = (await mark.boundingBox())!
+    // Whole, and clear of the last 30 px, which DeepSeek Harness fades under the tab's close button.
+    expect(inside(markBox, tabBox)).toBe(true)
+    expect(markBox.x + markBox.width).toBeLessThanOrEqual(tabBox.x + tabBox.width - 30)
+    expect(await mark.innerText()).toMatch(chinese)
+    await drafted.locator('[data-kition-card-action="review"]').click()
+    await expect.poll(async () => (await pageFrame(page, 'notes/cards.md')?.getByTestId('draft-review').isVisible().catch(() => false)) ?? false, { timeout: 30_000 }).toBe(true)
+    const reviewing = pageFrame(page, 'notes/cards.md')!
+    await expect(reviewing.getByTestId('draft-counts')).toBeVisible({ timeout: 30_000 })
+    // The review fills the frame; its buttons are on its bottom edge while the review scrolls
+    // (nothing shows below them), else after its content.
+    const placed = () =>
+      reviewing.evaluate(() => {
+        const dialog = document.querySelector('.dialog')!.getBoundingClientRect()
+        const scrolls = document.querySelector('.dialog')!.scrollHeight > document.querySelector('.dialog')!.clientHeight + 1
+        const actions = document.querySelector('.review__actions')!.getBoundingClientRect()
+        const fills = Math.abs(dialog.width - innerWidth) <= 1 && Math.abs(dialog.height - innerHeight) <= 1
+        return fills && (scrolls ? Math.abs(actions.bottom - dialog.bottom) <= 1 : actions.bottom <= dialog.bottom + 1)
+      })
+    await expect.poll(placed).toBe(true)
+    expect(await reviewing.locator('.review__actions').innerText()).toMatch(chinese)
+    await page.screenshot({ path: path.join(shots, 'dsh-zh-dark-review.png') })
+    await reviewing.getByTestId('dialog-close').click()
+    await drafted.locator('[data-kition-card-action="discard"]').click()
+    await expect(page.locator('[data-kition-dialog]')).toContainText(chinese)
+    await page.screenshot({ path: path.join(shots, 'dsh-zh-dark-dialog.png') })
+    await page.locator('[data-kition-dialog-choice="discard"]').click()
+    await expect(drafted).toHaveAttribute('data-state', 'discarded', { timeout: 60_000 })
+    // The settings card, on the plugin's page.
+    await page.locator('a, button, [role="link"], [role="button"]').filter({ hasText: /^插件$/ }).first().click()
+    await page.getByText('@kition/dsh-kits', { exact: true }).first().click()
+    const settings = page.locator('[data-kition-setting]').first()
+    await expect(settings).toBeVisible()
+    const form = page.locator('[data-kition-settings]').first()
+    expect(await form.innerText()).toMatch(chinese)
+    expect(await form.evaluate((element) => [...element.querySelectorAll<HTMLElement>('*')].every((child) => child.scrollWidth <= child.clientWidth + 1)), 'nothing in the settings card overflows').toBe(true)
+    await page.screenshot({ path: path.join(shots, 'dsh-zh-dark-settings.png') })
+  } finally {
+    // Back in the session (the plugin's page has no composer), DeepSeek Harness in English again for the tests after.
+    await page.keyboard.press('Escape')
+    await page.locator(`[data-row-key="${cardsRow}"]`).click()
+    await language(page, 'en')
+  }
 })
 
 test('the live window is the person’s setting: turned off on the plugin’s page, an edit of a file not open opens nothing', async ({ page }) => {
@@ -425,6 +566,23 @@ test('a kit’s view-only format opens read-only: a .csv in Kition Sheet from Op
   expect(await frame.evaluate(() => (window as unknown as { kitionGatewayPage: { state: { readOnly: boolean; kit: string } } }).kitionGatewayPage.state)).toMatchObject({ readOnly: true, kit: 'kit.sheet' })
   await expect(page.locator('[data-kition-readonly]').first()).toBeVisible()
   await page.screenshot({ path: path.join(shots, 'dsh-csv-read-only.png') })
+})
+
+test('a view-only format of a kit not installed opens read-only, the kit index saying which kit views it: a .svg in Kition Vector', async ({ page }) => {
+  expect(fs.existsSync(path.join(base, 'kition/kits/vector'))).toBe(true)
+  expect(fs.readdirSync(path.join(base, 'kition/kits/vector'))).toEqual(['ui'])
+  await signIn(page)
+  await files(page)
+  await openInTree(page, 'poster.svg')
+  const menu = page.locator('[data-document-viewer-menu]').first()
+  await expect(menu).toBeVisible()
+  await menu.click()
+  await page.getByText('Kition Vector', { exact: true }).first().click()
+  await expect.poll(() => !!pageFrame(page, 'poster.svg'), { timeout: 60_000 }).toBe(true)
+  const frame = pageFrame(page, 'poster.svg')!
+  await opened(frame)
+  expect(await frame.evaluate(() => (window as unknown as { kitionGatewayPage: { state: { readOnly: boolean; kit: string } } }).kitionGatewayPage.state)).toMatchObject({ readOnly: true, kit: 'kit.vector' })
+  await page.screenshot({ path: path.join(shots, 'dsh-svg-read-only.png') })
 })
 
 test('the gateway the host module started stops with DeepSeek Harness', async () => {

@@ -21,29 +21,36 @@ What it adds:
   preview; the kit is under **Open with** in the preview's toolbar ("Kition Note", "Kition Doc",
   ...), or first when you set it so (Settings, below). A type a kit only views (Sheet's `.csv`,
   `.ods`, `.xls`; Vector's `.svg`, `.ai`, `.eps`; Design's `.fig`, `.sketch`; Layout's `.idml`)
-  opens read-only, marked so. Saving is the editor's own (Cmd+S, its Save button). The tab's title
-  shows `●` while it has unsaved edits and a Draft mark while an agent's draft waits, and closing it
-  with unsaved edits asks first, for a Kition tab and an Open with preview alike. DeepSeek
-  Harness's keyboard shortcuts work with the keyboard in the editor. The editor follows DeepSeek
-  Harness's theme and its language (English and Chinese).
+  opens read-only, marked so, whether or not the kit is installed yet. Saving is the editor's own
+  (Cmd+S, its Save button). The tab's title shows `●` while it has unsaved edits and a Draft mark
+  while an agent's draft waits (before the name, which a narrow tab cuts), and closing it with
+  unsaved edits asks first, for a Kition tab and an Open with preview alike; so does leaving or
+  reloading the web UI. DeepSeek Harness's keyboard shortcuts work with the keyboard in the editor.
+  The editor follows DeepSeek Harness's theme and its language (English and Chinese).
 - **The agent's edits, live.** The KHP tools `mcp__kition__kit_inspect`, `_commands`, `_run`,
   `_check`, `_query`, `_batch`, `_export`, `_create`, `_draft_ready` and `_draft_reopen` (those the
   installed kits offer), routed to the right kit by the file's extension, and the kits' resources
   (each kit's manifest, a document's objects) through DeepSeek Harness's resource tools. A
   session's calls act on that session's own workspace folder and go to its gateway: a file open in
   the editor is edited there, as a step in the editor's history; any other file through the kit's
-  headless engine. Paths outside the folder are refused (KHP A29). While an agent edits a file that
-  is not open, a floating window shows it as it happens, without taking the keyboard from where you
-  type (Settings); you close it, and it stays closed for that turn.
+  headless engine. Paths outside the folder are refused (KHP A29). When an agent is about to edit a
+  file that is not open, a live window opens it first, so that edit and the turn's next ones run in
+  its editor as you watch, without taking the keyboard from where you type (Settings). The window
+  floats beside the conversation, right of it, where the page has room for it, else it is a tab in
+  the right sidebar; you close it, and it stays closed for that turn.
 - **A review card at the end of each turn.** Each kit file the turn changed gets a card in the chat:
   its name and kit, a picture of the draft, what changed (objects created, changed, deleted), and
   where it stands: edited live in the open editor, edited, created, a draft for your review (ready,
   or stale when the file changed since it began), merged, discarded, the draft gone, the file
   deleted; or that Kition is not installed or does not answer, with Try again. Open opens the file
-  in the sidebar; Review opens the editor's review of the draft. Merge, Discard and, for a stale
-  draft, Merge and overwrite are yours: buttons in the card, never an agent's tool (KHP A14). The
-  card follows the draft as it changes, the open editor takes a merge, and a conversation opened
-  again shows its cards.
+  in the sidebar; Review opens the editor's review of the draft in the right sidebar's tab (a live
+  window moves there). Merge, Discard and, for a stale draft, Merge and overwrite are yours: buttons
+  in the card, never an agent's tool (KHP A14). The card follows the draft as it changes, the open
+  editor takes a merge, and a conversation opened again shows its cards. What you did to a draft
+  (merged, discarded, by you, when) is recorded with the workspace, in `.kition/dsh-reviews.json`,
+  so every browser shows it; a draft merged or
+  discarded elsewhere (the CLI, another editor) shows as no longer there, which is all the plugin
+  knows of it.
 - **The agent's drafts, for you to review.** An agent's draft (`draft: true`) leaves the file as it
   is; the editor shows a banner ("An agent drafted changes to this file — Review") with the
   comparison and the pictures before and after, and Merge and Discard. `/drafts-list`,
@@ -93,14 +100,18 @@ Restart a running profile after adding the plugin. `dsh plugin --profile <profil
 @kition/dsh-kits` removes it. In the `headless` profile, which has no browser UI, the plugin gives
 the agents the tools and the skills.
 
-**DeepSeek Harness Desktop.** Its profile, `desktop`, takes plugins only through the app's own
-command line (the npm `dsh` refuses it) or its Plugins page. Quit the app, then:
+**DeepSeek Harness Desktop.** Its profile, `desktop`, takes plugins only through the app's Plugins
+page or its own command line (the npm `dsh` refuses it). On the Plugins page, **Add plugin** takes
+a package name, a GitHub address or a local folder: unpack the archive
+(`mkdir kition-dsh-kits && tar -xzf kition-dsh-kits-<version>.tgz -C kition-dsh-kits
+--strip-components 1`), give the folder's full path, **Install**, then **Enable now**, and start the
+app again. Or quit the app, then:
 
 ```sh
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add ./kition-dsh-kits-<version>.tgz
 ```
 
-and start the app again. Installing through the Plugins page has not been tested.
+and start the app again.
 
 ## Settings
 
@@ -113,7 +124,9 @@ On the plugin's own page in DeepSeek Harness (Plugins, `@kition/dsh-kits`), kept
 | Open first in | DeepSeek Harness's preview | Which opens a `.md`, `.html`, `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.csv` or `.svg` file first: DeepSeek Harness's preview, or the Kition editor (the other stays under Open with) |
 
 They are the host row's settings (`kition-kits-host`, its `Config`), which the browser module reads
-through DeepSeek Harness's settings service.
+through DeepSeek Harness's settings service. The page shows them in DeepSeek Harness's language
+(English or Chinese); the schema's own descriptions carry both (`Schema.i18n`), for any other
+place that shows the schema.
 
 ## Options
 
@@ -126,6 +139,7 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
 | `KITION_KITS_DIR` | A folder with one folder per kit, each holding its `kit.json` and headless executable. Unset: the kits `kition` installs in `~/.kition/kits` |
 | `KITION_KIT_REPOS` | A folder of kit checkouts, `kition-<kit>/`. Every kit built there with `cargo build -p kition-<kit>` is served from `target/debug/kition-<kit>` with its repository's `kit.json` |
 | `KITION_KITS_UNIFIED` | `true` (the default): `mcp__kition__kit_<action>` tools routed by file extension. Anything else: `mcp__kition__<prefix>_<action>` per installed kit, such as `mcp__kition__note_run` |
+| `KITION_LIVE_WAIT_MS` | How long an agent's edit of a file not open waits, at most, for a watching browser to answer that it opens the file's live window (default 3000, at most 10000; `0` never waits). A browser that answered it is opening the editor gets until 8 seconds after the edit was announced for the editor to attach (a kit's editor loaded for the first time takes about 3 seconds). An edit never waits when no browser shows the session, or the live window is off |
 | `KITION_KITS_MCP` | The draft skills' server, as `bin/kits-mcp.mjs` starts it: `kition` (started as `kition mcp`) or a `kition-kits-mcp`. Unset: `kition` as above, else `kition-kits-mcp` on the `PATH`, else `npx -y @kition/cli mcp`. A `kition` named here is also the one the gateways use, unless `KITION_BIN` is set |
 
 `KITION_HOME` and `KITION_INDEX` are `kition`'s own (its kit store and lockfiles, and its kit index).
@@ -193,10 +207,21 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   each turn's kit tool calls and results; the turn's tail (`conversation.chat.turnTail`) shows a
   card per file the turn changed, with the gateway's drafts (followed through its bridge's
   `kit/draftsChanged`, the pages' messages, and every 10 seconds) and their comparison. Merge and
-  Discard go through the proxy from the person's click in the card. A watcher in the composer's dock
-  (`conversation.input.dock`) opens the live window (`sidebarRight.openResource`, `destination:
-  'float'`) for a running turn's edit of a file not open. The settings card is on the plugin's page
-  (`plugins.bundle.config`), bound to the host row's settings (`configForms`).
+  Discard go through the proxy from the person's click in the card, which records them
+  (`lib/reviews.mjs`, `GET /kition/api/reviews?session=<id>`); the card shows the record of its
+  session and turn, else the latest of the file's records made after its draft. The settings card
+  is on the plugin's page (`plugins.bundle.config`), bound to the host row's settings
+  (`configForms`). Questions (closing unsaved edits, discarding a draft) are a small dialog in the
+  page, not the browser's `confirm`, which stops the page (in Desktop it is a native window).
+- **The live window** (`lib/live.mjs`, `src/client/placement.ts`). A watcher in the composer's dock
+  (`conversation.input.dock`) keeps an event stream open on `/kition/api/live?session=<id>`. Before
+  the host forwards a session's `run` or `batch` of a file (not a draft), it announces the file
+  there and waits (`KITION_LIVE_WAIT_MS`, above) for an answer: the editor is open already, it is
+  opening (then attached, or not), or none opens. The watcher opens the file docked
+  (`sidebarRight.openResource`), floats it right of the conversation column
+  (`sidebarRight.float`, at least 420 by 360, at most 640 by 760) when the page has room, and keeps
+  the keyboard where it was. Edits the host does not announce (drafts, new files) open the window
+  once they show in the turn.
 - `bin/kits-mcp.mjs` starts `kition mcp` with the options; the draft skills run its
   `drafts <command> ...` passthrough on the session's folder.
 - A `/name` token anywhere in your message injects that skill's instructions into the turn; the
@@ -213,17 +238,17 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
 
 ## Limits
 
-- A type a kit only views opens once that kit is installed (`kition kit install <kit>`, or after an
-  agent first used it): the kit index, made from what the kit repositories publish, lists only the
-  types each kit edits. Of the view-only types, the tests open Sheet's `.csv`; whether each other
-  kit's editor shows its view-only types (Vector's `.svg`, `.ai`, `.eps`; Design's `.fig`,
-  `.sketch`; Layout's `.idml`; Sheet's `.ods`, `.xls` and templates) is the kit's, and untested.
-- What you did to a draft from a card or the editor's review (merged, discarded) is kept in this
-  browser: another browser's card of that turn says the draft is no longer there.
+- Of the view-only types, the tests open Sheet's `.csv` and Vector's `.svg`; the other kits'
+  view-only types (Vector's `.ai`, `.eps`; Design's `.fig`, `.sketch`; Layout's `.idml`; Sheet's
+  `.ods`, `.xls`, `.xlsb`, `.et` and templates) are offered as their kits declare them, untested:
+  the kit repositories have no sample files of them.
+- A draft merged or discarded outside DeepSeek Harness (the CLI, another editor) leaves no record:
+  its card says the draft is no longer there, not what became of it. The records are kept per
+  workspace folder, the latest 1000.
 - A card is there for each file the turn changed; a turn that only read kit files has none.
-- The live window shows the file once the agent's first edit of it began, so that edit shows when
-  it is done; the turn's later edits show as they happen. DeepSeek Harness places the floating
-  window, which can lie over the conversation; dock it with its button or move it.
+- The live window waits for no browser that is not showing the session: an agent's edit while
+  nobody watches runs in the headless engine. When the page has no room right of the conversation
+  (a narrow window, a wide right sidebar), the live window is the sidebar's tab.
 - DeepSeek Harness sends every tool definition with every request; the kits' tools are large (with
   Note and Table installed, about 93,000 characters of definitions).
 - The skill catalog shows at most 500 characters of a skill's description; the Scene kit's is
@@ -232,9 +257,12 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   folder to a subfolder, they look there.
 - Merging and discarding are yours (KHP A14) as far as the cards, the editor and the skills go; an
   agent with a shell could still run the launcher's `drafts merge` itself, as with any harness.
+- Quitting DeepSeek Harness Desktop with unsaved edits in a Kition tab does not ask: Electron shows
+  no page's question (it refuses to close the window instead, which kept the app from quitting at
+  all), and the app offers plugins no question of their own at quit. Save first; closing the tab
+  asks.
 - Tested on macOS, with Chromium for the web UI (as a Windows browser, the test's device). Windows
-  and Linux hosts have not been run, nor a browser on another machine than DeepSeek Harness, nor
-  installing through Desktop's Plugins page.
+  and Linux hosts have not been run, nor a browser on another machine than DeepSeek Harness.
 
 ## Test
 
@@ -264,25 +292,32 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   `@deepseek-ai/dsh` runtime into a cache folder (`DSH_KITS_CACHE`, about 1 GB).
 - `pnpm test:dsh:e2e` (in kition-sdk, `test/web.e2e.ts`) runs the web UI of that runtime in
   Chromium, with the packed plugin installed into a profile from the `web` template, the real
-  Table, Note and Sheet kits and a scripted model (one that takes images), under a HOME of its own:
+  Table, Note and Sheet kits, Vector's editor and a scripted model (one that takes images), under a HOME of its own:
   `/kition/` refuses a request without DeepSeek Harness's login, a foreign Host and a cross-site
   Origin; a `.ktable` clicked in the file tree opens the Table editor, DeepSeek Harness's settings
   shortcut pressed in it opens DeepSeek Harness's settings, its language reaches the page, an edit
-  marks the tab, closing it then asks first, and Cmd+S saves it to disk; a `.md` keeps DeepSeek
+  marks the tab, reloading then asks (the browser's question) and closing the tab asks (a dialog in
+  the page), and Cmd+S saves it to disk; a `.md` keeps DeepSeek
   Harness's preview and opens in Kition Note from Open with, which follows the theme, marks unsaved
   edits on DeepSeek Harness's tab and asks before it closes; the agent's `mcp__kition__kit_run`
   reaches the open editor live, its preview picture reaches the model as an image, the kits'
   instructions are in the system prompt, a resource reads through `read_mcp_resource`, a gateway
   killed and started again takes the next edit live, and its drafts show the banner and the tab's
-  mark; review cards: Open, Review, Merge (the open editor following), Discard, Merge and
-  overwrite of a stale draft, the same cards after a reload; the live window opens for an edit of a
-  file not open without taking the keyboard, and not once turned off on the plugin's page; a `.csv`
-  opens read-only in Kition Sheet; the gateway stops with DeepSeek Harness.
+  mark; review cards, every action a real click: the first edit of a file not open runs live in
+  the live window, which covers neither the composer nor the cards and leaves the keyboard there;
+  Open, Review (in the sidebar's tab, filling it), Merge (the open editor following), Discard,
+  Merge and overwrite of a stale draft, a draft merged with the CLI shown as gone, the same cards
+  after a reload and in another browser; in Chinese, dark and a narrower window the cards, the
+  tab's Draft mark, the review and the settings card are whole and translated; the live window
+  turned off on the plugin's page opens nothing; a `.csv` opens read-only in Kition Sheet and a
+  `.svg` in Kition Vector, which is not installed; the gateway stops with DeepSeek Harness.
 - `pnpm test:dsh:desktop` (`test/desktop.e2e.ts`, macOS) starts the installed DeepSeek Harness
   Desktop with a HOME, a DSH_HOME and an Electron user data folder of its own, installs the packed
   plugin with the app's CLI, opens a `.ktable` in the Table editor, closes its tab with Cmd+W
-  pressed in the editor, has a scripted agent add a record in the open editor, live, and merges the
-  agent's draft of another from its review card, the open editor following.
+  pressed in the editor, has a scripted agent add a record in the open editor, live, merges the
+  agent's draft of another from its review card, the open editor following, opens the live window
+  and keeps a setting; then, in a profile of its own, installs the plugin from the Plugins page
+  (the unpacked archive's folder), opens a `.ktable`, and closes the app with unsaved edits in it.
 
 Both need Node.js 24.9 or later and `pnpm`, a built `kition` (`cargo build -p kition-cli`) and the
 gateway e2e's kit index with editor packages (kition-sdk `examples/gateway-page`).

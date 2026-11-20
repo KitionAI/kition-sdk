@@ -6,7 +6,7 @@
 import http from 'node:http'
 
 /** Request headers never forwarded: the browser's credentials and origin, and hop-by-hop ones. */
-const DROPPED_REQUEST = new Set(['origin', 'cookie', 'referer', 'kition-token', 'host', 'connection', 'keep-alive', 'proxy-authorization', 'proxy-connection', 'te', 'trailer', 'upgrade'])
+const DROPPED_REQUEST = new Set(['origin', 'cookie', 'referer', 'kition-token', 'host', 'connection', 'keep-alive', 'proxy-authorization', 'proxy-connection', 'te', 'trailer', 'upgrade', 'kition-dsh-session', 'kition-dsh-turn', 'content-length'])
 /** Answer headers never passed back: hop-by-hop ones, and any cookie (the gateway sets none). */
 const DROPPED_RESPONSE = new Set(['connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'upgrade', 'set-cookie', 'proxy-authenticate'])
 
@@ -42,10 +42,16 @@ export function answerJson(res, status, body) {
  * @param {{ url: string, token: string }} gateway
  * @param {string} rest
  * @param {() => void} [unreachable]
+ * @param {{ body?: Buffer, answered?: (status: number) => void }} [options] `body`: the request's
+ *   body, already read; `answered` hears the gateway's status
  */
-export function forward(req, res, gateway, rest, unreachable = () => {}) {
+export function forward(req, res, gateway, rest, unreachable = () => {}, { body, answered } = {}) {
   const target = new URL(rest, gateway.url)
-  const upstream = http.request(target, { method: req.method, headers: gatewayHeaders(req.headers, gateway.url, gateway.token) }, (answer) => {
+  const headers = gatewayHeaders(req.headers, gateway.url, gateway.token)
+  if (body) headers['content-length'] = String(body.length)
+  else if (req.headers['content-length'] !== undefined) headers['content-length'] = req.headers['content-length']
+  const upstream = http.request(target, { method: req.method, headers }, (answer) => {
+    answered?.(answer.statusCode ?? 0)
     const headers = browserHeaders(answer.headers)
     // An event stream must reach the browser event by event: nothing on the way may compress
     // (DeepSeek Harness's web server gzips plugin routes) or buffer it.
@@ -67,6 +73,9 @@ export function forward(req, res, gateway, rest, unreachable = () => {}) {
   res.on('close', () => {
     if (!res.writableFinished) upstream.destroy()
   })
-  req.pipe(upstream)
-  req.on('error', () => upstream.destroy())
+  if (body) upstream.end(body)
+  else {
+    req.pipe(upstream)
+    req.on('error', () => upstream.destroy())
+  }
 }

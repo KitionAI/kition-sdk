@@ -428,3 +428,133 @@ describe('keeping the kit tools current, without a restart', async () => {
     expect(registered.get('mcp__kition__kit_inspect').output.presentationMeta({ path: 'a.md' }, { content: [] })).toMatchObject({ kition: 1, path: 'a.md' })
   })
 })
+
+describe('the live window’s handshake', async () => {
+  const { LiveAnnouncer, liveWaitMs } = await import('../plugins/deepseek-harness/kition-kits/lib/live.mjs')
+  const { PassThrough } = await import('node:stream')
+  /** A browser's event stream as the host writes it. */
+  const browser = () => {
+    const req = new PassThrough()
+    const written = []
+    const res = Object.assign(new PassThrough(), { writeHead() {}, flushHeaders() {}, write: (text) => written.push(text) })
+    return { req, res, written, events: () => written.filter((text) => text.startsWith('event: editing')).map((text) => JSON.parse(text.split('data: ')[1])) }
+  }
+
+  it('waits for no browser when none watches the session, nor when the person turned it off', async () => {
+    const live = new LiveAnnouncer({ waitMs: 3000 })
+    const started = Date.now()
+    expect(await live.announce('s1', 'a.md')).toBe('skipped')
+    const off = new LiveAnnouncer({ waitMs: 3000, enabled: () => false })
+    const watcher = browser()
+    off.watch('s1', watcher.req, watcher.res)
+    expect(await off.announce('s1', 'a.md')).toBe('skipped')
+    expect(watcher.events()).toEqual([])
+    expect(Date.now() - started).toBeLessThan(200)
+  })
+
+  it('tells the session’s browsers and goes on when one says the editor is attached', async () => {
+    const live = new LiveAnnouncer({ waitMs: 3000 })
+    const watcher = browser()
+    const other = browser()
+    live.watch('s1', watcher.req, watcher.res)
+    live.watch('s2', other.req, other.res)
+    const waiting = live.announce('s1', 'notes/a.md')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const [event] = watcher.events()
+    expect(event.path).toBe('notes/a.md')
+    expect(other.events()).toEqual([])
+    expect(live.answer(event.id, 'attached')).toBe(true)
+    expect(await waiting).toBe('attached')
+    expect(live.answer(event.id, 'attached'), 'answered once').toBe(false)
+  })
+
+  it('never waits longer than the bound, and stops waiting for a browser that went', async () => {
+    const live = new LiveAnnouncer({ waitMs: 150 })
+    const watcher = browser()
+    live.watch('s1', watcher.req, watcher.res)
+    const started = Date.now()
+    expect(await live.announce('s1', 'a.md')).toBe('timeout')
+    expect(Date.now() - started).toBeLessThan(1000)
+    watcher.req.emit('close')
+    expect(live.watched('s1')).toBe(false)
+    expect(await live.announce('s1', 'a.md')).toBe('skipped')
+    expect(liveWaitMs({})).toBe(3000)
+    expect(liveWaitMs({ KITION_LIVE_WAIT_MS: '500' })).toBe(500)
+    expect(liveWaitMs({ KITION_LIVE_WAIT_MS: '999999' })).toBe(10_000)
+    expect(liveWaitMs({ KITION_LIVE_WAIT_MS: '' }), 'unset').toBe(3000)
+    expect(liveWaitMs({ KITION_LIVE_WAIT_MS: '0' }), 'off').toBe(0)
+  })
+
+  it('gives a browser opening the editor longer, still bounded, and another browser opening none does not cut it short', async () => {
+    const live = new LiveAnnouncer({ waitMs: 100, openingMs: 400 })
+    const watcher = browser()
+    const other = browser()
+    live.watch('s1', watcher.req, watcher.res)
+    live.watch('s1', other.req, other.res)
+    const started = Date.now()
+    const waiting = live.announce('s1', 'a.md')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const [event] = watcher.events()
+    expect(event.openingMs).toBe(400)
+    live.answer(event.id, 'opening')
+    live.answer(event.id, 'none')
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    live.answer(event.id, 'attached')
+    expect(await waiting, 'past the first bound, within the second').toBe('attached')
+    // Opening, never attached: the second bound ends it.
+    const late = live.announce('s1', 'b.md')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    live.answer(watcher.events()[1].id, 'opening')
+    expect(await late).toBe('timeout')
+    expect(Date.now() - started).toBeLessThan(1500)
+  })
+})
+
+describe('the person’s reviews, recorded with the workspace', async () => {
+  const { createRoutes } = await import('../plugins/deepseek-harness/kition-kits/lib/routes.mjs')
+  const { Workspaces } = await import('../plugins/deepseek-harness/kition-kits/lib/workspaces.mjs')
+  const { readReviews, reviewsFile } = await import('../plugins/deepseek-harness/kition-kits/lib/reviews.mjs')
+  // A gateway stand-in that answers merges and discards: 200, or 409 for a path named stale.
+  const answering = http.createServer((req, res) => {
+    let body = ''
+    req.on('data', (chunk) => (body += chunk))
+    req.on('end', () => {
+      const asked = JSON.parse(body || '{}')
+      res.writeHead(asked.path === 'stale.md' ? 409 : 200, { 'content-type': 'application/json' }).end(JSON.stringify({ data: { seen: req.headers } }))
+    })
+  })
+  await new Promise((resolve) => answering.listen(0, '127.0.0.1', resolve))
+  const dirs = fresh('reviews')
+  const gateway = { url: `http://127.0.0.1:${answering.address().port}`, token: 't'.repeat(64) }
+  const handle = createRoutes({ gateways: { get: async () => gateway, forget() {} }, workspaces: new Workspaces({ cwdOf: (id) => (id === 's1' ? dirs.workspace : undefined), list: () => [dirs.workspace] }), rejection: () => undefined })
+  const server = http.createServer(handle)
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const base = `http://127.0.0.1:${server.address().port}`
+  afterAll(() => {
+    server.close()
+    answering.close()
+  })
+  const key = workspaceKey(dirs.workspace)
+  const post = (route, body, headers = {}) => fetch(`${base}/kition/w/${key}/api/v1/kits/drafts/${route}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
+
+  it('records a merge or discard the gateway did, from a card with its session and turn, from the editor without', async () => {
+    const merged = await post('merge', { path: 'a.md', overwrite: true }, { 'kition-dsh-session': 's1', 'kition-dsh-turn': '4' })
+    expect(merged.status).toBe(200)
+    // The card's origin stays with the host: the gateway does not hear it.
+    expect((await merged.json()).data.seen['kition-dsh-session']).toBeUndefined()
+    expect((await post('discard', { path: 'b.md' })).status).toBe(200)
+    expect((await post('merge', { path: 'stale.md' })).status).toBe(409)
+    const reviews = readReviews(dirs.workspace)
+    expect(reviews.map(({ path, outcome, overwrite, session, turn, by }) => ({ path, outcome, overwrite, session, turn, by }))).toEqual([
+      { path: 'a.md', outcome: 'merged', overwrite: true, session: 's1', turn: 4, by: 'person' },
+      { path: 'b.md', outcome: 'discarded', overwrite: undefined, session: null, turn: null, by: 'person' },
+    ])
+    expect(reviewsFile(dirs.workspace)).toBe(path.join(dirs.workspace, '.kition', 'dsh-reviews.json'))
+  })
+
+  it('reads them back for any browser of a session of the workspace', async () => {
+    const answer = await (await fetch(`${base}/kition/api/reviews?session=s1`)).json()
+    expect(answer.reviews.map((review) => review.path)).toEqual(['a.md', 'b.md'])
+    expect((await fetch(`${base}/kition/api/reviews?session=nope`)).status).toBe(404)
+  })
+})

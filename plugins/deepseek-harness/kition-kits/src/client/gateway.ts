@@ -4,6 +4,8 @@
  * and the person's Merge and Discard. Every call is made from the person's own action in this
  * page (a click); none is offered to an agent (KHP A14).
  */
+import type { Review } from './turn'
+
 export type Opened = { phase: 'opening' } | { phase: 'open'; page: string; key: string; path: string } | { phase: 'failed'; error: string; message: string }
 
 /** The host module's route `path`, relative to where DeepSeek Harness is served. */
@@ -44,7 +46,15 @@ export async function gatewayJson<T>(key: string, path: string, init: RequestIni
   return (envelope?.data ?? null) as T
 }
 
-const post = (key: string, path: string, body: unknown) => gatewayJson(key, path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+/** Where a review comes from: the card of a session's turn (the host records it so). */
+export type Origin = { session: string; turn: number }
+
+const post = (key: string, path: string, body: unknown, origin?: Origin) =>
+  gatewayJson(key, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(origin ? { 'Kition-Dsh-Session': origin.session, 'Kition-Dsh-Turn': String(origin.turn) } : {}) },
+    body: JSON.stringify(body),
+  })
 
 export type DraftListing = { path: string; state: 'open' | 'ready'; stale: boolean; updated?: number }
 export type Comparison = {
@@ -57,9 +67,9 @@ export type Comparison = {
 
 export const compare = (key: string, path: string) => gatewayJson<Comparison>(key, `api/v1/kits/drafts/compare?${new URLSearchParams({ path, previews: 'true' })}`)
 /** The person's Merge (with `overwrite`, over a file that changed since the draft began). */
-export const merge = (key: string, path: string, overwrite = false) => post(key, 'api/v1/kits/drafts/merge', { path, overwrite })
+export const merge = (key: string, path: string, overwrite = false, origin?: Origin) => post(key, 'api/v1/kits/drafts/merge', { path, overwrite }, origin)
 /** The person's Discard. */
-export const discard = (key: string, path: string) => post(key, 'api/v1/kits/drafts/discard', { path })
+export const discard = (key: string, path: string, origin?: Origin) => post(key, 'api/v1/kits/drafts/discard', { path }, origin)
 
 /** Whether the workspace file is still there. */
 export async function exists(key: string, path: string) {
@@ -171,35 +181,54 @@ export function draftsOf(key: string) {
 /* -------------------------------------------------------------------------------------------- */
 
 /**
- * What the person did to a draft here (a card's or a page's Merge or Discard), kept in this
- * browser by session, file and the turn that drafted it.
+ * The person's reviews of the session's workspace's drafts, as the host module records them (every
+ * Merge and Discard through it, from a card or the editor's own review), followed: asked again when
+ * a draft changes or the person reviews one.
  */
-const outcomeKey = (sessionId: string, path: string, turn: number) => `kition-dsh:outcome:${sessionId}:${turn}:${path}`
+class ReviewsWatch {
+  reviews: Review[] = []
+  private readonly listeners = new Set<() => void>()
+  private asked = false
 
-export function rememberOutcome(sessionId: string, path: string, turn: number, outcome: 'merged' | 'discarded') {
-  try {
-    localStorage.setItem(outcomeKey(sessionId, path, turn), outcome)
-  } catch {
-    // A browser that keeps nothing: the card says the draft is gone.
+  constructor(readonly sessionId: string) {}
+
+  subscribe(listener: () => void) {
+    this.listeners.add(listener)
+    if (!this.asked) void this.refresh()
+    return () => this.listeners.delete(listener)
+  }
+
+  async refresh() {
+    this.asked = true
+    try {
+      const response = await fetch(route(`kition/api/reviews?${new URLSearchParams({ session: this.sessionId })}`), { credentials: 'same-origin', cache: 'no-store' })
+      const answer = await response.json()
+      if (response.ok && Array.isArray(answer.reviews)) this.reviews = answer.reviews
+    } catch {
+      // Asked again with the next change.
+    }
+    for (const listener of [...this.listeners]) listener()
   }
 }
 
-export function outcomeOf(sessionId: string, path: string, turn: number): 'merged' | 'discarded' | null {
-  try {
-    const kept = localStorage.getItem(outcomeKey(sessionId, path, turn))
-    return kept === 'merged' || kept === 'discarded' ? kept : null
-  } catch {
-    return null
-  }
+const reviewWatches = new Map<string, ReviewsWatch>()
+export function reviewsOf(sessionId: string) {
+  let watch = reviewWatches.get(sessionId)
+  if (!watch) reviewWatches.set(sessionId, (watch = new ReviewsWatch(sessionId)))
+  return watch
 }
 
-/** The latest turn shown that drafted each session's file: a page's own review is that turn's. */
-const draftingTurns = new Map<string, number>()
+/** Every turn shown that drafted each session's file, and when: what a review without a turn is matched against. */
+const draftingTurns = new Map<string, Map<number, number | null>>()
 const draftingListeners = new Set<() => void>()
-export function noteDraftingTurn(sessionId: string, path: string, turn: number) {
+let draftingVersion = 0
+export function noteDraftingTurn(sessionId: string, path: string, turn: number, at: number | null) {
   const key = `${sessionId}:${path}`
-  if ((draftingTurns.get(key) ?? -1) >= turn) return
-  draftingTurns.set(key, turn)
+  let turns = draftingTurns.get(key)
+  if (!turns) draftingTurns.set(key, (turns = new Map()))
+  if (turns.get(turn) === at) return
+  turns.set(turn, at)
+  draftingVersion++
   queueMicrotask(() => {
     for (const listener of [...draftingListeners]) listener()
   })
@@ -208,4 +237,10 @@ export function subscribeDraftingTurns(listener: () => void) {
   draftingListeners.add(listener)
   return () => draftingListeners.delete(listener)
 }
-export const draftingTurnOf = (sessionId: string, path: string) => draftingTurns.get(`${sessionId}:${path}`) ?? null
+export const draftingVersionNow = () => draftingVersion
+export const draftingTurnsOf = (sessionId: string, path: string): Array<[number, number | null]> => [...(draftingTurns.get(`${sessionId}:${path}`) ?? new Map()).entries()]
+/** The latest turn shown that drafted the file. */
+export const draftingTurnOf = (sessionId: string, path: string) => {
+  const turns = draftingTurnsOf(sessionId, path).map(([turn]) => turn)
+  return turns.length ? Math.max(...turns) : null
+}

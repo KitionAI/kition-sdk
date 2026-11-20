@@ -16,7 +16,11 @@ intent: >-
   run each call on the gateway of the calling session's own workspace and keep each call's outcome
   for the session log; while kition is missing the agent has one tool that says how to install it,
   replaced by the kits' tools once kition is installed, and listed again (the old gateways stopped)
-  when its executable changes; the kits' resources are read from the calling session's gateway.
+  when its executable changes; the kits' resources are read from the calling session's gateway;
+  before an agent's edit of a file, it tells the browsers showing that session and waits for the
+  file's editor, within the first bound for an answer and the second for an editor opening, never
+  when nobody watches or the live window is off; the person's Merge and Discard through the proxy
+  are recorded with the workspace, with the card's session and turn, and read back per session.
 layer: gate
 source:
   kind: synthetic

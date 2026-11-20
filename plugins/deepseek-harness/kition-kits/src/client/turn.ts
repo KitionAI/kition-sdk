@@ -23,6 +23,8 @@ export type KitOperation = {
   /** On the agent's draft of the file, which only the person merges. */
   readonly draft: boolean
   readonly created: boolean
+  /** When its result came (the session event's time, ms), once done. */
+  readonly time?: number
 }
 
 export type KitTurnFile = { readonly path: string; readonly kit: string | null; readonly operations: readonly KitOperation[] }
@@ -32,7 +34,7 @@ export type KitTurnData = { readonly files: readonly KitTurnFile[] }
 
 export type KitTurnState = KitTurnData & { readonly turn: number }
 
-type Event = { type: string; data?: Record<string, unknown> }
+type Event = { type: string; data?: Record<string, unknown>; time?: number }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -88,8 +90,8 @@ function outcome(data: Record<string, unknown>): { live: boolean; draft: boolean
   return { live: /"live":true/.test(text), draft: /"draft":true/.test(text), kit: /"kit":"(kit\.[a-z0-9-]+)"/.exec(text)?.[1] ?? null, path: null }
 }
 
-/** A `tool/result`: its call's operation done or failed, with what it did. */
-export function applyResult(state: KitTurnState, data: Record<string, unknown>): KitTurnState {
+/** A `tool/result` (at `time`): its call's operation done or failed, with what it did. */
+export function applyResult(state: KitTurnState, data: Record<string, unknown>, time?: number): KitTurnState {
   const message = isRecord(data.message) ? data.message : {}
   const callId = typeof message.toolCallId === 'string' ? message.toolCallId : typeof data.callId === 'string' ? data.callId : null
   if (!callId) return state
@@ -98,7 +100,7 @@ export function applyResult(state: KitTurnState, data: Record<string, unknown>):
   const before = file.operations.find((operation) => operation.callId === callId)!
   const failed = message.isError === true || data.error !== undefined
   const said = failed ? null : outcome(data)
-  const operation: KitOperation = { ...before, phase: failed ? 'failed' : 'done', live: said?.live ?? false, draft: said?.draft ?? before.draft }
+  const operation: KitOperation = { ...before, phase: failed ? 'failed' : 'done', live: said?.live ?? false, draft: said?.draft ?? before.draft, ...(typeof time === 'number' ? { time } : {}) }
   return { ...state, files: withOperation(state.files, file.path, said?.kit ?? file.kit, operation) }
 }
 
@@ -118,7 +120,7 @@ export const kitTurnDefinition = {
   update(context: { state: KitTurnState }, match: { event: Event }): KitTurnState {
     const data = match.event.data ?? {}
     if (match.event.type === 'tool/call') return addCall(context.state, data)
-    if (match.event.type === 'tool/result') return applyResult(context.state, data)
+    if (match.event.type === 'tool/result') return applyResult(context.state, data, match.event.time)
     return context.state
   },
   buildLocationData(context: { state?: KitTurnState }, scope: string, previous: { value?: KitTurnData } | null) {
@@ -147,6 +149,31 @@ export type CardState =
   | 'discarded'
   | 'draft-gone' // the draft is no longer there, nobody here merged or discarded it
   | 'missing' // the file is gone
+
+/** A review the host recorded (lib/reviews.mjs): the person's Merge or Discard of a draft. */
+export type Review = { path: string; outcome: 'merged' | 'discarded'; at: number; session: string | null; turn: number | null; by?: string }
+
+/** When the turn last drafted the file (its last draft write's result), or null. */
+export function draftedAt(file: KitTurnFile): number | null {
+  const times = file.operations.filter((operation) => operation.writes && operation.draft && operation.phase === 'done' && typeof operation.time === 'number').map((operation) => operation.time!)
+  return times.length ? Math.max(...times) : null
+}
+
+/**
+ * What the person did to the draft one turn made of `path`: the review recorded for that session
+ * and turn (a card's), else the first review recorded after the turn drafted it and before any
+ * later turn drafted it again (the editor's own review, or a card's from before turns were kept).
+ * `drafts` are every turn of the session that drafted `path`: `[turn, draftedAt]`.
+ */
+export function outcomeFor(reviews: readonly Review[], sessionId: string, path: string, turn: number, drafts: ReadonlyArray<readonly [number, number | null]>): Review | null {
+  const own = reviews.filter((review) => review.path === path)
+  const exact = own.find((review) => review.session === sessionId && review.turn === turn)
+  if (exact) return exact
+  const at = drafts.find(([candidate]) => candidate === turn)?.[1]
+  if (at == null) return null
+  const next = drafts.map(([, time]) => time).filter((time): time is number => time != null && time > at).sort((a, b) => a - b)[0] ?? Infinity
+  return own.find((review) => review.turn === null && review.at >= at && review.at < next) ?? null
+}
 
 /**
  * The card of `file`: `null` when the turn only read it. `draft` is the gateway's current draft of

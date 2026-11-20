@@ -10,9 +10,13 @@ intent: >-
   DeepSeek Harness and closes the tab; a scripted agent's mcp__kition__kit_run (the model routed by
   the profile's own patch layer) adds a record in the open editor without a reload and answers that
   it ran there; its draft of another record shows a review card whose Merge merges it, the open
-  editor following; its edit of a file not open opens a live window; and the live window setting
-  turned off on the plugin's page is written into the profile. Skipped where the app is not
-  installed.
+  editor following; its edit of a file not open waits for a live window and runs there, live, and
+  the turn ends before the app is closed; and the live window setting
+  turned off on the plugin's page is written into the profile. In another such profile the app's
+  Plugins page installs the plugin from a local folder (the unpacked archive) and enables it, a
+  .ktable then opens in the Table editor, and with unsaved edits in it the app still closes (a
+  page's beforeunload would keep an Electron window open, asking nobody); every close is bounded.
+  Skipped where the app is not installed.
 layer: gate
 dimension: platform
 source:

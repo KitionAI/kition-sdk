@@ -86,11 +86,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 - **Human and agent together in DeepSeek Harness** (`@kition/dsh-kits`): each turn's kit edits are
   projected from the session log into review cards at the turn's tail (the file, its kit, a picture
   and the counts of what changed, and whether it was edited live, saved, drafted, stale, merged or
-  discarded), with Open, Review and the person's own Merge, Discard and Merge and overwrite, never
-  an agent's tool; the cards follow the drafts live and stay after a reload. While an agent edits a
-  file that is not open, a floating window shows it without taking the keyboard. The person's
-  settings (the live window, opening a file after the agent's first edit, Kition or DeepSeek
-  Harness's preview first) are on the plugin's page, kept in the profile. An Open with preview's tab
+  discarded), with Open, Review (in the right sidebar's tab) and the person's own Merge, Discard and
+  Merge and overwrite, never an agent's tool; the cards follow the drafts live, and what the person
+  did is recorded with the workspace (`.kition/dsh-reviews.json`), so a reload or another browser
+  shows the same cards. Before an agent edits a file that is not open, the host announces it to the
+  browsers showing the session and waits, bounded (`KITION_LIVE_WAIT_MS`), for a live window to
+  open the file's editor beside the conversation, so the first edit too runs live, without taking
+  the keyboard. Questions (closing unsaved edits, discarding a draft) are a dialog in DeepSeek
+  Harness's page, and DeepSeek Harness Desktop closes with unsaved edits in a Kition tab (it would
+  not close at all). The person's settings (the live window, opening a file after the agent's first
+  edit, Kition or DeepSeek Harness's preview first) are on the plugin's page, kept in the profile. An Open with preview's tab
   shows unsaved and draft marks and asks before it closes, the editor hands DeepSeek Harness its
   shortcuts, the kits' resources reach agents through DeepSeek Harness's resource tools, and the
   kit tools appear without a restart once kition is installed (until then one `kition_setup` tool
