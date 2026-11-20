@@ -268,7 +268,7 @@
       "uses": ["node", "npm"],
       "scope": [
         ["`src/content/docs/`", "The pages: overview and guides in English and Simplified Chinese (`zh-cn/`), and the specification under `spec/`"],
-        ["`src/data/`", "The khp and khp-bench commits the specification and the benchmark figures come from"],
+        ["`src/data/`", "The kitharness and benchmark commits the specification and the benchmark figures come from"],
         ["`scripts/`", "Syncing the specification, exporting the benchmark figures, checking links, drawing the OG image"],
         ["`public/`", "Static files"]
       ],
@@ -280,7 +280,7 @@
       ],
       "check": "npm run build && node scripts/check-links.mjs",
       "rules": [
-        "- **Never edit `src/content/docs/spec/` by hand.** Change the specification in the khp repository, commit, and copy it with `node scripts/sync-spec.mjs`.",
+        "- **Never edit `src/content/docs/spec/` by hand.** Change the specification in the kitharness repository (`kitharness/kitharness`), commit, and copy it with `node scripts/sync-spec.mjs`.",
         "- **Every statement is true at the time of the build**, and there is no Kition branding beyond the footer's \"Reference implementation\" link."
       ]
     }
