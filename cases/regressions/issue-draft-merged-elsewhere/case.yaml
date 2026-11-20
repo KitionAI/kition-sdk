@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-draft-merged-elsewhere
+feature: sdk.agent.headless-drafts
+intent: >-
+  A draft the person merged in another process (`drafts merge` from the command line while the
+  server that drafted it keeps running) is gone for that server too: the agent's next draft of the
+  file forks a new one from the merged file, and the file stays as it is. The server kept the
+  merged draft's document, edited it, and had no folder to store it in, so the agent's next draft
+  failed with draft-required (seen in DeepSeek Harness after a draft merged with the CLI).
+layer: gate
+source:
+  kind: probe
+  from: SDK regression suite
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits, test: drafts, filter: a_draft_merged_by_another_process_leaves_room_for_the_next }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 60

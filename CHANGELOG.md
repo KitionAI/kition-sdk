@@ -36,6 +36,11 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   against the index's size and SHA-256; `kit list` (`EDITOR`), `kit info` and `kition doctor` show
   it; the gateway installs it on first use and serves it, or a development build named with
   `--kit-ui <folder>`.
+- **A draft merged or discarded in another process** (`drafts merge` from the command line while a
+  `kition gateway` or `kition mcp` that drafted it runs) no longer blocks the agent's next draft of
+  the file, which failed with `draft-required` (the server still held the merged draft's
+  document); it now drops that document and forks a new draft
+  (regressions/issue-draft-merged-elsewhere).
 - **An agent's draft is always headless** on a server that keeps drafts (`kition mcp`,
   `kition gateway`), even when the file is open in an editor attached to the gateway; it used to
   live in the editor's page and go with its tab (regressions/issue-agent-draft-in-editor). Bridge

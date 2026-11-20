@@ -740,6 +740,7 @@ features:
       - regressions/issue-c8-fix-18-drafts
       - regressions/issue-drafts-undeclared-kit
       - regressions/issue-mcp-draft-instructions
+      - regressions/issue-draft-merged-elsewhere
     since: "2026-11-16"
   - id: sdk.agent.object-model
     title: The object-model tools say how each field is written and refuse what a batch cannot set
