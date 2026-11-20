@@ -1,7 +1,8 @@
 // The kition-kits DeepSeek Harness plugin (plugins/deepseek-harness/kition-kits, @kition/dsh-kits):
-// its bundle manifest, its patch, its skills and its launcher. Its host module is tested in
-// tools/dsh-plugin-host.test.mjs, its generated kit skills against their guides in
-// tools/agent-plugin.test.mjs; a real DeepSeek Harness runs it in the plugin's test/e2e.sh.
+// its bundle manifest, its patch, its browser module (built, and the extensions it claims), its
+// skills and its launcher. Its host module is tested in tools/dsh-plugin-host.test.mjs, its
+// generated kit skills against their guides in tools/agent-plugin.test.mjs; a real DeepSeek Harness
+// runs it in the plugin's test/e2e.sh.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -33,10 +34,13 @@ describe('the bundle manifest', () => {
     expect(manifest.dsh.bundle.patch).toBe('./cordis.patch.yml')
   })
 
-  it('has a host module as its main export', () => {
+  it('has a host module as its main export and a browser module DeepSeek Harness loads for the web UI', () => {
     expect(manifest.main).toBe('./lib/host.mjs')
     expect(manifest.exports['.']).toBe('./lib/host.mjs')
+    expect(manifest.exports['./client']).toBe('./lib/client.js')
     expect(manifest.exports['./package.json']).toBe('./package.json')
+    expect(manifest.dsh.client).toEqual({ platform: 'web' })
+    expect(fs.readFileSync(path.join(plugin, 'lib/client.js'), 'utf8')).toMatch(/^window\.__ModuleLoader__\.load\(\{\n  id: "@kition\/dsh-kits",/m)
   })
 
   it('admits the pinned DeepSeek Harness release and no 0.3.0 prerelease', () => {
@@ -46,13 +50,13 @@ describe('the bundle manifest', () => {
     expect(manifest.engines.dsh).toBe(`>=${manifest.dsh.target} <0.3.0-0`)
   })
 
-  it('lists files that exist, and packs the host module, the launcher and the skills, and nothing else', () => {
+  it('lists files that exist, and packs the host module, the built browser module, the launcher and the skills, and nothing else', () => {
     for (const entry of manifest.files) expect(fs.existsSync(path.join(plugin, entry)), entry).toBe(true)
     const [packed] = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: plugin, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))
     const files = packed.files.map((file) => file.path).sort()
     const code = files.filter((file) => !file.startsWith('skills/'))
     expect(code).toEqual(
-      ['README.md', 'bin/kits-mcp.mjs', 'cordis.patch.yml', 'lib/forward.mjs', 'lib/gateways.mjs', 'lib/host.mjs', 'lib/kition.mjs', 'lib/mcp.mjs', 'lib/routes.mjs', 'lib/tools.mjs', 'lib/workspaces.mjs', 'package.json'].sort(),
+      ['README.md', 'bin/kits-mcp.mjs', 'cordis.patch.yml', 'lib/client.js', 'lib/forward.mjs', 'lib/gateways.mjs', 'lib/host.mjs', 'lib/kition.mjs', 'lib/mcp.mjs', 'lib/routes.mjs', 'lib/tools.mjs', 'lib/workspaces.mjs', 'package.json'].sort(),
     )
     expect(files).toContain('skills/drafts-merge/SKILL.md')
     for (const kit of PUBLISHED_KITS) expect(files).toContain(`skills/${kit}-editing/SKILL.md`)
@@ -61,6 +65,34 @@ describe('the bundle manifest', () => {
       const imports = [...fs.readFileSync(path.join(plugin, file), 'utf8').matchAll(/^import .* from '([^']+)'/gm)].map((match) => match[1])
       for (const specifier of imports) expect(specifier, `${file} imports ${specifier}`).toMatch(/^(node:|\.\/)/)
     }
+  })
+})
+
+describe('the browser module', async () => {
+  const { buildClient, extensionTable } = await import('../plugins/deepseek-harness/kition-kits/build-client.mjs')
+
+  it('is built from its sources: lib/client.js is what build-client.mjs makes now', async () => {
+    expect(fs.readFileSync(path.join(plugin, 'lib/client.js'), 'utf8'), 'run node plugins/deepseek-harness/kition-kits/build-client.mjs').toBe(await buildClient())
+  }, 60_000)
+
+  it('opens the extensions each published kit edits, from the kits’ manifests, HTML going to the HTML kit', () => {
+    const table = extensionTable()
+    const fixtures = path.join(root, 'crates/kition-kits/tests/fixtures/kits')
+    const edited = new Set()
+    for (const kit of PUBLISHED_KITS) {
+      for (const format of JSON.parse(fs.readFileSync(path.join(fixtures, `${kit}.json`), 'utf8')).formats) {
+        if (format.role !== 'edit') continue
+        for (const extension of format.extensions) {
+          edited.add(extension)
+          expect(table[extension], extension).toBeDefined()
+        }
+      }
+    }
+    // Only edit formats: the gateway's page opens no kit's view-only formats (Doc's .html, Vector's .svg, Sheet's .csv).
+    expect(Object.keys(table).filter((extension) => !edited.has(extension))).toEqual([])
+    for (const extension of ['csv', 'svg', 'xls', 'fig', 'idml']) expect(table[extension], extension).toBeUndefined()
+    expect(table).toMatchObject({ md: 'note', html: 'html', htm: 'html', docx: 'doc', xlsx: 'sheet', pptx: 'slide', pdf: 'pdf', ktable: 'table', kboard: 'board' })
+    expect(new Set(Object.values(table))).toEqual(new Set(PUBLISHED_KITS))
   })
 })
 
@@ -76,7 +108,7 @@ describe('the patches', () => {
   }
   const real = (file) => fs.realpathSync(file)
 
-  it('inserts the host module, by the package’s name, and no MCP server row bound to a folder', () => {
+  it('inserts the host module, by the package’s name (which also loads its browser module), and no MCP server row bound to a folder', () => {
     const [{ insert }] = patch('cordis.patch.yml')
     const row = insert.find((entry) => entry.id === 'kition-kits-host')
     expect(row).toEqual({ id: 'kition-kits-host', name: '@kition/dsh-kits' })

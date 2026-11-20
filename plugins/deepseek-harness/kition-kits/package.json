@@ -24,11 +24,13 @@
   "main": "./lib/host.mjs",
   "exports": {
     ".": "./lib/host.mjs",
+    "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
   "files": [
     "cordis.patch.yml",
     "bin/kits-mcp.mjs",
+    "lib/client.js",
     "lib/forward.mjs",
     "lib/gateways.mjs",
     "lib/host.mjs",
@@ -46,6 +48,9 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     },
     "target": "0.2.2-rc.5",
     "commit": "2e39e704",
