@@ -455,7 +455,7 @@ features:
       - sdk.distribution.container/context
     since: "2026-11-16"
   - id: sdk.distribution.npm
-    title: "npm install -g @kition/cli gives the kition command and npx -y @kition/cli <command> runs it: the npm package @kition/cli is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y @kition/cli or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform"
+    title: "npm install -g @kition/cli gives the kition command and npx -y @kition/cli <command> runs it: the npm package @kition/cli is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y @kition/cli or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform, and publishes the DeepSeek Harness plugin, which depends on it at its own version, after it, once the plugin installs by name from the packed archives with this platform's kition"
     dimension: [platform, ai]
     priority: P1
     status: has
@@ -466,6 +466,7 @@ features:
       - crates/kition-cli/src/commands/doctor.rs
       - .github/workflows/release.yml
       - plugins/claude-code/kition-kits/scripts/kits-mcp.sh
+      - tools/check-dsh-plugin-package.mjs
       - docs/sdk/cli.md
       - docs/sdk/agent.md
       - docs/sdk/distribution.md
@@ -714,16 +715,17 @@ features:
       - regressions/issue-agent-cube-guide
     since: "2026-11-16"
   - id: sdk.agent.dsh-plugin
-    title: "The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add (DeepSeek Harness 0.2.2-rc.5 web and headless, Desktop 0.2.2-rc.2 through the app's CLI or its Plugins page from a local folder): a kit file opens in its kit's editor (kition gateway's editor page) in the right sidebar, as a tab type for Kition-only extensions and under Open with (or first, as the person sets) for those DeepSeek Harness previews, a kit's view-only formats read-only (the kit index naming the kit before it is installed), behind DeepSeek Harness's own login on a same-origin /kition/ proxy that serves only its sessions' workspaces; the tab (Kition's and DeepSeek Harness's preview alike) shows unsaved edits and the agent's drafts and asks before closing unsaved (in a dialog of the page; leaving the web UI asks once, at the top, and no page keeps Desktop from closing), follows the theme and language, and hands DeepSeek Harness its shortcuts; the host module runs one gateway per workspace and registers the kits' tools and resources so each session's calls reach its own folder's gateway, live in an open editor, a setup tool while kition is missing, the tools listed again when kition appears or changes; each turn's kit edits are projected from the session log into review cards at the turn's tail (Open, Review in the sidebar's tab, the person's Merge, Discard and Merge and overwrite, recorded with the workspace so every browser shows them), the host announces an agent's edit of a file not open and waits, bounded, for a live window beside the conversation to open its editor, so the first edit runs live too, and the person's settings live on the plugin's page; plus an editing skill per published kit and the person's draft review"
+    title: "The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add (DeepSeek Harness 0.2.2-rc.5 web and headless, Desktop 0.2.2-rc.2 through the app's CLI or its Plugins page) and brings its own kition: it depends on @kition/cli at its own version, whose platform package's kition it runs (KITION_BIN first; a system kition only with the gateway command; why there is none, when a platform has no package, optional dependencies were left out or the plugin was added from a folder); it uses no gateway of another kition version: a kit file opens in its kit's editor (kition gateway's editor page) in the right sidebar, as a tab type for Kition-only extensions and under Open with (or first, as the person sets) for those DeepSeek Harness previews, a kit's view-only formats read-only (the kit index naming the kit before it is installed), behind DeepSeek Harness's own login on a same-origin /kition/ proxy that serves only its sessions' workspaces; the tab (Kition's and DeepSeek Harness's preview alike) shows unsaved edits and the agent's drafts and asks before closing unsaved (in a dialog of the page; leaving the web UI asks once, at the top, and no page keeps Desktop from closing), follows the theme and language, and hands DeepSeek Harness its shortcuts; the host module runs one gateway per workspace and registers the kits' tools and resources so each session's calls reach its own folder's gateway, live in an open editor, a setup tool while kition is missing, the tools listed again when kition appears or changes; each turn's kit edits are projected from the session log into review cards at the turn's tail (Open, Review in the sidebar's tab, the person's Merge, Discard and Merge and overwrite, recorded with the workspace so every browser shows them), the host announces an agent's edit of a file not open and waits, bounded, for a live window beside the conversation to open its editor, so the first edit runs live too, and the person's settings live on the plugin's page; plus an editing skill per published kit and the person's draft review"
     dimension: [ai, platform, security, collab]
     priority: P1
     status: partial
-    gap: "Quitting DeepSeek Harness Desktop with unsaved edits in a Kition tab does not ask (Electron shows no page's question, and Desktop 0.2.2-rc.2 offers plugins no quit question); of the view-only formats only Sheet's .csv and Vector's .svg are tested, the kit repositories having no samples of the others (Vector .ai and .eps, Design .fig and .sketch, Layout .idml, Sheet .ods, .xls, .xlsb, .et and templates); a draft merged or discarded outside DeepSeek Harness shows only that it is gone. Untested, and documented as limits: Windows and Linux hosts, a browser on another machine"
+    gap: "Quitting DeepSeek Harness Desktop with unsaved edits in a Kition tab does not ask (Electron shows no page's question, and Desktop 0.2.2-rc.2 offers plugins no quit question); of the view-only formats only Sheet's .csv and Vector's .svg are tested, the kit repositories having no samples of the others (Vector .ai and .eps, Design .fig and .sketch, Layout .idml, Sheet .ods, .xls, .xlsb, .et and templates); a draft merged or discarded outside DeepSeek Harness shows only that it is gone; @kition/cli with the gateway command and the plugin are not on npm until a release publishes them, and a plugin added from a folder brings no kition of its own (pnpm links a folder without its dependencies). Untested, and documented as limits: Windows and Linux hosts, a browser on another machine"
     paths:
       - plugins/deepseek-harness/kition-kits/**
       - tools/dsh-plugin.test.mjs
       - tools/dsh-plugin-host.test.mjs
       - tools/dsh-plugin-client.test.ts
+      - tools/check-dsh-plugin-package.mjs
     cases:
       - sdk.agent.dsh-plugin/bundle
       - sdk.agent.dsh-plugin/host
@@ -1926,9 +1928,9 @@ features:
       - docs/sdk/agent.md
     cases:
       - sdk.agent.gateway-relay/live-and-fallback
+      - sdk.agent.gateway-relay/other-version
     since: "2026-11-19"
   - id: sdk.gateway.security
-      - sdk.agent.gateway-relay/other-version
     title: "The gateway refuses non-loopback Hosts and foreign or null Origins before routing, needs the token in Kition-Token on every route but /health (constant-time, no cookie, no wildcard CORS), keeps files, grants and drafts inside the canonical workspace (no .., absolute, hidden or linked-out path), serves workspace files with nosniff and a sandboxing CSP, signs GET URLs per path until they expire, draws bridge session ids at random, takes no path from a grant's caller, and reads a file only if it is the one it checked"
     dimension: [security, data-safety]
     priority: P0

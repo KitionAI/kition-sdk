@@ -1,15 +1,14 @@
 // Keeps the kit tools current without a restart of DeepSeek Harness: they are listed again when
 // kition appears (installed after DeepSeek Harness started), when its executable changes (an
 // upgrade; the gateways this host started are stopped then, so the next request starts the new
-// one), and whenever the host module asks (a person opened a kit file). While kition is missing
-// the agent has the one tool that says how to install it.
+// one), and whenever the host module asks (a person opened a kit file). While there is no kition
+// (the plugin's own was not installed for this platform) the agent has the one tool that says why.
 import fs from 'node:fs'
 
-import { findKition, INSTALL_HINT } from './kition.mjs'
+import { findKition, missingMessage } from './kition.mjs'
 
-/** What identifies the kition in use: its path, size and modification time; `missing` when there is none. */
-export function kitionSignature(env = process.env) {
-  const found = findKition(env)
+/** What identifies the kition in use (`found`, as `findKition` answers): its path, size and modification time; `missing` when there is none. */
+export function kitionSignature(found) {
   if (!found.file) return 'missing'
   try {
     const stat = fs.statSync(found.file)
@@ -40,11 +39,12 @@ export class Freshness {
   /** Lists the tools now: the kits' tools when kition is there, else the setup tool. */
   refresh() {
     this.running ??= (async () => {
-      const signature = kitionSignature(this.env)
+      const found = findKition(this.env)
+      const signature = kitionSignature(found)
       const changed = this.signature !== null && this.signature !== 'missing' && signature !== this.signature
       this.signature = signature
       if (signature === 'missing') {
-        this.tools.setMissing(`kition is not installed, so the Kition kits cannot be used. ${INSTALL_HINT}`)
+        this.tools.setMissing(`The Kition kits cannot be used: ${found.error ?? missingMessage(found)}`)
         return
       }
       // A new kition: the gateways of the old one go, the next request starts the new one.
@@ -63,7 +63,7 @@ export class Freshness {
 
   /** Lists them again when kition changed since the last time. */
   async check() {
-    if (kitionSignature(this.env) !== this.signature) await this.refresh()
+    if (kitionSignature(findKition(this.env)) !== this.signature) await this.refresh()
   }
 
   start() {

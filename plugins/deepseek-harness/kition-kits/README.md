@@ -63,17 +63,44 @@ What it adds:
 
 ## Install
 
-The plugin needs `kition` with its `gateway` command. Install it with `npm install -g @kition/cli`,
-or `curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh`
-(into `~/.kition/bin`). The plugin finds it as `KITION_BIN`, else on the `PATH`, else in
-`~/.kition/bin`, `~/.cargo/bin`, `/usr/local/bin` and `/opt/homebrew/bin` (DeepSeek Harness Desktop
-started from the Finder or the Dock has a `PATH` without most of these). Without it, a Kition tab
-and a card say how to install it, and agents have one tool, `kition_setup`, that answers the same.
-Once it is installed (or upgraded) the kit tools appear without a restart: the plugin looks for it
-again every 15 seconds and whenever you open a kit file. `kition` downloads each kit, and its
-editor, the first time a file of it is opened.
+One package: the plugin brings its own `kition`. It depends on `@kition/cli` at its own version,
+whose package for your platform, `@kition/cli-<platform>`, carries the `kition` executable; adding
+the plugin by name or from its `.tgz` installs both with it. Nothing else is installed by hand.
 
-The plugin is not on npm yet. Pack it from a kition-sdk checkout:
+The plugin has a kition for: `darwin-arm64` (macOS, Apple silicon), `darwin-x64` (macOS, Intel),
+`linux-arm64` and `linux-x64` (Linux with glibc), and `win32-x64` (Windows).
+
+On disk the plugin takes about 0.7 MB and its kition about 14 MB (measured on macOS, Apple
+silicon). `kition` downloads each kit with its editor the first time a file of it is opened, into
+`~/.kition/kits`: about 40 to 70 MB per kit (measured: Note, Table, Sheet, Vector's editor).
+
+Which `kition` runs, in this order:
+
+1. `KITION_BIN`, when you set it (a development build, for one);
+2. `KITION_KITS_MCP`, when it names a `kition` (then the draft skills' server is the gateways' too);
+3. the plugin's own, from `@kition/cli-<platform>` beside it;
+4. a `kition` you installed (on the `PATH`, else in `~/.kition/bin`, `~/.cargo/bin`,
+   `/usr/local/bin`, `/opt/homebrew/bin`), only if it has the `gateway` command: an older one is
+   passed over, never started to fail.
+
+Elsewhere (a platform without a package, such as Linux with musl or FreeBSD; an install with
+optional dependencies left out, `--omit=optional` or `--no-optional`; a plugin added from a folder,
+below), a Kition tab and a card say why and what to do, and agents have one tool, `kition_setup`,
+that answers the same; set `KITION_BIN` to a `kition` you built (`cargo build -p kition-cli` in
+kition-sdk). The kit tools appear without a restart once a kition can run: the plugin looks again
+every 15 seconds and whenever you open a kit file.
+
+Every `kition` shares your kit store and index, `~/.kition` (`KITION_HOME`, `KITION_INDEX`): the
+plugin's and one you installed for another agent (the Claude Code plugin, `npm install -g
+@kition/cli`) install kits once for both. Two versions do not mix on one workspace: a `kition mcp`
+of another version beside the plugin's gateway serves in its own process (its edits of a file open
+in the plugin's editors are then not live, and the editor's save is refused over a change it did
+not see), and the
+plugin uses no gateway of another version, saying which one runs and how to stop it.
+
+The plugin and its `@kition/cli` with the `gateway` command are not on npm yet (npm's
+`@kition/cli` 0.5.2 predates the gateway). Until they are, pack them from a kition-sdk checkout
+and install the plugin's `.tgz` with `@kition/cli` reachable, or set `KITION_BIN`:
 
 ```sh
 npm pack ./plugins/deepseek-harness/kition-kits        # kition-dsh-kits-<version>.tgz
@@ -83,7 +110,7 @@ npm pack ./plugins/deepseek-harness/kition-kits        # kition-dsh-kits-<versio
 `dsh plugin` needs `pnpm` on the `PATH`. Install into the profile you run, `web` for the browser UI:
 
 ```sh
-dsh plugin --profile web add ./kition-dsh-kits-<version>.tgz
+dsh plugin --profile web add @kition/dsh-kits          # or ./kition-dsh-kits-<version>.tgz
 ```
 
 `dsh plugin` creates a profile it does not know with DeepSeek Harness's base bundle only, which has
@@ -101,17 +128,21 @@ Restart a running profile after adding the plugin. `dsh plugin --profile <profil
 the agents the tools and the skills.
 
 **DeepSeek Harness Desktop.** Its profile, `desktop`, takes plugins only through the app's Plugins
-page or its own command line (the npm `dsh` refuses it). On the Plugins page, **Add plugin** takes
-a package name, a GitHub address or a local folder: unpack the archive
-(`mkdir kition-dsh-kits && tar -xzf kition-dsh-kits-<version>.tgz -C kition-dsh-kits
---strip-components 1`), give the folder's full path, **Install**, then **Enable now**, and start the
-app again. Or quit the app, then:
+page or its own command line (the npm `dsh` refuses it). On the Plugins page, **Add plugin**, type
+`@kition/dsh-kits`, **Install**, then **Enable now**, and start the app again. The page installs
+from the registry it shows (by default a mirror of npm in mainland China, which copies new npm
+versions within minutes). Or quit the app, then:
 
 ```sh
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add ./kition-dsh-kits-<version>.tgz
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add @kition/dsh-kits
 ```
 
-and start the app again.
+and start the app again (a `.tgz` works there too).
+
+**A folder.** `dsh plugin add <folder>` and the Plugins page's local folder link the folder as it
+is: neither installs its dependencies (pnpm `add <folder>`, seen on 0.2.2-rc.5 and Desktop's
+0.2.2-rc.2), so the plugin has no kition of its own until you run `npm install --omit=dev` in the
+folder; a tab says so. It is for a checkout; add the plugin by name or `.tgz` otherwise.
 
 ## Settings
 
@@ -135,12 +166,12 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
 
 | Variable | What it is |
 | --- | --- |
-| `KITION_BIN` | The `kition` executable (such as `target/debug/kition` from `cargo build -p kition-cli`). Unset: found as above |
+| `KITION_BIN` | The `kition` executable, before the plugin's own (such as `target/debug/kition` from `cargo build -p kition-cli`). Unset: as in Install, above |
 | `KITION_KITS_DIR` | A folder with one folder per kit, each holding its `kit.json` and headless executable. Unset: the kits `kition` installs in `~/.kition/kits` |
 | `KITION_KIT_REPOS` | A folder of kit checkouts, `kition-<kit>/`. Every kit built there with `cargo build -p kition-<kit>` is served from `target/debug/kition-<kit>` with its repository's `kit.json` |
 | `KITION_KITS_UNIFIED` | `true` (the default): `mcp__kition__kit_<action>` tools routed by file extension. Anything else: `mcp__kition__<prefix>_<action>` per installed kit, such as `mcp__kition__note_run` |
 | `KITION_LIVE_WAIT_MS` | How long an agent's edit of a file not open waits, at most, for a watching browser to answer that it opens the file's live window (default 3000, at most 10000; `0` never waits). A browser that answered it is opening the editor gets until 8 seconds after the edit was announced for the editor to attach (a kit's editor loaded for the first time takes about 3 seconds). An edit never waits when no browser shows the session, or the live window is off |
-| `KITION_KITS_MCP` | The draft skills' server, as `bin/kits-mcp.mjs` starts it: `kition` (started as `kition mcp`) or a `kition-kits-mcp`. Unset: `kition` as above, else `kition-kits-mcp` on the `PATH`, else `npx -y @kition/cli mcp`. A `kition` named here is also the one the gateways use, unless `KITION_BIN` is set |
+| `KITION_KITS_MCP` | The draft skills' server, as `bin/kits-mcp.mjs` starts it: `kition` (started as `kition mcp`) or a `kition-kits-mcp`. Unset: `kition` as above, else `kition-kits-mcp` on the `PATH`, else `npx -y @kition/cli mcp`. A `kition` named here is also the one the gateways use, unless `KITION_BIN` is set; it must have the `gateway` command |
 
 `KITION_HOME` and `KITION_INDEX` are `kition`'s own (its kit store and lockfiles, and its kit index).
 
@@ -160,11 +191,13 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   `web` profile beside each agent preset's own skills). In a bundle's patch, `baseUrl` is the
   profile's folder (`$DSH_HOME/profiles/<profile>/`), not the bundle's, so the row finds the
   plugin's folder where the profile resolves `@kition/dsh-kits/package.json`.
-- **The gateways** (`lib/gateways.mjs`). The host module starts one
-  `kition gateway --workspace <folder> --stdin-lifetime` per workspace folder, with the kit options
-  above, the first time a tab or a tool call needs it, and reuses it. A gateway that another
-  process already runs for the folder is used through its lockfile (`kition gateway` exits 3 and
-  names it). A gateway that stops is started again on the next request, with its new token. The
+- **The gateways** (`lib/gateways.mjs`, `lib/kition.mjs`). The host module starts one
+  `kition gateway --workspace <folder> --stdin-lifetime` per workspace folder, with the `kition`
+  found as in Install (the plugin's own: `@kition/cli-<platform>`'s executable, found from
+  `@kition/cli`'s folder, started directly) and the kit options above, the first time a tab or a
+  tool call needs it, and reuses it. A gateway that another process already runs for the folder
+  is used through its lockfile (`kition gateway` exits 3 and names it) when it is the same
+  `kition` version; one of another version is not, and the tab says which runs. A gateway that stops is started again on the next request, with its new token. The
   gateways the host started stop with it (their stdin closes).
 - **The kit tools** (`lib/tools.mjs`, `lib/mcp.mjs`). The host module registers the kits' tools with
   DeepSeek Harness's tool registry under the names its MCP client would give them,
@@ -261,15 +294,22 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   no page's question (it refuses to close the window instead, which kept the app from quitting at
   all), and the app offers plugins no question of their own at quit. Save first; closing the tab
   asks.
-- Tested on macOS, with Chromium for the web UI (as a Windows browser, the test's device). Windows
-  and Linux hosts have not been run, nor a browser on another machine than DeepSeek Harness.
+- Tested on macOS (Apple silicon), with Chromium for the web UI (as a Windows browser, the test's
+  device): the plugin's own kition there is the one tested. Windows and Linux hosts have not been
+  run, nor a browser on another machine than DeepSeek Harness; their kition packages are built and
+  checked by the release, not run with DeepSeek Harness.
+- The Plugins page of Desktop installs from the registry it shows; a new version reaches its default
+  mirror only once the mirror has copied it from npm.
 
 ## Test
 
 - `tools/dsh-plugin.test.mjs` (in kition-sdk) checks the manifest, what the archive packs, the
   patch, the browser module (built from its sources, the extensions it claims), the skills and the
-  launcher; `tools/dsh-plugin-host.test.mjs` the host module: finding `kition`, the gateways (one
-  per folder, reused, started again, stopped), the proxy (the login gate first, workspace keys,
+  launcher, the dependency on `@kition/cli` at the plugin's version and the release's order and
+  platforms; `tools/dsh-plugin-host.test.mjs` the host module: finding `kition` (`KITION_BIN`, the
+  plugin's own in a hoisted and an isolated node_modules, a system one only with `gateway`, and why
+  there is none), the gateways (one per folder, reused, none of another kition version, started
+  again, stopped), the proxy (the login gate first, workspace keys,
   paths, header hygiene, event streams, ranges, large bodies, an unreachable gateway), the kit tools
   (each session's calls on its own folder's gateway, the setup tool while kition is missing, the
   tools listed again when kition appears or changes, the resources) against a stand-in gateway
@@ -291,8 +331,11 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   Note kit (`kition-note/target/debug/kition-note`). The first run installs the published
   `@deepseek-ai/dsh` runtime into a cache folder (`DSH_KITS_CACHE`, about 1 GB).
 - `pnpm test:dsh:e2e` (in kition-sdk, `test/web.e2e.ts`) runs the web UI of that runtime in
-  Chromium, with the packed plugin installed into a profile from the `web` template, the real
-  Table, Note and Sheet kits, Vector's editor and a scripted model (one that takes images), under a HOME of its own:
+  Chromium, with the plugin installed into a profile from the `web` template from a local registry
+  that holds it with `@kition/cli` and this platform's package made as the release makes them, no
+  `KITION_BIN` and no kition on the `PATH` (the gateway is the plugin's own kition), the real
+  Table, Note and Sheet kits, Vector's editor and a scripted model (one that takes images), under a
+  HOME of its own:
   `/kition/` refuses a request without DeepSeek Harness's login, a foreign Host and a cross-site
   Origin; a `.ktable` clicked in the file tree opens the Table editor, DeepSeek Harness's settings
   shortcut pressed in it opens DeepSeek Harness's settings, its language reaches the page, an edit
@@ -312,12 +355,14 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   turned off on the plugin's page opens nothing; a `.csv` opens read-only in Kition Sheet and a
   `.svg` in Kition Vector, which is not installed; the gateway stops with DeepSeek Harness.
 - `pnpm test:dsh:desktop` (`test/desktop.e2e.ts`, macOS) starts the installed DeepSeek Harness
-  Desktop with a HOME, a DSH_HOME and an Electron user data folder of its own, installs the packed
-  plugin with the app's CLI, opens a `.ktable` in the Table editor, closes its tab with Cmd+W
-  pressed in the editor, has a scripted agent add a record in the open editor, live, merges the
-  agent's draft of another from its review card, the open editor following, opens the live window
-  and keeps a setting; then, in a profile of its own, installs the plugin from the Plugins page
-  (the unpacked archive's folder), opens a `.ktable`, and closes the app with unsaved edits in it.
+  Desktop with a HOME, a DSH_HOME and an Electron user data folder of its own, no `KITION_BIN` and
+  no kition on the `PATH`, installs the plugin's `.tgz` with the app's CLI from the same kind of
+  local registry (its own kition comes with it, and runs the gateway), opens a `.ktable` in the
+  Table editor, closes its tab with Cmd+W pressed in the editor, has a scripted agent add a record
+  in the open editor, live, merges the agent's draft of another from its review card, the open
+  editor following, has the agent's edit of a file not open run live in the live window, and keeps
+  a setting; then, in a profile of its own, installs the plugin by name from the Plugins page,
+  opens a `.ktable` with the plugin's kition, and closes the app with unsaved edits in it.
 
 Both need Node.js 24.9 or later and `pnpm`, a built `kition` (`cargo build -p kition-cli`) and the
 gateway e2e's kit index with editor packages (kition-sdk `examples/gateway-page`).

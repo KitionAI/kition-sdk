@@ -11,7 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 
-import { findKition, kitOptions, wellKnownKition } from '../plugins/deepseek-harness/kition-kits/lib/kition.mjs'
+import { bundledKition, findKition, kitOptions, missingMessage, platformKey, wellKnownKition } from '../plugins/deepseek-harness/kition-kits/lib/kition.mjs'
 import { GatewayError, Gateways, workspaceKey } from '../plugins/deepseek-harness/kition-kits/lib/gateways.mjs'
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
@@ -19,12 +19,13 @@ const plugin = path.join(root, 'plugins/deepseek-harness/kition-kits')
 const scratch = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-kits-host-')))
 afterAll(() => fs.rmSync(scratch, { recursive: true, force: true }))
 
-/** A folder holding an executable `kition` that is the stand-in gateway. */
-function fakeBin(name = 'bin') {
+/** A folder holding an executable `kition` that is the stand-in gateway (of `version`, when given). */
+function fakeBin(name = 'bin', version) {
   const bin = path.join(scratch, name)
   fs.mkdirSync(bin, { recursive: true })
   const file = path.join(bin, 'kition')
-  fs.writeFileSync(file, `#!${process.execPath}\nimport(${JSON.stringify(path.join(plugin, 'test/fake-kition.mjs'))})\n`, { mode: 0o755 })
+  const pinned = version ? `process.env.FAKE_KITION_VERSION = ${JSON.stringify(version)}\n` : ''
+  fs.writeFileSync(file, `#!${process.execPath}\n${pinned}import(${JSON.stringify(path.join(plugin, 'test/fake-kition.mjs'))})\n`, { mode: 0o755 })
   return file
 }
 
@@ -49,12 +50,88 @@ describe('finding kition', () => {
   const kition = fakeBin('find')
   const empty = path.join(scratch, 'empty-home')
   fs.mkdirSync(empty, { recursive: true })
+  const none = () => ({ reason: 'no-cli', platform: platformKey(), platforms: [] })
+  const look = { bundled: none }
+  /** A kition from before the gateway: `kition gateway` is an unknown command. */
+  const old = path.join(scratch, 'old-bin', 'kition')
+  fs.mkdirSync(path.dirname(old), { recursive: true })
+  fs.writeFileSync(old, '#!/bin/sh\necho "kition: unknown command $1" >&2\nexit 1\n', { mode: 0o755 })
 
-  it('takes KITION_BIN first, then a kition KITION_KITS_MCP, then the PATH', () => {
-    expect(findKition({ KITION_BIN: kition, PATH: '', HOME: empty })).toEqual({ file: kition })
-    expect(findKition({ KITION_KITS_MCP: kition, PATH: '', HOME: empty })).toEqual({ file: kition })
-    expect(findKition({ PATH: path.dirname(kition), HOME: empty })).toEqual({ file: kition })
-    expect(findKition({ KITION_BIN: path.join(scratch, 'nothing'), PATH: path.dirname(kition), HOME: empty }).error).toContain('KITION_BIN is')
+  /**
+   * The plugin installed by a package manager: `<root>/node_modules/@kition/dsh-kits` beside
+   * `@kition/cli` (listing every platform package) and, unless `omit`, this platform's package
+   * with the stand-in kition. `isolated`: pnpm's layout, where the platform package is reachable
+   * from @kition/cli's folder only.
+   */
+  function installed(name, { omit = false, isolated = false, listed = [platformKey(), 'win32-x64'] } = {}) {
+    const root = path.join(scratch, `installed-${name}`)
+    const plugin = path.join(root, 'node_modules/@kition/dsh-kits')
+    fs.mkdirSync(plugin, { recursive: true })
+    fs.writeFileSync(path.join(plugin, 'package.json'), '{"name":"@kition/dsh-kits","version":"0.0.0"}')
+    const store = isolated ? path.join(root, 'node_modules/.pnpm/@kition+cli@0.0.0/node_modules') : path.join(root, 'node_modules')
+    const cli = path.join(store, '@kition/cli')
+    fs.mkdirSync(cli, { recursive: true })
+    fs.writeFileSync(path.join(cli, 'package.json'), JSON.stringify({ name: '@kition/cli', version: '0.0.0', optionalDependencies: Object.fromEntries(listed.map((key) => [`@kition/cli-${key}`, '0.0.0'])) }))
+    if (isolated) fs.symlinkSync(cli, path.join(root, 'node_modules/@kition/cli'))
+    if (!omit) {
+      const own = path.join(store, `@kition/cli-${platformKey()}`)
+      fs.mkdirSync(path.join(own, 'bin'), { recursive: true })
+      fs.writeFileSync(path.join(own, 'package.json'), JSON.stringify({ name: `@kition/cli-${platformKey()}`, version: '0.0.0' }))
+      fs.copyFileSync(kition, path.join(own, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition'))
+      fs.chmodSync(path.join(own, 'bin', process.platform === 'win32' ? 'kition.exe' : 'kition'), 0o755)
+    }
+    return plugin
+  }
+
+  it('finds the kition that came with the plugin, from @kition/cli’s folder, hoisted or isolated', () => {
+    for (const isolated of [false, true]) {
+      const from = installed(isolated ? 'isolated' : 'hoisted', { isolated })
+      const found = bundledKition({ from })
+      expect(found.file, isolated ? 'isolated' : 'hoisted').toMatch(new RegExp(`@kition/cli-${platformKey()}/bin/kition$`))
+      expect(fs.realpathSync(found.file)).toContain(isolated ? '.pnpm' : 'node_modules/@kition')
+    }
+  })
+
+  it('says why the plugin’s kition is not there: added from a folder, no @kition/cli, no build for this platform, optional dependencies left out, musl', () => {
+    // A folder added as it is (DeepSeek Harness links it, without its dependencies).
+    const linked = path.join(scratch, 'linked-plugin')
+    fs.mkdirSync(linked, { recursive: true })
+    expect(bundledKition({ from: linked })).toMatchObject({ reason: 'folder', folder: linked })
+    expect(missingMessage(findKition({ PATH: '', HOME: empty }, { bundled: () => bundledKition({ from: linked }), gateway: () => false }))).toContain(`added from a folder (${linked})`)
+    // Installed into a node_modules without @kition/cli.
+    const alone = path.join(scratch, 'alone/node_modules/@kition/dsh-kits')
+    fs.mkdirSync(alone, { recursive: true })
+    expect(bundledKition({ from: alone })).toMatchObject({ reason: 'no-cli' })
+    expect(bundledKition({ from: installed('elsewhere', { listed: ['win32-x64'] }) })).toEqual({ reason: 'unsupported', platform: platformKey(), platforms: ['win32-x64'] })
+    expect(bundledKition({ from: installed('omitted', { omit: true }) })).toEqual({ reason: 'omitted', platform: platformKey(), platforms: [platformKey(), 'win32-x64'].sort() })
+    expect(bundledKition({ from: installed('musl', { listed: ['linux-x64'] }), platform: 'linux', arch: 'x64', musl: true })).toMatchObject({ reason: 'unsupported', platform: 'linux-x64 (musl)' })
+    expect(missingMessage({ reason: 'omitted', platform: 'darwin-arm64', platforms: [] })).toContain('optional dependencies left out')
+    expect(missingMessage({ reason: 'unsupported', platform: 'freebsd-x64', platforms: ['darwin-arm64', 'linux-x64'] })).toContain('no build for this platform, freebsd-x64. It is built for darwin-arm64, linux-x64.')
+    expect(missingMessage({ reason: 'no-cli', platforms: [] })).toContain("@kition/cli, which brings the plugin's kition, is not installed beside it")
+  })
+
+  it('takes KITION_BIN first, then a kition KITION_KITS_MCP, then the plugin’s own, then a system kition', () => {
+    const own = { bundled: () => bundledKition({ from: installed('order') }) }
+    expect(findKition({ KITION_BIN: kition, PATH: '', HOME: empty }, own)).toEqual({ file: kition, from: 'env' })
+    expect(findKition({ KITION_KITS_MCP: kition, PATH: '', HOME: empty }, own)).toEqual({ file: kition, from: 'env' })
+    expect(findKition({ PATH: path.dirname(kition), HOME: empty }, own)).toMatchObject({ from: 'bundled' })
+    expect(findKition({ PATH: path.dirname(kition), HOME: empty }, look)).toEqual({ file: kition, from: 'system' })
+    expect(findKition({ KITION_BIN: path.join(scratch, 'nothing'), PATH: path.dirname(kition), HOME: empty }, own).error).toContain('KITION_BIN is')
+  })
+
+  it('passes over a system kition without the gateway command, and says so', () => {
+    // On the PATH an old one, in ~/.kition/bin a new one: the new one.
+    const home = path.join(scratch, 'old-and-new-home')
+    fs.mkdirSync(path.join(home, '.kition/bin'), { recursive: true })
+    fs.copyFileSync(kition, path.join(home, '.kition/bin/kition'))
+    fs.chmodSync(path.join(home, '.kition/bin/kition'), 0o755)
+    expect(findKition({ PATH: path.dirname(old), HOME: home }, look)).toEqual({ file: path.join(home, '.kition/bin/kition'), from: 'system' })
+    // Only the old one: none, and the message names it.
+    const found = findKition({ PATH: path.dirname(old), HOME: empty }, { ...look, gateway: (file) => file !== old && !['/usr/local/bin/kition', '/opt/homebrew/bin/kition'].includes(file) })
+    expect(found).toMatchObject({ missing: true, reason: 'no-cli', passedOver: [old] })
+    expect(missingMessage(found)).toContain(`no gateway command (older versions): ${old}`)
+    // An old one named as the draft skills' server is an error, not a quiet fall back.
+    expect(findKition({ KITION_KITS_MCP: old, PATH: '', HOME: empty }, look).error).toContain('without the gateway command')
   })
 
   it('looks in the places kition installs to when the PATH lacks it (DeepSeek Harness Desktop)', () => {
@@ -63,14 +140,14 @@ describe('finding kition', () => {
     fs.copyFileSync(kition, path.join(home, '.kition/bin/kition'))
     fs.chmodSync(path.join(home, '.kition/bin/kition'), 0o755)
     expect(wellKnownKition({ HOME: home }).slice(0, 2)).toEqual([path.join(home, '.kition/bin/kition'), path.join(home, '.cargo/bin/kition')])
-    expect(findKition({ PATH: '/usr/bin:/bin', HOME: home })).toEqual({ file: path.join(home, '.kition/bin/kition') })
+    expect(findKition({ PATH: '/usr/bin:/bin', HOME: home }, look)).toEqual({ file: path.join(home, '.kition/bin/kition'), from: 'system' })
   })
 
   it('says so when there is none', () => {
-    const found = findKition({ PATH: path.join(scratch, 'empty'), HOME: empty })
-    // A machine may have kition in a system folder; then it is found there.
+    const found = findKition({ PATH: path.join(scratch, 'empty'), HOME: empty }, look)
+    // A machine may have a kition with the gateway in a system folder; then it is found there.
     if (!found.missing) expect(['/usr/local/bin/kition', '/opt/homebrew/bin/kition']).toContain(found.file)
-    else expect(found).toEqual({ missing: true })
+    else expect(found).toMatchObject({ missing: true, reason: 'no-cli' })
   })
 
   it('passes the kit options to the gateway as to kition mcp', () => {
@@ -120,6 +197,26 @@ describe('the gateways', () => {
     }
   })
 
+  it('uses no gateway of another kition version, and says which and what to do', async () => {
+    const dirs = fresh('versions')
+    const other = new Gateways({ env: { HOME: dirs.fakeHome, KITION_BIN: fakeBin('kition-0.4.0', '0.4.0'), KITION_HOME: dirs.home } })
+    const theirs = await other.get(dirs.workspace)
+    const gateways = new Gateways({ env: { HOME: dirs.fakeHome, KITION_BIN: fakeBin('kition-0.6.0', '0.6.0'), KITION_HOME: dirs.home } })
+    try {
+      const error = await gateways.get(dirs.workspace).catch((caught) => caught)
+      expect(error).toBeInstanceOf(GatewayError)
+      expect(error.message).toContain(`a gateway of another kition, 0.4.0 (pid ${theirs.pid})`)
+      expect(error.message).toContain('this plugin runs kition 0.6.0')
+      // The same version is used, as before.
+      const same = new Gateways({ env: { HOME: dirs.fakeHome, KITION_BIN: fakeBin('kition-0.4.0-too', '0.4.0'), KITION_HOME: dirs.home } })
+      expect((await same.get(dirs.workspace)).token).toBe(theirs.token)
+      await same.stop()
+    } finally {
+      await gateways.stop()
+      await other.stop()
+    }
+  })
+
   it('starts the gateway again after it dies, with the new token', async () => {
     const dirs = fresh('restart')
     const gateways = new Gateways({ env: { HOME: dirs.fakeHome, KITION_BIN: kition, KITION_HOME: dirs.home } })
@@ -154,7 +251,9 @@ describe('the gateways', () => {
     const error = await gateways.get(dirs.workspace).catch((caught) => caught)
     expect(error).toBeInstanceOf(GatewayError)
     expect(error.code).toBe('kition-missing')
-    expect(error.message).toContain('npm install -g @kition/cli')
+    expect(error.message).toContain('kition cannot run here')
+    // This checkout's plugin is a folder: nothing installed its dependencies.
+    expect(error.detail).toMatchObject({ reason: 'folder' })
   })
 
   it('says why when the gateway cannot start', async () => {
@@ -351,7 +450,7 @@ describe('the kit tools (regressions/issue-dsh-session-workspace)', async () => 
     await expect(definition.execute({}, exec(undefined))).rejects.toThrow(/no workspace folder/)
     const missing = new KitTools({ ctx: { get: () => undefined }, register: () => () => {}, gateways: new Gateways({ env: { PATH: path.join(scratch, 'empty'), HOME: dirs.fakeHome, KITION_HOME: dirs.home } }), mcp: new GatewayMcp() })
     if (findKition({ PATH: path.join(scratch, 'empty'), HOME: dirs.fakeHome }).missing)
-      await expect(missing.definition('mcp__kition__kit_inspect', { name: 'kit_inspect' }).execute({}, exec(dirs.workspace))).rejects.toThrow(/kition is not installed/)
+      await expect(missing.definition('mcp__kition__kit_inspect', { name: 'kit_inspect' }).execute({}, exec(dirs.workspace))).rejects.toThrow(/kition cannot run here/)
   })
 
   it('turns an MCP error result into a failed call, and keeps images where they were', () => {
@@ -387,7 +486,7 @@ describe('keeping the kit tools current, without a restart', async () => {
     await freshness.refresh()
     expect([...registered.keys()]).toEqual([SETUP_TOOL])
     const answer = await registered.get(SETUP_TOOL).execute({}, {})
-    expect(answer.content[0].text).toContain('npm install -g @kition/cli')
+    expect(answer.content[0].text).toContain('kition cannot run here')
   })
 
   it('lists the kits’ tools once kition is installed, and drops the setup tool', async () => {

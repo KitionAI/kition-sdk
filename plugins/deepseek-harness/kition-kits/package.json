@@ -45,6 +45,9 @@
     "skills",
     "README.md"
   ],
+  "dependencies": {
+    "@kition/cli": "0.5.2"
+  },
   "engines": {
     "dsh": ">=0.2.2-rc.2 <0.3.0-0"
   },

@@ -2,8 +2,10 @@ format: 1
 id: sdk.agent.dsh-plugin/web-e2e
 feature: sdk.agent.dsh-plugin
 intent: >-
-  In the published DeepSeek Harness 0.2.2-rc.5's web UI, with the packed plugin installed by dsh
-  plugin add into a profile from the web template, the real Table, Note and Sheet kits and Vector's editor (headless
+  In the published DeepSeek Harness 0.2.2-rc.5's web UI, with the plugin's .tgz installed by dsh
+  plugin add into a profile from the web template from a local registry that holds @kition/cli and
+  this platform's package made as the release makes them (no KITION_BIN, no kition on the PATH;
+  the install brings the plugin's own kition, which runs the gateway), the real Table, Note and Sheet kits and Vector's editor (headless
   and editor packages from the kit index's release assets; GATEWAY_E2E_INDEX names an index with
   editor packages, kept in GATEWAY_E2E_CACHE), the real kition gateway the host module starts and a
   scripted model that takes images, all under a HOME of its own: /kition/ answers 401 without

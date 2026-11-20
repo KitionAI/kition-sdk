@@ -32,6 +32,40 @@ export function dshRuntime() {
   return bin
 }
 
+/**
+ * The release's archives of this checkout, made as the release makes them (test/registry.mjs:
+ * @kition/dsh-kits, @kition/cli, @kition/cli-<platform> carrying `kition`), served by a local
+ * registry in a process of its own (the tests install synchronously), with `<base>/home/.npmrc`
+ * pointing the @kition scope at it: `dsh plugin add` installs the plugin with its kition as it
+ * will from npm. Answers the plugin's archive, the registry's address and how to stop it.
+ */
+export async function kitionRegistry(base: string, kition: string) {
+  const folder = path.join(base, 'registry')
+  const child = spawn(process.execPath, [path.join(here, 'registry.mjs'), '--write', folder, kition], { stdio: ['ignore', 'pipe', 'inherit'] })
+  const url = await new Promise<string>((resolve, reject) => {
+    child.once('exit', (code) => reject(new Error(`the registry exited with status ${code}`)))
+    readline.createInterface({ input: child.stdout! }).once('line', (line) => resolve((JSON.parse(line) as { registry: string }).registry))
+  })
+  fs.mkdirSync(path.join(base, 'home'), { recursive: true })
+  fs.writeFileSync(path.join(base, 'home/.npmrc'), `@kition:registry=${url}\n`)
+  const archive = fs.readdirSync(folder).find((name) => name.startsWith('kition-dsh-kits-'))!
+  return { archive: path.join(folder, archive), url, stop: () => child.kill() }
+}
+
+/** `PATH` without any folder that holds a kition: what the plugin runs must be its own. */
+export function pathWithoutKition(PATH = process.env.PATH ?? '') {
+  return PATH.split(path.delimiter)
+    .filter((dir) => dir && !fs.existsSync(path.join(dir, process.platform === 'win32' ? 'kition.exe' : 'kition')))
+    .join(path.delimiter)
+}
+
+/** The kition `gateway` processes running from a node_modules under `folder`: the plugin's own. */
+export function bundledGateways(folder: string) {
+  return execFileSync('ps', ['-axo', 'command'], { encoding: 'utf8' })
+    .split('\n')
+    .filter((line) => line.includes(`${folder}`) && /node_modules\/@kition\/cli-[a-z0-9-]+\/bin\/kition gateway /.test(line))
+}
+
 /** The plugin packed as it is published (npm pack), in `folder`. */
 export function pack(folder: string) {
   execFileSync('npm', ['pack', plugin, '--pack-destination', folder], { stdio: 'pipe' })

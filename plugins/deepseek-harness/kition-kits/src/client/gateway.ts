@@ -6,7 +6,8 @@
  */
 import type { Review } from './turn'
 
-export type Opened = { phase: 'opening' } | { phase: 'open'; page: string; key: string; path: string } | { phase: 'failed'; error: string; message: string }
+/** `reason`, `platform`: why no kition can run (`unsupported`, `omitted`, `no-cli`), for `kition-missing`. */
+export type Opened = { phase: 'opening' } | { phase: 'open'; page: string; key: string; path: string } | { phase: 'failed'; error: string; message: string; reason?: string; platform?: string }
 
 /** The host module's route `path`, relative to where DeepSeek Harness is served. */
 export const route = (path: string) => new URL(path, document.baseURI).href
@@ -17,7 +18,13 @@ export async function openFile(sessionId: string, path: string): Promise<Opened>
     const response = await fetch(route(`kition/api/open?${new URLSearchParams({ session: sessionId, path })}`), { credentials: 'same-origin', cache: 'no-store' })
     const answer = await response.json().catch(() => ({}))
     if (response.ok && typeof answer.page === 'string') return { phase: 'open', page: answer.page, key: answer.key, path: answer.path }
-    return { phase: 'failed', error: String(answer.error ?? `http-${response.status}`), message: String(answer.message ?? response.statusText) }
+    return {
+      phase: 'failed',
+      error: String(answer.error ?? `http-${response.status}`),
+      message: String(answer.message ?? response.statusText),
+      ...(typeof answer.reason === 'string' ? { reason: answer.reason } : {}),
+      ...(typeof answer.platform === 'string' ? { platform: answer.platform } : {}),
+    }
   } catch (error) {
     return { phase: 'failed', error: 'unreachable', message: (error as Error).message }
   }

@@ -83,6 +83,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `/drafts-merge`, `/drafts-discard`, the last two only from the person). It is no longer private;
   the release packs and publishes it. The old `kition-kits.stdio.cordis.patch.yml`, which started
   `kition-kits-mcp` with one variable per kit, is gone.
+- **One install for DeepSeek Harness**: `@kition/dsh-kits` depends on `@kition/cli` at its own
+  version, so `dsh plugin add @kition/dsh-kits` (the web runtime's CLI, Desktop's CLI or its
+  Plugins page) installs the plugin's own `kition` with it, which it starts directly. Its order:
+  `KITION_BIN`, a `kition` `KITION_KITS_MCP`, its own, then a system `kition` only when it has the
+  `gateway` command (an older one is passed over and named). With none, a tab, a card and the
+  agents' `kition_setup` tool say why: no build for the platform, optional dependencies left out,
+  or a plugin added from a folder (pnpm links a folder without its dependencies). The plugin uses no
+  gateway of another `kition` version, and the release publishes it after `@kition/cli` and its
+  platform packages, once it installs by name from the packed archives
+  (`tools/check-dsh-plugin-package.mjs`).
 - **`kition mcp` relays to no gateway of another kition version** or gateway protocol (its
   lockfile's `version`, `protocol`): it serves in its own process and says so.
 - **Human and agent together in DeepSeek Harness** (`@kition/dsh-kits`): each turn's kit edits are

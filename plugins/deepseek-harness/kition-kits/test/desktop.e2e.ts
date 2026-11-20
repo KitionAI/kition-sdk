@@ -2,8 +2,10 @@
  * The plugin in the installed DeepSeek Harness Desktop (sdk.agent.dsh-plugin/desktop-smoke, macOS,
  * local only): the app runs with a HOME, a DSH_HOME and an Electron user data folder of its own
  * (the person's Desktop profile and data are never read or written, and an instance of theirs that
- * is open keeps running), the packed plugin is installed into its `desktop` profile with the app's
- * own CLI, and a `.ktable` clicked in the file tree opens the real Table editor in the right
+ * is open keeps running), with no KITION_BIN and no kition on the PATH; the plugin's .tgz is
+ * installed into its `desktop` profile with the app's own CLI from a local registry that holds
+ * @kition/cli and this platform's package (test/registry.mjs), so its own kition comes with it and
+ * runs the gateway; and a `.ktable` clicked in the file tree opens the real Table editor in the right
  * sidebar, served through the app's dsh-app:// forwarding; Cmd+W pressed in the editor reaches
  * DeepSeek Harness (the frame is one it routes shortcuts to) and closes the tab; and a scripted
  * agent's `mcp__kition__kit_run` (the profile's own patch layer routes the model to it) adds a record
@@ -20,7 +22,7 @@ import path from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { index, installKits, kition } from '../../../../examples/gateway-page/e2e/helpers'
 import { shots, tableSample } from '../../../../examples/gateway-page/e2e/page'
-import { here, isolated, pack, scratch, scriptedModel } from './dsh'
+import { bundledGateways, here, isolated, kitionRegistry, pathWithoutKition, scratch, scriptedModel } from './dsh'
 
 const app = process.env.DSH_DESKTOP_APP || '/Applications/DeepSeek Harness.app'
 const executable = path.join(app, 'Contents/MacOS/DeepSeek Harness')
@@ -56,7 +58,24 @@ async function quit(desktop: ElectronApplication) {
   throw new Error('DeepSeek Harness Desktop did not close within a minute')
 }
 
-test.afterAll(() => model?.stop())
+let registry: Awaited<ReturnType<typeof kitionRegistry>>
+
+test.afterAll(() => {
+  model?.stop()
+  registry?.stop()
+})
+
+/**
+ * The environment of an isolated app at `folder`: the plugin's own kition only (no KITION_BIN, no
+ * kition on the PATH), the @kition scope from the test's registry.
+ */
+function bare(folder: string) {
+  fs.mkdirSync(path.join(folder, 'home'), { recursive: true })
+  fs.writeFileSync(path.join(folder, 'home/.npmrc'), `@kition:registry=${registry.url}\n`)
+  const bareEnv = isolated(folder, { KITION_INDEX: index, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted', PATH: pathWithoutKition() })
+  delete bareEnv.KITION_BIN
+  return bareEnv
+}
 
 test.beforeAll(async () => {
   fs.mkdirSync(shots, { recursive: true })
@@ -71,7 +90,8 @@ test.beforeAll(async () => {
   fs.copyFileSync(tableSample(), path.join(workspace, 'tasks.ktable'))
   fs.copyFileSync(tableSample(), path.join(workspace, 'later.ktable'))
   installKits(path.join(base, 'kition'), ['table'])
-  env = isolated(base, { KITION_INDEX: index, KITION_BIN: kition, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted' })
+  registry = await kitionRegistry(base, kition)
+  env = bare(base)
 })
 
 test('the app’s CLI installs the plugin into the Desktop profile; a .ktable opens in the real Table editor, Cmd+W there closes the tab, an agent’s kit tool edits it live, a draft’s card merges it, the live window opens, and the settings are kept', async () => {
@@ -89,8 +109,10 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
   await test.step('the app’s CLI installs the plugin', async () => {
     // The scripted model as the profile's own layer (Desktop takes no --patch).
     fs.copyFileSync(path.join(here, 'scripted-route.cordis.patch.yml'), path.join(base, 'dsh/profiles/desktop/cordis.patch.yml'))
-    execFileSync(cli, ['plugin', '--profile', 'desktop', 'add', pack(base)], { env, cwd: env.HOME, stdio: 'pipe', timeout: 120_000 })
+    execFileSync(cli, ['plugin', '--profile', 'desktop', 'add', registry.archive], { env, cwd: env.HOME, stdio: 'pipe', timeout: 120_000 })
     expect(JSON.parse(fs.readFileSync(path.join(base, 'dsh/profiles/desktop/package.json'), 'utf8')).dsh.profile.bundles).toContain('@kition/dsh-kits')
+    // With the plugin came its kition: @kition/cli and this platform's package.
+    expect(fs.existsSync(path.join(base, `dsh/profiles/desktop/node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition`))).toBe(true)
     mark('plugin installed')
   })
 
@@ -110,6 +132,7 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
     await expect.poll(() => !!pageFrame(), { timeout: 60_000 }).toBe(true)
     await pageFrame()!.waitForFunction(() => (window as unknown as { kitionGatewayPage?: { state: { status: string } } }).kitionGatewayPage?.state.status === 'open', null, { timeout: 120_000 })
     console.log(`desktop: the Table editor opened ${Date.now() - started} ms after the click`)
+    expect(bundledGateways(path.join(base, 'dsh/profiles/desktop/node_modules')), 'the gateway is the plugin’s own kition').toHaveLength(1)
     expect(pageFrame()!.url()).toMatch(/^dsh-app:\/\/app\/kition\/w\/[0-9a-f]{32}\/page\//)
     const kit = page.frames().find((frame) => frame.url().includes('/kits-ui/table@'))!
     await expect(kit.getByText('3 records')).toBeVisible()
@@ -184,17 +207,13 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
   await test.step('the app closes', () => quit(desktop))
 })
 
-test('the Plugins page installs the plugin from a local folder (the unpacked archive); a .ktable then opens in the Table editor, and the app closes with unsaved edits in it', async () => {
+test('the Plugins page installs the plugin by its name, with its own kition; a .ktable then opens in the Table editor, and the app closes with unsaved edits in it', async () => {
   const own = scratch('desktop-page')
-  const ownEnv = isolated(own, { KITION_INDEX: index, KITION_BIN: kition, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted' })
+  const ownEnv = bare(own)
   const workspace = path.join(own, 'home/Documents/deepseek-harness/default-workspace')
   fs.mkdirSync(workspace, { recursive: true })
   fs.copyFileSync(tableSample(), path.join(workspace, 'tasks.ktable'))
   installKits(path.join(own, 'kition'), ['table'])
-  // The package as the Plugins page takes a local one: a folder.
-  const folder = path.join(own, 'plugin')
-  fs.mkdirSync(folder)
-  execFileSync('tar', ['-xzf', pack(own), '-C', folder, '--strip-components', '1'])
   const open = async () => {
     const desktop = await electron.launch({ executablePath: executable, args: [`--user-data-dir=${path.join(own, 'userdata')}`], env: ownEnv as Record<string, string>, timeout: 120_000 })
     let page: Page | undefined
@@ -212,13 +231,13 @@ test('the Plugins page installs the plugin from a local folder (the unpacked arc
   })
   let { desktop, page } = await open()
   try {
-    await test.step('the Plugins page installs the folder', async () => {
+    await test.step('the Plugins page installs the plugin by its name', async () => {
       if (await page.getByRole('button', { name: 'Continue' }).isVisible().catch(() => false)) await page.getByRole('button', { name: 'Continue' }).click()
       await page.getByText('Plugins', { exact: true }).first().click()
       // "Add plugin" asks for a package name, a GitHub address or a local folder.
       await page.getByRole('button', { name: 'Add plugin', exact: true }).first().click()
       const dialog = page.getByRole('dialog').filter({ hasText: 'local directory path' })
-      await dialog.getByRole('textbox').fill(folder)
+      await dialog.getByRole('textbox').fill('@kition/dsh-kits')
       await dialog.getByRole('button', { name: 'Install', exact: true }).click()
       // Installed, then enabled: the page's own two steps.
       await expect(page.getByText('Installed', { exact: true })).toBeVisible({ timeout: 120_000 })
@@ -226,6 +245,7 @@ test('the Plugins page installs the plugin from a local folder (the unpacked arc
       await expect.poll(() => JSON.parse(fs.readFileSync(path.join(own, 'dsh/profiles/desktop/package.json'), 'utf8')).dsh?.profile?.bundles ?? [], { timeout: 120_000 }).toContain('@kition/dsh-kits')
       await expect(page.getByText('@kition/dsh-kits', { exact: true }).first()).toBeVisible({ timeout: 120_000 })
       await page.screenshot({ path: path.join(shots, 'dsh-desktop-plugins-page-installed.png') })
+      expect(fs.existsSync(path.join(own, `dsh/profiles/desktop/node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition`)), 'the plugin’s own kition came with it').toBe(true)
     })
     // Whatever the page says about applying it, a new start has it.
     await quit(desktop)
@@ -239,6 +259,7 @@ test('the Plugins page installs the plugin from a local folder (the unpacked arc
       const frame = () => page.frames().find((candidate) => candidate.url().includes('/kition/w/') && candidate.url().includes('/page/'))
       await expect.poll(() => !!frame(), { timeout: 60_000 }).toBe(true)
       await frame()!.waitForFunction(() => (window as unknown as { kitionGatewayPage?: { state: { status: string } } }).kitionGatewayPage?.state.status === 'open', null, { timeout: 120_000 })
+      expect(bundledGateways(path.join(own, 'dsh/profiles/desktop/node_modules')), 'the gateway is the plugin’s own kition').toHaveLength(1)
     })
     await test.step('with unsaved edits in the editor, the app still closes', async () => {
       const kit = page.frames().find((candidate) => candidate.url().includes('/kits-ui/table@'))!

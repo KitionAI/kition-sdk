@@ -2,11 +2,15 @@ format: 1
 id: sdk.agent.dsh-plugin/host
 feature: sdk.agent.dsh-plugin
 intent: >-
-  The plugin's host module finds kition (KITION_BIN, a kition KITION_KITS_MCP, the PATH, then
-  ~/.kition/bin, ~/.cargo/bin, /usr/local/bin and /opt/homebrew/bin) and answers at once with how to
-  install it when there is none; it starts one kition gateway --stdin-lifetime per canonical
-  workspace on first need with the launcher's kit options, reuses it, reuses one another process
-  runs (its lockfile, exit 3), starts another with a new token after it dies, says why when it cannot
+  The plugin's host module finds kition: KITION_BIN, a kition KITION_KITS_MCP (only with the
+  gateway command), the plugin's own from @kition/cli's platform package (found from @kition/cli's
+  folder in a hoisted and an isolated node_modules), then a kition on the PATH, ~/.kition/bin,
+  ~/.cargo/bin, /usr/local/bin or /opt/homebrew/bin only when it has the gateway command (an older
+  one is passed over and named); with none it answers at once why (added from a folder, no
+  @kition/cli, no build for the platform, optional dependencies left out, musl) and what to do; it
+  starts one kition gateway --stdin-lifetime per canonical workspace on first need with the
+  launcher's kit options, reuses it, reuses one another process runs (its lockfile, exit 3) unless
+  that one is another kition version, which it names instead of using, starts another with a new token after it dies, says why when it cannot
   start, and stops the ones it started with the host; its /kition/ proxy refuses whatever DeepSeek
   Harness's login refuses before reading or starting anything, opens only a file inside a known
   session's workspace, answers 404 for a workspace key no session works in and never climbs out of
@@ -14,8 +18,8 @@ intent: >-
   browser's Kition-Token, streams an event stream event by event, passes ranges and an 8 MiB body
   through as they are, and answers 502 with a reason when the gateway does not answer; its kit tools
   run each call on the gateway of the calling session's own workspace and keep each call's outcome
-  for the session log; while kition is missing the agent has one tool that says how to install it,
-  replaced by the kits' tools once kition is installed, and listed again (the old gateways stopped)
+  for the session log; while no kition can run the agent has one tool that says why,
+  replaced by the kits' tools once one can, and listed again (the old gateways stopped)
   when its executable changes; the kits' resources are read from the calling session's gateway;
   before an agent's edit of a file, it tells the browsers showing that session and waits for the
   file's editor, within the first bound for an answer and the second for an editor opening, never

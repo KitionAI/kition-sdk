@@ -166,8 +166,6 @@ function Panel(props: { state: string; title: string; detail?: string; children?
   )
 }
 
-const code = (text: string) => h('code', { style: { userSelect: 'all', padding: '6px 8px', borderRadius: '4px', background: 'rgba(127,127,127,0.15)', fontSize: '12px', overflowWrap: 'anywhere' } }, text)
-
 type ViewProps = {
   address: string
   /** The session the tab belongs to, for a file named by its absolute path. */
@@ -259,15 +257,16 @@ function KitionView(props: ViewProps) {
   if (opened.phase === 'opening') return h(Panel, { state: 'starting', title: env.t('starting'), detail: env.t('startingDetail') })
   if (opened.phase === 'failed') {
     const retry = () => setAttempt((n) => n + 1)
-    if (opened.error === 'kition-missing' || opened.error === 'kition-invalid')
+    if (opened.error === 'kition-missing' || opened.error === 'kition-invalid') {
+      // kition comes with the plugin: none runs only on a platform it has no build for, after an
+      // install that left out optional dependencies, or with an option naming another.
+      const why = opened.error === 'kition-invalid' ? 'missingOption' : opened.reason === 'unsupported' ? 'missingUnsupported' : opened.reason === 'omitted' ? 'missingOmitted' : opened.reason === 'folder' ? 'missingFolder' : 'missingCli'
       return h(
         Panel,
-        { state: 'kition-missing', title: env.t('missingTitle'), detail: env.t('missingDetail'), onRetry: retry },
-        code('npm install -g @kition/cli'),
-        h('div', { style: { opacity: 0.8 } }, env.t('missingOr')),
-        code('curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh'),
-        opened.error === 'kition-invalid' ? h('div', { style: { opacity: 0.7, fontSize: '12px' } }, opened.message) : null,
+        { state: 'kition-missing', title: env.t('missingTitle'), detail: env.t(why, { platform: opened.platform ?? '' }), onRetry: retry },
+        h('div', { 'data-kition-missing-reason': opened.reason ?? opened.error, style: { opacity: 0.7, fontSize: '12px', overflowWrap: 'anywhere' } }, opened.message),
       )
+    }
     if (opened.error === 'outside-workspace') return h(Panel, { state: 'outside-workspace', title: env.t('outsideTitle'), detail: env.t('outsideDetail') })
     return h(Panel, { state: 'unreachable', title: env.t('unreachableTitle'), detail: env.t('unreachableDetail'), onRetry: retry }, h('div', { style: { opacity: 0.7, fontSize: '12px' } }, opened.message))
   }

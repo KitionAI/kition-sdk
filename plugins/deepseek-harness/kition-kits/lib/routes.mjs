@@ -47,7 +47,7 @@ export function relativeInside(workspace, file) {
  */
 export function createRoutes({ gateways, workspaces, rejection, log = () => {}, opened = () => {}, live = null }) {
   const failure = (res, error) => {
-    if (error instanceof GatewayError) return answerJson(res, 503, { error: error.code, message: error.message })
+    if (error instanceof GatewayError) return answerJson(res, 503, { error: error.code, message: error.message, ...error.detail })
     log(`error: ${error?.stack ?? error}`)
     return answerJson(res, 500, { error: 'internal', message: String(error?.message ?? error) })
   }

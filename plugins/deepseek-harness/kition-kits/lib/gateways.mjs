@@ -7,7 +7,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import readline from 'node:readline'
 
-import { findKition, INSTALL_HINT, kitOptions } from './kition.mjs'
+import { findKition, kitionVersion, kitOptions, missingMessage } from './kition.mjs'
 
 /** The exit status of a `kition gateway` that found another one serving the folder. */
 export const ALREADY_RUNNING = 3
@@ -17,10 +17,13 @@ export class GatewayError extends Error {
   /**
    * @param {'kition-missing' | 'kition-invalid' | 'gateway-failed'} code
    * @param {string} message
+   * @param {{ reason?: string, platform?: string }} [detail] for `kition-missing`: why there is
+   *   none (`unsupported`, `omitted`, `no-cli`) and this platform
    */
-  constructor(code, message) {
+  constructor(code, message, detail = {}) {
     super(message)
     this.code = code
+    this.detail = detail
   }
 }
 
@@ -93,8 +96,8 @@ export class Gateways {
   /** @returns {Promise<Gateway>} */
   async start(workspace, entry) {
     const found = findKition(this.env)
-    if (found.missing) throw new GatewayError('kition-missing', `kition is not installed. ${INSTALL_HINT}`)
-    if (found.error) throw new GatewayError('kition-invalid', `${found.error}. ${INSTALL_HINT}`)
+    if (found.missing) throw new GatewayError('kition-missing', missingMessage(found), { reason: found.reason, platform: found.platform })
+    if (found.error) throw new GatewayError('kition-invalid', `${found.error}. Unset it, or point it at a kition that has the gateway command, and restart DeepSeek Harness.`)
     const args = ['gateway', '--workspace', workspace, '--stdin-lifetime', ...kitOptions(this.env)]
     this.log(`starting ${found.file} ${args.join(' ')}`)
     const child = spawn(found.file, args, { env: this.env, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -124,7 +127,7 @@ export class Gateways {
       })
       child.once('error', (error) => {
         clearTimeout(timer)
-        reject(new GatewayError('kition-invalid', `could not start ${found.file}: ${error.message}. ${INSTALL_HINT}`))
+        reject(new GatewayError('kition-invalid', `could not start ${found.file}: ${error.message}`))
       })
       // `close`, not `exit`: the line a gateway that found another one printed is read by then.
       child.once('close', (code) => {
@@ -140,6 +143,15 @@ export class Gateways {
       throw new GatewayError('gateway-failed', `kition gateway left no readable lockfile at ${announced.lockfile}`)
     }
     const owned = announced.kition === 'gateway-ready'
+    // Another process's gateway from another kition: its tools, kits and protocol may differ from
+    // the ones this plugin listed with its own kition, so it is not used, and the person is told.
+    const own = owned ? null : kitionVersion(found.file)
+    if (!owned && own && typeof lock.version === 'string' && lock.version !== own) {
+      throw new GatewayError(
+        'gateway-failed',
+        `a gateway of another kition, ${lock.version} (pid ${lock.pid}), already serves ${workspace}; this plugin runs kition ${own} (${found.file}) and does not mix versions. Stop that gateway, or set KITION_BIN to a kition ${lock.version} and restart DeepSeek Harness.`,
+      )
+    }
     /** @type {Gateway} */
     const gateway = { url: lock.url, port: lock.port, token: lock.token, pid: lock.pid, workspace: lock.workspace, lockfile: announced.lockfile, owned }
     if (owned) {

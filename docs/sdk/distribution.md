@@ -61,7 +61,8 @@ curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/insta
 The npm package `@kition/cli-<platform>` carries the same `kition` as `bin/kition`, and the npm
 package `@kition/cli`, which depends on every one of them as an optional dependency, gives the
 `kition` command that starts it (`npm install -g @kition/cli`, `npx -y @kition/cli <command>`;
-[cli.md](cli.md#installing-it)). The executables a release ships, `kition` among them,
+[cli.md](cli.md#installing-it)). The DeepSeek Harness plugin `@kition/dsh-kits` depends on
+`@kition/cli` at its own version, so installing it brings that `kition`, which it starts directly. The executables a release ships, `kition` among them,
 are built with the workspace's `dist` profile (LTO, one code unit, symbols stripped).
 
 ## Linux: the glibc floor
@@ -193,8 +194,12 @@ releases. The kit index on the branch `kits-index` is the one exception (above).
 The release workflow builds and checks everything before it publishes anything. It then makes
 the GitHub Release as a draft (no tag yet; it can still be deleted), publishes the npm packages
 (a version published on npm can never be published again, so this is the step that cannot be
-undone), and publishes the draft last. On npm the scoped `@kition/*` packages go first, then
-`@kition/cli-<platform>`, then `kition`, which depends on them.
+undone), and publishes the draft last. On npm the scoped `@kition/*` libraries go first, then
+`@kition/cli-<platform>`, then `@kition/cli`, which depends on them, then `@kition/dsh-kits`, the
+DeepSeek Harness plugin, which depends on `@kition/cli` at its own version: a plugin on npm always
+has its kition there. Before anything is published, `tools/check-dsh-plugin-package.mjs` checks
+those dependencies in the packed archives and installs the plugin by name from them (a local
+registry) as DeepSeek Harness does, and runs the `kition` it brings.
 
 - **It stopped before npm, or part-way through npm** (a refused token, the registry down): run it
   again from the same commit, best with "Re-run failed jobs", which keeps the executables already

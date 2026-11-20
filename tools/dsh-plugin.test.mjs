@@ -23,6 +23,80 @@ const js = { tag: 'tag:yaml.org,2002:js', resolve: (source) => ({ js: source }) 
 const patch = (file) => YAML.parse(fs.readFileSync(path.join(plugin, file), 'utf8'), { customTags: [js] })
 const frontmatter = (text) => Object.fromEntries([...text.split('---')[1].matchAll(/^([a-z-]+): (.*)$/gm)].map(([, key, value]) => [key, value]))
 
+describe('the kition that comes with the plugin', () => {
+  const release = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8')
+  const platforms = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
+
+  it('is @kition/cli at exactly the SDK version, the version the release stamps on packages/kition, and the plugin depends on nothing else', () => {
+    expect(manifest.dependencies).toEqual({ '@kition/cli': sdk.version })
+    expect(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/package.json'), 'utf8')).version).toBe(sdk.version)
+  })
+
+  it('is published before the plugin, which the release installs from its archives first', () => {
+    const at = (text) => {
+      const found = release.indexOf(text)
+      expect(found, text).toBeGreaterThan(-1)
+      return found
+    }
+    // Platform packages, then @kition/cli, then the plugin that depends on it.
+    expect(at('for archive in target/kition/packed/*.tgz; do publish "$archive"; done')).toBeLessThan(at('publish target/npm-pack/kition.tgz\n'))
+    expect(at('publish target/npm-pack/kition.tgz\n')).toBeLessThan(at('publish target/npm-pack/dsh-kits.tgz'))
+    // The check runs on the linked @kition/cli, before anything is published.
+    const check = at('node tools/check-dsh-plugin-package.mjs --plugin target/npm-pack/dsh-kits.tgz --launcher target/npm-pack/kition.tgz --platforms target/kition/packed')
+    expect(at('platform-package.mjs link --launcher target/npm-pack/kition.tgz')).toBeLessThan(check)
+    expect(check).toBeLessThan(at('- name: Publish on npm in dependency order'))
+  })
+
+  it('is built for the platforms of the release matrix, which the README names', () => {
+    const matrix = [...release.matchAll(/- \{ platform: ([a-z0-9-]+),/g)].map(([, platform]) => platform)
+    expect(matrix.sort()).toEqual([...platforms].sort())
+    // The README's paragraph that starts so, to its blank line.
+    const readme = fs.readFileSync(path.join(plugin, 'README.md'), 'utf8')
+    const start = readme.indexOf('\nThe plugin has a kition for')
+    expect(start, 'README: "The plugin has a kition for ..."').toBeGreaterThan(-1)
+    const line = readme.slice(start + 1, readme.indexOf('\n\n', start + 1))
+    expect([...line.matchAll(/`([a-z0-9]+-[a-z0-9]+)`/g)].map(([, key]) => key).sort()).toEqual([...platforms].sort())
+  })
+})
+
+describe('the release’s check of the packed plugin (tools/check-dsh-plugin-package.mjs)', async () => {
+  const { checkInstall, checkManifests } = await import('./check-dsh-plugin-package.mjs')
+  const version = sdk.version
+  const keys = Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/src/platforms.json'), 'utf8'))).filter((key) => !key.startsWith('$'))
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-kits-package-')))
+  const pack = (folder) => path.join(dir, JSON.parse(execFileSync('npm', ['pack', folder, '--pack-destination', dir, '--json'], { encoding: 'utf8' }))[0].filename)
+  // Every platform package, this platform's with a stand-in kition that has the gateway command.
+  for (const key of keys) {
+    const exe = path.join(dir, 'exe', key, key.startsWith('win32') ? 'kition.exe' : 'kition')
+    fs.mkdirSync(path.dirname(exe), { recursive: true })
+    fs.writeFileSync(exe, `#!/bin/sh\nif [ "$1" = --version ]; then echo "kition ${version} (stand-in)"; exit 0; fi\nif [ "$1 $2" = "gateway --help" ]; then echo "usage: kition gateway"; exit 0; fi\nexit 2\n`, { mode: 0o755 })
+    execFileSync(process.execPath, [path.join(root, 'packages/kition/scripts/platform-package.mjs'), 'platform', '--platform', key, '--kition', exe, '--out', path.join(dir, 'platforms')])
+    pack(path.join(dir, 'platforms', key))
+  }
+  // @kition/cli, linked to them by version as the release links it.
+  const cli = path.join(dir, 'cli')
+  fs.mkdirSync(cli)
+  fs.writeFileSync(path.join(cli, 'package.json'), JSON.stringify({ name: '@kition/cli', version, files: [] }))
+  const launcher = pack(cli)
+  execFileSync(process.execPath, [path.join(root, 'packages/kition/scripts/platform-package.mjs'), 'link', '--launcher', launcher, '--out', dir])
+  const archives = { plugin: pack(plugin), launcher, platforms: dir }
+
+  it('passes the plugin as packed, and installs it by name with this platform’s kition', async () => {
+    expect(checkManifests(archives)).toBe(version)
+    expect(await checkInstall(archives, version)).toMatch(new RegExp(`node_modules/@kition/cli-${process.platform}-${process.arch}/bin/kition$`))
+  }, 120_000)
+
+  it('refuses a plugin whose @kition/cli is a range or another version', () => {
+    const drifted = path.join(dir, 'drifted')
+    fs.cpSync(plugin, drifted, { recursive: true, filter: (source) => !source.includes(`${path.sep}node_modules`) })
+    for (const spec of [`^${version}`, '0.0.1']) {
+      const manifest = JSON.parse(fs.readFileSync(path.join(drifted, 'package.json'), 'utf8'))
+      fs.writeFileSync(path.join(drifted, 'package.json'), JSON.stringify({ ...manifest, dependencies: { '@kition/cli': spec } }))
+      expect(() => checkManifests({ ...archives, plugin: pack(drifted) }), spec).toThrow(/depends on @kition\/cli at exactly its own version/)
+    }
+  }, 120_000)
+})
+
 describe('the bundle manifest', () => {
   it('is a public package at the SDK version that DeepSeek Harness installs as a bundle', () => {
     expect(manifest.name).toBe('@kition/dsh-kits')
@@ -160,6 +234,8 @@ describe('the launcher', () => {
   // Stand-ins for kition-kits-mcp, kition and npx that print the arguments they were started with.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-kits-launcher-'))
   const printer = '#!/bin/sh\nprintf "%s\\n" "$@"\n'
+  // A kition the plugin takes: it has the gateway command.
+  const kitionPrinter = '#!/bin/sh\nif [ "$1 $2" = "gateway --help" ]; then echo "usage: kition gateway"; exit 0; fi\nprintf "%s\\n" "$@"\n'
   const fake = path.join(dir, 'kition-kits-mcp')
   fs.writeFileSync(fake, printer, { mode: 0o755 })
   const repos = path.join(dir, 'repos')
@@ -206,7 +282,7 @@ describe('the launcher', () => {
     const bin = path.join(dir, 'with-kition')
     fs.mkdirSync(bin, { recursive: true })
     const kition = path.join(bin, 'kition')
-    fs.writeFileSync(kition, printer, { mode: 0o755 })
+    fs.writeFileSync(kition, kitionPrinter, { mode: 0o755 })
     const both = `${bin}:${dir}:/usr/bin:/bin`
     expect(run(['--workspace', '/w'], { PATH: both })).toEqual(['mcp', '--workspace', '/w', '--unified'])
     expect(run(['drafts', 'list', '--workspace', '/w'], { PATH: both, KITION_KITS_MCP: '' })).toEqual(['mcp', 'drafts', 'list', '--workspace', '/w'])
@@ -225,7 +301,8 @@ describe('the launcher', () => {
   it('says what is missing when it finds no server, or the option names no executable', () => {
     const none = failure(['--workspace', '/w'], { PATH: path.join(dir, 'empty') })
     expect(none.status).toBe(1)
-    expect(none.stderr).toMatch(/^kition-kits: no kition, no kition-kits-mcp and no npx on the PATH/)
+    expect(none.stderr).toMatch(/^kition-kits: kition cannot run here\. The plugin was added from a folder/)
+    expect(none.stderr).toContain('No kition-kits-mcp and no npx on the PATH either.')
     const wrong = failure(['--workspace', '/w'], { KITION_KITS_MCP: path.join(dir, 'missing') })
     expect(wrong.status).toBe(1)
     expect(wrong.stderr).toContain(`KITION_KITS_MCP is ${path.join(dir, 'missing')}, which is not an executable file`)
@@ -242,7 +319,7 @@ describe('the launcher, where DeepSeek Harness Desktop’s PATH has no kition', 
   it('finds kition where install.sh puts it', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-kits-home-'))
     fs.mkdirSync(path.join(home, '.kition/bin'), { recursive: true })
-    fs.writeFileSync(path.join(home, '.kition/bin/kition'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 })
+    fs.writeFileSync(path.join(home, '.kition/bin/kition'), '#!/bin/sh\nif [ "$1 $2" = "gateway --help" ]; then echo "usage: kition gateway"; exit 0; fi\nprintf "%s\\n" "$@"\n', { mode: 0o755 })
     const printed = execFileSync(process.execPath, [path.join(plugin, 'bin/kits-mcp.mjs'), 'drafts', 'list', '--workspace', '/w'], { env: { PATH: '/usr/bin:/bin', HOME: home }, encoding: 'utf8' })
     expect(printed.trim().split('\n')).toEqual(['mcp', 'drafts', 'list', '--workspace', '/w'])
   })

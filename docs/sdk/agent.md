@@ -101,7 +101,8 @@ Other clients:
 
 - **DeepSeek Harness**: the plugin `@kition/dsh-kits` in kition-sdk
   (`plugins/deepseek-harness/kition-kits`, with its README), installed with
-  `dsh plugin --profile <profile> add <its packed archive>`: each kit file in its kit's editor in the
+  `dsh plugin --profile <profile> add @kition/dsh-kits` (or its packed archive), which brings its
+  own kition (`@kition/cli` at its version): each kit file in its kit's editor in the
   right sidebar, the tools, which act on each session's own folder through its `kition gateway`
   (live in an open editor), an editing skill per kit and the person's draft review.
 - **Kition running**: its loopback endpoint `POST /v1/mcp/kits` also edits files open in kit

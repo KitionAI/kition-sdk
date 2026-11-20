@@ -1,8 +1,11 @@
 /**
  * The plugin in a real DeepSeek Harness 0.2.2-rc.5 web UI (sdk.agent.dsh-plugin/web-e2e): the packed
- * plugin installed with `dsh plugin add` into a profile from the `web` template, the real Table and
- * Note kits (headless and editor packages from the kit index's release assets, as the gateway's
- * e2e installs them), the real `kition gateway` the host module starts, and a scripted model.
+ * plugin installed with `dsh plugin add` into a profile from the `web` template, from a local
+ * registry that holds it with @kition/cli and @kition/cli-<platform> made as the release makes
+ * them (this checkout's kition inside), so the install brings the plugin's own kition: no
+ * KITION_BIN, no kition on the PATH. The real Table and Note kits (headless and editor packages
+ * from the kit index's release assets, as the gateway's e2e installs them), the real `kition
+ * gateway` the host module starts from the plugin's kition, and a scripted model.
  *
  * - DeepSeek Harness's login guards /kition/: without its cookie, or with a foreign Host, refused;
  * - a `.ktable` clicked in the file tree opens the real Table editor in the right sidebar, in a
@@ -22,13 +25,14 @@ import path from 'node:path'
 import { expect, test, type Frame, type Page } from '@playwright/test'
 import { index, installKits, kition } from '../../../../examples/gateway-page/e2e/helpers'
 import { noteSample, shots, tableSample } from '../../../../examples/gateway-page/e2e/page'
-import { dshRuntime, here, installProfile, isolated, pack, plugin, repo, scratch, scriptedModel, startWeb, type Dsh } from './dsh'
+import { bundledGateways, dshRuntime, here, installProfile, isolated, kitionRegistry, pathWithoutKition, plugin, repo, scratch, scriptedModel, startWeb, type Dsh } from './dsh'
 
 const PROFILE = 'kition-e2e'
 let base: string
 let workspace: string
 let dsh: Dsh
 let model: Awaited<ReturnType<typeof scriptedModel>>
+let registry: Awaited<ReturnType<typeof kitionRegistry>>
 
 const APPENDED = 'Appended by the agent in DeepSeek Harness.'
 const DRAFTED = 'Drafted by the agent in DeepSeek Harness.'
@@ -68,8 +72,12 @@ test.beforeAll(async () => {
     'No float edit': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/quiet.md', steps: [{ command: 'block.append', params: { markdown: 'Edited without a window.' } }] } }, { say: 'Edited.' }],
     'Draft the plan': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/plan.md', draft: true, steps: [{ command: 'block.append', params: { markdown: DRAFTED } }] } }, { say: 'Drafted.' }],
   })
-  const env = isolated(base, { KITION_INDEX: index, KITION_BIN: kition, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted' })
-  const dump = installProfile(runtime, env, PROFILE, pack(base))
+  registry = await kitionRegistry(base, kition)
+  const env = isolated(base, { KITION_INDEX: index, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted', PATH: pathWithoutKition() })
+  delete env.KITION_BIN
+  const dump = installProfile(runtime, env, PROFILE, registry.archive)
+  const own = path.join(base, 'dsh/profiles', PROFILE, 'node_modules', `@kition/cli-${process.platform}-${process.arch}`, 'bin/kition')
+  expect(fs.existsSync(own), 'the install brought the plugin’s own kition').toBe(true)
   expect(dump).toContain('# == @kition/dsh-kits')
   dsh = await startWeb(runtime, env, PROFILE, [path.join(here, 'scripted-route.cordis.patch.yml')])
 })
@@ -77,6 +85,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await dsh?.stop()
   model?.stop()
+  registry?.stop()
   // For a failure's reader: what DeepSeek Harness printed, and what the model was asked.
   if (base) {
     fs.writeFileSync(path.join(base, 'dsh-output.log'), (dsh?.output ?? []).join('\n'))
@@ -166,6 +175,8 @@ test('a .ktable clicked in the file tree opens the real Table editor in the righ
   const frame = pageFrame(page, 'tasks.ktable')!
   await opened(frame)
   console.log(`table: the editor opened ${Date.now() - started} ms after the click`)
+  // The gateway is the plugin's own kition, from the profile's node_modules.
+  expect(bundledGateways(path.join(base, 'dsh/profiles', PROFILE, 'node_modules'))).toHaveLength(1)
   // The frame DeepSeek Harness routes its shortcuts to: named for its tab, marked as an HTML preview.
   const attributes = await page.locator('iframe[data-kition-page]').first().evaluate((element) => ({ name: (element as HTMLIFrameElement).name, preview: element.hasAttribute('data-html-preview') }))
   expect(attributes.name).toMatch(/^dsh-sidebar-html-.+/)
@@ -476,14 +487,21 @@ test('in Chinese and dark, in a narrower window: the cards, a tab’s marks, the
     await expect(drafted).not.toHaveAttribute('data-state', 'pending', { timeout: 120_000 })
     const toolAnswers = () => model.requests.flatMap((request) => request.messages).filter((message) => message.role === 'tool').map((message) => JSON.stringify(message.content))
     expect(await drafted.getAttribute('data-state'), `the agent's last tool answer: ${toolAnswers().at(-1)}`).toBe('draft-open')
-    for (const one of await cards.all()) {
-      const box = (await one.boundingBox())!
-      for (const button of await one.locator('button').all()) {
-        expect(inside((await button.boundingBox())!, box), 'a card’s button inside the card').toBe(true)
-        expect(await button.innerText()).toMatch(chinese)
-      }
-      expect(await one.evaluate((element) => [...element.querySelectorAll<HTMLElement>('*')].every((child) => child.scrollWidth <= child.clientWidth + 1 || getComputedStyle(child).textOverflow === 'ellipsis')), 'nothing in a card overflows').toBe(true)
-    }
+    // Each card measured at once, in the page, and again until the cards settle (they render as the turn ends).
+    const problems = () =>
+      cards.evaluateAll((all, pattern) =>
+        all.flatMap((card, index) => {
+          const box = card.getBoundingClientRect()
+          const found: string[] = []
+          for (const button of card.querySelectorAll('button')) {
+            const own = button.getBoundingClientRect()
+            if (own.left < box.left - 0.5 || own.top < box.top - 0.5 || own.right > box.right + 0.5 || own.bottom > box.bottom + 0.5) found.push(`card ${index}: ${button.textContent} outside`)
+            if (!new RegExp(pattern).test(button.textContent ?? '')) found.push(`card ${index}: ${button.textContent} not in Chinese`)
+          }
+          for (const child of card.querySelectorAll<HTMLElement>('*')) if (child.scrollWidth > child.clientWidth + 1 && getComputedStyle(child).textOverflow !== 'ellipsis') found.push(`card ${index}: ${child.tagName} ${child.textContent?.slice(0, 30)} overflows`)
+          return found
+        }), chinese.source)
+    await expect.poll(problems, { timeout: 15_000 }).toEqual([])
     await page.screenshot({ path: path.join(shots, 'dsh-zh-dark-cards.png') })
     await drafted.locator('[data-kition-card-action="open"]').click()
     const mark = page.locator('[data-kition-draft]').first()

@@ -10,6 +10,8 @@
 //   GET  /bytes     1000 bytes (0..249 four times), with single ranges
 //   POST /api/v1/mcp/kits   a JSON-RPC answer naming the workspace and the tool called
 //
+// `kition gateway --help` answers as the real one's usage does (the plugin checks a kition has it);
+// `--version`, the lockfile and the lines say FAKE_KITION_VERSION (0.0.0 unset).
 // FAKE_KITION_LOG, when set, gets one line per start: the arguments.
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -17,6 +19,16 @@ import http from 'node:http'
 import path from 'node:path'
 
 const args = process.argv.slice(2)
+const version = process.env.FAKE_KITION_VERSION ?? '0.0.0'
+if (args[0] === '--version') {
+  console.log(`kition ${version} (the stand-in)`)
+  process.exit(0)
+}
+// What the plugin asks a kition before it uses it, has it the gateway command, is no start.
+if (args[0] === 'gateway' && args.includes('--help')) {
+  console.log('usage: kition gateway --workspace <folder> (the stand-in)')
+  process.exit(0)
+}
 if (process.env.FAKE_KITION_LOG) fs.appendFileSync(process.env.FAKE_KITION_LOG, `${JSON.stringify(args)}\n`)
 // `kition mcp` for the tool catalog: initialize and tools/list over stdio, the tools FAKE_KITION_TOOLS names.
 const toolList = () => (process.env.FAKE_KITION_TOOLS ?? 'kit_inspect').split(',').map((name) => ({ name, description: `the ${name} tool`, inputSchema: { type: 'object' } }))
@@ -37,7 +49,7 @@ const key = crypto.createHash('sha256').update(workspace).digest('hex').slice(0,
 const lockfile = path.join(home, 'run', `${key}.json`)
 fs.mkdirSync(path.dirname(lockfile), { recursive: true, mode: 0o700 })
 
-const announce = (kind, lock) => console.log(JSON.stringify({ kition: kind, protocol: 'kition-gateway/1', pid: lock.pid, port: lock.port, url: lock.url, workspace: lock.workspace, lockfile, apiPrefix: '/api/v1' }))
+const announce = (kind, lock) => console.log(JSON.stringify({ kition: kind, protocol: 'kition-gateway/1', version: lock.version, pid: lock.pid, port: lock.port, url: lock.url, workspace: lock.workspace, lockfile, apiPrefix: '/api/v1' }))
 
 if (fs.existsSync(lockfile)) {
   const lock = JSON.parse(fs.readFileSync(lockfile, 'utf8'))
@@ -102,7 +114,7 @@ const server = http.createServer(async (req, res) => {
 })
 server.listen(0, '127.0.0.1', () => {
   const port = server.address().port
-  const lock = { format: 1, protocol: 'kition-gateway/1', pid: process.pid, port, url: `http://127.0.0.1:${port}`, apiPrefix: '/api/v1', token, workspace, unified: args.includes('--unified'), started: Math.floor(Date.now() / 1000) }
+  const lock = { format: 1, protocol: 'kition-gateway/1', version, pid: process.pid, port, url: `http://127.0.0.1:${port}`, apiPrefix: '/api/v1', token, workspace, unified: args.includes('--unified'), started: Math.floor(Date.now() / 1000) }
   fs.writeFileSync(lockfile, JSON.stringify(lock), { mode: 0o600 })
   announce('gateway-ready', lock)
 })

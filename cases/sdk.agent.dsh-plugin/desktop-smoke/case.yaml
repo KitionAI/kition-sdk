@@ -4,8 +4,9 @@ feature: sdk.agent.dsh-plugin
 intent: >-
   The installed DeepSeek Harness Desktop (macOS, its bundled 0.2.2-rc.2), started with a HOME, a
   DSH_HOME and an Electron user data folder of its own (nothing of the person's read or written,
-  no sign-in, no model account, no update): the packed plugin installs into its desktop profile
-  with the app's own CLI; a .ktable clicked in the file tree opens the real Table editor in the
+  no sign-in, no model account, no update), with no KITION_BIN and no kition on the PATH: the
+  plugin's .tgz installs into its desktop profile with the app's own CLI from a local registry
+  holding @kition/cli and this platform's package, bringing its own kition, which runs the gateway; a .ktable clicked in the file tree opens the real Table editor in the
   right sidebar under dsh-app://app/kition/w/<key>/page/; Cmd+W pressed in the editor reaches
   DeepSeek Harness and closes the tab; a scripted agent's mcp__kition__kit_run (the model routed by
   the profile's own patch layer) adds a record in the open editor without a reload and answers that
@@ -13,7 +14,7 @@ intent: >-
   editor following; its edit of a file not open waits for a live window and runs there, live, and
   the turn ends before the app is closed; and the live window setting
   turned off on the plugin's page is written into the profile. In another such profile the app's
-  Plugins page installs the plugin from a local folder (the unpacked archive) and enables it, a
+  Plugins page installs the plugin by its name (bringing its own kition) and enables it, a
   .ktable then opens in the Table editor, and with unsaved edits in it the app still closes (a
   page's beforeunload would keep an Electron window open, asking nobody); every close is bounded.
   Skipped where the app is not installed.

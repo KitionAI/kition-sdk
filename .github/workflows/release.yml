@@ -7,8 +7,9 @@ name: release
 #   a snapshot of the kit index gathered when the release is made (tools/kits-index.mjs); install.sh
 #   and install.ps1; the release manifest kition-sdk-<version>.json, every schema, and SHA256SUMS
 #   (tools/sdk-release.mjs), with build provenance attestations;
-# - the public @kition/* packages on npm, with @kition/cli (the `kition` command, a Node launcher) and
-#   @kition/cli-<platform> (which carries the kition executable).
+# - the public @kition/* packages on npm, with @kition/cli (the `kition` command, a Node launcher),
+#   @kition/cli-<platform> (which carries the kition executable), and @kition/dsh-kits (the
+#   DeepSeek Harness plugin, which depends on @kition/cli at its own version and runs that kition).
 # Each published kit's executable is built from the tag that Kition's kits/kits.lock.json pins for
 # its package, and must answer kit.initialize with that package's version. A release publishes no
 # kit archive: each kit repository publishes its own archives, and .github/workflows/kits-index.yml
@@ -367,6 +368,10 @@ jobs:
           merge-multiple: true
       # @kition/cli depends on every platform package, optionally: npm installs the one for its platform.
       - run: node packages/kition/scripts/platform-package.mjs link --launcher target/npm-pack/kition.tgz --out target/kition/packed
+      # @kition/dsh-kits depends on that @kition/cli, at its own version: installed by name from
+      # these archives (a local registry), as DeepSeek Harness installs it, it brings this
+      # platform's kition, which has the gateway command.
+      - run: node tools/check-dsh-plugin-package.mjs --plugin target/npm-pack/dsh-kits.tgz --launcher target/npm-pack/kition.tgz --platforms target/kition/packed
       - run: pnpm exec playwright install --with-deps chromium
       - run: node tools/smoke-public-packages.mjs
       - uses: actions/attest-build-provenance@v2
@@ -424,8 +429,9 @@ jobs:
       # A version on npm can never be published again: this is the step that cannot be undone,
       # so it comes after every check and after the draft. What npm has already is skipped, so a
       # run again publishes only what is missing. The libraries go first, then the platform
-      # packages @kition/cli-<platform>, then @kition/cli, which depends on them. The DeepSeek
-      # Harness plugin @kition/dsh-kits depends on none of them.
+      # packages @kition/cli-<platform>, then @kition/cli, which depends on them, then the DeepSeek
+      # Harness plugin @kition/dsh-kits, which depends on @kition/cli: a plugin on npm always has
+      # its kition there.
       - name: Publish on npm in dependency order
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -444,9 +450,9 @@ jobs:
           for p in kdm kit-ui-protocol embed kit-engine sync convergence script extensions embed-server kit-host kit-dev-host kit-editor; do
             publish "target/npm-pack/$p.tgz"
           done
-          publish target/npm-pack/dsh-kits.tgz
           for archive in target/kition/packed/*.tgz; do publish "$archive"; done
           publish target/npm-pack/kition.tgz
+          publish target/npm-pack/dsh-kits.tgz
       # Last: the draft becomes the release, and the latest one, once npm has every package it
       # tells people to install.
       - name: Publish the GitHub Release

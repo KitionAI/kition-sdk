@@ -148,7 +148,13 @@ async function openFile(sessionId, path) {
     const response = await fetch(route(`kition/api/open?${new URLSearchParams({ session: sessionId, path })}`), { credentials: "same-origin", cache: "no-store" });
     const answer = await response.json().catch(() => ({}));
     if (response.ok && typeof answer.page === "string") return { phase: "open", page: answer.page, key: answer.key, path: answer.path };
-    return { phase: "failed", error: String(answer.error ?? `http-${response.status}`), message: String(answer.message ?? response.statusText) };
+    return {
+      phase: "failed",
+      error: String(answer.error ?? `http-${response.status}`),
+      message: String(answer.message ?? response.statusText),
+      ...typeof answer.reason === "string" ? { reason: answer.reason } : {},
+      ...typeof answer.platform === "string" ? { platform: answer.platform } : {}
+    };
   } catch (error) {
     return { phase: "failed", error: "unreachable", message: error.message };
   }
@@ -325,9 +331,12 @@ const en = {
   openWith: "Kition {kit}",
   starting: "Starting Kition…",
   startingDetail: "Kition is starting for this folder.",
-  missingTitle: "Kition is not installed",
-  missingDetail: "Install Kition, then try again:",
-  missingOr: "or",
+  missingTitle: "Kition cannot run here",
+  missingUnsupported: "The Kition program that comes with the plugin has no build for this computer ({platform}). Set KITION_BIN to a kition built for it, and restart DeepSeek Harness.",
+  missingOmitted: "The plugin was installed without its optional dependencies, which bring the Kition program for this computer ({platform}). Add the plugin again without leaving them out.",
+  missingCli: "The package that brings the Kition program (@kition/cli) is not installed beside the plugin. Add the plugin again.",
+  missingFolder: "The plugin was added from a folder, which is linked without its dependencies, so the Kition program is not there. Run npm install --omit=dev in that folder, or add the plugin by name or from its .tgz.",
+  missingOption: "An option names a Kition program that cannot be used:",
   unreachableTitle: "Kition does not answer",
   unreachableDetail: "Kition could not open this file.",
   retry: "Try again",
@@ -357,7 +366,7 @@ const en = {
   stateDiscarded: "Discarded",
   stateDraftGone: "The draft is no longer there",
   stateMissing: "The file was deleted",
-  stateKitionMissing: "Kition is not installed: npm install -g @kition/cli",
+  stateKitionMissing: "Kition cannot run here; open the file for why",
   stateGatewayDown: "Kition does not answer",
   actionOpen: "Open",
   actionReview: "Review",
@@ -379,9 +388,12 @@ const zh = {
   openWith: "Kition {kit}",
   starting: "正在启动 Kition…",
   startingDetail: "Kition 正在为这个文件夹启动。",
-  missingTitle: "没有安装 Kition",
-  missingDetail: "安装 Kition，然后重试：",
-  missingOr: "或",
+  missingTitle: "Kition 无法在这里运行",
+  missingUnsupported: "插件自带的 Kition 程序没有这台电脑（{platform}）的版本。请把 KITION_BIN 设为为它构建的 kition，然后重启 DeepSeek Harness。",
+  missingOmitted: "安装插件时没有安装它的可选依赖，而这台电脑（{platform}）的 Kition 程序正是由可选依赖带来的。请重新添加插件，不要省略可选依赖。",
+  missingCli: "带来 Kition 程序的包（@kition/cli）没有和插件一起安装。请重新添加插件。",
+  missingFolder: "插件是从文件夹添加的，文件夹会被直接链接而不安装依赖，所以没有 Kition 程序。请在该文件夹里运行 npm install --omit=dev，或者按包名或 .tgz 添加插件。",
+  missingOption: "一个选项指定的 Kition 程序无法使用：",
   unreachableTitle: "Kition 没有响应",
   unreachableDetail: "Kition 无法打开这个文件。",
   retry: "重试",
@@ -410,7 +422,7 @@ const zh = {
   stateDiscarded: "已丢弃",
   stateDraftGone: "草稿已经不在了",
   stateMissing: "文件已被删除",
-  stateKitionMissing: "没有安装 Kition：npm install -g @kition/cli",
+  stateKitionMissing: "Kition 无法在这里运行；打开文件查看原因",
   stateGatewayDown: "Kition 没有响应",
   actionOpen: "打开",
   actionReview: "审阅",
@@ -731,7 +743,6 @@ function Panel(props) {
     props.onRetry ? h("button", { type: "button", onClick: props.onRetry, "data-kition-retry": "", style: { alignSelf: "flex-start", padding: "4px 12px", cursor: "pointer" } }, env.t("retry")) : null
   );
 }
-const code = (text) => h("code", { style: { userSelect: "all", padding: "6px 8px", borderRadius: "4px", background: "rgba(127,127,127,0.15)", fontSize: "12px", overflowWrap: "anywhere" } }, text);
 function KitionView(props) {
   const env = useEnvironment();
   const parsed = parseFileAddress(props.address);
@@ -802,15 +813,14 @@ function KitionView(props) {
   if (opened.phase === "opening") return h(Panel, { state: "starting", title: env.t("starting"), detail: env.t("startingDetail") });
   if (opened.phase === "failed") {
     const retry = () => setAttempt((n) => n + 1);
-    if (opened.error === "kition-missing" || opened.error === "kition-invalid")
+    if (opened.error === "kition-missing" || opened.error === "kition-invalid") {
+      const why = opened.error === "kition-invalid" ? "missingOption" : opened.reason === "unsupported" ? "missingUnsupported" : opened.reason === "omitted" ? "missingOmitted" : opened.reason === "folder" ? "missingFolder" : "missingCli";
       return h(
         Panel,
-        { state: "kition-missing", title: env.t("missingTitle"), detail: env.t("missingDetail"), onRetry: retry },
-        code("npm install -g @kition/cli"),
-        h("div", { style: { opacity: 0.8 } }, env.t("missingOr")),
-        code("curl -fsSL https://github.com/KitionAI/kition-sdk/releases/latest/download/install.sh | sh"),
-        opened.error === "kition-invalid" ? h("div", { style: { opacity: 0.7, fontSize: "12px" } }, opened.message) : null
+        { state: "kition-missing", title: env.t("missingTitle"), detail: env.t(why, { platform: opened.platform ?? "" }), onRetry: retry },
+        h("div", { "data-kition-missing-reason": opened.reason ?? opened.error, style: { opacity: 0.7, fontSize: "12px", overflowWrap: "anywhere" } }, opened.message)
       );
+    }
     if (opened.error === "outside-workspace") return h(Panel, { state: "outside-workspace", title: env.t("outsideTitle"), detail: env.t("outsideDetail") });
     return h(Panel, { state: "unreachable", title: env.t("unreachableTitle"), detail: env.t("unreachableDetail"), onRetry: retry }, h("div", { style: { opacity: 0.7, fontSize: "12px" } }, opened.message));
   }

@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
 
-import { findKition, kitOptions } from './kition.mjs'
+import { findKition, kitOptions, missingMessage } from './kition.mjs'
 
 export const PROTOCOL_VERSION = '2025-06-18'
 export const CLIENT_INFO = { name: 'deepseek-harness', version: '1' }
@@ -104,7 +104,7 @@ export class GatewayMcp {
  */
 export async function catalog(env = process.env, timeoutMs = 60_000) {
   const found = findKition(env)
-  if (!found.file) throw new Error(found.error ?? 'kition is not installed')
+  if (!found.file) throw new Error(found.error ?? missingMessage(found))
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'kition-dsh-catalog-'))
   const child = spawn(found.file, ['mcp', '--workspace', folder, '--no-relay', ...kitOptions(env)], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   const stderr = []

@@ -19,7 +19,7 @@ import { GatewayError } from './gateways.mjs'
 import { connectionId, McpError } from './mcp.mjs'
 
 export const SERVER = 'kition'
-/** The one tool there is while kition is not installed. */
+/** The one tool there is while no kition can run. */
 export const SETUP_TOOL = 'kition_setup'
 export const TOOL_PREFIX = `mcp__${SERVER}__`
 /** A run of edits on a large document can take a while. */
@@ -201,8 +201,9 @@ export class KitTools {
   }
 
   /**
-   * kition is not installed: no kit tools, and one tool that says so and how to install it, so the
-   * agent can tell the person instead of finding no Kition tools at all.
+   * No kition can run (the plugin's own was not installed for this platform, or an option names
+   * none): no kit tools, and one tool that says why, so the agent can tell the person instead of
+   * finding no Kition tools at all.
    */
   setMissing(message) {
     this.update({ tools: [] })
@@ -211,10 +212,10 @@ export class KitTools {
     this.setup = this.registerTool({
       name: SETUP_TOOL,
       description:
-        'Kition is not installed on this computer, so the Kition kit tools (mcp__kition__kit_inspect, kit_run, ...) that edit notes, tables, documents, spreadsheets, slides and other kit files are not available. Call this when the person asks for work on such files: it answers how the person installs Kition. The kit tools appear by themselves once it is installed.',
+        'The Kition kit tools (mcp__kition__kit_inspect, kit_run, ...) that edit notes, tables, documents, spreadsheets, slides and other kit files are not available: the kition program that comes with the plugin cannot run on this computer (no build for its platform, or the plugin was installed without its optional dependencies). Call this when the person asks for work on such files: it answers why and what the person can do. The kit tools appear by themselves once kition can run.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       output: { schema: OUTPUT_SCHEMA, render: (_args, value) => [{ type: 'text', text: contentText(value.content) }] },
-      execute: async () => ({ content: [{ type: 'text', text: this.missing ?? 'Kition is installed now; its kit tools are available.' }] }),
+      execute: async () => ({ content: [{ type: 'text', text: this.missing ?? 'kition runs now; its kit tools are available.' }] }),
     })
   }
 

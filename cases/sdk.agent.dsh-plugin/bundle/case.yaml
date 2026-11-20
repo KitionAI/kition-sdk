@@ -2,8 +2,12 @@ format: 1
 id: sdk.agent.dsh-plugin/bundle
 feature: sdk.agent.dsh-plugin
 intent: >-
-  @kition/dsh-kits is a DeepSeek Harness bundle at the SDK's version that ships every file it lists
-  and only its host module, its built browser module, its launcher, its patch, its skills and its
+  @kition/dsh-kits is a DeepSeek Harness bundle at the SDK's version that depends on @kition/cli
+  at exactly that version and on nothing else, which the release publishes after @kition/cli and
+  its platform packages (the platforms of the release matrix, which the README names) and only
+  once the packed plugin installs by name from the packed archives with this platform's kition
+  (tools/check-dsh-plugin-package.mjs, which refuses a range or another version); it ships every
+  file it lists and only its host module, its built browser module, its launcher, its patch, its skills and its
   README: its manifest declares the patch, the host module as its main export, the browser module
   for the web UI, and a DeepSeek Harness range from the oldest version tested (Desktop's
   0.2.2-rc.2) admitting the pinned 0.2.2-rc.5 and no 0.3.0 prerelease; the host module imports
