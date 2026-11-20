@@ -539,7 +539,11 @@ With `draft: true` on a call (or every call, with `--drafts`), the agent's edits
 `.kition/drafts/<key>/` (`draft.json`: `path`, `kit`, `mode`, `state`, `baseSha256`, times), so
 it survives the server; `<prefix>_inspect`, `_query`, and `_check` with `draft: true` read it.
 The agent asks for review with `<prefix>_draft_ready`. It never merges: merge and discard are
-not tools.
+not tools. On a server that keeps drafts this way (`kition mcp`, `kition gateway`) the draft is
+headless even when the file is open in an editor attached to the gateway: the editor keeps the
+person's document, shows a banner while a draft exists, and opens the person's review (a draft in
+the editor's page would go with its tab). Every bridge window hears `kit/draftsChanged {path}` when
+a draft is forked, edited, made ready or taken back, merged or discarded.
 
 Only a kit whose `kit.json` declares `agent.drafts` keeps drafts (KHP A12) and offers
 `<prefix>_draft_ready` and `<prefix>_draft_reopen` (A35). A call that asks another kit for a

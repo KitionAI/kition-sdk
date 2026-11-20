@@ -1,0 +1,25 @@
+format: 1
+id: sdk.gateway.draft-review/e2e
+feature: sdk.gateway.draft-review
+intent: >-
+  With the real Note kit, a real kition gateway and a real relayed kition mcp, and the file open in
+  the gateway's editor page: the agent's draft run leaves the file and the open editor unchanged and
+  the draft banner appears, then says the draft is ready after kit_draft_ready; the review shows the
+  drafted text and the pictures before and after; Merge writes the file, the editor takes it and the
+  banner goes; a second draft is discarded, the file unchanged and no draft listed; a third draft
+  whose file changed meanwhile is stale in the review at /page/review (Merge hidden), and only Merge
+  and overwrite writes it, replacing the change. No console error, no failed request.
+layer: gate
+dimension: collab
+source:
+  kind: synthetic
+  from: examples/gateway-page/e2e/gateway.e2e.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, playwright, test, -c, examples/gateway-page/playwright.config.ts, -g, "an agent draft on an open file"]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 600

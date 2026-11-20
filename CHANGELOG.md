@@ -36,6 +36,10 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   against the index's size and SHA-256; `kit list` (`EDITOR`), `kit info` and `kition doctor` show
   it; the gateway installs it on first use and serves it, or a development build named with
   `--kit-ui <folder>`.
+- **An agent's draft is always headless** on a server that keeps drafts (`kition mcp`,
+  `kition gateway`), even when the file is open in an editor attached to the gateway; it used to
+  live in the editor's page and go with its tab (regressions/issue-agent-draft-in-editor). Bridge
+  windows hear `kit/draftsChanged {path}` when a draft changes.
 - **`kition mcp` relays to a gateway** for the same workspace when one runs, so an agent's edit
   of a file open in an editor attached to it happens in the editor; without one it serves as
   before, takes over when the gateway stops and hands over when one starts; `--no-relay` turns it

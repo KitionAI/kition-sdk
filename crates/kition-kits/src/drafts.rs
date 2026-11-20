@@ -202,7 +202,15 @@ async fn fork(kits: &KitManager, kit: &'static KitDefinition, path: &str, dir: &
         meta["replicaError"] = Value::String(reason);
     }
     write_meta(dir, path, &meta)?;
+    changed(kits, path);
     Ok(id)
+}
+
+/// Tells every editor window on the bridge that the draft of `path` changed (it was forked,
+/// edited, made ready or taken back, merged or discarded): `kit/draftsChanged {path}`, so an open
+/// editor's draft banner follows at once.
+fn changed(kits: &KitManager, path: &str) {
+    kits.bridge().broadcast("kit/draftsChanged", json!({ "path": path }));
 }
 
 /// The file's replica now, stored as the base and as the draft, and opened as the draft.
@@ -259,7 +267,9 @@ pub(crate) fn set_state(kits: &KitManager, path: &str, state: DraftState) -> Res
     let mut meta = read_meta(&dir).ok_or_else(|| draft_required(path))?;
     meta["state"] = Value::String(state.as_str().to_owned());
     meta["updated"] = json!(now());
-    write_meta(&dir, path, &meta)
+    write_meta(&dir, path, &meta)?;
+    changed(kits, path);
+    Ok(())
 }
 
 /// Whether `path` has a stored draft.
@@ -642,6 +652,7 @@ async fn discard_folder(kits: &KitManager, path: &str, dir: &Path) {
         kits.close_file(&copy_path(path, side)).await;
     }
     let _ = std::fs::remove_dir_all(dir);
+    changed(kits, path);
 }
 
 #[cfg(test)]

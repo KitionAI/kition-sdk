@@ -1966,6 +1966,23 @@ features:
       - sdk.gateway.page/unit
       - sdk.gateway.page/e2e
     since: "2026-11-19"
+  - id: sdk.gateway.draft-review
+    title: "An agent's draft is always a headless draft on a server that keeps them, even when the file is open in an editor attached to the gateway (decision R9); the editor page shows a banner while one exists, followed live (kit/draftsChanged), and a review (also at /page/review?path=<file>) with the structured comparison (created, changed field by field, moved, deleted, texts, what was left out, or why a kit cannot be compared), the pictures before and after, and the person's Merge and Discard; a stale draft needs Merge and overwrite; after a merge the open editor takes the file"
+    dimension: [ai, collab, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/tools.rs
+      - crates/kition-kits/src/tools/export.rs
+      - crates/kition-kits/src/drafts.rs
+      - crates/kition-kits-http/tests/draft_routing.rs
+      - packages/gateway-page/src/page/review.ts
+      - packages/gateway-page/src/page/editor.ts
+      - examples/gateway-page/e2e/gateway.e2e.ts
+    cases:
+      - regressions/issue-agent-draft-in-editor
+      - sdk.gateway.draft-review/e2e
+    since: "2026-11-19"
   - id: sdk.cli.usage
     title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"
     dimension: [platform, ai]

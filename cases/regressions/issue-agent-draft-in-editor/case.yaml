@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-agent-draft-in-editor
+feature: sdk.gateway.draft-review
+intent: >-
+  On a server that keeps headless drafts (kition gateway, kition mcp), an agent's draft run on a
+  file open in an editor attached to the Kit AI bridge went to that editor as a kit/call with
+  draft true, where the draft lived in the editor's page and died with its tab, so the person's
+  review (/kits/drafts) never saw it (decision R9). The draft is now always headless: the open
+  editor gets no draft call, the draft is kept beside the file and listed for review (ready after
+  kit_draft_ready), the file is unchanged, and every bridge window hears kit/draftsChanged with
+  the file's path.
+layer: gate
+dimension: ai
+source: { kind: probe, from: DeepSeek Harness gateway probe 2026-11-19, license: owned }
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - cargo-test: { package: kition-kits-http, test: draft_routing, filter: an_agent_draft_on_an_open_file_is_a_headless_draft }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 300

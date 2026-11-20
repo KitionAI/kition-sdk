@@ -1447,9 +1447,10 @@ async fn call_as_inner(kits: &KitManager, name: &str, input: &Value, options: Ca
     let writes = matches!(action, Action::Run | Action::Batch);
     let tracked = matches!(action, Action::Inspect | Action::Run | Action::Check | Action::Query | Action::Batch);
     let path = if tracked { kit_path(input, kit).ok() } else { None };
+    // An agent's draft on a server that keeps headless drafts is never the open editor's (R9).
     let editor = match &path {
-        Some(path) => live(kits, kit, path).await,
-        None => None,
+        Some(path) if !(draft && kits.headless_drafts()) => live(kits, kit, path).await,
+        _ => None,
     };
     let in_editor = editor.is_some();
     // The document's journal: the file the headless kit edits, or the agent's headless draft
@@ -2357,28 +2358,27 @@ pub(crate) async fn draft_editor(kits: &KitManager, kit: &KitDefinition, path: &
     })
 }
 
-/// Where the agent's draft of `path` is: in the file's open editor, or, when the server keeps
-/// headless drafts (`kition-kits-mcp`) and no editor has the file open, in the headless kit
-/// (`drafts.rs`). With `create`, a file without a headless draft forks one.
+/// Where the agent's draft of `path` is: when the server keeps headless drafts (`kition mcp`,
+/// `kition gateway`), always in the headless kit (`drafts.rs`), even when an editor has the file
+/// open (decision R9: a draft in an editor's page would die with its tab, and the person's review
+/// would never see it); else in the file's open editor. With `create`, a file without a headless
+/// draft forks one.
 pub(crate) enum DraftAt {
     Editor(LiveDocument),
     Headless(String),
 }
 
 pub(crate) async fn draft_at(kits: &KitManager, kit: &'static KitDefinition, path: &str, create: bool) -> Result<DraftAt, KitToolError> {
-    if let Some(document) = live(kits, kit, path).await {
-        return Ok(DraftAt::Editor(document));
-    }
     if kits.headless_drafts() {
         return drafts::document(kits, kit, path, create).await.map(DraftAt::Headless);
     }
     draft_editor(kits, kit, path).await.map(DraftAt::Editor)
 }
 
-/// Whether a read in draft mode goes to a headless draft: no editor has the file open, the
-/// server keeps headless drafts, and the call asks for the draft or one exists.
-async fn reads_headless_draft(kits: &KitManager, kit: &KitDefinition, path: &str, draft: bool, explicit: bool) -> bool {
-    draft && kits.headless_drafts() && (explicit || drafts::exists(kits, path)) && live(kits, kit, path).await.is_none()
+/// Whether a read in draft mode goes to a headless draft: the server keeps headless drafts, and
+/// the call asks for the draft or one exists (an open editor of the file changes nothing, R9).
+async fn reads_headless_draft(kits: &KitManager, _kit: &KitDefinition, path: &str, draft: bool, explicit: bool) -> bool {
+    draft && kits.headless_drafts() && (explicit || drafts::exists(kits, path))
 }
 
 async fn headless_draft_preview(kits: &KitManager, kit: &KitDefinition, path: &str, id: &str, request: &PreviewRequest) -> Result<Vec<Preview>, KitToolError> {
@@ -2595,7 +2595,7 @@ async fn run_on_headless_draft(
 
 async fn draft_state(kits: &KitManager, kit: &'static KitDefinition, input: &Value, action: Action) -> KitToolResult {
     let path = kit_path(input, kit)?;
-    if kits.headless_drafts() && live(kits, kit, &path).await.is_none() {
+    if kits.headless_drafts() {
         let state = if action == Action::DraftReady { DraftState::Ready } else { DraftState::Open };
         drafts::set_state(kits, &path, state)?;
         let summary = if state == DraftState::Ready {
@@ -2641,7 +2641,7 @@ async fn inspect(kits: &KitManager, kit: &'static KitDefinition, input: &Value, 
             inspection["part"] = json!(part);
         }
     }
-    if draft && (open.is_some() || explicit) {
+    if draft && !kits.headless_drafts() && (open.is_some() || explicit) {
         let document = draft_editor(kits, kit, &path).await?;
         inspection["draft"] = json!(true);
         if let Ok(mut answer) = kits.bridge().call(&document, "inspect", inspection.clone()).await {
@@ -2777,7 +2777,7 @@ async fn check(kits: &KitManager, kit: &'static KitDefinition, input: &Value, dr
             KitToolError::new(ErrorCode::Unsupported, format!("this version of {} cannot check documents yet; inspect the preview instead", short(kit)))
         })?;
         (answer, format!("your draft of `{path}`"))
-    } else if draft && (open.is_some() || explicit) {
+    } else if draft && !kits.headless_drafts() && (open.is_some() || explicit) {
         let document = draft_editor(kits, kit, &path).await?;
         let answer = kits
             .bridge()
