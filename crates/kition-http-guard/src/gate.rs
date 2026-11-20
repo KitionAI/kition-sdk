@@ -14,9 +14,16 @@
 //! the whole path; a lent root signs a folder and the kit appends the rest. It serves `GET` and
 //! `HEAD` only, until `<expires>` (Unix seconds), and only under the prefixes the gate names as
 //! signable. The request is routed as `/<path>`.
+//!
+//! A page session ([`ApiGate::open_session`]) is a second credential in the same header: 256
+//! random bits the server made for one browser page (an editor page opened from a short-lived
+//! signed bootstrap), good until it expires and never longer than this launch. It reaches what
+//! the token reaches ([`RequireToken`]) except the routes that need the launch token itself
+//! ([`RequireLaunchToken`]: the server's identity, the agents' MCP endpoint).
 
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::Json;
 use axum::extract::{FromRequestParts, Request, State};
@@ -44,6 +51,8 @@ pub enum Access {
     Token,
     /// A signed URL for one read.
     Signed,
+    /// A page session the server opened ([`ApiGate::open_session`]).
+    Session,
     /// A route on the open list.
     Open,
 }
@@ -57,6 +66,12 @@ struct Inner {
     token: String,
     open: Vec<(Method, String)>,
     signable: Vec<String>,
+    /// The live page sessions: the SHA-256 of each, to when it expires (Unix seconds).
+    sessions: Arc<Mutex<HashMap<[u8; 32], u64>>>,
+}
+
+fn now_seconds() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_secs())
 }
 
 /// A new token: 256 random bits, lower-case hex.
@@ -83,7 +98,7 @@ impl ApiGate {
         if token.is_empty() {
             return Err(EmptyToken);
         }
-        Ok(Self(Arc::new(Inner { token: token.to_owned(), open: Vec::new(), signable: Vec::new() })))
+        Ok(Self(Arc::new(Inner { token: token.to_owned(), open: Vec::new(), signable: Vec::new(), sessions: Arc::default() })))
     }
 
     fn inner_mut(&mut self) -> &mut Inner {
@@ -127,11 +142,39 @@ impl ApiGate {
         constant_time_eq(presented, self.0.token.as_bytes())
     }
 
+    /// Opens a page session good for `lifetime`: its credential (64 lower-case hex digits, sent
+    /// in `Kition-Token`) and when it expires (Unix seconds). Expired sessions are dropped.
+    pub fn open_session(&self, lifetime: Duration) -> (String, u64) {
+        let session = new_token();
+        let now = now_seconds();
+        let expires = now.saturating_add(lifetime.as_secs());
+        let mut sessions = self.0.sessions.lock().unwrap_or_else(PoisonError::into_inner);
+        sessions.retain(|_, until| *until >= now);
+        sessions.insert(Sha256::digest(session.as_bytes()).into(), expires);
+        (session, expires)
+    }
+
+    /// Ends every page session.
+    pub fn end_sessions(&self) {
+        self.0.sessions.lock().unwrap_or_else(PoisonError::into_inner).clear();
+    }
+
+    /// When the page session `presented` expires, if it is live.
+    fn session_expires(&self, presented: &[u8], now: u64) -> Option<u64> {
+        let key: [u8; 32] = Sha256::digest(presented).into();
+        self.0.sessions.lock().unwrap_or_else(PoisonError::into_inner).get(&key).copied().filter(|until| *until >= now)
+    }
+
     fn is_open(&self, method: &Method, path: &str) -> bool {
         self.0.open.iter().any(|(open_method, open_path)| open_method == method && open_path == path)
     }
 
     /// The path a signed URL path names, when its signature holds now.
+    /// The path a signed URL path names, when its signature holds now.
+    pub fn verified(&self, method: &Method, path: &str) -> Option<String> {
+        self.verify_signed(method, path, now_seconds())
+    }
+
     fn verify_signed(&self, method: &Method, path: &str, now: u64) -> Option<String> {
         if method != Method::GET && method != Method::HEAD {
             return None;
@@ -174,8 +217,11 @@ pub async fn require(State(gate): State<ApiGate>, mut request: Request, next: Ne
         request.extensions_mut().insert(Access::Signed);
         return next.run(request).await;
     }
-    let access = if request.headers().get(TOKEN_HEADER).is_some_and(|value| gate.token_matches(value.as_bytes())) {
+    let presented = request.headers().get(TOKEN_HEADER).map(|value| value.as_bytes().to_vec());
+    let access = if presented.as_deref().is_some_and(|value| gate.token_matches(value)) {
         Access::Token
+    } else if presented.as_deref().is_some_and(|value| gate.session_expires(value, now_seconds()).is_some()) {
+        Access::Session
     } else if gate.is_open(request.method(), &path) {
         Access::Open
     } else {
@@ -190,13 +236,29 @@ pub fn refused() -> Response {
     (StatusCode::UNAUTHORIZED, Json(Envelope::failure(401, REFUSAL_MESSAGE, serde_json::json!({ "reason": REFUSAL_REASON })))).into_response()
 }
 
-/// A route that only a caller with the token reaches: not a signed URL, not an open route, and
-/// not a request that came through no gate at all (a router mounted without [`crate::guard`]
-/// refuses every request that names this extractor).
+/// A route that only a caller with the token or a page session reaches: not a signed URL, not
+/// an open route, and not a request that came through no gate at all (a router mounted without
+/// [`crate::guard`] refuses every request that names this extractor).
 #[derive(Debug, Clone, Copy)]
 pub struct RequireToken;
 
 impl<S: Send + Sync> FromRequestParts<S> for RequireToken {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        match parts.extensions.get::<Access>() {
+            Some(Access::Token | Access::Session) => Ok(Self),
+            _ => Err(ApiError::unauthorized()),
+        }
+    }
+}
+
+/// A route that only the launch token reaches: not a page session, not a signed URL, not an open
+/// route (the server's identity, the agents' MCP endpoint).
+#[derive(Debug, Clone, Copy)]
+pub struct RequireLaunchToken;
+
+impl<S: Send + Sync> FromRequestParts<S> for RequireLaunchToken {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
@@ -217,7 +279,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequireTokenOrSigned {
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         match parts.extensions.get::<Access>() {
-            Some(Access::Token | Access::Signed) => Ok(Self),
+            Some(Access::Token | Access::Session | Access::Signed) => Ok(Self),
             _ => Err(ApiError::unauthorized()),
         }
     }
@@ -360,6 +422,30 @@ mod tests {
         assert_eq!(send(&ungated, Request::get(path).header(TOKEN_HEADER, TOKEN)).await.0, StatusCode::UNAUTHORIZED);
         let ungated = Router::new().route(path, get(|_: RequireTokenOrSigned| async { "stream" }));
         assert_eq!(send(&ungated, Request::get(path)).await.0, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn a_page_session_reaches_what_the_token_does_but_the_launch_tokens_routes_until_it_expires() {
+        let gate = gate(TOKEN);
+        let inner = Router::new()
+            .route("/api/v1/needs-token", get(|_: RequireToken| async { "token" }))
+            .route("/api/v1/identity", get(|_: RequireLaunchToken| async { "launch" }))
+            .route("/api/v1/kits/bridge", get(|_: RequireTokenOrSigned| async { "stream" }));
+        let app = crate::guard(inner, gate.clone(), crate::cors::CorsPolicy::default());
+        let (session, expires) = gate.open_session(Duration::from_secs(60));
+        assert_eq!(session.len(), 64);
+        assert!(expires >= now_seconds() + 59);
+        assert_ne!(session, gate.open_session(Duration::from_secs(60)).0, "each page its own");
+        assert_eq!(send(&app, Request::get("/api/v1/needs-token").header(TOKEN_HEADER, &session)).await.0, StatusCode::OK);
+        assert_eq!(send(&app, Request::get("/api/v1/kits/bridge").header(TOKEN_HEADER, &session)).await.0, StatusCode::OK);
+        assert_eq!(send(&app, Request::get("/api/v1/identity").header(TOKEN_HEADER, &session)).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(send(&app, Request::get("/api/v1/identity").header(TOKEN_HEADER, TOKEN)).await.0, StatusCode::OK);
+        // Not in another carrier, and not once expired or ended.
+        assert_eq!(send(&app, Request::get("/api/v1/needs-token").header("Cookie", format!("kition-token={session}"))).await.0, StatusCode::UNAUTHORIZED);
+        let (gone, _) = gate.open_session(Duration::ZERO);
+        assert_eq!(gate.session_expires(gone.as_bytes(), now_seconds() + 1), None);
+        gate.end_sessions();
+        assert_eq!(send(&app, Request::get("/api/v1/needs-token").header(TOKEN_HEADER, &session)).await.0, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

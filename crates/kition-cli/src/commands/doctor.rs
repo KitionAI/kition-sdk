@@ -83,6 +83,7 @@ pub fn run(args: &[String]) -> ExitCode {
     if let Some(home) = &home {
         checks.push(check_index(home, &source));
         checks.extend(check_kits(&Store::new(home.clone())));
+        checks.extend(check_editors(&Store::new(home.clone())));
         checks.push(check_gateways(home));
     }
     let here = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -289,6 +290,30 @@ fn check_kits(store: &Store) -> Vec<Check> {
         }
         checks
     })
+}
+
+/// Whether the editor package of each kit in use is installed (`kition gateway` shows it). A
+/// missing one is for information: the agent's tools work without it, and the gateway installs
+/// it when the kit is first opened.
+fn check_editors(store: &Store) -> Vec<Check> {
+    let editors = kition_cli::editors::Editors::new(store.clone());
+    store
+        .list()
+        .iter()
+        .filter_map(|kit| {
+            let installed = kit.in_use()?;
+            let label = format!("editor {}", kit.name);
+            Some(match editors.find(&kit.name, &installed.version) {
+                Some(editor) => Check::new(label, Status::Ok, format!("{} installed ({})", installed.version, editor.root.display()), None),
+                None => Check::new(
+                    label,
+                    Status::Info,
+                    format!("{} not installed: kition gateway installs it when the kit is first opened", installed.version),
+                    Some(format!("kition kit install {}", kit.name)),
+                ),
+            })
+        })
+        .collect()
 }
 
 fn check_agent(seen: Registrations) -> Check {

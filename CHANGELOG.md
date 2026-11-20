@@ -10,7 +10,32 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   the kits' MCP server (`POST /api/v1/mcp/kits`). It prints a JSON ready line (no token), keeps
   its token in a 0600 lockfile under `KITION_HOME/run/`, serves one workspace once (a second
   gateway exits with status 3), and stops on SIGINT, SIGTERM, SIGHUP, `--stdin-lifetime` or
-  `--idle-timeout`. It serves no editor page yet. `kition doctor` names the running gateways.
+  `--idle-timeout`. `kition doctor` names the running gateways.
+- **The gateway's editor page** (`/page/?path=<file>`, `@kition/gateway-page`, built into
+  `kition`): a workspace file in its kit's own editor, mounted over the Kit UI protocol from the
+  kit's editor package, with real saves (atomic, refused over another version), replicas, KitFiles,
+  theme, language and the host's shortcuts; the Kit AI bridge's window for it, answering
+  `kit/documents` with the kit's capabilities and `kit/call` `version`, `changes` and `premise`, so
+  an agent's call through a relayed `kition mcp` runs in the open editor, live; a banner while the
+  agent has a draft of the file and the person's review (`/page/review?path=<file>`: the structured
+  comparison, pictures before and after, Merge and Discard, overwrite for a stale draft); clear
+  states for no kit, a downloading editor (its progress), a missing file, an unreachable gateway; a
+  `postMessage` protocol for a host that frames it; Focus mode below 480 px. It works under any
+  prefix of a same-origin proxy that adds the token, or opened directly: `--open [<file>]` and
+  `kition gateway url --workspace <folder> [<file>] [--review]` print an address whose one-time
+  signed bootstrap the page trades for a page session (`docs/sdk/gateway-page.md`). New routes:
+  `/page/`, `/kits-ui/<kit>@<version>/`, `GET /api/v1/kits/editors`, `POST
+  /api/v1/kits/editors/install`, `GET`/`PUT /api/v1/kits/replicas`, `POST /api/v1/gateway/sign`,
+  `GET /api/v1/gateway/page-session/<nonce>`; `PUT /api/v1/kits/files` takes `expected` and answers
+  `version`; `/kit-files/` answers an `ETag`; `GET /api/v1/kits` lists the kits the index would
+  install on first use, not installed; `/api/v1/gateway` and `/api/v1/mcp/kits` need the token itself.
+- **Editor packages in the kit store**: the kit index lists each version's editor package (`ui`,
+  gathered by `tools/kits-index.mjs` from the kit repositories' `kition-<kit>-<version>.tgz` release
+  assets and their entries; schema field added, read by older `kition`s as nothing).
+  `kition kit install` and `upgrade` install it beside the kit (`kits/<kit>/ui/<version>/`), checked
+  against the index's size and SHA-256; `kit list` (`EDITOR`), `kit info` and `kition doctor` show
+  it; the gateway installs it on first use and serves it, or a development build named with
+  `--kit-ui <folder>`.
 - **`kition mcp` relays to a gateway** for the same workspace when one runs, so an agent's edit
   of a file open in an editor attached to it happens in the editor; without one it serves as
   before, takes over when the gateway stops and hands over when one starts; `--no-relay` turns it

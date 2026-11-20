@@ -19,13 +19,23 @@
 //! replaced. It stops on SIGINT, SIGTERM or SIGHUP, when stdin closes with `--stdin-lifetime`,
 //! and after `--idle-timeout <seconds>` with no request and no editor attached; it then saves and
 //! stops its kits and removes its lockfile.
+//!
+//! It serves the editor page (`/page/`) and the kits' editor packages (`/kits-ui/`) from the kit
+//! store (`kits/<kit>/ui/<version>/`, installed by `kition kit install` or when a page first
+//! opens the kit) or, with `--kit-ui <folder>`, a development build: an editor package folder or a
+//! kit repository checkout with its editor built in `web/dist/`. `--open [<file>]` prints on
+//! stderr an address that opens the page in a browser; `kition gateway url --workspace <folder>
+//! [<file>] [--review]` prints one for the gateway already serving the folder (it reads the token
+//! from the lockfile and signs locally; the gateway lets each address in once).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use kition_cli::editors::{EditorFolder, Editors, GatewayEditors};
 use kition_cli::gateway::{self, LOCKFILE_FORMAT, Lockfile};
 use kition_cli::home::Home;
+use kition_cli::index::Source;
 use kition_kits_http::gateway::{API_PREFIX, Activity, PROTOCOL};
 use serde_json::{Value, json};
 
@@ -41,20 +51,30 @@ struct Options {
     port: u16,
     stdin_lifetime: bool,
     idle: Option<Duration>,
+    /// Development builds of editors (`--kit-ui`).
+    kit_ui: Vec<PathBuf>,
+    /// `--open`: print the page's address, for this workspace file when one is named.
+    open: Option<Option<String>>,
     rest: Vec<String>,
 }
 
 fn parse(args: Vec<String>) -> Result<Options, String> {
-    let mut options = Options { workspace: None, port: 0, stdin_lifetime: false, idle: None, rest: Vec::new() };
-    let mut args = args.into_iter();
+    let mut options = Options { workspace: None, port: 0, stdin_lifetime: false, idle: None, kit_ui: Vec::new(), open: None, rest: Vec::new() };
+    let mut args = args.into_iter().peekable();
     while let Some(arg) = args.next() {
         let (name, inline) = match arg.split_once('=') {
             Some((name, value)) if arg.starts_with("--") => (name.to_owned(), Some(value.to_owned())),
             _ => (arg.clone(), None),
         };
+        if name == "--open" {
+            let file = inline.clone().or_else(|| args.next_if(|next| !next.starts_with('-')));
+            options.open = Some(file.filter(|file| !file.is_empty()));
+            continue;
+        }
         let mut value = |what: &str| inline.clone().or_else(|| args.next()).filter(|value| !value.is_empty()).ok_or_else(|| format!("{name} needs {what}"));
         match name.as_str() {
             "--workspace" => options.workspace = Some(PathBuf::from(value("a folder")?)),
+            "--kit-ui" => options.kit_ui.push(PathBuf::from(value("an editor package folder or a kit repository")?)),
             "--port" => options.port = value("a port number")?.parse().map_err(|_| "--port is a port number, 0 to 65535 (0: any free port)".to_owned())?,
             "--stdin-lifetime" if inline.is_none() => options.stdin_lifetime = true,
             "--idle-timeout" => {
@@ -95,9 +115,56 @@ fn already_running(lock: &Lockfile, path: &Path) -> ExitCode {
     ExitCode::from(ALREADY_RUNNING)
 }
 
-pub fn run(args: Vec<String>, store: kition_kits::cli::mcp::Store) -> ExitCode {
+/// `kition gateway url --workspace <folder> [<file>] [--review]`: the page's address for the
+/// gateway serving the folder.
+fn url(args: &[String]) -> ExitCode {
+    let mut workspace = None;
+    let mut file = None;
+    let mut review = false;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = args.next().cloned(),
+            other if other.starts_with("--workspace=") => workspace = other.strip_prefix("--workspace=").map(str::to_owned),
+            "--review" => review = true,
+            other if other.starts_with('-') => {
+                return help::mistake(&["gateway"], format!("kition gateway url takes --workspace, a file and --review, not {other}"));
+            }
+            other if file.is_none() => file = Some(other.to_owned()),
+            other => return help::mistake(&["gateway"], format!("too many arguments: {other}")),
+        }
+    }
+    let Some(workspace) = workspace else { return help::mistake(&["gateway"], "kition gateway url --workspace names the folder") };
+    let Ok(canonical) = std::fs::canonicalize(&workspace) else { return help::mistake(&["gateway"], format!("--workspace must name a folder: {workspace}")) };
+    let home = match Home::from_env() {
+        Ok(home) => home,
+        Err(message) => {
+            eprintln!("kition gateway: {message}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let Some(lock) = gateway::find_live(&home, &canonical) else {
+        eprintln!("kition gateway: no gateway serves {}: start one with kition gateway --workspace {}", canonical.display(), canonical.display());
+        return ExitCode::FAILURE;
+    };
+    match kition_kits_http::gateway::open_url(&lock.token, &lock.url, file.as_deref(), review) {
+        Ok(address) => {
+            println!("{address}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("kition gateway: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+pub fn run(args: Vec<String>, store: kition_kits::cli::mcp::Store, source: Source) -> ExitCode {
     if super::asks_help(&args) {
         return help::print(&["gateway"]);
+    }
+    if args.first().map(String::as_str) == Some("url") {
+        return url(&args[1..]);
     }
     let options = match parse(args) {
         Ok(options) => options,
@@ -116,6 +183,17 @@ pub fn run(args: Vec<String>, store: kition_kits::cli::mcp::Store) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let mut builds: Vec<EditorFolder> = Vec::new();
+    for folder in &options.kit_ui {
+        match kition_cli::editors::local_build(folder) {
+            Ok(build) => {
+                eprintln!("kition gateway: the editor of {} {} is the development build in {}", build.kit, build.version, build.root.display());
+                builds.push(build);
+            }
+            Err(message) => return help::mistake(&["gateway"], message),
+        }
+    }
+    let editors = GatewayEditors::new(Editors::new(kition_cli::store::Store::new(home.clone())).with_local(builds), source);
     let path = gateway::lockfile_path(&home, &canonical);
     if let Some(lock) = gateway::read(&path) {
         if gateway::identity(&lock).is_some() {
@@ -137,12 +215,12 @@ pub fn run(args: Vec<String>, store: kition_kits::cli::mcp::Store) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let code = runtime.block_on(serve(prepared, options, canonical, path));
+    let code = runtime.block_on(serve(prepared, options, canonical, path, editors));
     runtime.shutdown_timeout(Duration::from_secs(1));
     code
 }
 
-async fn serve(prepared: kition_kits::cli::mcp::Prepared, options: Options, canonical: PathBuf, path: PathBuf) -> ExitCode {
+async fn serve(prepared: kition_kits::cli::mcp::Prepared, options: Options, canonical: PathBuf, path: PathBuf, editors: GatewayEditors) -> ExitCode {
     let listener = match tokio::net::TcpListener::bind(("127.0.0.1", options.port)).await {
         Ok(listener) => listener,
         Err(error) => {
@@ -204,10 +282,18 @@ async fn serve(prepared: kition_kits::cli::mcp::Prepared, options: Options, cano
     });
     let activity = Activity::default();
     let kits = prepared.kits.clone();
-    let app = kition_kits_http::gateway::app(kits.clone(), gate, identity, activity.clone());
+    let app = kition_kits_http::gateway::app(kits.clone(), gate, identity, activity.clone(), Some(std::sync::Arc::new(editors)));
     println!("{}", announcement("gateway-ready", &lock, &path));
     let _ = std::io::Write::flush(&mut std::io::stdout());
     eprintln!("kition gateway: serving {} at {} (pid {})", lock.workspace, lock.url, lock.pid);
+    if let Some(file) = &options.open {
+        match kition_kits_http::gateway::open_url(&lock.token, &lock.url, file.as_deref(), false) {
+            Ok(address) => eprintln!(
+                "kition gateway: open {address}\nkition gateway: (it lets one browser tab in, within two minutes; kition gateway url --workspace <folder> makes another)"
+            ),
+            Err(error) => eprintln!("kition gateway: {error}"),
+        }
+    }
 
     let (stop, stopped) = tokio::sync::watch::channel(false);
     let reason = tokio::spawn(stop_reason(options.stdin_lifetime, options.idle, activity, kits.clone()));
@@ -288,7 +374,25 @@ mod tests {
 
     #[test]
     fn reads_its_own_options_and_passes_the_kit_options_on() {
-        let options = parse(strings(&["--workspace", "/w", "--port=8123", "--stdin-lifetime", "--idle-timeout", "60", "--unified", "--kit", "/k"])).unwrap();
+        let options = parse(strings(&[
+            "--workspace",
+            "/w",
+            "--port=8123",
+            "--stdin-lifetime",
+            "--idle-timeout",
+            "60",
+            "--unified",
+            "--kit",
+            "/k",
+            "--kit-ui",
+            "/r",
+            "--open",
+            "a/b.ktable",
+        ]))
+        .unwrap();
+        assert_eq!(options.kit_ui, [PathBuf::from("/r")]);
+        assert_eq!(options.open, Some(Some("a/b.ktable".to_owned())));
+        assert_eq!(parse(strings(&["--open", "--port", "1"])).unwrap().open, Some(None), "--open names no file");
         assert_eq!(options.workspace.as_deref(), Some(Path::new("/w")));
         assert_eq!((options.port, options.stdin_lifetime, options.idle), (8123, true, Some(Duration::from_secs(60))));
         assert_eq!(options.rest, ["--unified", "--kit", "/k"]);

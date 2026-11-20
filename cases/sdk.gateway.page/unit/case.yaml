@@ -1,0 +1,27 @@
+format: 1
+id: sdk.gateway.page/unit
+feature: sdk.gateway.page
+intent: >-
+  The page finds the gateway's root under any prefix and through a signed address, names workspace
+  files relatively and never a hidden one for a kit, gives a file to the kit that edits it over one
+  that views it (.html to the HTML kit, not Doc), keeps replicas in the gateway's framing; its Kit AI
+  bridge lists the open document with the kit's capabilities, answers version, changes and premise
+  from the editor, passes the gateway's planned call context and steps through, answers the
+  document as the headless path does (no editor state, no session bookkeeping), drops the batch's
+  version, refuses what the kit does not list with a code the gateway reads, reads server-sent events
+  across chunks and backs off; the review renders each change kind, edits before and after, what was
+  left out, and why a kit is compared by pictures; the embedded build is this package's.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: packages/gateway-page/test
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/gateway-page]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 300

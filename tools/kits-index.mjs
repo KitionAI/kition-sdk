@@ -34,6 +34,12 @@
 //   a failure never yields a smaller index.
 // - A kit's id, name and extensions come from the fragment of its newest version; each version
 //   keeps the protocol its own fragment declares.
+// - A version's editor package (`ui`) is the Release's `kition-<kit>-<version>.tgz`, which the
+//   kit's Package workflow publishes with its entry `kition-<kit>-<version>.json` (its size and
+//   SHA-256; KitionAI/kition scripts/package-kit.sh): the index takes its address and size from
+//   the Release and its SHA-256 from that entry, which must agree with the asset's size and with
+//   GitHub's `digest` when it gives one (else the run stops); with no entry, from the digest, or
+//   from downloading it. A Release without the package lists the version without `ui`.
 // - The index is checked against the schema and written with kits, versions and platforms in a
 //   fixed order, so the same Releases give the same bytes.
 // - An index with no kit is never written (exit status 3): it would replace a good one with
@@ -58,6 +64,8 @@ export const EMPTY = 3
 
 export const fragmentName = (kit, version) => `kits-index-${kit}-${version}.json`
 export const kitArchive = (kit, version, platform) => `kition-${kit}-${version}-${platform}.tar.gz`
+export const editorArchive = (kit, version) => `kition-${kit}-${version}.tgz`
+export const editorEntry = (kit, version) => `kition-${kit}-${version}.json`
 
 /** Orders semver strings: numbers first, then a release after its pre-releases. */
 export function compareVersions(a, b) {
@@ -169,6 +177,7 @@ export function ordered(index) {
         platforms[platform] = { url, size, sha256 }
       }
       versions[version] = { protocol: entry.protocol, platforms }
+      if (entry.ui) versions[version].ui = { url: entry.ui.url, size: entry.ui.size, sha256: entry.ui.sha256 }
     }
     kits[name] = { id: kit.id, name: kit.name, extensions: kit.extensions, versions }
   }
@@ -261,7 +270,7 @@ export async function gatherIndex({ kits, net }) {
   const report = []
   for (const { kit, repository } of kits) {
     const releases = await listReleases(net, repository)
-    const done = { kit, repository, versions: [], skipped: [], added: [] }
+    const done = { kit, repository, versions: [], skipped: [], added: [], editors: [] }
     const found = []
     for (const release of releases) {
       if (release.draft || typeof release.tag_name !== 'string' || !release.tag_name.startsWith(TAG_PREFIX)) continue
@@ -310,7 +319,12 @@ export async function gatherIndex({ kits, net }) {
         platforms[platform] = { url: asset.browser_download_url, size: asset.size, sha256: sum }
         done.added.push({ version, platform })
       }
-      found.push({ version, entry, platforms })
+      const ui = await editorPackage(net, { kit, version, assets, where: `${repository} ${tag}` })
+      if (entry.ui && (!ui || entry.ui.url !== ui.url || entry.ui.size !== ui.size || entry.ui.sha256 !== ui.sha256)) {
+        throw new Error(`${where} gives the editor package ${JSON.stringify(entry.ui)}; the Release's is ${ui ? JSON.stringify(ui) : 'missing'}`)
+      }
+      if (ui) done.editors.push(version)
+      found.push({ version, entry, platforms, ui })
       done.versions.push(version)
     }
     done.versions.sort(compareVersions)
@@ -321,7 +335,7 @@ export async function gatherIndex({ kits, net }) {
         id: newest.id,
         name: newest.name,
         extensions: newest.extensions,
-        versions: Object.fromEntries(found.map(({ version, entry, platforms }) => [version, { protocol: entry.protocol, platforms }])),
+        versions: Object.fromEntries(found.map(({ version, entry, platforms, ui }) => [version, { protocol: entry.protocol, platforms, ...(ui ? { ui } : {}) }])),
       }
     }
     report.push(done)
@@ -330,6 +344,36 @@ export async function gatherIndex({ kits, net }) {
   const problems = schemaProblems(result)
   if (problems.length) throw new Error(`the index gathered would not be a kit index:\n  ${problems.join('\n  ')}`)
   return { index: result, report }
+}
+
+/**
+ * The editor package of `kit` `version` among a Release's `assets`, `{ url, size, sha256 }`, or
+ * null when the Release has none. Its SHA-256 comes from the package's entry
+ * (`kition-<kit>-<version>.json`), checked against the asset's size and GitHub's digest; else
+ * from the digest; else from downloading it.
+ */
+export async function editorPackage(net, { kit, version, assets, where }) {
+  const asset = assets.get(editorArchive(kit, version))
+  if (!asset) return null
+  if (!Number.isInteger(asset.size) || asset.size < 1) throw new Error(`${where} ${asset.name} has no size`)
+  const digest = digestOf(asset)
+  let sha256 = null
+  const entryAsset = assets.get(editorEntry(kit, version))
+  if (entryAsset) {
+    let entry
+    try {
+      entry = await net(entryAsset.browser_download_url, { as: 'json' })
+    } catch (error) {
+      throw new Error(`${where} ${entryAsset.name} cannot be read: ${error.message}`)
+    }
+    if (entry?.asset !== asset.name) throw new Error(`${where} ${entryAsset.name} is the entry of ${JSON.stringify(entry?.asset)}, not ${asset.name}`)
+    if (entry.size !== asset.size) throw new Error(`${where} ${entryAsset.name} says ${asset.name} is ${entry.size} bytes; the Release's is ${asset.size}`)
+    if (typeof entry.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(entry.sha256)) throw new Error(`${where} ${entryAsset.name} gives no SHA-256`)
+    if (digest && digest !== entry.sha256) throw new Error(`${where} ${entryAsset.name} gives ${asset.name} the SHA-256 ${entry.sha256}; GitHub's digest is ${digest}`)
+    sha256 = entry.sha256
+  }
+  sha256 ??= digest ?? sha256Of(await download(net, asset, where))
+  return { url: asset.browser_download_url, size: asset.size, sha256 }
 }
 
 async function download(net, asset, where) {
@@ -344,7 +388,9 @@ async function download(net, asset, where) {
 
 /** `<kit> <version> <platform>` lines of every archive in `index`. */
 const entries = (index) =>
-  Object.entries(index?.kits ?? {}).flatMap(([kit, { versions }]) => Object.entries(versions).flatMap(([version, { platforms }]) => Object.keys(platforms).map((platform) => `${kit} ${version} ${platform}`)))
+  Object.entries(index?.kits ?? {}).flatMap(([kit, { versions }]) =>
+    Object.entries(versions).flatMap(([version, { platforms, ui }]) => [...Object.keys(platforms), ...(ui ? ['ui'] : [])].map((platform) => `${kit} ${version} ${platform}`)),
+  )
 
 /** What enters and what leaves `previous` when `index` replaces it. */
 export function compareIndexes(previous, index) {
@@ -356,8 +402,10 @@ export function compareIndexes(previous, index) {
 /** The report as text lines. */
 export function reportLines({ index, report }, previous) {
   const lines = []
-  for (const { kit, repository, versions, skipped, added } of report) {
+  for (const { kit, repository, versions, skipped, added, editors = [] } of report) {
     lines.push(`${kit} (${repository}): ${versions.length ? versions.join(', ') : 'no version'}`)
+    const without = versions.filter((version) => !editors.includes(version))
+    if (versions.length && without.length) lines.push(`  no editor package: ${without.join(', ')}`)
     for (const { tag, why } of skipped) lines.push(`  skipped ${tag}: ${why}`)
     for (const { version, platform } of added) lines.push(`  added ${version} ${platform} from the Release (its fragment does not list it)`)
   }

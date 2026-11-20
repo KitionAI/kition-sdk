@@ -62,6 +62,11 @@ pub struct IndexVersion {
     pub protocol: String,
     /// Its archive for each platform (`darwin-arm64`, `linux-x64`, `win32-x64`, ...).
     pub platforms: BTreeMap<String, Archive>,
+    /// Its editor package (the kit's UI, engine and fonts for a Kit UI protocol host): a `.tar.gz`
+    /// holding one folder `<kit>-ui/` with the editor's `index.html` and the kit's `kit.json`.
+    /// The same for every platform. Absent for a version published without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui: Option<Archive>,
 }
 
 /// A kit archive: a `.tar.gz` with `kit.json` and the executable at its top.
@@ -124,7 +129,9 @@ impl Index {
                 if protocol_number(&entry.protocol).is_none() {
                     return bad(format!("{version}: the protocol `{}` is not `kition-kit/<n>`", entry.protocol));
                 }
-                for (platform, archive) in &entry.platforms {
+                for (platform, archive) in
+                    entry.platforms.iter().map(|(platform, archive)| (platform.as_str(), archive)).chain(entry.ui.iter().map(|ui| ("ui", ui)))
+                {
                     let hex = archive.sha256.len() == 64 && archive.sha256.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
                     if !hex || archive.size == 0 || archive.url.trim().is_empty() {
                         return bad(format!("{version} {platform}: an archive has a url, a size above 0 and a lowercase hex sha256"));
@@ -250,7 +257,8 @@ mod tests {
         json!({
             "schemaVersion": 1,
             "kits": { "note": { "id": "kit.note", "name": "Note", "extensions": ["md", "markdown"], "versions": {
-                "0.3.0": { "protocol": "kition-kit/2", "platforms": { "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 10, "sha256": "a".repeat(64) } } },
+                "0.3.0": { "protocol": "kition-kit/2", "platforms": { "darwin-arm64": { "url": "kition-note-0.3.0-darwin-arm64.tar.gz", "size": 10, "sha256": "a".repeat(64) } },
+                    "ui": { "url": "kition-note-0.3.0.tgz", "size": 20, "sha256": "b".repeat(64) } },
                 "0.10.0": { "protocol": "kition-kit/2", "platforms": {} }
             } } }
         })
@@ -259,6 +267,8 @@ mod tests {
     #[test]
     fn reads_a_good_index_and_orders_versions_by_semver() {
         let index = Index::parse(&sample().to_string()).unwrap();
+        assert_eq!(index.kits["note"].versions["0.3.0"].ui.as_ref().map(|ui| ui.size), Some(20));
+        assert!(index.kits["note"].versions["0.10.0"].ui.is_none(), "a version without an editor package");
         let (name, kit) = index.for_extension("markdown").unwrap();
         assert_eq!(name, "note");
         assert_eq!(kit.latest().unwrap().to_string(), "0.10.0");
@@ -276,6 +286,9 @@ mod tests {
         let mut hash = sample();
         hash["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["sha256"] = json!("ABC");
         assert!(Index::parse(&hash.to_string()).is_err());
+        let mut ui = sample();
+        ui["kits"]["note"]["versions"]["0.3.0"]["ui"]["size"] = json!(0);
+        assert!(Index::parse(&ui.to_string()).unwrap_err().contains("0.3.0 ui"));
         let mut version = sample();
         version["kits"]["note"]["versions"]["latest"] = json!({ "protocol": "kition-kit/2", "platforms": {} });
         assert!(Index::parse(&version.to_string()).unwrap_err().contains("semver"));

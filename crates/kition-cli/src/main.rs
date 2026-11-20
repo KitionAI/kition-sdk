@@ -110,7 +110,8 @@ fn gateway_command(args: Vec<String>) -> ExitCode {
         Ok(taken) => taken,
         Err(message) => return help::mistake(&["gateway"], message),
     };
-    gateway::run(rest, store_for("gateway", index, installs))
+    let source = Source::choose(index.as_deref());
+    gateway::run(rest, store_for("gateway", index, installs), source)
 }
 
 fn serve(args: Vec<String>) -> ExitCode {

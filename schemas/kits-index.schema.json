@@ -47,6 +47,10 @@
           "description": "The archive for each platform: darwin-arm64, darwin-x64, linux-arm64, linux-x64 (glibc), win32-x64.",
           "propertyNames": { "pattern": "^[a-z0-9]+-[a-z0-9]+$" },
           "additionalProperties": { "$ref": "#/$defs/archive" }
+        },
+        "ui": {
+          "$ref": "#/$defs/archive",
+          "description": "The version's editor package, the same for every platform: a .tar.gz (the kit repository's Release asset kition-<kit>-<version>.tgz) holding one folder <kit>-ui/ with the editor's index.html, its engine and fonts, and the kit's kit.json. kition installs it beside the headless kit (kits/<kit>/ui/<version>/) and kition gateway serves it to its editor page. Absent for a version published without one."
         }
       }
     },

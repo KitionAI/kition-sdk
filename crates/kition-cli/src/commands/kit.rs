@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use kition_cli::editors::Editors;
 use kition_cli::home::Home;
 use kition_cli::index::{self, Freshness, INDEX_VARIABLE, IndexKit, Loaded, Source};
 use kition_cli::store::{Outcome, Store};
@@ -124,6 +125,7 @@ fn list(store: &Store, source: &Source, json: bool) -> ExitCode {
                 "latest": latest.as_ref().map(Version::to_string),
                 "upgrade": matches!((in_use, &latest), (Some(installed), Some(latest)) if &installed.version < latest),
                 "inIndex": listed.is_some(),
+                "editor": editor_state(store, loaded.as_ref().ok(), name, in_use.map(|installed| &installed.version)),
             })
         })
         .collect();
@@ -146,7 +148,7 @@ fn list(store: &Store, source: &Source, json: bool) -> ExitCode {
         return ExitCode::SUCCESS;
     }
     let text = |value: &Value| value.as_str().unwrap_or("-").to_owned();
-    let mut table = vec![["KIT".to_owned(), "NAME".to_owned(), "INSTALLED".to_owned(), "LATEST".to_owned(), "FILES".to_owned()]];
+    let mut table = vec![["KIT".to_owned(), "NAME".to_owned(), "INSTALLED".to_owned(), "EDITOR".to_owned(), "LATEST".to_owned(), "FILES".to_owned()]];
     for row in &rows {
         let mut installed = text(&row["inUse"]);
         let newer = |a: &Value, b: &Value| match (a.as_str().map(Version::parse), b.as_str().map(Version::parse)) {
@@ -162,14 +164,62 @@ fn list(store: &Store, source: &Source, json: bool) -> ExitCode {
         }
         let files: Vec<String> =
             row["extensions"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|extension| format!(".{extension}")).collect();
-        table.push([text(&row["name"]), text(&row["displayName"]), installed, text(&row["latest"]), files.join(" ")]);
+        table.push([text(&row["name"]), text(&row["displayName"]), installed, editor_text(&row["editor"]), text(&row["latest"]), files.join(" ")]);
     }
-    let widths: Vec<usize> = (0..5).map(|column| table.iter().map(|row| row[column].chars().count()).max().unwrap_or(0)).collect();
+    let widths: Vec<usize> = (0..6).map(|column| table.iter().map(|row| row[column].chars().count()).max().unwrap_or(0)).collect();
     for row in &table {
         let line: Vec<String> = row.iter().zip(&widths).map(|(cell, width)| format!("{cell:<width$}")).collect();
         println!("{}", line.join("  ").trim_end());
     }
     ExitCode::SUCCESS
+}
+
+/// Whether the editor package of the version of `name` in use (`in_use`) is installed:
+/// `{ installed: [versions], inUse: bool, available: bool }`, `available` saying whether the kit
+/// index lists one for that version (`null` when the index could not be read).
+fn editor_state(store: &Store, loaded: Option<&Loaded>, name: &str, in_use: Option<&Version>) -> Value {
+    let editors = Editors::new(store.clone());
+    let installed: Vec<String> = editors.installed(name).iter().map(|editor| editor.version.to_string()).collect();
+    let available = loaded.map(|loaded| {
+        in_use.is_some_and(|version| loaded.index.kits.get(name).and_then(|kit| kit.versions.get(&version.to_string())).is_some_and(|entry| entry.ui.is_some()))
+    });
+    json!({
+        "installed": installed,
+        "inUse": in_use.is_some_and(|version| installed.contains(&version.to_string())),
+        "available": available,
+    })
+}
+
+/// The EDITOR column: the version in use's editor `installed`, `missing` (the index has one),
+/// `none` (it has none), `-` (no version in use).
+fn editor_text(editor: &Value) -> String {
+    if editor["inUse"] == true {
+        "installed".to_owned()
+    } else if editor["available"] == false {
+        "none".to_owned()
+    } else if editor["available"] == true {
+        "missing".to_owned()
+    } else {
+        "-".to_owned()
+    }
+}
+
+/// Installs the editor package of `name` `version` when the index lists one; says what happened.
+fn install_editor(store: &Store, loaded: &Loaded, name: &str, version: &Version) -> Result<(), String> {
+    let listed = loaded.index.kits.get(name).and_then(|kit| kit.versions.get(&version.to_string())).is_some_and(|entry| entry.ui.is_some());
+    if !listed {
+        println!("the kit index lists no editor package for {name} {version}: kition gateway cannot show its editor");
+        return Ok(());
+    }
+    let editors = Editors::new(store.clone());
+    let mut progress = Progress::new(&format!("{name} editor"));
+    let outcome = editors.install(loaded, name, version, &mut |done, total| progress.update(done, total));
+    progress.finish();
+    match outcome.map_err(|why| format!("the editor of {name} {version}: {why}"))? {
+        Outcome::Installed(_) => println!("installed the editor of {name} {version}"),
+        Outcome::Present(_) => {}
+    }
+    Ok(())
 }
 
 /// The extensions a kit.json's edit formats open.
@@ -258,6 +308,7 @@ fn install_one(store: &Store, loaded: &Loaded, name: &str, version: Option<&Vers
     }
     if let Some(in_use) = store.kit(&name).and_then(|kit| kit.in_use().cloned()) {
         println!("{name} {} is in use{}: {}", in_use.version, if version.is_some() { " (pinned)" } else { "" }, in_use.folder.display());
+        install_editor(store, loaded, &name, &in_use.version)?;
     }
     Ok(())
 }
@@ -311,6 +362,11 @@ fn upgrade(store: &Store, source: &Source, only: Option<&str>) -> ExitCode {
                 }
                 let removed = store.prune(&name);
                 let now = outcome.version();
+                if let Err(message) = install_editor(store, &loaded, &name, now) {
+                    eprintln!("kition: {message}");
+                    failed = true;
+                }
+                Editors::new(store.clone()).prune(&name, Some(now));
                 match &before {
                     Some(before) if before == now => println!("{name} {now} is the newest"),
                     Some(before) => println!("upgraded {name} {before} -> {now}"),
@@ -398,6 +454,7 @@ fn info(store: &Store, source: &Source, name: &str, json: bool) -> ExitCode {
         "executable": in_use.map(|installed| installed.executable.display().to_string()),
         "protocol": in_use.and_then(|installed| installed.protocol.clone()),
         "agent": definition.map(|kit| json!({ "prefix": kit.agent.prefix, "tools": kition_kits::tools::tool_names(kit) })),
+        "editor": editor_state(store, loaded.as_ref().ok(), name, in_use.map(|installed| &installed.version)),
         "platform": platform,
     });
     if json {
@@ -438,6 +495,13 @@ fn info(store: &Store, source: &Source, name: &str, json: bool) -> ExitCode {
     println!("folder:      {}", text(&answer["folder"]));
     println!("executable:  {}", text(&answer["executable"]));
     println!("protocol:    {}", text(&answer["protocol"]));
+    let editor = match editor_text(&answer["editor"]).as_str() {
+        "installed" => "installed (kition gateway shows it)".to_owned(),
+        "missing" => format!("not installed: kition kit install {name}"),
+        "none" => "none in the kit index for this version".to_owned(),
+        _ => "-".to_owned(),
+    };
+    println!("editor:      {editor}");
     match definition {
         Some(kit) => {
             println!("agent:       prefix {}", kit.agent.prefix);

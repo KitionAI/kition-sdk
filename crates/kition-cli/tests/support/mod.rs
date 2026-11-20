@@ -73,6 +73,22 @@ pub fn archive(entries: &[Entry]) -> Vec<u8> {
     builder.into_inner().unwrap().finish().unwrap()
 }
 
+/// An editor package of `kit.<name>` `version` as a kit's Package workflow publishes it: one
+/// folder `<name>-ui/` with `index.html`, the kit's kit.json, a script, an engine and a font.
+pub fn editor_archive(name: &str, version: &str) -> Vec<u8> {
+    let manifest = serde_json::to_vec_pretty(&manifest(name, version, "kition-kit/2", &format!("k{name}"), &format!("kition-{name}"))).unwrap();
+    let top = format!("{name}-ui");
+    let index = format!("<!doctype html><title>{name} {version}</title><script type=\"module\" src=\"./assets/main.js\"></script>");
+    archive(&[
+        Entry::File(&format!("{top}/index.html"), index.as_bytes(), 0o644),
+        Entry::File(&format!("{top}/kit.json"), &manifest, 0o644),
+        Entry::File(&format!("{top}/assets/main.js"), b"export const kit = 1\n", 0o644),
+        Entry::File(&format!("{top}/assets/kitEngine.worker-x.js"), b"self.onmessage = () => {}\n", 0o644),
+        Entry::File(&format!("{top}/engine/kit_bg.wasm"), b"\0asm\x01\0\0\0", 0o644),
+        Entry::File(&format!("{top}/fonts/inter/Inter.ttf"), b"font bytes 0123456789", 0o644),
+    ])
+}
+
 /// A good kit archive: its kit.json and `executable` with `program` as its content.
 pub fn kit_archive(name: &str, version: &str, protocol: &str, extension: &str, executable: &str, program: &[u8]) -> Vec<u8> {
     let manifest = serde_json::to_vec_pretty(&manifest(name, version, protocol, extension, executable)).unwrap();
@@ -183,6 +199,16 @@ impl IndexBuilder {
         }
         let display = name[..1].to_uppercase() + &name[1..];
         self.kits.insert(name.to_owned(), json!({ "id": format!("kit.{name}"), "name": display, "extensions": [extension], "versions": listed }));
+        self
+    }
+
+    /// Lists `bytes` (written to `dir`) as the editor package (`ui`) of `name` `version`, already
+    /// added with [`IndexBuilder::kit`]; `sha256`, when given, is what the index claims instead.
+    pub fn editor(mut self, dir: &Path, name: &str, version: &str, bytes: &[u8], sha256_claimed: Option<&str>) -> Self {
+        let file = format!("kition-{name}-{version}.tgz");
+        std::fs::write(dir.join(&file), bytes).unwrap();
+        let entry = self.kits.get_mut(name).and_then(|kit| kit["versions"].get_mut(version)).unwrap_or_else(|| panic!("{name} {version} is not listed"));
+        entry["ui"] = json!({ "url": file, "size": bytes.len(), "sha256": sha256_claimed.map_or_else(|| sha256(bytes), str::to_owned) });
         self
     }
 

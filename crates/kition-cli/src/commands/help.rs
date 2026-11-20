@@ -25,7 +25,7 @@ agents:
 servers:
   kition mcp [--workspace <folder>]        the kits' MCP server on stdio (default: this folder)
   kition serve --workspace <folder>        the Kits Service API on stdio
-  kition gateway --workspace <folder>      one workspace's kits on loopback HTTP, for editors
+  kition gateway --workspace <folder>      one workspace's kits and their editors on loopback HTTP
 
 troubleshooting:
   kition doctor [--json]                   check kition, its home, PATH, index, kits and agents
@@ -77,15 +77,17 @@ usage: kition kit install <kit>[@<version>]... [--index <address or file>]
 
 Installs each kit named: the newest version this kition can run, used from then on; with
 @<version>, that version, pinned (kit upgrade without a kit leaves it alone). --all installs every
-kit the index has a build of for this machine. A kit that fails does not stop the others; the
-exit status is 1 when any failed. On a terminal, each download shows its progress on stderr.
+kit the index has a build of for this machine. With each kit comes its editor package, when the
+index lists one for that version (kition gateway's editor page shows it), checked against the
+size and SHA-256 the index gives like the kit itself. A kit that fails does not stop the others;
+the exit status is 1 when any failed. On a terminal, each download shows its progress on stderr.
 ";
 
 const KIT_UPGRADE: &str = "\
 usage: kition kit upgrade [<kit>] [--index <address or file>]
 
-Moves the kit, or every installed kit not pinned, to the newest version this kition can run, and
-removes the older versions. Naming a pinned kit unpins it.
+Moves the kit, or every installed kit not pinned, to the newest version this kition can run, with
+its editor package, and removes the older versions and their editors. Naming a pinned kit unpins it.
 ";
 
 const KIT_REMOVE: &str = "\
@@ -181,13 +183,16 @@ when any check failed.
 
 const GATEWAY: &str = "\
 usage: kition gateway --workspace <folder> [--port <n>] [--stdin-lifetime] [--idle-timeout <s>]
-                      [kit options of kition mcp]
+                      [--open [<file>]] [--kit-ui <folder>]... [kit options of kition mcp]
+       kition gateway url --workspace <folder> [<file>] [--review]
 
-Serves one workspace's kits on http://127.0.0.1:<port>, as the one process that holds them: the
-Kit AI bridge to kit editors attached to it, the workspace's files for them, file grants, the
-agent's drafts for review, and the kits' MCP server, to which kition mcp for the same workspace
-relays (kition mcp --help). It serves no editor page itself yet. Every request but GET /health
-needs the token in the Kition-Token header; non-loopback hosts and other origins are refused.
+Serves one workspace's kits on http://127.0.0.1:<port>, as the one process that holds them: an
+editor page (/page/?path=<file>) that opens a workspace file in its kit's own editor, the kits'
+editor packages (/kits-ui/), the Kit AI bridge to the editors attached to it, the workspace's
+files for them, file grants, the agent's drafts for review (/page/review?path=<file>), and the
+kits' MCP server, to which kition mcp for the same workspace relays (kition mcp --help). Every
+request but GET /health needs the token in the Kition-Token header (a proxy in front adds it), a
+page session or a signed URL; non-loopback hosts and other origins are refused.
 
 On start it prints one JSON line on stdout, {\"kition\":\"gateway-ready\", \"url\", \"port\",
 \"pid\", \"workspace\", \"protocol\", \"version\", \"apiPrefix\", \"lockfile\"}, and writes the
@@ -200,9 +205,17 @@ its lockfile.
   --port <n>             the port (default 0: one the system picks)
   --stdin-lifetime       stop when stdin closes, so the process that started it takes it along
   --idle-timeout <s>     stop after this many seconds with no request and no editor attached
+  --open [<file>]        print on stderr an address that opens the editor page in a browser (it
+                         lets one tab in, within two minutes; the tab's session lasts 12 hours)
+  --kit-ui <folder>      serve this development build of a kit's editor instead of the store's:
+                         an editor package folder (index.html, kit.json) or a kit repository
+                         with its editor built in web/dist/
   --unified, --drafts, --guard, --require-basis, --kit, --kits-dir, --sandbox, --index,
   --no-install, --call-timeout-secs, --idle-timeout-secs, --memory-limit-mib
                          as kition mcp takes them (kition mcp --help)
+
+kition gateway url prints such an address for the gateway already serving the folder; --review
+opens the review of the agent's draft of the file.
 ";
 
 /// The usage of `kition <path>` (`["kit", "install"]`), when it has one of its own.

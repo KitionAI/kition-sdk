@@ -8,6 +8,8 @@
 //! `nosniff`, and the scriptable types a sandboxing CSP (`kition_http_guard::files`).
 //!
 //! A stamp (`HEAD`) costs one `open` and two `stat`s: the kit editor polls it every two seconds.
+//! The stamp is the answer's `ETag` ([`stamp`]: size and modification time to the nanosecond),
+//! which `PUT /kits/files` checks a save against and answers after it.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -77,6 +79,9 @@ fn answer(method: Method, request: &HeaderMap, file: std::fs::File, real: &Path,
         headers.insert(header::CONTENT_TYPE, value);
     }
     headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    if let Ok(value) = HeaderValue::from_str(&stamp(metadata)) {
+        headers.insert(header::ETAG, value);
+    }
     if let Some(modified) = modified
         && let Ok(value) = HeaderValue::from_str(&httpdate::fmt_http_date(modified))
     {
@@ -121,8 +126,14 @@ fn answer(method: Method, request: &HeaderMap, file: std::fs::File, real: &Path,
     response
 }
 
+/// A file's version stamp, as its `ETag`: its size and modification time to the nanosecond.
+pub fn stamp(metadata: &std::fs::Metadata) -> String {
+    let modified = metadata.modified().ok().and_then(|at| at.duration_since(SystemTime::UNIX_EPOCH).ok()).map_or(0, |since| since.as_nanos());
+    format!("\"{:x}-{modified:x}\"", metadata.len())
+}
+
 /// `length` bytes of `file` from `start`, streamed.
-fn file_body(mut file: std::fs::File, start: u64, length: u64) -> Option<Body> {
+pub(crate) fn file_body(mut file: std::fs::File, start: u64, length: u64) -> Option<Body> {
     use std::io::Seek;
     use tokio::io::AsyncReadExt;
     file.seek(std::io::SeekFrom::Start(start)).ok()?;
@@ -144,7 +155,7 @@ fn not_modified(request: &HeaderMap, modified: Option<SystemTime>) -> bool {
 
 /// A single byte range of a file of `size` bytes: `Some(Ok((first, last)))`, both inclusive;
 /// `Some(Err(()))` when it is not satisfiable; `None` when it is not one byte range.
-fn byte_range(header: &str, size: u64) -> Option<Result<(u64, u64), ()>> {
+pub(crate) fn byte_range(header: &str, size: u64) -> Option<Result<(u64, u64), ()>> {
     let spec = header.trim().strip_prefix("bytes=")?;
     if spec.contains(',') {
         return None;

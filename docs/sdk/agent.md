@@ -506,9 +506,15 @@ kition mcp: workspace /Users/me/notes: relaying to the Kition gateway (pid 32783
 
 Every message then goes to the gateway's `POST /api/v1/mcp/kits` with its token (read from its
 lockfile), and the answers come back on stdout. A call on a file open in an editor attached to
-the gateway runs in that editor, as the editor's own change (its undo, its view), and answers
-`live: true`; a call on any other file runs in the gateway's headless kit. Claude Code, Codex,
-Cursor and DeepSeek Harness need nothing else: their `kition mcp` relays on its own.
+the gateway runs in that editor, as a step in the editor's history (the agent's undo scope,
+KitModel M12a: `edit.undo {scope: "agent"}` takes it back there, the person's own undo leaves it),
+and answers `live: true`; a call on any other file runs in the gateway's headless kit. Claude
+Code, Codex, Cursor and DeepSeek Harness need nothing else: their `kition mcp` relays on its own.
+
+The gateway's editor page ([gateway-page.md](gateway-page.md)) is such an editor: it answers the
+bridge's `kit/documents` with the kit's capabilities (`context`, `changes`, `model`, ...), so the
+gateway plans a run's call context, follows the editor's replica (`version`, `changes {since}`)
+for receipts and the revision chain, and guards premises (`premise`) as on the headless path.
 
 - Each relaying `kition mcp` is its own connection to the gateway (the `Kition-Mcp-Connection`
   header): its request ids and cancellations are its own, and it is its own agent, named from the

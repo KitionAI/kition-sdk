@@ -1148,7 +1148,7 @@ features:
     dimension: [ai, collab, data-safety]
     priority: P1
     status: partial
-    gap: Desktop hosts must forward the editor's new bridge members before the editor's answers reach the server
+    gap: "The gateway's editor page forwards every bridge member (capabilities, version, changes, premise; tested with the real Note editor through a relayed kition mcp); Kition's desktop host (kitBridge.ts) still answers kit/documents without capabilities and kit/call without version, changes and premise until it takes the same change"
     paths:
       - crates/kition-kits/src/tools.rs
       - crates/kition-kits/src/bridge.rs
@@ -1175,11 +1175,14 @@ features:
       - docs/sdk/agent.md
       - crates/kition-kits/src/tools/journal.rs
       - crates/kition-kits/src/tools/guard.rs
+      - packages/gateway-page/src/page/bridge.ts
     cases:
       - sdk.agent.live-editor/atomic-run
       - sdk.agent.live-editor/call-context
       - sdk.agent.live-editor/premise-guard
       - sdk.agent.live-editor/receipts
+      - sdk.gateway.page/unit
+      - sdk.gateway.page/e2e
     since: "2026-11-16"
   - id: sdk.agent.required-params
     title: A kit that opts in publishes as required the parameters its notation leaves without a default and not optional; the gate refuses a call missing one with invalid-params naming it and where a value comes from; testing proves the opt-in both ways
@@ -1863,8 +1866,7 @@ features:
     title: "kition gateway --workspace serves one workspace's kits on 127.0.0.1 as the one process that holds them: a JSON ready line on stdout without the token, a 0600 lockfile under KITION_HOME/run/ with the token, one gateway per canonical workspace (exit 3 for a second, a stale lockfile replaced), and a clean stop on SIGINT, SIGTERM, SIGHUP, stdin closing (--stdin-lifetime) or idleness (--idle-timeout); kition doctor names the running gateways"
     dimension: [platform, ai]
     priority: P1
-    status: partial
-    gap: It serves no editor page and no editor packages yet (/page/, /kits-ui/); editors attach through the bridge API only
+    status: has
     paths:
       - crates/kition-cli/src/gateway.rs
       - crates/kition-cli/src/commands/gateway.rs
@@ -1918,6 +1920,51 @@ features:
       - regressions/issue-grant-caller-path
       - regressions/issue-link-swap-read
       - regressions/issue-hidden-link-write
+    since: "2026-11-19"
+  - id: sdk.gateway.editor-packages
+    title: "A kit's editor package reaches the kit store and the gateway serves it: the kit index lists each version's package (ui url, size, SHA-256) gathered from the kit repositories' release assets and their entries; kition kit install and upgrade install it beside the headless kit (kits/<kit>/ui/<version>/), refused on any size, SHA-256 or identity difference; kit list, kit info and doctor show it; the gateway installs it on a page's first use and serves it at /kits-ui/<kit>@<version>/ (types, immutable caching with an ETag, single ranges, no compression, nothing out of the package, the token, a page session or a signed URL), or a development build named with --kit-ui"
+    dimension: [platform, security]
+    priority: P1
+    status: has
+    paths:
+      - tools/kits-index.mjs
+      - tools/kits-index.test.mjs
+      - schemas/kits-index.schema.json
+      - crates/kition-cli/src/index.rs
+      - crates/kition-cli/src/editors.rs
+      - crates/kition-cli/src/commands/kit.rs
+      - crates/kition-cli/src/commands/doctor.rs
+      - crates/kition-cli/src/commands/gateway.rs
+      - crates/kition-cli/tests/editors.rs
+      - crates/kition-kits-http/src/editors.rs
+      - crates/kition-kits-http/tests/page_routes.rs
+      - docs/sdk/cli.md
+    cases:
+      - sdk.gateway.editor-packages/index
+      - sdk.gateway.editor-packages/install
+      - sdk.gateway.editor-packages/serve
+    since: "2026-11-19"
+  - id: sdk.gateway.page
+    title: "kition gateway serves an editor page (/page/?path=<file>) that opens one workspace file in its kit's own editor over the Kit UI protocol (host read, stamp, version-checked atomic write, replicas, KitFiles, theme, locale, shortcuts, Focus mode when narrow) and is the Kit AI bridge's window for it (kit/documents with the kit's capabilities; kit/call including version, changes and premise; reconnecting), under any proxy prefix with the proxy's token or opened directly through a one-time signed bootstrap traded for a page session; it shows why it cannot open a file, installs a missing editor with its progress, and speaks a postMessage protocol with a framing host"
+    dimension: [platform, ai, security]
+    priority: P1
+    status: partial
+    gap: "Only edit formats open (a kit's view-only formats, such as Doc's .html or Vector's .svg, are not offered: /kits lists edit extensions only); no host/pick, print, links/pick, open-file, generate or co-editing (leases, presence); read-only opening is not offered; the KitFiles picker is a plain list of the gateway's choices; the person's own undo (Cmd+Z) leaves an agent's live edit, which the agent's undo scope takes back (KitModel M12a); the DeepSeek Harness host module, browser module and proxy are not built (D1-D3)"
+    paths:
+      - packages/gateway-page/**
+      - crates/kition-kits-http/src/page.rs
+      - crates/kition-kits-http/src/gateway.rs
+      - crates/kition-kits-http/src/lib.rs
+      - crates/kition-kits-http/src/kit_files.rs
+      - crates/kition-kits-http/page/**
+      - crates/kition-http-guard/src/gate.rs
+      - crates/kition-kits-http/tests/page_routes.rs
+      - examples/gateway-page/**
+      - docs/sdk/gateway-page.md
+    cases:
+      - sdk.gateway.page/routes
+      - sdk.gateway.page/unit
+      - sdk.gateway.page/e2e
     since: "2026-11-19"
   - id: sdk.cli.usage
     title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"

@@ -7,7 +7,10 @@
 //! - `GET /kits/bridge` (server-sent events) and `POST /kits/bridge?session=`: the Kit AI bridge,
 //!   which runs the agent's calls in the editor that has the file open (`kition_kits::bridge`);
 //! - `/kits/drafts{,/compare,/merge,/discard}`: the person's review of the agent's headless drafts;
-//! - `POST /mcp/kits`: the kit tools as an MCP server over Streamable HTTP ([`mcp`]).
+//! - `POST /mcp/kits`: the kit tools as an MCP server over Streamable HTTP ([`mcp`]);
+//! - `GET /kits/editors`, `POST /kits/editors/install`: the kits' editor packages ([`editors`]);
+//! - `GET`/`PUT /kits/replicas?path=&kit=`: the replica an editor page keeps beside its document
+//!   (Kit UI protocol capability `replica`), in the workspace's `.kition/replicas/`.
 //!
 //! The paths are relative to where the router is mounted (`/api/v1` in the gateway and in
 //! Kition's runtime). JSON answers use the envelope `{code, message, data}`
@@ -18,9 +21,11 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+pub mod editors;
 pub mod gateway;
 pub mod kit_files;
 pub mod mcp;
+pub mod page;
 
 use std::sync::Arc;
 
@@ -37,16 +42,25 @@ use serde_json::{Value, json};
 
 use kition_kits::{FileWrite, KitError, KitManager};
 
-/// What the routes serve: the workspace's kits, and the MCP connections that told themselves apart.
+/// What the routes serve: the workspace's kits, the MCP connections that told themselves apart,
+/// and the kits' editor packages when the host has a store of them.
 #[derive(Clone)]
 pub struct KitsState {
     pub kits: KitManager,
     pub mcp: Arc<mcp::Connections>,
+    pub editors: Option<Arc<dyn editors::EditorStore>>,
 }
 
 impl KitsState {
     pub fn new(kits: KitManager) -> Self {
-        Self { kits, mcp: Arc::default() }
+        Self { kits, mcp: Arc::default(), editors: None }
+    }
+
+    /// Serves `store`'s editor packages too.
+    #[must_use]
+    pub fn with_editors(mut self, store: Arc<dyn editors::EditorStore>) -> Self {
+        self.editors = Some(store);
+        self
     }
 }
 
@@ -69,6 +83,9 @@ pub fn router(state: KitsState) -> Router {
         .route("/kits/drafts/merge", post(merge_draft))
         .route("/kits/drafts/discard", post(discard_draft))
         .route("/kits/bridge", get(bridge_stream).post(bridge_message))
+        .route("/kits/editors", get(list_editors))
+        .route("/kits/editors/install", post(install_editor))
+        .route("/kits/replicas", get(read_replica).put(write_replica).layer(axum::extract::DefaultBodyLimit::max(MAX_FILE_BYTES)))
         .route("/mcp/kits", post(mcp::handle))
         .with_state(state)
 }
@@ -182,8 +199,23 @@ fn workspace_path(path: &str) -> ApiResult<&str> {
     Ok(trimmed)
 }
 
+/// The kits the workspace's manager holds, then the kits its supply would install on first use
+/// (`kition mcp`'s and `kition gateway`'s kit index), not installed: what a page can open.
+fn known_kits(kits: &KitManager) -> Vec<Value> {
+    let mut known: Vec<Value> = kits.statuses().iter().filter_map(|status| serde_json::to_value(status).ok()).collect();
+    for kit in kits.supply().map(|supply| supply.available()).unwrap_or_default() {
+        if !known.iter().any(|status| status["id"] == kit.id) {
+            let creates: Vec<&str> = kit.creates.iter().map(|(extension, _)| *extension).collect();
+            known.push(json!({ "id": kit.id, "name": kit.name, "extensions": kit.extensions, "creates": creates, "installed": false }));
+        }
+    }
+    known
+}
+
+/// `GET /kits`: the kits and whether each is installed, those a supply installs on first use
+/// included.
 async fn list(State(state): State<KitsState>, _caller: RequireToken) -> Response {
-    ok(json!({ "kits": state.kits.statuses() }))
+    ok(json!({ "kits": known_kits(&state.kits) }))
 }
 
 /// The largest file an in-page editor may save in one request.
@@ -195,6 +227,16 @@ struct WriteFileQuery {
     /// The document an in-page editor opened, when the write saves it: only that file is
     /// replaced. Without it the write makes a new file (a new document or an export).
     document: Option<String>,
+    /// The version (`/kit-files/` `ETag`) the editor holds of the file it saves: the save is
+    /// refused as `file_conflict` (409) when the file is another version now, so an edit made
+    /// meanwhile (an agent's headless run, a merged draft) is never overwritten unseen.
+    expected: Option<String>,
+}
+
+/// The version stamp of the workspace file at `path` now, `None` when there is none.
+fn current_stamp(kits: &KitManager, path: &str) -> Option<String> {
+    let file = kits.resolve(path).ok()?;
+    std::fs::metadata(file).ok().filter(std::fs::Metadata::is_file).map(|metadata| kit_files::stamp(&metadata))
 }
 
 async fn write_file(
@@ -208,8 +250,147 @@ async fn write_file(
         Some(document) => FileWrite::Save { document: workspace_path(document)? },
         None => FileWrite::New,
     };
+    if let Some(expected) = query.expected.as_deref().filter(|expected| !expected.is_empty())
+        && current_stamp(&state.kits, path).as_deref() != Some(expected)
+    {
+        return Err(ApiError::new(409, 40906, format!("`{path}` changed since the editor read it: reload it, or save elsewhere"))
+            .with_data(json!({ "reason": ErrorReason::FileConflict })));
+    }
     state.kits.write_file(path, &body, write).map_err(app_error)?;
-    Ok(ok(json!({ "path": query.path, "bytes": body.len() })))
+    Ok(ok(json!({ "path": query.path, "bytes": body.len(), "version": current_stamp(&state.kits, path) })))
+}
+
+/// `GET /kits/editors`: each kit's editor package as an editor page needs it, with `base`, the
+/// address (relative to the gateway's root) it loads an installed one from.
+async fn list_editors(State(state): State<KitsState>, _caller: RequireToken) -> Response {
+    let Some(store) = &state.editors else {
+        return ok(json!({ "editors": {} }));
+    };
+    let ids: Vec<String> = known_kits(&state.kits).iter().filter_map(|kit| kit["id"].as_str().map(str::to_owned)).collect();
+    // The listing may read the kit index (a file, or the network once an hour).
+    let store = store.clone();
+    let entries = tokio::task::spawn_blocking(move || store.listing(&ids.iter().map(String::as_str).collect::<Vec<_>>())).await.unwrap_or_default();
+    let listed: serde_json::Map<String, Value> = entries
+        .into_iter()
+        .map(|entry| {
+            let short = entry.id.strip_prefix("kit.").unwrap_or(&entry.id).to_owned();
+            let mut value = serde_json::to_value(&entry).unwrap_or(Value::Null);
+            if entry.installed
+                && let Some(version) = &entry.version
+            {
+                value["base"] = json!(editors::base(&short, version));
+            }
+            (entry.id, value)
+        })
+        .collect();
+    ok(json!({ "editors": listed }))
+}
+
+#[derive(Deserialize)]
+struct InstallEditorBody {
+    /// The kit: `table` or `kit.table`.
+    kit: String,
+}
+
+/// `POST /kits/editors/install {kit}`: starts installing the kit's editor package (`202`);
+/// `GET /kits/editors` follows its download.
+async fn install_editor(State(state): State<KitsState>, _caller: RequireToken, JsonBody(body): JsonBody<InstallEditorBody>) -> ApiResult<Response> {
+    let short = body.kit.strip_prefix("kit.").unwrap_or(&body.kit).to_owned();
+    if !known_kits(&state.kits).iter().any(|status| status["id"].as_str().and_then(|id| id.strip_prefix("kit.")) == Some(short.as_str())) {
+        return Err(app_error(KitError::UnknownKit(body.kit)));
+    }
+    let store =
+        state.editors.clone().ok_or_else(|| ApiError::new(409, 40908, "this server keeps no editor packages").with_data(json!({ "reason": "no_store" })))?;
+    let started = tokio::task::spawn_blocking(move || store.install(&short))
+        .await
+        .map_err(|error| ApiError::new(500, 50000, error.to_string()))?
+        .map_err(|why| ApiError::new(409, 40909, why).with_data(json!({ "reason": "unavailable" })))?;
+    let mut response = ok(json!({ "started": started }));
+    *response.status_mut() = http::StatusCode::ACCEPTED;
+    Ok(response)
+}
+
+// The replica an editor page keeps beside its document (Kit UI protocol `host/replicaRead`,
+// `host/replicaWrite`): `.kition/replicas/<key>/replica.bin`, `<key>` the first 32 hex digits of
+// the SHA-256 of the workspace path, with `meta.json` `{ path, kit, fileStamp }`. The body of both
+// routes is the snapshot's length (8 bytes, little-endian), the snapshot, then the blobs; the
+// file stamp the replica belongs to travels in the `Kition-File-Stamp` header. The kit decides
+// whether a replica still belongs to its file.
+
+/// Where the replicas are kept, in the workspace.
+pub const REPLICAS_DIR: &str = ".kition/replicas";
+const FILE_STAMP_HEADER: &str = "kition-file-stamp";
+
+#[derive(Deserialize)]
+struct ReplicaQuery {
+    path: String,
+    kit: String,
+}
+
+fn replica_dir(kits: &KitManager, path: &str) -> ApiResult<std::path::PathBuf> {
+    use sha2::Digest;
+    let workspace = kits.workspace_dir().ok_or_else(|| app_error(KitError::NoWorkspace))?;
+    let digest = sha2::Sha256::digest(path.as_bytes());
+    let key: String = digest.iter().take(16).map(|byte| format!("{byte:02x}")).collect();
+    Ok(workspace.join(REPLICAS_DIR).join(key))
+}
+
+/// `GET /kits/replicas?path=&kit=`: the replica `kit`'s editor keeps for `path`; `204` (no
+/// content) when none is kept, which is no failure: a document opens from its file then.
+async fn read_replica(State(state): State<KitsState>, _caller: RequireToken, Query(query): Query<ReplicaQuery>) -> ApiResult<Response> {
+    let path = workspace_path(&query.path)?;
+    state.kits.resolve(path).map_err(app_error)?;
+    let dir = replica_dir(&state.kits, path)?;
+    let none = || http::StatusCode::NO_CONTENT.into_response();
+    let Some(meta) = std::fs::read(dir.join("meta.json")).ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok()) else {
+        return Ok(none());
+    };
+    if meta["path"].as_str() != Some(path) || meta["kit"].as_str() != Some(query.kit.as_str()) {
+        return Ok(none());
+    }
+    let stamp = meta["fileStamp"].as_str().unwrap_or_default().to_owned();
+    let Ok(bytes) = std::fs::read(dir.join("replica.bin")) else {
+        return Ok(none());
+    };
+    let mut response = ([(header::CONTENT_TYPE, "application/octet-stream".to_owned()), (header::CACHE_CONTROL, "no-store".to_owned())], bytes).into_response();
+    if let Ok(value) = http::HeaderValue::from_str(&stamp) {
+        response.headers_mut().insert(FILE_STAMP_HEADER, value);
+    }
+    Ok(response)
+}
+
+/// `PUT /kits/replicas?path=&kit=`: keeps the replica `kit`'s editor saved with `path`, written
+/// whole and then renamed into place.
+async fn write_replica(
+    State(state): State<KitsState>,
+    _caller: RequireToken,
+    Query(query): Query<ReplicaQuery>,
+    headers: http::HeaderMap,
+    body: axum::body::Bytes,
+) -> ApiResult<Response> {
+    let path = workspace_path(&query.path)?;
+    state.kits.resolve(path).map_err(app_error)?;
+    if state.kits.kit_for_path(path).is_none_or(|kit| kit.id != query.kit) {
+        return Err(app_error(KitError::InvalidPath(format!("{} does not edit `{path}`", query.kit))));
+    }
+    let length = body.get(..8).and_then(|bytes| bytes.try_into().ok()).map(u64::from_le_bytes);
+    if length.is_none_or(|length| length > (body.len() as u64).saturating_sub(8)) {
+        return Err(ApiError::new(400, 40004, "a replica is its snapshot's length (8 bytes, little-endian), the snapshot, then the blobs"));
+    }
+    let stamp = headers.get(FILE_STAMP_HEADER).and_then(|value| value.to_str().ok()).unwrap_or_default();
+    let dir = replica_dir(&state.kits, path)?;
+    let meta = json!({ "path": path, "kit": query.kit, "fileStamp": stamp });
+    let written = (|| {
+        std::fs::create_dir_all(&dir)?;
+        let scratch = dir.join(format!(".replica-{}.tmp", std::process::id()));
+        std::fs::write(&scratch, &body)?;
+        std::fs::rename(&scratch, dir.join("replica.bin"))?;
+        let scratch = dir.join(format!(".meta-{}.tmp", std::process::id()));
+        std::fs::write(&scratch, meta.to_string())?;
+        std::fs::rename(&scratch, dir.join("meta.json"))
+    })();
+    written.map_err(|error| ApiError::new(500, 50011, format!("could not keep the replica of `{path}`: {}", error.kind())))?;
+    Ok(ok(json!({ "path": path, "bytes": body.len() })))
 }
 
 // File grants (Kition platform `KitFiles 1.1`, `kition_kit_host::files`): the editor's host page

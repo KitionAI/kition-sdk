@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p examples/embed-app/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json --strict false",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p examples/embed-app/tsconfig.json && tsc --noEmit -p examples/gateway-page/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json --strict false",
     "test": "vitest run",
     "example:embed": "pnpm --filter @kition/embed --filter @kition/script build && node examples/embed-app/serve.mjs",
     "test:sdk:example": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-node.mjs",
@@ -21,6 +21,8 @@
     "test:embed:e2e": "pnpm --filter @kition/embed --filter @kition/script build && playwright test -c examples/embed-app/playwright.config.ts",
     "test:sdk:exit": "pnpm --filter @kition/embed --filter @kition/script build && playwright test -c examples/embed-app/playwright.exit.config.ts",
     "example:agent": "pnpm --filter @kition/script build && node examples/agent-mcp/run.mjs",
+    "test:gateway:e2e": "cargo build -p kition-cli && playwright test -c examples/gateway-page/playwright.config.ts",
+    "test:gateway:smoke": "cargo build -p kition-cli && playwright test -c examples/gateway-page/playwright.smoke.config.ts",
     "sdk:bundle": "node tools/sdk-bundle.mjs"
   },
   "devDependencies": {

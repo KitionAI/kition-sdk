@@ -1,0 +1,31 @@
+format: 1
+id: sdk.gateway.page/routes
+feature: sdk.gateway.page
+intent: >-
+  The gateway serves its editor page at /page/ and /page/review (and its script and style), no-cache
+  with an ETag and 304, nosniff, no-referrer, the HTML with a content security policy of its own
+  origin only (framed by its own origin only), and nothing else under /page/. The address
+  kition gateway gives for direct opening carries no token: a signed URL of /page/ only, whose
+  fragment's signed bootstrap is traded once (a second time, with the token instead, or signed with
+  another token it is refused) for a page session; the session reaches the kits' API, the files and
+  the page but not /api/v1/gateway or /api/v1/mcp/kits, and ends when expired or ended; it gets
+  signed URLs of editor packages and kit files only, stable within their window. A save over another
+  version than the editor read is refused as file_conflict and overwrites nothing; a save answers
+  the file's new version stamp. An editor's replica is kept beside its document and read back,
+  none for another kit, nothing outside the workspace.
+layer: gate
+dimension: security
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests/page_routes.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: page_routes }
+  - cargo-test: { package: kition-kits-http, filter: "page::" }
+  - cargo-test: { package: kition-http-guard, filter: a_page_session_reaches_what_the_token_does }
+  - cargo-test: { package: kition-kits-http, test: security }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 300

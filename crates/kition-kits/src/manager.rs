@@ -1631,7 +1631,7 @@ impl KitManager {
     /// way whether the file exists or not (KHP A29), when it leaves the workspace (`..`, an
     /// absolute path, or a symbolic link out) or has a hidden segment (`.git/`, `.env`, Kition's
     /// own `.kition/`): [`KitError::NotAllowed`].
-    pub(crate) fn resolve(&self, path: &str) -> Result<PathBuf, KitError> {
+    pub fn resolve(&self, path: &str) -> Result<PathBuf, KitError> {
         self.resolve_in(path, false)
     }
 

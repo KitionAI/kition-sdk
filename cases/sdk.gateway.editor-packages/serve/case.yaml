@@ -1,0 +1,28 @@
+format: 1
+id: sdk.gateway.editor-packages/serve
+feature: sdk.gateway.editor-packages
+intent: >-
+  kition gateway serves an installed editor package at /kits-ui/<kit>@<version>/ with its types
+  (text/html, text/javascript for modules and workers, application/wasm, font/ttf, application/json),
+  Cache-Control immutable and an ETag answered with 304, single byte ranges, no compression,
+  nosniff, and frame-ancestors 'self' on its HTML; nothing out of the package (.., encoded .., a
+  hidden file, a link out, another version or kit), nothing without the token, a page session or a
+  signed URL of its folder; lists the editors at /api/v1/kits/editors with where a page loads one;
+  installs one on a page's first use and follows its download; refuses one the index lists none for;
+  and serves a development build (--kit-ui, a kit repository's web/dist with its kit.json) no-cache.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/editors.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: editors, filter: the_gateway_serves_installed_editors }
+  - cargo-test: { package: kition-cli, test: editors, filter: a_kit_ui_folder_must_be_an_editor }
+  - cargo-test: { package: kition-kits-http, test: page_routes, filter: editor_packages_are_served }
+  - cargo-test: { package: kition-kits-http, filter: "editors::" }
+expected:
+  - { actual: out:exit, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 300

@@ -1,0 +1,30 @@
+format: 1
+id: sdk.gateway.page/e2e
+feature: sdk.gateway.page
+intent: >-
+  With the real Table and Note kits (headless and editor packages installed from the kit index's
+  release assets; GATEWAY_E2E_INDEX names an index with editor packages, kept in GATEWAY_E2E_CACHE),
+  a real kition gateway and a real relayed kition mcp: a request without a credential is refused;
+  the address kition gateway url prints opens the Table file directly, leaves no bootstrap in the
+  address bar and lets no second tab in; a cell edited and saved changes the file on disk and the
+  editor is clean; behind a same-origin proxy under /kition/ (which adds the token and drops Origin
+  and Cookie) the Note editor loads everything through the prefix, an agent's kit_run arrives in the
+  open editor's engine with live true and no reload, and is taken back in its history (the agent's
+  undo scope) live; with no editor open the same call runs headless and an editor opened then shows
+  it; a framing window hears ready and state open and sets the theme, and at 420 px the editor opens
+  in Focus mode without overflowing. No console error, no failed request (a stamp of a linked file
+  the workspace lacks aside), with screenshots.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: examples/gateway-page/e2e/gateway.e2e.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, test:gateway:e2e]
+expected:
+  - { actual: out:exec, compare: exit, value: 0 }
+since: "2026-11-19"
+timeout_s: 600

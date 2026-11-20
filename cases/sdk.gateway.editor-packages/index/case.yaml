@@ -1,0 +1,28 @@
+format: 1
+id: sdk.gateway.editor-packages/index
+feature: sdk.gateway.editor-packages
+intent: >-
+  The kit index gatherer lists each version's editor package as `ui {url, size, sha256}` from the
+  kit repository's Release: the asset kition-<kit>-<version>.tgz, its address and size from the
+  Release, its SHA-256 from its entry kition-<kit>-<version>.json, which must name that asset, its
+  size, and GitHub's digest when there is one (else the run stops), or from the digest, or from
+  downloading it; a Release without the package lists the version without `ui` and the report names
+  it; a fragment that names another package stops the run; the field is in the schema and in its
+  place in the written index, and older readers ignore it.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kits-index.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kits-index.test.mjs]
+  - cargo-test: { package: kition-cli, filter: "index::" }
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

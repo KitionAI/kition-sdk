@@ -28,7 +28,7 @@ use std::time::Instant;
 use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use http::{HeaderMap, StatusCode, header};
-use kition_http_guard::gate::RequireToken;
+use kition_http_guard::gate::RequireLaunchToken;
 use kition_http_guard::{ApiError, JsonBody};
 use kition_kits::mcp::Session;
 use kition_kits::tools::{CallOptions, Guard};
@@ -114,7 +114,7 @@ fn call_options(headers: &HeaderMap) -> Result<CallOptions, ApiError> {
 }
 
 /// `POST /mcp/kits`.
-pub async fn handle(State(state): State<KitsState>, _caller: RequireToken, headers: HeaderMap, JsonBody(message): JsonBody<Value>) -> Response {
+pub async fn handle(State(state): State<KitsState>, _caller: RequireLaunchToken, headers: HeaderMap, JsonBody(message): JsonBody<Value>) -> Response {
     let options = match call_options(&headers) {
         Ok(options) => options,
         Err(refused) => return refused.into_response(),

@@ -271,21 +271,32 @@ server again; by then the kit is installed.
 ## The gateway
 
 `kition gateway --workspace <folder>` serves one workspace's kits on `http://127.0.0.1:<port>`,
-as the one process that holds them: the Kit AI bridge to kit editors attached to it, the
-workspace's files for those editors, file grants, the agent's drafts for the person to review,
-and the kits' MCP server. A `kition mcp` started for the same workspace relays to it
-([agent.md](agent.md#editors-attached-to-a-gateway)), so an agent's edit of a file open in such an
-editor happens in the editor. It serves no editor page and no editor packages yet: an editor
-attaches through the bridge routes below.
+as the one process that holds them: an editor page that opens a workspace file in its kit's own
+editor (`/page/?path=<file>`), the kits' editor packages (`/kits-ui/`), the Kit AI bridge to the
+editors attached to it, the workspace's files for them, file grants, the agent's drafts for the
+person to review (`/page/review?path=<file>`), and the kits' MCP server. A `kition mcp` started for
+the same workspace relays to it ([agent.md](agent.md#editors-attached-to-a-gateway)), so an agent's
+edit of a file open in the page happens in its editor, live. The page, its addresses, how a browser
+gets in and how a host frames it behind a proxy: [gateway-page.md](gateway-page.md).
 
 ```sh
 kition gateway --workspace <folder> [--port <n>] [--stdin-lifetime] [--idle-timeout <seconds>]
-               [--unified] [--drafts] [--kit <path>] [--kits-dir <folder>] [...]
+               [--open [<file>]] [--kit-ui <folder>]... [--unified] [--kit <path>] [...]
+kition gateway url --workspace <folder> [<file>] [--review]
 ```
 
 - `--port <n>`: the port; by default 0, a free one the system picks. It listens on 127.0.0.1 only.
 - `--stdin-lifetime`: stop when stdin closes, so the process that started it takes it along.
 - `--idle-timeout <seconds>`: stop after this long with no request and no editor attached.
+- `--open [<file>]`: print on stderr an address that opens the page (for `<file>`) in a browser.
+  It lets one tab in within two minutes, and that tab's session lasts twelve hours;
+  `kition gateway url --workspace <folder> [<file>] [--review]` prints another one for the gateway
+  already serving the folder (on stdout).
+- `--kit-ui <folder>`: serve this development build of a kit's editor instead of the store's: an
+  editor package folder (`index.html` and the kit's `kit.json`, as Kition's
+  `scripts/build-kit-ui.sh` makes `public/kits/<kit>-ui/`), or a kit repository checkout with its
+  editor built in `web/dist/` (`pnpm --dir web build`), whose `kit.json` is the repository's. It is
+  served under its `kit.json`'s version with `Cache-Control: no-cache`. Repeat it for more kits.
 - The kit options of `kition mcp` (`--unified`, `--drafts`, `--guard`, `--require-basis`, `--kit`,
   `--kits-dir`, `--sandbox`, `--index`, `--no-install`, `--call-timeout-secs`,
   `--idle-timeout-secs`, `--memory-limit-mib`) choose its kits and its MCP server as they do there.
@@ -321,12 +332,37 @@ in for it on the reads that cannot carry a header); a request whose `Host` is no
 | `GET /health` (no token) | `{"code":200,"message":"success","data":"healthy"}` |
 | `GET /gateway` | its `protocol`, `version`, `pid`, `workspace`, `unified` and `started` |
 | `GET /kits` | the kits and whether each is installed |
-| `PUT /kits/files?path=[&document=]` | an editor saves its document or writes a new file |
+| `GET /kits/editors` | each kit's editor package: the version a page loads, whether it is installed (`base`, where from), whether the index offers it, its download |
+| `POST /kits/editors/install` | `{kit}`: installs the kit's editor package (`202`); `GET /kits/editors` follows the download |
+| `PUT /kits/files?path=[&document=][&expected=]` | an editor saves its document (only over the version `expected` names, else `409 file_conflict`) or writes a new file; answers the new `version` |
+| `GET`/`PUT /kits/replicas?path=&kit=` | the replica an editor keeps beside its document (`.kition/replicas/`) |
+| `POST /gateway/sign` | `{path}`: a signed URL under `/kits-ui/` or `/kit-files/`, for a frame or worker that sends no header |
+| `GET /gateway/page-session/<nonce>` | through a signed bootstrap only, once: a page session ([gateway-page.md](gateway-page.md)) |
 | `/kits/grants/*` | file grants for an editor's kit (KitFiles); the person picks among `POST /kits/grants/choices` |
 | `GET /kits/bridge`, `POST /kits/bridge?session=` | the Kit AI bridge to an attached editor |
 | `GET /kits/drafts`, `GET /kits/drafts/compare`, `POST /kits/drafts/merge`, `POST /kits/drafts/discard` | the person's review of the agent's drafts |
 | `POST /mcp/kits` | the kits' MCP server (Streamable HTTP, one JSON answer per message) |
-| `GET /kit-files/<path>` (no prefix) | workspace files as kits read them: no hidden file, nothing a link leads to outside |
+| `GET /kit-files/<path>` (no prefix) | workspace files as kits read them (`ETag` is the version stamp): no hidden file, nothing a link leads to outside |
+| `GET /kits-ui/<kit>@<version>/<file>` (no prefix) | an editor package's files, `immutable` (a development build `no-cache`), with an `ETag` and single ranges |
+| `GET /page/`, `/page/review` (no prefix) | the editor page ([gateway-page.md](gateway-page.md)) |
+
+`/api/v1/gateway` and `POST /api/v1/mcp/kits` need the token itself; the other routes take a page
+session in `Kition-Token` too, and the reads under `/kit-files/`, `/kits-ui/`, `/page/` and the
+bridge stream a signed URL.
+
+### Editor packages
+
+A kit's editor package is its own editor, engine and fonts, as a page loads it in a frame over the
+Kit UI protocol (the `kition-<kit>-<version>.tgz` asset of the kit repository's `package-v<version>`
+Release; the index lists it as the version's `ui`). `kition kit install` and `kition kit upgrade`
+install it with the kit, checked against the size and SHA-256 the index gives (refused, and nothing
+installed, on any difference, or when it is not that kit version's editor), into
+`kits/<kit>/ui/<version>/`; an upgrade removes the older editors with the older versions, and
+`kition kit remove` removes them all. The gateway installs a kit's editor the first time its page
+opens a file of the kit (the page shows the download's progress), as the version of the kit in use,
+or the newest the index offers when none is installed. `kition kit list` shows it (`EDITOR`:
+`installed`, `missing`, `none` when the index has none), and so do `kition kit info` and
+`kition doctor` (`editor <kit>`, for information).
 
 ## When something is wrong
 
@@ -345,6 +381,8 @@ in for it on the reads that cannot carry a header); a request whose `Host` is no
 - each installed kit in use, started as a host starts it and asked `kit.initialize`: the version
   it answers, or why it did not start (an answer that is not its `kit.json`'s id and version is a
   failure too);
+- each installed kit's editor package (for information: the agent's tools do not need it; the
+  gateway installs it when its page first opens the kit);
 - which `kition gateway`s run, for which workspace, and how many lockfiles gateways that stopped
   left (the next gateway for that workspace replaces them), for information;
 - which agents have `kition` registered (Claude Code and Codex through `claude mcp get kition`

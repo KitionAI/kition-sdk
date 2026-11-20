@@ -6,8 +6,10 @@
 //!
 //! The store is a plain folder that other programs may fill as well (Kition's desktop app): a
 //! kit version is a folder `kits/<kit>/<version>/` holding `kit.json` and the kit's executable,
-//! put in place by one rename. See `docs/sdk/cli.md`.
+//! put in place by one rename. A kit's editor package (its own editor, for `kition gateway`'s page) is
+//! installed beside it, `kits/<kit>/ui/<version>/` (`editors.rs`). See `docs/sdk/cli.md`.
 
+pub mod editors;
 pub mod fetch;
 pub mod gateway;
 pub mod home;

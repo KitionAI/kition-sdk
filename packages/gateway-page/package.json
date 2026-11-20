@@ -1,0 +1,37 @@
+{
+  "name": "@kition/gateway-page",
+  "version": "0.5.2",
+  "description": "The editor page kition gateway serves: one workspace file in its kit's own editor over the Kit UI protocol, the Kit AI bridge's window for it, and the review of the agent's drafts; and the postMessage protocol a host that frames it speaks.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@kition/kit-host": "workspace:*",
+    "@kition/kit-ui-protocol": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/gateway-page"
+  },
+  "types": "./dist/types/src/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/src/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node ../../tools/build-package.mjs && node ./build-page.mjs",
+    "prepack": "pnpm run build"
+  }
+}

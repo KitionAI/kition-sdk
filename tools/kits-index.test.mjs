@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { EMPTY, MODULES_URL, compareVersions, gatherIndex, githubNet, kitsOfModules, main, schemaProblems, serialize } from './kits-index.mjs'
+import { EMPTY, MODULES_URL, compareVersions, gatherIndex, githubNet, kitsOfModules, main, reportLines, schemaProblems, serialize } from './kits-index.mjs'
 
 const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex')
 const scratch = []
@@ -38,7 +38,19 @@ function fakeGithub(repos, { fail = [] } = {}) {
         files.set(url, bytes)
         assets.push({ name: assetName, size: bytes.length, digest: digest ? `sha256:${sha256(bytes)}` : null, browser_download_url: url })
       }
-      add(`kition-${kit}-${release.version}.tgz`, Buffer.from(`${kit} package ${release.version}`))
+      // The editor package and its entry, as the kit's Package workflow publishes them;
+      // `editor: false` publishes none, `editor: { entry: false, noDigest, edit }` changes them.
+      if (release.editor !== false) {
+        const editor = release.editor ?? {}
+        const bytes = Buffer.from(`${kit} package ${release.version}`)
+        const asset = `kition-${kit}-${release.version}.tgz`
+        add(asset, bytes, !editor.noDigest)
+        if (editor.entry !== false) {
+          const entry = { repository, version: release.version, tag, asset, size: bytes.length, sha256: sha256(bytes), commit: 'c'.repeat(40) }
+          editor.edit?.(entry)
+          add(`kition-${kit}-${release.version}.json`, Buffer.from(JSON.stringify(entry)))
+        }
+      }
       const archives = {}
       for (const platform of release.platforms ?? []) {
         const bytes = Buffer.from(`${kit} ${release.version} ${platform}`)
@@ -108,6 +120,7 @@ describe('kits-index: the kit index gathered from the kit repositories', () => {
         'darwin-arm64': { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.1.0/kition-note-0.1.0-darwin-arm64.tar.gz', size: Buffer.from('note 0.1.0 darwin-arm64').length, sha256: sha256(Buffer.from('note 0.1.0 darwin-arm64')) },
         'linux-x64': expect.objectContaining({ url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.1.0/kition-note-0.1.0-linux-x64.tar.gz' }),
       },
+      ui: { url: 'https://github.com/KitionAI/kition-note/releases/download/package-v0.1.0/kition-note-0.1.0.tgz', size: Buffer.from('note package 0.1.0').length, sha256: sha256(Buffer.from('note package 0.1.0')) },
     })
     expect(report.map(({ kit, versions, skipped }) => [kit, versions, skipped])).toEqual([['note', ['0.1.0'], []], ['table', ['0.4.0', '0.5.4'], []]])
   })
@@ -168,6 +181,42 @@ describe('kits-index: the kit index gathered from the kit repositories', () => {
     await expect(run({ edit: (f) => { f.kits.table.versions['0.5.4'].platforms['linux-x64'].sha256 = 'a'.repeat(64) } })).rejects.toThrow(/SHA-256 a{64}; the Release's is/)
     await expect(run({ noDigest: true, edit: (f) => { f.kits.table.versions['0.5.4'].platforms['linux-x64'].sha256 = 'a'.repeat(64) } })).rejects.toThrow(/the Release's is/)
     await expect(run({ edit: (f) => { f.kits.table.versions['0.5.4'].platforms['linux-x64'].url = 'https://example.com/x.tar.gz' } })).rejects.toThrow(/gives linux-x64 the address https:\/\/example\.com/)
+  })
+
+  it('adds each version’s editor package from the Release, its SHA-256 from its entry checked against the asset and GitHub’s digest', async () => {
+    const repos = {
+      'KitionAI/kition-table': { kit: 'table', releases: [{ version: '0.5.4', platforms: ['linux-x64'] }, { version: '0.5.5', platforms: ['linux-x64'], editor: false }] },
+      'KitionAI/kition-note': { kit: 'note', releases: [{ version: '0.1.0', platforms: ['linux-x64'], editor: { entry: false } }, { version: '0.2.0', platforms: ['linux-x64'], editor: { entry: false, noDigest: true } }] },
+    }
+    const { net, seen } = fakeGithub(repos)
+    const gathered = await gatherIndex({ kits: kitsOf(repos), net })
+    const { index } = gathered
+    expect(schemaProblems(index)).toEqual([])
+    const bytes = (kit, version) => Buffer.from(`${kit} package ${version}`)
+    expect(index.kits.table.versions['0.5.4'].ui).toEqual({ url: download('KitionAI/kition-table', 'package-v0.5.4', 'kition-table-0.5.4.tgz'), size: bytes('table', '0.5.4').length, sha256: sha256(bytes('table', '0.5.4')) })
+    // A Release without the package lists the version without it, and the report names it.
+    expect('ui' in index.kits.table.versions['0.5.5']).toBe(false)
+    expect(reportLines(gathered)).toContain('  no editor package: 0.5.5')
+    // Without an entry: GitHub's digest; without either: the package downloaded and hashed.
+    expect(index.kits.note.versions['0.1.0'].ui.sha256).toBe(sha256(bytes('note', '0.1.0')))
+    expect(index.kits.note.versions['0.2.0'].ui.sha256).toBe(sha256(bytes('note', '0.2.0')))
+    expect(seen.filter((url) => url.endsWith('.tgz'))).toEqual([download('KitionAI/kition-note', 'package-v0.2.0', 'kition-note-0.2.0.tgz')])
+    // The serialized index keeps it, in its place after the platforms.
+    expect(Object.keys(JSON.parse(serialize(index)).kits.table.versions['0.5.4'])).toEqual(['protocol', 'platforms', 'ui'])
+  })
+
+  it('stops when an editor package’s entry disagrees with the Release: another asset, another size, another SHA-256 than GitHub’s digest', async () => {
+    const run = (edit) => {
+      const repos = { 'KitionAI/kition-table': { kit: 'table', releases: [{ version: '0.5.4', platforms: ['linux-x64'], editor: { edit } }] } }
+      return gatherIndex({ kits: kitsOf(repos), net: fakeGithub(repos).net })
+    }
+    await expect(run((entry) => { entry.asset = 'kition-table-0.5.3.tgz' })).rejects.toThrow(/is the entry of "kition-table-0\.5\.3\.tgz", not kition-table-0\.5\.4\.tgz/)
+    await expect(run((entry) => { entry.size += 1 })).rejects.toThrow(/says kition-table-0\.5\.4\.tgz is \d+ bytes; the Release's is/)
+    await expect(run((entry) => { entry.sha256 = 'a'.repeat(64) })).rejects.toThrow(/gives kition-table-0\.5\.4\.tgz the SHA-256 a{64}; GitHub's digest is/)
+    await expect(run((entry) => { delete entry.sha256 })).rejects.toThrow(/gives no SHA-256/)
+    // A fragment that names an editor package must name the Release's.
+    const repos = { 'KitionAI/kition-table': { kit: 'table', releases: [{ version: '0.5.4', platforms: ['linux-x64'], edit: (f) => { f.kits.table.versions['0.5.4'].ui = { url: 'https://example.com/x.tgz', size: 1, sha256: 'a'.repeat(64) } } }] } }
+    await expect(gatherIndex({ kits: kitsOf(repos), net: fakeGithub(repos).net })).rejects.toThrow(/gives the editor package .*example\.com.*; the Release's is/)
   })
 
   it('stops on a fragment that is not a kit index of that one kit version', async () => {
@@ -254,8 +303,9 @@ describe('kits-index: the command line', () => {
     fs.writeFileSync(previous, JSON.stringify(old))
     const dry = capture()
     expect(await main(['--dry-run', '--previous', previous], { net: withModules(fakeGithub(repos).net), ...dry })).toBe(0)
-    expect(dry.text.out).toContain('0 archives enter, 1 leave')
+    expect(dry.text.out).toContain('0 archives enter, 2 leave')
     expect(dry.text.out).toContain('  - note 0.3.0 linux-x64')
+    expect(dry.text.out).toContain('  - note 0.3.0 ui')
     expect(fs.readdirSync(dir).sort()).toEqual(['kits-index.json', 'previous.json'])
   })
 

@@ -22,7 +22,9 @@ Training and evaluation: [env.md](env.md) (any kit as an environment: generated 
 rewards, verified traces; `kit-env`).
 Delivery: [distribution.md](distribution.md) (the release: a bundle per platform with every executable, a manifest and SHA-256 sums; verifying and pinning it).
 Command line: [cli.md](cli.md) (`kition`: kits downloaded on demand into a store under `~/.kition`
-from a kit index, upgraded in place; `kition mcp` and `kition serve` on the store's kits).
+from a kit index, upgraded in place; `kition mcp` and `kition serve` on the store's kits;
+`kition gateway`, one workspace's kits and their editors on loopback, and its editor page,
+[gateway-page.md](gateway-page.md)).
 Licence: every form is free and needs no key; only collaboration does (see [licence](#licence)).
 
 ## The path a customer takes
