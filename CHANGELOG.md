@@ -83,6 +83,8 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `/drafts-merge`, `/drafts-discard`, the last two only from the person). It is no longer private;
   the release packs and publishes it. The old `kition-kits.stdio.cordis.patch.yml`, which started
   `kition-kits-mcp` with one variable per kit, is gone.
+- **`kition mcp` relays to no gateway of another kition version** or gateway protocol (its
+  lockfile's `version`, `protocol`): it serves in its own process and says so.
 - **Human and agent together in DeepSeek Harness** (`@kition/dsh-kits`): each turn's kit edits are
   projected from the session log into review cards at the turn's tail (the file, its kit, a picture
   and the counts of what changed, and whether it was edited live, saved, drafted, stale, merged or

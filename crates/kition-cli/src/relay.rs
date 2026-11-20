@@ -23,6 +23,10 @@
 //!   asked only when the lockfile changed). When one appears, this process saves and stops its
 //!   kits, tells the gateway the client's `initialize`, and relays from then on.
 //!
+//! A gateway of another kition version or gateway protocol (its lockfile's `version` and
+//! `protocol`) is passed over, saying so: its tools and kits may not be the ones the client was
+//! given, so this process serves alone instead of relaying calls a different server reads.
+//!
 //! Server-to-client notifications (progress, `notifications/tools/list_changed`) do not come
 //! through the relay: the gateway's endpoint answers each message with JSON only.
 
@@ -39,6 +43,7 @@ use tokio::sync::mpsc;
 
 use crate::gateway::{self, Lockfile, TOKEN_HEADER};
 use crate::home::Home;
+use kition_kits_http::gateway::PROTOCOL;
 
 const PROGRAM: &str = "kition mcp";
 /// The prefix of the ids of messages the relay sends itself; their answers are not the client's.
@@ -258,6 +263,22 @@ impl Relay {
                     lock.pid,
                     with(lock.unified),
                     with(self.plan.unified)
+                );
+            }
+            self.passed_over = Some(lock);
+            return None;
+        }
+        // Another kition's gateway (a system install beside a plugin's own, an upgrade half done):
+        // its tools, kits and protocol may not be the ones this client was given, so this process
+        // serves alone rather than relay calls a different server reads.
+        if lock.version != crate::VERSION || lock.protocol != PROTOCOL {
+            if !quiet {
+                eprintln!(
+                    "{PROGRAM}: a gateway of kition {} ({}, pid {}) serves this workspace, and this is kition {} ({PROTOCOL}): serving in this process; edits of a file open in its editors are not live",
+                    lock.version,
+                    lock.protocol,
+                    lock.pid,
+                    crate::VERSION
                 );
             }
             self.passed_over = Some(lock);

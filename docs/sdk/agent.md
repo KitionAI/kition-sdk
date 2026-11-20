@@ -523,8 +523,10 @@ for receipts and the revision chain, and guards premises (`premise`) as on the h
 - `--drafts`, `--guard` and `--require-basis` go with each message. The kits, the sandbox, the
   limits and the kit store are the gateway's: `--kit`, `--kits-dir` and the others apply only when
   `kition mcp` serves in its own process, as it says on stderr. A gateway with or without
-  `--unified` serves only a `kition mcp` with the same tool names; any other serves in its own
-  process.
+  `--unified` serves only a `kition mcp` with the same tool names, and a gateway of another kition
+  version or gateway protocol (its lockfile's `version`, `protocol`) none: such a `kition mcp`
+  serves in its own process and says so (a system kition beside a plugin's own, an upgrade half
+  done), so its calls are never read by a server whose tools differ from the ones its client got.
 - When the gateway stops, the next message it never got runs in `kition mcp`'s own process, which
   tells its kits the client's `initialize` again and serves from then on. A call the gateway may
   have run when its connection broke is not run again: it answers a tool error saying so.

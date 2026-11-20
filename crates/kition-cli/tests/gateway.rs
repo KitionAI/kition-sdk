@@ -441,3 +441,33 @@ fn kition_mcp_relays_to_the_gateway_and_serves_alone_when_it_is_gone() {
     editor.close();
     drop(later);
 }
+
+/// A gateway of another kition version (a system install beside a plugin's own, an upgrade half
+/// done) is not relayed to: its tools and kits may differ from the ones the client was given.
+/// `kition mcp` serves in its own process and says so, never a silent call on another server.
+#[test]
+fn kition_mcp_serves_alone_beside_a_gateway_of_another_version() {
+    let Some(setup) = setup() else {
+        eprintln!("skipped: build kition-kit-mock first (cargo build -p kition-kit-mock)");
+        return;
+    };
+    let gateway = Gateway::start(&setup, &[]);
+    let editor = Editor::attach(&gateway);
+    let path = gateway.ready["lockfile"].as_str().unwrap().to_owned();
+    let mut lock = gateway.lock();
+    lock["version"] = json!("0.0.1");
+    std::fs::write(&path, lock.to_string()).unwrap();
+
+    let mut client = Client::start(&setup, &[]);
+    let ran = client.run();
+    assert_eq!(ran["result"]["isError"], false, "{ran}");
+    assert_ne!(ran["result"]["structuredContent"]["live"], true, "{ran}");
+    assert!(editor.calls.recv_timeout(Duration::from_millis(500)).is_err(), "the other version's editor got nothing");
+    assert_eq!(std::fs::read_to_string(setup.workspace.join(FILE)).unwrap(), "plan B", "it ran in this process");
+    let (status, stderr) = client.finish();
+    assert_eq!(status, Some(0), "{stderr}");
+    assert!(stderr.contains("a gateway of kition 0.0.1 (kition-gateway/1"), "{stderr}");
+    assert!(stderr.contains("serving in this process"), "{stderr}");
+    assert!(!stderr.contains("relaying to the Kition gateway"), "{stderr}");
+    editor.close();
+}

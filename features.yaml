@@ -1911,7 +1911,7 @@ features:
       - sdk.cli.gateway/lifecycle
     since: "2026-11-19"
   - id: sdk.agent.gateway-relay
-    title: "kition mcp relays every message to a live gateway for the same canonical workspace, so an agent's call on a file open in an editor attached to the gateway runs in that editor; with no gateway it serves in its own process, takes over when the gateway stops and hands over when one starts; each relaying process is its own MCP connection and agent; --no-relay turns it off"
+    title: "kition mcp relays every message to a live gateway for the same canonical workspace, so an agent's call on a file open in an editor attached to the gateway runs in that editor; with no gateway it serves in its own process, takes over when the gateway stops and hands over when one starts; each relaying process is its own MCP connection and agent; a gateway of another kition version or gateway protocol is passed over, saying so; --no-relay turns it off"
     dimension: [ai, collab]
     priority: P1
     status: partial
@@ -1928,6 +1928,7 @@ features:
       - sdk.agent.gateway-relay/live-and-fallback
     since: "2026-11-19"
   - id: sdk.gateway.security
+      - sdk.agent.gateway-relay/other-version
     title: "The gateway refuses non-loopback Hosts and foreign or null Origins before routing, needs the token in Kition-Token on every route but /health (constant-time, no cookie, no wildcard CORS), keeps files, grants and drafts inside the canonical workspace (no .., absolute, hidden or linked-out path), serves workspace files with nosniff and a sandboxing CSP, signs GET URLs per path until they expire, draws bridge session ids at random, takes no path from a grant's caller, and reads a file only if it is the one it checked"
     dimension: [security, data-safety]
     priority: P0

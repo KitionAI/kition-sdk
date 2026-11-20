@@ -1,0 +1,24 @@
+format: 1
+id: sdk.agent.gateway-relay/other-version
+feature: sdk.agent.gateway-relay
+intent: >-
+  A live gateway for the workspace whose lockfile names another kition version (a system kition
+  beside a plugin's own, an upgrade half done) is not relayed to: kition mcp runs the call in its
+  own process (the file changes on disk, the gateway's attached editor gets nothing, the answer is
+  not live) and says on stderr which kition version serves the workspace and that it serves in its
+  own process, never relaying calls to a server whose tools may differ.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/gateway.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: gateway, filter: kition_mcp_serves_alone_beside_a_gateway_of_another_version }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-20"
+timeout_s: 300
