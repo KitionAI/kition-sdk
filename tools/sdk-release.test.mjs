@@ -56,7 +56,7 @@ function writeArchives(dir, platforms) {
 
 /** A kit index as tools/kits-index.mjs gathers it from the kit packages' npm metadata. */
 const gatheredIndex = () => ({
-  schemaVersion: 2,
+  schemaVersion: 1,
   kits: {
     note: {
       id: 'kit.note',
@@ -148,12 +148,12 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     }
     expect(release(() => {})).not.toThrow()
     expect(release((dir) => fs.rmSync(path.join(dir, 'kits-index.json')))).toThrow(/no kits-index\.json/)
-    expect(release((dir) => writeIndex(dir, '{"schemaVersion": 2, "kits": '))).toThrow(/kits-index\.json is not JSON/)
+    expect(release((dir) => writeIndex(dir, '{"schemaVersion": 1, "kits": '))).toThrow(/kits-index\.json is not JSON/)
     const invalid = gatheredIndex()
     invalid.kits.note.versions['0.3.0'].platforms['linux-x64'].sha256 = 'not a digest'
     expect(release((dir) => writeIndex(dir, invalid))).toThrow(/kits-index\.json is not valid against kits-index\.schema\.json: .*sha256/)
-    expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), schemaVersion: 1 }))).toThrow(/not valid against kits-index\.schema\.json/)
-    expect(release((dir) => writeIndex(dir, { schemaVersion: 2, kits: {} }))).toThrow(/kits-index\.json holds no kit/)
+    expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), schemaVersion: 2 }))).toThrow(/not valid against kits-index\.schema\.json/)
+    expect(release((dir) => writeIndex(dir, { schemaVersion: 1, kits: {} }))).toThrow(/kits-index\.json holds no kit/)
     expect(release((dir) => writeIndex(dir, { ...gatheredIndex(), kits: { note: { ...gatheredIndex().kits.note, extensions: [] } } }))).toThrow(/not valid/)
     expect(release((dir) => fs.writeFileSync(path.join(dir, 'kits-index-note-0.3.0.json'), '{}'))).toThrow(/kits-index-note-0\.3\.0\.json: a release carries one kit index/)
     // A kit archive the snapshot names is still not a release asset.

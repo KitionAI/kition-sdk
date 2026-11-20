@@ -398,7 +398,7 @@ or the newest the index offers when none is installed. `kition kit list` shows i
 
 ```text
 $ kition doctor
-kition 0.6.0 (kit protocol kition-kit/1, index format 2) on darwin-arm64
+kition 0.6.0 (kit protocol kition-kit/1, index format 1) on darwin-arm64
 ok    home          /Users/me/.kition (writable)
 fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the PATH
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)

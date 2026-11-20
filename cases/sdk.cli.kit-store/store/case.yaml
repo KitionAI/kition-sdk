@@ -2,7 +2,7 @@ format: 1
 id: sdk.cli.kit-store/store
 feature: sdk.cli.kit-store
 intent: >-
-  The kit index (format 2: each platform's and the editor's npm package, size and integrity) is read
+  The kit index (format 1: each platform's and the editor's npm package, size and integrity) is read
   and checked (format version, names, ids, semver, package names, integrity form) and kept for
   offline use. An install downloads the package from a registry served over HTTP in npm's layout,
   checks its size and integrity, its package.json (the package and version the index names) and the

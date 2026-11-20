@@ -93,7 +93,7 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     })
     const { index, report } = await gatherIndex({ kits: ['note', 'table'], net })
     expect(schemaProblems(index)).toEqual([])
-    expect(index.schemaVersion).toBe(2)
+    expect(index.schemaVersion).toBe(1)
     expect(Object.keys(index.kits.note.versions)).toEqual(['0.1.0', '0.1.2'])
     const darwin = index.kits.note.versions['0.1.2'].platforms['darwin-arm64']
     expect(darwin).toEqual({ package: '@kition/kit-note-darwin-arm64', size: 1000 + Buffer.from('@kition/kit-note-darwin-arm64@0.1.2').length, integrity: integrityOf(Buffer.from('@kition/kit-note-darwin-arm64@0.1.2')) })
@@ -230,11 +230,11 @@ describe('kits-index: the command line', () => {
     fs.writeFileSync(previous, serialize((await gatherIndex({ kits: ['note'], net: fakeRegistry({ note: { '0.1.0': {} } }).net })).index))
     const out = path.join(dir, 'kits-index.json')
     const io = capture()
-    expect(await main(['--modules', modules, '--out', out, '--previous', previous, '--package', path.join(dir, 'pkg'), '--version', '2.0.4'], { net, ...io })).toBe(0)
+    expect(await main(['--modules', modules, '--out', out, '--previous', previous, '--package', path.join(dir, 'pkg'), '--version', '1.0.4'], { net, ...io })).toBe(0)
     expect(io.lines.out).toContain(`compared with the previous index: ${PLATFORMS.length + 1} packages enter, 0 leave`)
     expect(io.lines.out).toContain('  + note 0.2.0 ui')
     expect(JSON.parse(fs.readFileSync(out, 'utf8')).kits.note.versions['0.2.0']).toBeDefined()
-    expect(JSON.parse(fs.readFileSync(path.join(dir, 'pkg/package.json'), 'utf8'))).toMatchObject({ name: '@kition/kits-index', version: '2.0.4', files: ['kits-index.json'] })
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'pkg/package.json'), 'utf8'))).toMatchObject({ name: '@kition/kits-index', version: '1.0.4', files: ['kits-index.json'] })
     expect(fs.readFileSync(path.join(dir, 'pkg/kits-index.json'), 'utf8')).toBe(fs.readFileSync(out, 'utf8'))
     const dry = capture()
     expect(await main(['--modules', modules, '--dry-run'], { net, ...dry })).toBe(0)
@@ -270,7 +270,7 @@ describe('compareVersions and schemaProblems', () => {
   })
 
   it('checks every rule of the index schema and refuses a keyword it does not know', () => {
-    expect(schemaProblems({ schemaVersion: 2, kits: { Note: { id: 'note', name: '', extensions: [], versions: { v1: {} } } } })).toEqual(expect.arrayContaining([
+    expect(schemaProblems({ schemaVersion: 1, kits: { Note: { id: 'note', name: '', extensions: [], versions: { v1: {} } } } })).toEqual(expect.arrayContaining([
       expect.stringMatching(/Note \(name\).*does not match/),
       expect.stringMatching(/\/kits\/Note\/id.*does not match/),
       expect.stringMatching(/\/kits\/Note\/name: shorter than 1/),
@@ -278,8 +278,8 @@ describe('compareVersions and schemaProblems', () => {
       expect.stringMatching(/v1 \(name\).*does not match/),
       expect.stringMatching(/\/kits\/Note\/versions\/v1: has no protocol/),
     ]))
-    expect(schemaProblems({ schemaVersion: 1 })).toEqual(['/: has no kits', '/schemaVersion: is not 2'])
-    const archive = { schemaVersion: 2, kits: { note: { id: 'kit.note', name: 'Note', extensions: ['md'], versions: { '0.1.0': { protocol: 'kition-kit/1', platforms: { 'darwin-arm64': { url: 'x', size: 1, sha256: 'a'.repeat(64) } } } } } } }
+    expect(schemaProblems({ schemaVersion: 2 })).toEqual(['/: has no kits', '/schemaVersion: is not 1'])
+    const archive = { schemaVersion: 1, kits: { note: { id: 'kit.note', name: 'Note', extensions: ['md'], versions: { '0.1.0': { protocol: 'kition-kit/1', platforms: { 'darwin-arm64': { url: 'x', size: 1, sha256: 'a'.repeat(64) } } } } } } }
     expect(schemaProblems(archive)).toEqual(expect.arrayContaining([expect.stringMatching(/url is not allowed/), expect.stringMatching(/has no package/), expect.stringMatching(/has no integrity/)]))
     expect(() => schemaProblems('x', { maxLength: 3 })).toThrow(/keyword maxLength is not checked/)
   })

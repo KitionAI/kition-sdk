@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Gathers the kit index `kition` reads (schemas/kits-index.schema.json, format 2) from the npm
+// Gathers the kit index `kition` reads (schemas/kits-index.schema.json, format 1) from the npm
 // registry. Each kit repository's Package workflow (KitionAI/kition .github/workflows/kit-package.yml)
 // publishes every kit version as npm packages, `@kition/kit-<kit>-<platform>` and
 // `@kition/kit-<kit>-ui` (tools/kit-npm.mjs), whose package.json carries a `kition` field with

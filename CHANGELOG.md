@@ -4,6 +4,8 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit index is format 1 and `@kition/kits-index` is versioned `1.0.<n>`**: every format and
+  protocol is version 1. `kition` refuses an index of any other format, naming both.
 - **The kit index is gathered past npm's placeholder of a first publish**: npm keeps a version
   `0.0.0-stage` of its own, without a `kition` field, beside a package's first version, and the
   kits-index workflow stopped on it for the first kit packages on npm. It is left out; any other
@@ -42,7 +44,7 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   (the editor folder `<kit>-ui/`), the same files as the archives before, with a `kition` field in
   `package.json`; `tools/kit-npm-package.mjs` writes, packs and checks them for Kition's Package
   workflow, and a version is published once. The kit index is the npm package
-  `@kition/kits-index` (format 2: each entry is a package, its size and npm's `sha512-` integrity),
+  `@kition/kits-index` (format 1: each entry is a package, its size and npm's `sha512-` integrity),
   gathered by `tools/kits-index.mjs` from the registry's metadata and published by the `kits-index`
   workflow only when it changes. `kition` downloads the index, kits and editors from
   `KITION_NPM_REGISTRY`, npm's own `.npmrc` setting, `registry.npmjs.org`, then

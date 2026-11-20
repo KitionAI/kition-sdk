@@ -21,7 +21,7 @@ use crate::home::Home;
 use crate::registry::{self, Registries};
 
 /// The index format this program reads (`schemaVersion`).
-pub const SCHEMA_VERSION: u64 = 2;
+pub const SCHEMA_VERSION: u64 = 1;
 
 /// Where the index is when nothing else is named: the npm package `@kition/kits-index` at its
 /// `latest`, from the registries `registry.rs` lists.
@@ -107,10 +107,8 @@ impl Index {
         let value: serde_json::Value = serde_json::from_str(text).map_err(|error| format!("the kit index is not JSON: {error}"))?;
         match value.get("schemaVersion").and_then(serde_json::Value::as_u64) {
             Some(SCHEMA_VERSION) => {}
-            Some(newer) if newer > SCHEMA_VERSION => {
-                return Err(format!("the kit index is format {newer}, and this kition {} reads format {SCHEMA_VERSION}: upgrade kition", crate::VERSION));
-            }
-            _ => return Err(format!("the kit index has no `schemaVersion` {SCHEMA_VERSION}")),
+            Some(other) => return Err(format!("the kit index is format {other}, and this kition {} reads format {SCHEMA_VERSION}", crate::VERSION)),
+            None => return Err(format!("the kit index has no `schemaVersion` {SCHEMA_VERSION}")),
         }
         let index: Self = serde_json::from_value(value).map_err(|error| format!("the kit index is malformed: {error}"))?;
         index.check()?;
@@ -301,7 +299,7 @@ mod tests {
 
     fn sample() -> serde_json::Value {
         json!({
-            "schemaVersion": 2,
+            "schemaVersion": 1,
             "kits": { "note": { "id": "kit.note", "name": "Note", "extensions": ["md", "markdown"], "versions": {
                 "0.3.0": { "protocol": "kition-kit/1", "platforms": { "darwin-arm64": { "package": "@kition/kit-note-darwin-arm64", "size": 10, "integrity": format!("sha512-{}==", "a".repeat(86)) } },
                     "ui": { "package": "@kition/kit-note-ui", "size": 20, "integrity": format!("sha512-{}==", "b".repeat(86)) } },
@@ -324,8 +322,8 @@ mod tests {
     #[test]
     fn refuses_a_newer_format_and_malformed_entries() {
         let mut newer = sample();
-        newer["schemaVersion"] = json!(3);
-        assert!(Index::parse(&newer.to_string()).unwrap_err().contains("upgrade kition"));
+        newer["schemaVersion"] = json!(2);
+        assert!(Index::parse(&newer.to_string()).unwrap_err().contains("the kit index is format 2, and this kition"));
         let mut id = sample();
         id["kits"]["note"]["id"] = json!("kit.table");
         assert!(Index::parse(&id.to_string()).unwrap_err().contains("not `kit.note`"));
@@ -338,9 +336,10 @@ mod tests {
             wrong["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["package"] = json!(other);
             assert!(Index::parse(&wrong.to_string()).unwrap_err().contains("its package is"), "{other}");
         }
-        let mut older = sample();
-        older["schemaVersion"] = json!(1);
-        assert!(Index::parse(&older.to_string()).is_err(), "an index of GitHub addresses is no longer read");
+        let mut addresses = sample();
+        addresses["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"] =
+            json!({ "url": "https://github.com/x.tar.gz", "size": 1, "sha256": "a".repeat(64) });
+        assert!(Index::parse(&addresses.to_string()).is_err(), "an index of GitHub addresses is no longer read");
         let mut ui = sample();
         ui["kits"]["note"]["versions"]["0.3.0"]["ui"]["size"] = json!(0);
         assert!(Index::parse(&ui.to_string()).unwrap_err().contains("0.3.0 ui"));

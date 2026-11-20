@@ -174,7 +174,7 @@ fn the_index_is_the_npm_package_kits_index_at_its_latest() {
     std::fs::create_dir_all(&served).unwrap();
     let file = index_with_fake(&served);
     let index: Value = serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
-    publish_index(&served, &index, "2.0.7", None);
+    publish_index(&served, &index, "1.0.7", None);
     let server = Server::start(&served);
 
     // No KITION_INDEX: the package, from the registries; its kits install from them too.
@@ -183,7 +183,7 @@ fn the_index_is_the_npm_package_kits_index_at_its_latest() {
     assert!(ok, "{err}");
     let listed: Value = serde_json::from_str(&out).unwrap();
     assert_eq!(listed["index"]["read"], true, "{listed}");
-    assert_eq!(listed["index"]["location"], format!("npm:@kition/kits-index@2.0.7 from {}", server.url("")));
+    assert_eq!(listed["index"]["location"], format!("npm:@kition/kits-index@1.0.7 from {}", server.url("")));
     assert_eq!(listed["kits"][0]["name"], "fake");
     let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", server.url("")).args(["kit", "install", "fake"]));
     assert!(ok && out.contains("installed fake 0.1.0"), "{out}{err}");
@@ -192,7 +192,7 @@ fn the_index_is_the_npm_package_kits_index_at_its_latest() {
     // A package whose bytes are not the ones the metadata gives is refused; the kept copy serves.
     let other = dir.path().join("other");
     std::fs::create_dir_all(&other).unwrap();
-    publish_index(&other, &index, "2.0.8", Some(integrity(b"something else")));
+    publish_index(&other, &index, "1.0.8", Some(integrity(b"something else")));
     let tampered = Server::start(&other);
     let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", tampered.url("")).args(["kit", "list", "--json"]));
     assert!(ok, "{err}");

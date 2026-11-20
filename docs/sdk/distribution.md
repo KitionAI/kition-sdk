@@ -133,8 +133,8 @@ with `tools/kits-index.mjs`:
   Process Protocol its packages declare. The index is checked against its schema and written in a
   fixed order, so the same packages give the same bytes.
 - An index with no kit is never published: the one published stays.
-- The workflow publishes a new version of `@kition/kits-index` (`2.0.<n>`, one more than the last;
-  2 is the index format) only when the index's bytes changed, and tags it `latest`. The versions
+- The workflow publishes a new version of `@kition/kits-index` (`1.0.<n>`, one more than the last;
+  1 is the index format) only when the index's bytes changed, and tags it `latest`. The versions
   of `@kition/kits-index` are the index's history.
 
 **This is the one thing the repository publishes that moves.** Every package version, release and
@@ -159,7 +159,7 @@ repository (`https://raw.githubusercontent.com/KitionAI/kition-sdk/kits-index/ki
 0.3.0 and 0.4.0 from the latest release's `kits-index.json`, and they download kits from GitHub
 Releases. The branch is no longer written: it stays as it was, the last index of the GitHub
 Releases, so those kitions keep installing the kit versions it lists and see none published since.
-The latest release's `kits-index.json` is format 2, which they refuse, saying to upgrade `kition`.
+The latest release's `kits-index.json` names npm packages, which they cannot read and refuse.
 Upgrade `kition` to install kits from npm.
 
 ### The snapshot in each release

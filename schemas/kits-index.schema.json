@@ -13,8 +13,8 @@
       "type": "string"
     },
     "schemaVersion": {
-      "const": 2,
-      "description": "The index format: 2, npm packages (format 1 named GitHub Release addresses). A change that an older kition would misread raises it."
+      "const": 1,
+      "description": "The index format, always 1: each entry is an npm package."
     },
     "kits": {
       "type": "object",

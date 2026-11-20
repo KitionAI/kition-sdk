@@ -261,7 +261,7 @@ impl IndexBuilder {
 
     pub fn write(self, dir: &Path) -> PathBuf {
         let path = dir.join("kits-index.json");
-        std::fs::write(&path, serde_json::to_vec_pretty(&json!({ "schemaVersion": 2, "kits": self.kits })).unwrap()).unwrap();
+        std::fs::write(&path, serde_json::to_vec_pretty(&json!({ "schemaVersion": 1, "kits": self.kits })).unwrap()).unwrap();
         path
     }
 }
