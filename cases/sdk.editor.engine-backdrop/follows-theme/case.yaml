@@ -1,0 +1,26 @@
+format: 1
+id: sdk.editor.engine-backdrop/follows-theme
+feature: sdk.editor.engine-backdrop
+intent: >-
+  canvasColor answers the theme's --kit-canvas (or another token) as #rrggbb, resolving any CSS
+  colour through a 2D canvas, and null for no token, a non-colour or a colour that is not opaque.
+  useEngineBackdrop gives the engine that colour through setBackdrop (or the extra it is told) when
+  the document opens and once per new colour on each theme change, repaints the canvas after the
+  engine took it, gives nothing without a document or after the document closed, and keeps going
+  when the engine refuses it.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: SDK editor tests
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/backdrop.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-19"

@@ -586,6 +586,19 @@ features:
       - regressions/issue-document-pan-bounds
       - regressions/issue-resize-keeps-page-top
     since: "2026-11-16"
+  - id: sdk.editor.engine-backdrop
+    title: "An engine that paints its own pasteboard follows the theme's --kit-canvas: useEngineBackdrop gives it the colour as #rrggbb at open and on every theme change, and the canvas repaints"
+    dimension: [platform, function]
+    priority: P2
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/backdrop.ts
+      - packages/kit-editor/src/engine/backdrop.test.tsx
+      - packages/kit-editor/README.md
+    gap: "Kition Slide, PDF, Layout and Doc still carry their own copy (web/src/backdrop.ts) until they move to the SDK version that has this one."
+    cases:
+      - sdk.editor.engine-backdrop/follows-theme
+    since: "2026-11-19"
   - id: sdk.editor.frame-overflow
     title: The editor frame's tabs show whole or move under More tabs; the Menus bar scrolls to cut menus with a fade and a button
     dimension: [function]

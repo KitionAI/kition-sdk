@@ -85,10 +85,21 @@ them, so canvas chrome can sit on either side (grids and frame labels under the 
 size pill and rulers over it). When the view zooms, the active engine tool is asked for its
 state again, so overlays the engine sizes in screen pixels follow the zoom.
 
+An engine that paints the area around its document itself (the pasteboard around pages, slides
+or spreads) cannot be reached by CSS. `useEngineBackdrop(doc, canvas)` gives it the theme's
+`--kit-canvas` as `#rrggbb` through its `setBackdrop` engine extra when the document opens and
+again on every theme change (`applyTheme` writes the tokens on the root's style and marks its
+`data-color-scheme`), then repaints `canvas`; `{ method, token, root }` name another engine extra,
+token or element. `canvasColor(root?, token?)` is the resolution it uses: any CSS colour the host
+sends (Kition sends `hsl(...)`) as `#rrggbb` through a 2D canvas, `null` when it is unset, not a
+colour, or not opaque. Only the on-screen editor sets a backdrop; previews, export and print keep
+the engine's own.
+
 ## Rules for kits
 
 - Draw every colour, radius, and shadow from the theme tokens (`var(--kit-*)`), never literal
-  values, so the host's theme and skins reach your editor.
+  values, so the host's theme and skins reach your editor. An engine's own pasteboard follows
+  `--kit-canvas` through `useEngineBackdrop`.
 - Pass icon sizes and `strokeWidth={ICON_STROKE}` from kit-editor; never a number of your own.
 - New icons go into Tessera (`packages/icons/svg/`, its `docs/icon-style.md`), not into the kit.
 - Give elements a Kit UI id (`uiId`, `RibbonGroup id`) so hosts can hide or disable them.
