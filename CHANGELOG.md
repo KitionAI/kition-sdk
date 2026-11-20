@@ -4,6 +4,10 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit tools are there for a session's first step in DeepSeek Harness**: the plugin
+  registers the unified tools' names at start, each admitted to a step once the kits listed it
+  (waiting at most 30 seconds for the first list); a session's first request went without them
+  while kition was still listing (regressions/issue-dsh-tools-ready).
 - **Every protocol is version 1.** The Kit Process Protocol is version 1 (`PROTOCOL_VERSION` 1,
   `kition-kit/1` in `kit.json` and the kit index, the ready line and `kit.initialize` say `1`,
   `khp/1` in an inspect's `interface`); kits built on an earlier SDK speak 2 and are refused until
