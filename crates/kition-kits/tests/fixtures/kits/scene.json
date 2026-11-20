@@ -12,7 +12,8 @@
     "module": "kition_scene_kit",
     "class": "SceneDocument",
     "contract": 2,
-    "crate": "kition-scene-kit"
+    "crate": "kition-scene-kit",
+    "editorState": ["/selection", "/view", "/mode", "/tool", "/animation/frame", "/animation/selectedKeyFrames", "keyedNow"]
   },
   "formats": [
     {

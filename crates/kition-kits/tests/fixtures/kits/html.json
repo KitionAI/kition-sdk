@@ -14,7 +14,8 @@
     "module": "kition_html_kit",
     "class": "HtmlDocument",
     "contract": 2,
-    "crate": "kition-html-kit"
+    "crate": "kition-html-kit",
+    "editorState": ["width", "height"]
   },
   "model": {
     "schema": "crates/kition-html-kit/model/schema.json",

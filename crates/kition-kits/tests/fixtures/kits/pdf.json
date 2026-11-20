@@ -12,7 +12,8 @@
     "module": "kition_pdf_kit",
     "class": "PdfDocument",
     "contract": 2,
-    "crate": "kition-pdf-kit"
+    "crate": "kition-pdf-kit",
+    "editorState": []
   },
   "formats": [
     {

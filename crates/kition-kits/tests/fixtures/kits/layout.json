@@ -12,7 +12,8 @@
     "module": "kition_layout_kit",
     "class": "LayoutDocument",
     "contract": 2,
-    "crate": "kition-layout-kit"
+    "crate": "kition-layout-kit",
+    "editorState": ["/selection", "/activeLayer", "/tool"]
   },
   "formats": [
     {

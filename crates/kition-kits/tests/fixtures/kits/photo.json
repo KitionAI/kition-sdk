@@ -12,7 +12,8 @@
     "module": "kition_photo_kit",
     "class": "PhotoDocument",
     "contract": 2,
-    "crate": "kition-photo-kit"
+    "crate": "kition-photo-kit",
+    "editorState": ["/activeLayer", "/selectedLayers", "/isolatedLayers", "/effectsCollapsed", "/hasSelection", "/selectionBounds", "/layerMaskView", "/symmetry", "/quickMask", "/channels/target", "/historyIndex", "/historyRedo", "selected"]
   },
   "formats": [
     {

@@ -12,7 +12,8 @@
     "module": "kition_note_kit",
     "class": "NoteDocument",
     "contract": 2,
-    "crate": "kition-note-kit"
+    "crate": "kition-note-kit",
+    "editorState": ["view"]
   },
   "formats": [
     {

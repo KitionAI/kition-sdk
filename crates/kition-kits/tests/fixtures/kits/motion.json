@@ -12,7 +12,8 @@
     "module": "kition_motion_kit",
     "class": "MotionDocument",
     "contract": 2,
-    "crate": "kition-motion-kit"
+    "crate": "kition-motion-kit",
+    "editorState": ["/time", "/info/transform", "selected"]
   },
   "formats": [
     {

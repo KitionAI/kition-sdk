@@ -12,7 +12,8 @@
     "module": "kition_film_kit",
     "class": "FilmDocument",
     "contract": 2,
-    "crate": "kition-film-kit"
+    "crate": "kition-film-kit",
+    "editorState": ["/playhead", "/sequence/playhead", "/sequence/selection", "/project/activeSequence", "/project/sourceItem", "/project/epoch", "/project/path", "/project/dirty", "/project/revision", "/prefsRevision", "/stateDigest"]
   },
   "formats": [
     {
