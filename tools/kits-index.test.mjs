@@ -179,6 +179,20 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     expect(() => kitsOfModules({ Note: {} })).toThrow(/not a kit name/)
   })
 
+  it('reads a tarball’s size from a one-byte range when the HEAD has no Content-Length, as registry.npmjs.org answers', async () => {
+    const asked = []
+    const fetchImpl = async (url, { method, headers }) => {
+      asked.push(`${method} ${url}${headers.Range ? ` ${headers.Range}` : ''}`)
+      if (method === 'HEAD') return new Response(null, { status: 200, headers: { 'accept-ranges': 'bytes' } })
+      if (String(url).endsWith('whole.tgz')) return new Response('all of it', { status: 200 })
+      return new Response('x', { status: 206, headers: { 'content-range': 'bytes 0-0/10138522' } })
+    }
+    const net = registryNet({ fetchImpl })
+    expect(await net(`${REGISTRY}x/-/x-1.0.0.tgz`, { as: 'size' })).toBe(10138522)
+    expect(asked).toEqual([`HEAD ${REGISTRY}x/-/x-1.0.0.tgz`, `GET ${REGISTRY}x/-/x-1.0.0.tgz bytes=0-0`])
+    await expect(net(`${REGISTRY}x/-/whole.tgz`, { as: 'size' })).rejects.toThrow('no size')
+  })
+
   it('asks the registry over HTTP: metadata, a 404 as no package, a tarball’s size by HEAD, an error otherwise', async () => {
     const asked = []
     const fetchImpl = async (url, { method }) => {

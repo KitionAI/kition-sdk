@@ -17,7 +17,7 @@
 // --out       where the index goes
 // --previous  the index published now: the report names the archives that enter or leave, and a
 //             package listed there with the same integrity keeps its size (the registry gives a
-//             tarball's size only to a HEAD request of it)
+//             tarball's size only to a HEAD request of it, or to a one-byte range)
 // --package   with --version, also writes the folder of the package @kition/kits-index at that
 //             version (package.json and kits-index.json) for `npm publish`
 // --dry-run   writes nothing; prints what the index would hold
@@ -181,7 +181,8 @@ export const serialize = (index) => `${JSON.stringify(ordered(index), null, 2)}\
 
 /**
  * The npm registry over HTTP: `net(url, { as })` answers the parsed JSON of a 200 (`as: 'json'`),
- * null for a 404, or the size a HEAD request of a tarball gives (`as: 'size'`); it throws on
+ * null for a 404, or the size a HEAD request of a tarball gives, else a one-byte range of it
+ * (`as: 'size'`); it throws on
  * anything else.
  */
 export function registryNet({ fetchImpl = globalThis.fetch } = {}) {
@@ -195,8 +196,14 @@ export function registryNet({ fetchImpl = globalThis.fetch } = {}) {
     }
     if (as === 'size') {
       const size = Number(response.headers.get('content-length'))
-      if (!Number.isSafeInteger(size) || size < 1) throw new Error(`${url}: no size (Content-Length)`)
-      return size
+      if (Number.isSafeInteger(size) && size > 0) return size
+      // registry.npmjs.org answers a tarball's HEAD without Content-Length; the total of a
+      // one-byte range (Content-Range: bytes 0-0/<size>) is the size.
+      const ranged = await fetchImpl(url, { method: 'GET', headers: { ...headers, Range: 'bytes=0-0' }, redirect: 'follow' })
+      await ranged.body?.cancel().catch(() => {})
+      const total = ranged.status === 206 ? Number(/^bytes 0-0\/([0-9]+)$/.exec(ranged.headers.get('content-range') ?? '')?.[1]) : NaN
+      if (!Number.isSafeInteger(total) || total < 1) throw new Error(`${url}: no size (Content-Length of a HEAD, or Content-Range of a one-byte range)`)
+      return total
     }
     const text = await response.text()
     try {
