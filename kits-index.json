@@ -36,6 +36,11 @@
               "size": 9778789,
               "sha256": "da0f63fda7b6b7e563f26a0642d85ae89f2e677cd7191fc4d7873a1501326ac5"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.0/kition-board-0.1.0.tgz",
+            "size": 9431891,
+            "sha256": "8da8de54b5adba2cbdabba0ca1e1756e129be7cae38be4cce6aee2c2c755a092"
           }
         },
         "0.1.1": {
@@ -66,6 +71,11 @@
               "size": 9780973,
               "sha256": "b474bdad22462d5b11597139873f1eeeccec40b8cbd2449b866c2800279bdbbf"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.1/kition-board-0.1.1.tgz",
+            "size": 9432857,
+            "sha256": "2762905ad62a29aba94610f677a8ddbb3dd32a5b1979c5d7ad5f27f9de69aab2"
           }
         },
         "0.1.2": {
@@ -96,6 +106,11 @@
               "size": 9784147,
               "sha256": "6ccb79c67bdc90dd17bcf5cc532ce2d89f48edb2e998d79b1d5fa277df3c4a24"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-board/releases/download/package-v0.1.2/kition-board-0.1.2.tgz",
+            "size": 9437398,
+            "sha256": "ff9e560a8279dcd573c6a4c3c8f25043d594619ed03d35cc47993af482275afc"
           }
         }
       }
@@ -135,6 +150,11 @@
               "size": 12222995,
               "sha256": "80e92d77dbb83fa437e6e58f4e0a93efce7aeb2f0b86d44fd336cf12690f2768"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-cad/releases/download/package-v0.1.0/kition-cad-0.1.0.tgz",
+            "size": 6145623,
+            "sha256": "62322fa2b65df4a4cb551f0ddd962196f22d71d23a5a32e88641aafbb4751049"
           }
         }
       }
@@ -174,6 +194,11 @@
               "size": 38874068,
               "sha256": "2d496f487f010f8597f63e749ddd485cbb0b0a9faca620b24c25a8e9518e2eb1"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-design/releases/download/package-v0.1.0/kition-design-0.1.0.tgz",
+            "size": 16286844,
+            "sha256": "eb61affa87387cd0db41220aaeaec406a302f941d648dcb692bf5967b3177662"
           }
         }
       }
@@ -213,6 +238,11 @@
               "size": 18678357,
               "sha256": "942901d2d60af61c231da2593f98c2536752f03363bfd3e27e6def8b07f3304b"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.0/kition-doc-0.1.0.tgz",
+            "size": 17788050,
+            "sha256": "2e2e8ab3ca0ae8bbfb464db55d33c3b22b18e13106f0a7d805fa9106733ce136"
           }
         },
         "0.1.1": {
@@ -243,6 +273,11 @@
               "size": 18678349,
               "sha256": "a36e825e818ea69124f9e7af7ec85540cf51ba2e8d8362d2d6239a71db43be6e"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-doc/releases/download/package-v0.1.1/kition-doc-0.1.1.tgz",
+            "size": 17787021,
+            "sha256": "087d00c4a977dbd43c670ca607ad2ba0974ab9c29f5aa92dc92fef3629f3eed6"
           }
         }
       }
@@ -282,6 +317,11 @@
               "size": 17545402,
               "sha256": "2d72221b1ea67e0fd27085aafa1fb0aee4f0b02bd7814f7802f08afef7d02693"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-film/releases/download/package-v0.1.0/kition-film-0.1.0.tgz",
+            "size": 11617197,
+            "sha256": "a56fec0937a3b8834b3323c090cd3bf334a36cf61a0490c83932ff1c3d8b8e0f"
           }
         }
       }
@@ -322,6 +362,11 @@
               "size": 17181539,
               "sha256": "f37115706614a5fcd0da4edf04a60c757d31dfd5228e3667e758dae97f1f3e37"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-html/releases/download/package-v0.1.0/kition-html-0.1.0.tgz",
+            "size": 11300435,
+            "sha256": "0f52ebbb99d9c366f2aad791d3d7af29a106063117490b74908f703d6759ad68"
           }
         }
       }
@@ -361,6 +406,11 @@
               "size": 47935479,
               "sha256": "5a6b08e220e4e560019844b0619b3dc67348ed9d3ebdfa0b57c6a62b06815bdb"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.0/kition-layout-0.1.0.tgz",
+            "size": 17602308,
+            "sha256": "b54458427c7e51cbd93229558e955531fd075d61f88a111eeb99a8cdd17887f2"
           }
         },
         "0.1.1": {
@@ -391,6 +441,11 @@
               "size": 47935464,
               "sha256": "62964139ae7feb61a52cf77eebe122a5c34915e90f71de978cf9d1d0a1c040a2"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-layout/releases/download/package-v0.1.1/kition-layout-0.1.1.tgz",
+            "size": 17600610,
+            "sha256": "3ba525c5be7a0d576e03519eabbcbc1f873f1229546c51e46518a8ee914ecc0f"
           }
         }
       }
@@ -430,6 +485,11 @@
               "size": 26972816,
               "sha256": "bdc8506fdfb1f3fcb1ff009aa833a4f59a3af008879dcb4b09cf9d049c42720b"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.0/kition-motion-0.1.0.tgz",
+            "size": 17692776,
+            "sha256": "06870c43cd046665b11e1303e05036516d0072a972e159cde9f686d11315982b"
           }
         },
         "0.1.1": {
@@ -460,6 +520,11 @@
               "size": 26971525,
               "sha256": "28e2ac3011b2c108d006c889c3934f984bfc4cff46732259c13971a8a6ff1654"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-motion/releases/download/package-v0.1.1/kition-motion-0.1.1.tgz",
+            "size": 17692871,
+            "sha256": "608ad201ee07882ad5f489c044545852c11e02d3897858fe00a2f28a9fe945b7"
           }
         }
       }
@@ -500,6 +565,11 @@
               "size": 13777881,
               "sha256": "95b1ef082f4b3aee4b513c81709401fca12d34fd17a5ec70dfd67050e340b207"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-note/releases/download/package-v0.1.2/kition-note-0.1.2.tgz",
+            "size": 12971385,
+            "sha256": "de254693ce81e4b4b46758b0df77bbb86a1e26f538a26801d4f7f30ed89d341d"
           }
         }
       }
@@ -539,6 +609,11 @@
               "size": 18218262,
               "sha256": "3f335217c62756a7870870a63c87fc9b58f1bb1c31b139cd96abc5f97548f286"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.0/kition-pdf-0.1.0.tgz",
+            "size": 13318758,
+            "sha256": "d5bd3835aa95dc4383f4e497b4e80200c1aaf7e84d65551fd696d7a93438edf7"
           }
         },
         "0.1.1": {
@@ -569,6 +644,11 @@
               "size": 18218255,
               "sha256": "91545270f6714aceb6c5debc419ed423a38847b5e22f48f713adedd2c6f55b98"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-pdf/releases/download/package-v0.1.1/kition-pdf-0.1.1.tgz",
+            "size": 13317037,
+            "sha256": "3a8ee6ba9aaeea680c2a8fb8f1fa6424d6690f600b2f6a5925cd4fec2d69b357"
           }
         }
       }
@@ -610,6 +690,11 @@
               "size": 21372098,
               "sha256": "83c2b07e7eca6b8173563e6de9acf65fd6073ef33b6895c5d852e9cd09502fdf"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-photo/releases/download/package-v0.1.0/kition-photo-0.1.0.tgz",
+            "size": 14532481,
+            "sha256": "f1c6bfff3ea468c13391001ac6e62a900f33a4a139897dbb9277bd9db9651eee"
           }
         }
       }
@@ -649,6 +734,11 @@
               "size": 10666542,
               "sha256": "9f9be53bd92253ed5bdd05f528a887a03e1fedb5ec515b372e630670d0263594"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.0/kition-scene-0.1.0.tgz",
+            "size": 7774456,
+            "sha256": "552e79fa4b2c0938ad9244796924a69b47379f44a7b59dcf876f4b7343ec3440"
           }
         },
         "0.1.1": {
@@ -679,6 +769,11 @@
               "size": 10665674,
               "sha256": "824319fc365b716e0ce5ffdb98343a9c5f8f4961a69274bac458c1cf52ec6a5d"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-scene/releases/download/package-v0.1.1/kition-scene-0.1.1.tgz",
+            "size": 7777615,
+            "sha256": "7e21cff1fd05016dd0c54141d57526d4c1429482e552c009c87b6b0aa207b660"
           }
         }
       }
@@ -719,6 +814,11 @@
               "size": 13219850,
               "sha256": "7dd87a4709dbc7c957d8880e03b8e6816ea58ed2c8868fa71e42f0360d2a687d"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.0/kition-sheet-0.1.0.tgz",
+            "size": 18483527,
+            "sha256": "33577418f7e76c6922bf0334f8edef6995b3689263c9baa0b85d5579125c6a7d"
           }
         },
         "0.1.1": {
@@ -749,6 +849,11 @@
               "size": 13216164,
               "sha256": "5308a92f0fb5e9bf8437fe1ed5c5e41a5d8cb79e0c7d41b58ec5b1fa1eb5e1df"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-sheet/releases/download/package-v0.1.1/kition-sheet-0.1.1.tgz",
+            "size": 18483590,
+            "sha256": "c7716dc49a0f951f24312dbe5e62b43dde42d663c77bfc1674fbf3ccfd742a12"
           }
         }
       }
@@ -789,6 +894,11 @@
               "size": 43235888,
               "sha256": "a05874f4b4cd6ada258664f6f1aa62c69ba26dc79ae830679b44fc015be430e3"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.0/kition-slide-0.1.0.tgz",
+            "size": 19203620,
+            "sha256": "7ad2ca559620a02da9471031bdc65d3e43c38aab016623c5f100107ffccd7186"
           }
         },
         "0.1.1": {
@@ -819,6 +929,11 @@
               "size": 43235892,
               "sha256": "8f56ac276b0873b01be60c590092facda61509699fefd647955cb67df63e9664"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-slide/releases/download/package-v0.1.1/kition-slide-0.1.1.tgz",
+            "size": 19202716,
+            "sha256": "41a1fed1e2bbbf024681bfb0c959b3f6d28fcae5e2f85faa77c5fd436707edc9"
           }
         }
       }
@@ -858,6 +973,11 @@
               "size": 15641677,
               "sha256": "5cdb1654a2bba04f4c52725af363df605e444da303df593640fd7580a421433d"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.5/kition-table-0.5.5.tgz",
+            "size": 22225338,
+            "sha256": "2b50a89458e39ba91986770840ba860fb40dfc0855d3fc3e156251254d5a05b2"
           }
         },
         "0.5.6": {
@@ -888,6 +1008,11 @@
               "size": 15640653,
               "sha256": "6d150f3104d4a0718bae53f0ac0740ecab660a2db7bb1bc0aabf92c825547be7"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-table/releases/download/package-v0.5.6/kition-table-0.5.6.tgz",
+            "size": 22226816,
+            "sha256": "d74e7e463708b86593614fc33f436777ab75bae460c563af4e5c8a76ff0cf4f4"
           }
         }
       }
@@ -927,6 +1052,11 @@
               "size": 25896509,
               "sha256": "b347bcfbbfd05e2992a71a22648be7afcf99f5a8e0a6cab33e874590acd5972e"
             }
+          },
+          "ui": {
+            "url": "https://github.com/KitionAI/kition-vector/releases/download/package-v0.1.0/kition-vector-0.1.0.tgz",
+            "size": 15672728,
+            "sha256": "7ad58c00afe4d4eb32e6f4e047b9cab43a6fd781bd96eeb70a80bf6e08d1f385"
           }
         }
       }
