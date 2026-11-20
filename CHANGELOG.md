@@ -78,6 +78,23 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `/drafts-merge`, `/drafts-discard`, the last two only from the person). It is no longer private;
   the release packs and publishes it. The old `kition-kits.stdio.cordis.patch.yml`, which started
   `kition-kits-mcp` with one variable per kit, is gone.
+- **Human and agent together in DeepSeek Harness** (`@kition/dsh-kits`): each turn's kit edits are
+  projected from the session log into review cards at the turn's tail (the file, its kit, a picture
+  and the counts of what changed, and whether it was edited live, saved, drafted, stale, merged or
+  discarded), with Open, Review and the person's own Merge, Discard and Merge and overwrite, never
+  an agent's tool; the cards follow the drafts live and stay after a reload. While an agent edits a
+  file that is not open, a floating window shows it without taking the keyboard. The person's
+  settings (the live window, opening a file after the agent's first edit, Kition or DeepSeek
+  Harness's preview first) are on the plugin's page, kept in the profile. An Open with preview's tab
+  shows unsaved and draft marks and asks before it closes, the editor hands DeepSeek Harness its
+  shortcuts, the kits' resources reach agents through DeepSeek Harness's resource tools, and the
+  kit tools appear without a restart once kition is installed (until then one `kition_setup` tool
+  says how), and are listed again after an upgrade.
+- **View-only formats open read-only**: `GET /api/v1/kits` lists each kit's `views` (its `view`
+  formats no kit edits there), and the gateway's page opens such a file in the kit's editor
+  read-only (`state` gains `readOnly`). The page also takes a host's extra shortcuts (`keys=`),
+  opens without taking the focus (`focus=no`), opens the draft's review on a host's `review`
+  command, and takes a merge made outside it (a host's review card).
 - **One skill generator for both agent plugins**: `tools/agent-plugin-skills.mjs` (was
   `tools/claude-plugin-skills.mjs`) writes and checks the Claude Code and DeepSeek Harness skills
   (`--target claude-code|deepseek-harness`, both by default); its test is

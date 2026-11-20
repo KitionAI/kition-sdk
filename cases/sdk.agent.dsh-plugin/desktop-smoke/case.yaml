@@ -7,9 +7,12 @@ intent: >-
   no sign-in, no model account, no update): the packed plugin installs into its desktop profile
   with the app's own CLI; a .ktable clicked in the file tree opens the real Table editor in the
   right sidebar under dsh-app://app/kition/w/<key>/page/; Cmd+W pressed in the editor reaches
-  DeepSeek Harness and closes the tab; and a scripted agent's mcp__kition__kit_run (the model
-  routed by the profile's own patch layer) adds a record in the open editor without a reload and
-  answers that it ran there. Skipped where the app is not installed.
+  DeepSeek Harness and closes the tab; a scripted agent's mcp__kition__kit_run (the model routed by
+  the profile's own patch layer) adds a record in the open editor without a reload and answers that
+  it ran there; its draft of another record shows a review card whose Merge merges it, the open
+  editor following; its edit of a file not open opens a live window; and the live window setting
+  turned off on the plugin's page is written into the profile. Skipped where the app is not
+  installed.
 layer: gate
 dimension: platform
 source:

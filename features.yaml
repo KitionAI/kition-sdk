@@ -706,18 +706,20 @@ features:
       - regressions/issue-agent-cube-guide
     since: "2026-11-16"
   - id: sdk.agent.dsh-plugin
-    title: "The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add (DeepSeek Harness 0.2.2-rc.5 web and headless, Desktop 0.2.2-rc.2 through the app's CLI): a kit file opens in its kit's editor (kition gateway's editor page) in the right sidebar, as a tab type for Kition-only extensions and under Open with for those DeepSeek Harness previews, behind DeepSeek Harness's own login on a same-origin /kition/ proxy that serves only its sessions' workspaces; the host module runs one gateway per workspace and registers the kits' tools so each session's calls reach its own folder's gateway, live in an open editor; the tab shows unsaved edits and the agent's drafts and asks before closing unsaved; plus an editing skill per published kit and the person's draft review"
-    dimension: [ai, platform, security]
+    title: "The DeepSeek Harness plugin @kition/dsh-kits installs with dsh plugin add (DeepSeek Harness 0.2.2-rc.5 web and headless, Desktop 0.2.2-rc.2 through the app's CLI): a kit file opens in its kit's editor (kition gateway's editor page) in the right sidebar, as a tab type for Kition-only extensions and under Open with (or first, as the person sets) for those DeepSeek Harness previews, a kit's view-only formats read-only, behind DeepSeek Harness's own login on a same-origin /kition/ proxy that serves only its sessions' workspaces; the tab (Kition's and DeepSeek Harness's preview alike) shows unsaved edits and the agent's drafts and asks before closing unsaved, follows the theme and language, and hands DeepSeek Harness its shortcuts; the host module runs one gateway per workspace and registers the kits' tools and resources so each session's calls reach its own folder's gateway, live in an open editor, a setup tool while kition is missing, the tools listed again when kition appears or changes; each turn's kit edits are projected from the session log into review cards at the turn's tail (Open, Review, the person's Merge, Discard and Merge and overwrite), a live floating window shows an agent's edit of a file not open, and the person's settings live on the plugin's page; plus an editing skill per published kit and the person's draft review"
+    dimension: [ai, platform, security, collab]
     priority: P1
     status: partial
-    gap: "Following a change of DeepSeek Harness's language, preview images as attachments and the web UI's shortcut hand-off have no test; an Open with preview's tab (DeepSeek Harness's own) shows no unsaved or draft mark and its close button does not ask; the kits' MCP resources are not offered; the tool list is read when DeepSeek Harness starts; installing through Desktop's Plugins page, Windows, Linux and a browser on another machine are untested"
+    gap: "A kit's view-only formats open only once the kit is installed (the kit index lists edit formats only), and only Sheet's .csv is tested; a draft's merged or discarded outcome is kept in the browser that did it; installing through Desktop's Plugins page, Windows and Linux hosts and a browser on another machine are untested"
     paths:
       - plugins/deepseek-harness/kition-kits/**
       - tools/dsh-plugin.test.mjs
       - tools/dsh-plugin-host.test.mjs
+      - tools/dsh-plugin-client.test.ts
     cases:
       - sdk.agent.dsh-plugin/bundle
       - sdk.agent.dsh-plugin/host
+      - sdk.agent.dsh-plugin/review
       - sdk.agent.dsh-plugin/web-e2e
       - sdk.agent.dsh-plugin/desktop-smoke
       - regressions/issue-dsh-session-workspace
@@ -1968,7 +1970,7 @@ features:
     dimension: [platform, ai, security]
     priority: P1
     status: partial
-    gap: "Only edit formats open (a kit's view-only formats, such as Doc's .html or Vector's .svg, are not offered: /kits lists edit extensions only); no host/pick, print, links/pick, open-file, generate or co-editing (leases, presence); read-only opening is not offered; the KitFiles picker is a plain list of the gateway's choices; the person's own undo (Cmd+Z) leaves an agent's live edit, which the agent's undo scope takes back (KitModel M12a)"
+    gap: "A kit's view-only formats (GET /kits views, opened read-only) are known only for installed kits: the kit index lists edit formats only; no host/pick, print, links/pick, open-file, generate or co-editing (leases, presence); the KitFiles picker is a plain list of the gateway's choices; the person's own undo (Cmd+Z) leaves an agent's live edit, which the agent's undo scope takes back (KitModel M12a)"
     paths:
       - packages/gateway-page/**
       - crates/kition-kits-http/src/page.rs

@@ -1,0 +1,27 @@
+format: 1
+id: sdk.agent.dsh-plugin/review
+feature: sdk.agent.dsh-plugin
+intent: >-
+  The browser module's turn projection reads each turn's kit tool calls from the session's events:
+  the files touched (paths normalized), each call's action, and whether it ran live in an open
+  editor, on a draft, or failed, from the result's kept presentation (or its text where there is
+  none), publishing them at the turn's location only when there are any; a review card is there
+  only for a file the turn changed, says pending, failed, edited live, edited, created, draft
+  (open, ready, stale), merged, discarded, draft gone or missing as the gateway's drafts and the
+  person's own actions say, and offers Merge and Discard for a draft, Merge and overwrite only for
+  a stale one, and nothing that changes a file for any other state.
+layer: gate
+source:
+  kind: synthetic
+  from: tools/dsh-plugin-client.test.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/dsh-plugin-client.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 60

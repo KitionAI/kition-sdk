@@ -7,7 +7,9 @@
  * sidebar, served through the app's dsh-app:// forwarding; Cmd+W pressed in the editor reaches
  * DeepSeek Harness (the frame is one it routes shortcuts to) and closes the tab; and a scripted
  * agent's `mcp__kition__kit_run` (the profile's own patch layer routes the model to it) adds a record
- * in the open editor, live.
+ * in the open editor, live; its draft of another record shows a review card in the turn's tail, and
+ * Merge on the card merges it, the open editor following; its edit of a file not open shows in a
+ * floating window; and the plugin's settings card writes the setting into the profile.
  *
  * DSH_DESKTOP_APP names the app (default /Applications/DeepSeek Harness.app). No account is signed
  * in, no model configured, no update accepted.
@@ -31,6 +33,7 @@ let base: string
 let env: NodeJS.ProcessEnv
 let model: Awaited<ReturnType<typeof scriptedModel>>
 const ADDED = 'Added by the agent in DeepSeek Harness Desktop'
+const DRAFTED = 'Drafted by the agent in DeepSeek Harness Desktop'
 
 async function launch(): Promise<{ desktop: ElectronApplication; page: Page }> {
   const desktop = await electron.launch({ executablePath: executable, args: [`--user-data-dir=${path.join(base, 'userdata')}`], env: env as Record<string, string>, timeout: 120_000 })
@@ -43,16 +46,21 @@ test.afterAll(() => model?.stop())
 
 test.beforeAll(async () => {
   fs.mkdirSync(shots, { recursive: true })
-  model = await scriptedModel({ 'Add a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }] })
+  model = await scriptedModel({
+    'Add a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }],
+    'Add to the later table': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'later.ktable', steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }],
+    'Draft a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', draft: true, steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: DRAFTED } } }] } }, { say: 'Drafted.' }],
+  })
   base = scratch('desktop')
   const workspace = path.join(base, 'home/Documents/deepseek-harness/default-workspace')
   fs.mkdirSync(workspace, { recursive: true })
   fs.copyFileSync(tableSample(), path.join(workspace, 'tasks.ktable'))
+  fs.copyFileSync(tableSample(), path.join(workspace, 'later.ktable'))
   installKits(path.join(base, 'kition'), ['table'])
   env = isolated(base, { KITION_INDEX: index, KITION_BIN: kition, SCRIPTED_PORT: String(model.port), SCRIPTED_API_KEY: 'scripted' })
 })
 
-test('the app’s CLI installs the plugin into the Desktop profile; a .ktable opens in the real Table editor, Cmd+W there closes the tab, and an agent’s kit tool edits it live', async () => {
+test('the app’s CLI installs the plugin into the Desktop profile; a .ktable opens in the real Table editor, Cmd+W there closes the tab, an agent’s kit tool edits it live, a draft’s card merges it, the live window opens, and the settings are kept', async () => {
   // The app makes its profile on its first start.
   const first = await launch()
   await expect.poll(() => fs.existsSync(path.join(base, 'dsh/profiles/desktop/package.json')), { timeout: 60_000 }).toBe(true)
@@ -109,6 +117,33 @@ test('the app’s CLI installs the plugin into the Desktop profile; a .ktable op
     const answered = () => model.requests.flatMap((request) => request.messages).filter((message) => message.role === 'tool').map((message) => JSON.stringify(message.content)).join('\n')
     await expect.poll(answered).toContain('in its open Table editor')
     await page.screenshot({ path: path.join(shots, 'dsh-desktop-agent-live.png') })
+
+    // The turn's review card: an agent's draft, merged by the person from the card; the open editor follows.
+    await page.locator('[data-composer-input]').first().click()
+    await page.keyboard.type('Draft a record')
+    await page.keyboard.press('Enter')
+    const card = page.locator('[data-kition-card="tasks.ktable"]').last()
+    await expect(card).toHaveAttribute('data-state', 'draft-open', { timeout: 120_000 })
+    await card.locator('[data-kition-card-action="merge"]').click()
+    await expect(card).toHaveAttribute('data-state', 'merged', { timeout: 60_000 })
+    await expect.poll(() => fs.readFileSync(path.join(base, 'home/Documents/deepseek-harness/default-workspace/tasks.ktable')).includes(DRAFTED), { timeout: 30_000 }).toBe(true)
+    await expect(table.getByText('5 records')).toBeVisible({ timeout: 60_000 })
+    await page.screenshot({ path: path.join(shots, 'dsh-desktop-card-merged.png') })
+
+    // The live window: an edit of a file not open shows in a floating window.
+    await page.locator('[data-composer-input]').first().click()
+    await page.keyboard.type('Add to the later table')
+    await page.keyboard.press('Enter')
+    await expect.poll(() => page.frames().find((frame) => frame.url().includes('/page/') && frame.url().includes('later.ktable'))?.url() ?? '', { timeout: 120_000 }).toContain('focus=no')
+    await page.screenshot({ path: path.join(shots, 'dsh-desktop-live-window.png') })
+
+    // The settings, on the plugin's page, kept in the profile.
+    await page.getByText('Plugins', { exact: true }).first().click()
+    await page.getByText('@kition/dsh-kits', { exact: true }).first().click()
+    const toggle = page.locator('[data-kition-setting="liveFloat"]')
+    await expect(toggle).toBeChecked()
+    await toggle.click()
+    await expect.poll(() => fs.readFileSync(path.join(base, 'dsh/profiles/desktop/cordis.patch.yml'), 'utf8')).toContain('liveFloat: false')
   } finally {
     await desktop.close()
   }
