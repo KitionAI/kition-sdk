@@ -14,6 +14,7 @@ import { Freshness } from './freshness.mjs'
 import { LiveAnnouncer } from './live.mjs'
 import { catalog, connectionId, GatewayMcp } from './mcp.mjs'
 import { Gateways } from './gateways.mjs'
+import { kitOptions } from './kition.mjs'
 import { createRoutes, PREFIX } from './routes.mjs'
 import { KitTools, SERVER } from './tools.mjs'
 import { Workspaces } from './workspaces.mjs'
@@ -95,6 +96,9 @@ async function sessionFolder(ctx, id) {
   return (await ctx.get('sessionPersistence')?.stat?.(id))?.header?.cwd
 }
 
+/** Whether the kits' tools are the unified set (`KITION_KITS_UNIFIED`, `true` unset), as kitOptions passes it. */
+const unifiedTools = () => kitOptions(process.env).includes('--unified')
+
 export function apply(ctx, config) {
   const logger = typeof ctx.logger === 'function' ? ctx.logger('kition') : null
   const log = (message) => (logger ? logger.info(message) : process.stderr.write(`kition: ${message}\n`))
@@ -112,7 +116,7 @@ export function apply(ctx, config) {
     name: `${name}/tools`,
     inject: ['tools'],
     async apply(inner) {
-      const tools = new KitTools({ ctx: inner, register: (definition) => inner.tools.register(definition), gateways, mcp: new GatewayMcp(), log, beforeEdit: (sessionId, path) => live.announce(sessionId, path) })
+      const tools = new KitTools({ ctx: inner, register: (definition, options) => inner.tools.register(definition, options), gateways, mcp: new GatewayMcp(), log, beforeEdit: (sessionId, path) => live.announce(sessionId, path) })
       inner.effect(() => () => tools.dispose(), 'kition: kit tools')
       inner.inject(['systemPrompt'], (prompt) => {
         prompt.effect(
@@ -134,7 +138,10 @@ export function apply(ctx, config) {
       inner.effect(() => () => fresh.stop(), 'kition: keeping the kit tools current')
       kitTools = tools
       freshness = fresh
-      await fresh.start()
+      const first = fresh.start()
+      // The unified tools are there before the kits list them: a session's first step waits for the list.
+      if (unifiedTools()) tools.reserve(first)
+      await first
     },
   })
 

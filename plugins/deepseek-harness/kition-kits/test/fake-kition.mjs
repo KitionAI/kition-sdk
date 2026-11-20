@@ -12,6 +12,7 @@
 //
 // `kition gateway --help` answers as the real one's usage does (the plugin checks a kition has it);
 // `--version`, the lockfile and the lines say FAKE_KITION_VERSION (0.0.0 unset).
+// FAKE_KITION_SLOW_MS delays each answer of `kition mcp` (a cold start).
 // FAKE_KITION_LOG, when set, gets one line per start: the arguments.
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -38,9 +39,10 @@ if (args[0] === 'mcp') {
     const message = JSON.parse(line)
     if (message.id === undefined) return
     const result = message.method === 'initialize' ? { instructions: 'Stand-in kits.' } : { tools: toolList() }
-    process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n`)
+    // FAKE_KITION_SLOW_MS: a kition mcp slow to answer (a cold start).
+    setTimeout(() => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n`), Number(process.env.FAKE_KITION_SLOW_MS ?? 0))
   })
-  process.stdin.on('end', () => process.exit(0))
+  process.stdin.on('end', () => setTimeout(() => process.exit(0), Number(process.env.FAKE_KITION_SLOW_MS ?? 0) + 50))
 } else if (args[0] !== 'gateway') process.exit(2)
 else {
 const workspace = fs.realpathSync(args[args.indexOf('--workspace') + 1])

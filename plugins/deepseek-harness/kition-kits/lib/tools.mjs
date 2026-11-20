@@ -22,6 +22,12 @@ export const SERVER = 'kition'
 /** The one tool there is while no kition can run. */
 export const SETUP_TOOL = 'kition_setup'
 export const TOOL_PREFIX = `mcp__${SERVER}__`
+
+/** The kits' unified tools (kition-kits' Action::ALL, `kit_<action>`): the names known before the kits list them. */
+export const UNIFIED_TOOLS = ['inspect', 'commands', 'run', 'draft_ready', 'draft_reopen', 'query', 'batch', 'check', 'export', 'create'].map((action) => `kit_${action}`)
+
+/** How long an agent's first step waits at most for the kits' first tool list (`reserve`). */
+export const FIRST_LISTING_MS = 30_000
 /** A run of edits on a large document can take a while. */
 export const TOOL_TIMEOUT_MS = 180_000
 
@@ -99,7 +105,7 @@ export const contentText = (content, reason) => projectContent(content, null, re
  * The kit tools of the host module.
  * @param {{
  *   ctx: { get(name: string): any },
- *   register: (definition: object) => () => void,
+ *   register: (definition: object, options?: { when?: () => Promise<boolean> }) => () => void,
  *   gateways: import('./gateways.mjs').Gateways,
  *   mcp: import('./mcp.mjs').GatewayMcp,
  *   log?: (message: string) => void,
@@ -115,13 +121,50 @@ export class KitTools {
     this.gateways = gateways
     this.mcp = mcp
     this.log = log
-    /** @type {Map<string, { json: string, dispose: () => void }>} */
+    /**
+     * @type {Map<string, { json: string | null, dispose: () => void, definition?: object, listed?: boolean }>}
+     * `definition`, `listed`: a reserved name's (`reserve`), whose definition is filled in place
+     */
     this.registered = new Map()
+    /** The first listing, bounded, which a reserved tool's step waits for. */
+    this.first = Promise.resolve()
     this.instructions = ''
     /** @type {WeakMap<object, string>} agent → its connection to the gateways */
     this.connections = new WeakMap()
     this.projections = new WeakMap()
     this.refreshing = null
+  }
+
+  /**
+   * Holds the agents' steps for the kits' first tool list (`listing`), at most `boundMs`: DeepSeek
+   * Harness takes the tools a step may offer from those registered when the step begins, and the
+   * list comes from a `kition mcp` started with the host, which can take seconds; a session's first
+   * request was sent without them. So the unified tools' names, known before any listing, are
+   * registered now, each admitted to a step only once listed (DeepSeek Harness waits for a
+   * registration's `when` while it prepares the step), its definition filled in place by then.
+   */
+  reserve(listing, { boundMs = FIRST_LISTING_MS, names = UNIFIED_TOOLS } = {}) {
+    let timer
+    this.first = Promise.race([
+      Promise.resolve(listing).catch(() => undefined),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, boundMs)
+        timer.unref?.()
+      }),
+    ]).finally(() => clearTimeout(timer))
+    for (const action of names) {
+      const name = `${TOOL_PREFIX}${action}`
+      if (this.registered.has(name)) continue
+      const definition = this.definition(name, { name: action, description: 'A Kition kit tool, listed once the kits are.', inputSchema: { type: 'object' } })
+      const entry = { json: null, definition, listed: false, dispose: () => {} }
+      entry.dispose = this.registerTool(definition, {
+        when: async () => {
+          await this.first
+          return this.registered.get(name) === entry && entry.listed
+        },
+      })
+      this.registered.set(name, entry)
+    }
   }
 
   /** The tools the kits' MCP server lists now, registered (those gone removed, those changed replaced). */
@@ -130,6 +173,15 @@ export class KitTools {
     const next = new Map(tools.map((tool) => [`${TOOL_PREFIX}${tool.name}`, tool]))
     for (const [name, entry] of this.registered) {
       const tool = next.get(name)
+      if (entry.definition) {
+        // A reserved name stays registered: listed, its definition is the kits' now; not, it is not offered.
+        entry.listed = Boolean(tool)
+        if (tool && JSON.stringify(tool) !== entry.json) {
+          Object.assign(entry.definition, this.definition(name, tool))
+          entry.json = JSON.stringify(tool)
+        }
+        continue
+      }
       if (!tool || JSON.stringify(tool) !== entry.json) {
         entry.dispose()
         this.registered.delete(name)

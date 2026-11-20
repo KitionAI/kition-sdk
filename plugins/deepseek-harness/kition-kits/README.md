@@ -203,7 +203,12 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
   DeepSeek Harness's tool registry under the names its MCP client would give them,
   `mcp__kition__<tool>`, and the kits' instructions as the MCP server section of the system prompt.
   The tools and the instructions come from a `kition mcp` for an empty folder of its own, run once
-  at start, and are listed again after calls (a kit installed on first use can add tools). A call
+  at start, and are listed again after calls (a kit installed on first use can add tools). That
+  first list can take seconds, and DeepSeek Harness offers a step the tools registered when the
+  step begins, so the unified tools' names (`kit_inspect`, ..., known beforehand) are registered at
+  start, each with a condition (`when`) that DeepSeek Harness waits for while it prepares a step:
+  it holds until the first list (at most 30 seconds) and admits the tool only if the kits listed
+  it, its definition filled in from the list. A call
   goes to the kits' MCP server of the gateway of the calling session's workspace folder
   (`POST /api/v1/mcp/kits`, one connection per agent). DeepSeek Harness's own MCP client cannot do
   this: it runs one server per host, on one folder (in Desktop the host's folder is the profile's),
@@ -282,6 +287,10 @@ DeepSeek Harness bundles have no settings form, so the options are environment v
 - The live window waits for no browser that is not showing the session: an agent's edit while
   nobody watches runs in the headless engine. When the page has no room right of the conversation
   (a narrow window, a wide right sidebar), the live window is the sidebar's tab.
+- The kits' unified tools are offered from a session's first step, which waits for the kits'
+  first tool list (at most 30 seconds after DeepSeek Harness started). With
+  `KITION_KITS_UNIFIED` off, the per-kit tools' names are not known before that list, so a step
+  that begins sooner goes without them.
 - DeepSeek Harness sends every tool definition with every request; the kits' tools are large (with
   Note and Table installed, about 93,000 characters of definitions).
 - The skill catalog shows at most 500 characters of a skill's description; the Scene kit's is

@@ -528,6 +528,85 @@ describe('keeping the kit tools current, without a restart', async () => {
   })
 })
 
+describe('the kit tools are there for a session’s first step (regressions/issue-dsh-tools-ready)', async () => {
+  const { KitTools, SETUP_TOOL, UNIFIED_TOOLS } = await import('../plugins/deepseek-harness/kition-kits/lib/tools.mjs')
+  const { GatewayMcp, catalog } = await import('../plugins/deepseek-harness/kition-kits/lib/mcp.mjs')
+  const { Freshness } = await import('../plugins/deepseek-harness/kition-kits/lib/freshness.mjs')
+  const kition = fakeBin('ready')
+
+  /**
+   * DeepSeek Harness's tool registry as its agent loop uses it (dsh-tools ToolsService.resolve, the
+   * same in 0.2.2-rc.2 and rc.5): a step offers the tools registered when it begins, each with a
+   * `when` admitted only once that resolves true; a tool registered later is in the next step.
+   */
+  function registry() {
+    const registrations = new Map()
+    return {
+      register: (definition, options = {}) => {
+        registrations.set(definition.name, { definition, when: options.when })
+        return () => registrations.delete(definition.name)
+      },
+      async step() {
+        const admitted = []
+        for (const [name, { definition, when }] of [...registrations]) if (when === undefined || (await when({}))) admitted.push({ name, description: definition.description })
+        return admitted
+      },
+    }
+  }
+
+  /** The host module's start, as lib/host.mjs makes it: list the kits, reserving the unified tools meanwhile. */
+  function start(env, { boundMs } = {}) {
+    const tools = registry()
+    const kitTools = new KitTools({ ctx: { get: () => undefined }, register: tools.register, gateways: new Gateways({ env }), mcp: new GatewayMcp() })
+    const fresh = new Freshness({ env, tools: kitTools, gateways: new Gateways({ env }), catalog, intervalMs: 60_000 })
+    const first = fresh.start()
+    kitTools.reserve(first, boundMs === undefined ? undefined : { boundMs })
+    return { tools, first, stop: () => (fresh.stop(), kitTools.dispose()) }
+  }
+
+  it('offers the kits’ tools in the first step even when kition lists them slowly (a cold start)', async () => {
+    const dirs = fresh('ready')
+    const env = { HOME: dirs.fakeHome, KITION_HOME: dirs.home, KITION_BIN: kition, FAKE_KITION_TOOLS: 'kit_inspect,kit_run', FAKE_KITION_SLOW_MS: '1500' }
+    const host = start(env)
+    try {
+      // The step begins at once: before the fix it found no kit tool, the list being 1.5 s away.
+      const offered = await host.tools.step()
+      expect(offered.map(({ name }) => name).sort()).toEqual(['mcp__kition__kit_inspect', 'mcp__kition__kit_run'])
+      expect(offered.find(({ name }) => name === 'mcp__kition__kit_run').description).toBe('the kit_run tool')
+      expect(UNIFIED_TOOLS).toContain('kit_inspect')
+    } finally {
+      host.stop()
+    }
+  }, 20_000)
+
+  it('answers at once when no kition can run: the setup tool only', async () => {
+    const dirs = fresh('ready-missing')
+    const env = { PATH: path.join(scratch, 'empty'), HOME: dirs.fakeHome, KITION_HOME: dirs.home }
+    if (!findKition(env).missing) return // a system folder of this machine has kition
+    const host = start(env)
+    try {
+      const started = Date.now()
+      expect((await host.tools.step()).map(({ name }) => name)).toEqual([SETUP_TOOL])
+      expect(Date.now() - started).toBeLessThan(2000)
+    } finally {
+      host.stop()
+    }
+  })
+
+  it('waits no longer than its bound for a kition that does not answer', async () => {
+    const dirs = fresh('ready-bound')
+    const env = { HOME: dirs.fakeHome, KITION_HOME: dirs.home, KITION_BIN: kition, FAKE_KITION_SLOW_MS: '60000' }
+    const host = start(env, { boundMs: 300 })
+    try {
+      const started = Date.now()
+      expect(await host.tools.step()).toEqual([])
+      expect(Date.now() - started).toBeLessThan(2000)
+    } finally {
+      host.stop()
+    }
+  })
+})
+
 describe('the live window’s handshake', async () => {
   const { LiveAnnouncer, liveWaitMs } = await import('../plugins/deepseek-harness/kition-kits/lib/live.mjs')
   const { PassThrough } = await import('node:stream')

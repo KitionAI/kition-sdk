@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-dsh-tools-ready
+feature: sdk.agent.dsh-plugin
+intent: >-
+  A session's first step in a DeepSeek Harness that just started offers the kits' tools even when
+  kition lists them slowly (a cold start): the plugin registers the unified tools' names at once,
+  each admitted to a step only once the kits listed it (DeepSeek Harness waits for a
+  registration's `when` while it prepares the step), its definition the kits' by then; the wait
+  is bounded, and with no kition the setup tool answers at once. Before, the tools were registered
+  when the list came, and a step that began earlier went to the model without them ("No Kition
+  tools were offered" in test/e2e.sh right after a kit build).
+layer: gate
+source:
+  kind: probe
+  from: tools/dsh-plugin-host.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/dsh-plugin-host.test.mjs, -t, "first step"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-20"
+timeout_s: 120
