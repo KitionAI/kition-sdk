@@ -4,6 +4,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **An editor opening a managed room never stores a state older than the file** (`@kition/embed`).
+  A page with no record of the room (another person, another browser, cleared site data) replaced
+  the host's stored replica, a save's checkpoint of the room's document under the file's current
+  version, with the room's snapshot from `snapshot/get` (its creation, seq 0) under that same
+  version; kits that rebuild on open (Slide, Doc, Sheet) then recorded the file on top as an
+  import and the relay replayed the room's changes, duplicating content on every reopen. A stored
+  replica of the room's document stamped with the file's version is now kept, record or not (the
+  first join catches up from the room's snapshot; imports are idempotent). When the embed must
+  store the room's state, it brings the snapshot up to the room's last save (`savedSeq`) first and
+  the relay joins from there (regressions/issue-embed-adopt-checkpoint).
 - **The DeepSeek Harness plugin never starts a kition without the gateway command**: its own
   kition, `KITION_BIN` and `KITION_KITS_MCP` are asked (`kition gateway --help`) like a system one;
   a capable kition after an old one is taken, and otherwise the tab and `kition_setup` name the

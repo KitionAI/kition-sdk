@@ -1414,6 +1414,7 @@ features:
       - packages/embed/tsconfig.build.json
       - crates/kition-sync-protocol/src/messages.rs
     cases:
+      - regressions/issue-embed-adopt-checkpoint
       - regressions/issue-embed-types-open-token
       - regressions/issue-rejoin-role
       - sdk.collab.file-rooms/embed-managed

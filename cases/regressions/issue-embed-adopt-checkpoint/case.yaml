@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-embed-adopt-checkpoint
+feature: sdk.collab.file-rooms
+intent: >-
+  An editor opening a managed room from a page with no record of it (another person, another
+  browser, cleared site data) never stores, under the file's current version, a state older than
+  the file. The embed treated the host's stored replica as the room's only with a page-local room
+  record, so it replaced a save's checkpoint with the room's snapshot from `snapshot/get` (its
+  creation, seq 0) under the same stamp; a kit that rebuilds on open (Slide, Doc, Sheet) saw a
+  replica without the file, recorded the file on top as an import, and the relay then replayed the
+  room's own changes: a 4-slide deck showed 6, 8, 12 slides on successive reopens. A checkpoint of
+  the room's document stamped with the file's version is now kept as it is; when the embed must
+  store the room's state, it brings the snapshot up to the room's last save first. The kit opens
+  the file's state, records nothing on top, and both editors converge with no duplicated text.
+layer: unit
+source:
+  kind: issue
+  from: SDK regression suite
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/embed/test/managed.test.ts, -t, issue-embed-adopt-checkpoint]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-20"

@@ -4,17 +4,19 @@
  * an editor co-edits, since it loads the CRDT engine for the relay's version handling.
  *
  * - **Before the kit opens** (`openCollabSession`): with a `room` (a document id or a share link),
- *   the room is resolved, and unless the replica stored with the file already is the room's, the
- *   room's snapshot and its blobs become the stored replica, under the file's current stamp, so
- *   the kit opens the room's document (UI-R1) and its edits are the room's. A `viewer` role opens
- *   the kit read-only.
+ *   the room is resolved, and unless the replica stored with the file already is the room's for
+ *   the file's current stamp (with or without this page's record of the room), the room's state
+ *   and its blobs become the stored replica, under that stamp, so the kit opens the room's
+ *   document (UI-R1) and its edits are the room's: its snapshot, brought up to the file's last
+ *   save in a managed room, so it is never older than the file. A `viewer` role opens the kit
+ *   read-only.
  * - **Once it has opened** (`attach`): the kit's replica id names the room. Without a record of
  *   it, the room is made from the document's whole history (after a save, so the stored replica
  *   keeps the id; an unedited document, with nothing to save, keeps the room's creation snapshot
  *   as its replica instead); then the relay starts, and presence follows the room. A role that turns out to
  *   be `viewer` reopens the kit read-only (the host's `reopenReadOnly`).
  */
-import { openEnvelope, Replica } from '@kition/kdm'
+import { openEnvelope, randomActor, Replica } from '@kition/kdm'
 import { KitRpcError, LEASE_HELD_REASON, type KitConnection, type KitLease } from '@kition/kit-host'
 import {
   DocumentLeases,
@@ -39,6 +41,7 @@ import {
 } from '@kition/sync'
 import { decodeOpenToken, isOpenToken, verifyOpenToken, type OpenTokenClaims } from '@kition/sync/openToken'
 import { LORO_REPLICA_VERSIONS } from '@kition/sync/replicaVersions'
+import { commentSchema } from './comments'
 import { EmbedError } from './errors'
 import { stampOf, toArrayBuffer, type NamedFile } from './handlers'
 import { RoomRecords, fromHex, localState, toHex, type RoomRecord } from './rooms'
@@ -186,6 +189,8 @@ export class CollabSession {
   /** The agent working for the person in this editor (an open agent port), shown in presence (A20). */
   private agent: { name: string } | null = null
   private joinedDoc: string | null = null
+  /** The room `adoptRoom` joined to catch its snapshot up, until a relay takes the membership over. */
+  private adoptJoined: string | null = null
   /** The file generation (`doc_key`) of the room joined: the token may name a later one since (1.3). */
   private joinedDocKey: string | null = null
   private move: Promise<void> | null = null
@@ -425,7 +430,10 @@ export class CollabSession {
     }
   }
 
-  /** Makes `docId`'s room the one the kit opens: its snapshot becomes the stored replica unless that already is the room's. */
+  /**
+   * Makes `docId`'s room the one the kit opens: its state becomes the stored replica unless the
+   * one stored already is the room's document for the file as it is now (its stamp).
+   */
   private async adoptRoom(docId: string, role: RoomRecord['role'] | null, shareLink?: string) {
     const { kit, file, storage, replicas, signal } = this.host
     this.claim(docId)
@@ -434,16 +442,25 @@ export class CollabSession {
     if (!stamp) throw new Error(`${file.name} is not in the storage`)
     const stored = await replicas.read(file.id).catch(() => null)
     const storedDocId = stored ? snapshotDocId(toArrayBuffer(stored.snapshot)) : null
-    const current = Boolean(record && record.fileId === file.id && stored && stored.fileStamp === stamp && storedDocId && sameDocId(storedDocId, docId))
-    if (!current) {
-      // The room's document becomes this file's replica. The first join catches up from the
-      // `seq` the snapshot was taken at (sync protocol `snapshot/get`), as long as the replica
-      // still holds the snapshot's version then (`resumeSeq`).
+    // The stored replica is the room's document, kept for the file's current version (a save's
+    // checkpoint, CK1, or this page's own save), whether or not this page has a record of the room.
+    const current = Boolean(stored && stored.fileStamp === stamp && storedDocId && sameDocId(storedDocId, docId))
+    if (current && !(record && record.fileId === file.id)) {
+      // Another person's, another browser's, or a page whose site data is gone: nothing says which
+      // of the room's changes the replica holds, or which of its own the room has. The first join
+      // catches up from the room's snapshot (imports are idempotent), and what the room holds from
+      // there tells the relay what it need not push.
+      record = { docId, fileId: file.id, kit: kit.id, role: role ?? record?.role ?? 'editor', shareLink: shareLink ?? record?.shareLink }
+      await this.records.write(record)
+    } else if (!current) {
+      // The room's document becomes this file's replica, never older than what the file holds.
       await whenOnline(this.client, signal)
-      const { snapshot, seq } = await this.client.snapshot(docId)
-      const blobs = await snapshotBlobs(this.client, docId, snapshot, storage.blob)
-      await replicas.write(file.id, { snapshot: toArrayBuffer(snapshot), blobs: toArrayBuffer(blobs), fileStamp: stamp })
-      const version = this.versions.endOf(snapshot)
+      const room = await this.roomState(docId)
+      const blobs = await snapshotBlobs(this.client, docId, room.snapshot, storage.blob)
+      await replicas.write(file.id, { snapshot: toArrayBuffer(room.snapshot), blobs: toArrayBuffer(blobs), fileStamp: stamp })
+      const version = this.versions.endOf(room.snapshot)
+      // The first join catches up from `seq` (the snapshot's), as long as the replica still holds
+      // its version then (`resumeSeq`).
       record = {
         docId,
         fileId: file.id,
@@ -451,7 +468,7 @@ export class CollabSession {
         role: role ?? record?.role ?? 'editor',
         shareLink: shareLink ?? record?.shareLink,
         lastSent: version ? toHex(version) : undefined,
-        seen: version ? { seq, version: toHex(version) } : undefined,
+        seen: version ? { seq: room.seq, version: toHex(version) } : undefined,
       }
       await this.records.write(record)
     } else if (record && ((role && record.role !== role) || (shareLink && record.shareLink !== shareLink))) {
@@ -460,6 +477,37 @@ export class CollabSession {
     }
     this.record = record
     this.setState({ docId, role: record!.role })
+  }
+
+  /**
+   * The room's state to store as the file's replica, and the `seq` it holds every change up to.
+   * `snapshot/get` answers the room's last snapshot (its creation, or a compaction's), which can
+   * be older than the file: in a managed room the file is the room's state at its last save
+   * (`savedSeq`; a generation's file changes only through the room's saves, managed-collab.md
+   * 1.3). Such a snapshot is brought up to the save: the room is joined from the snapshot's `seq`
+   * (the relay joins it again, from the `seq` this answers, once the kit has opened) and the
+   * changes up to `savedSeq` are imported into a copy of the snapshot, read with a schema of the
+   * comment types alone, which reads any of the kit's documents. A catch-up that cannot be cut at
+   * `savedSeq` (one the server answered from a compacted snapshot) is taken whole: the room's
+   * latest state, which holds the file too.
+   */
+  private async roomState(docId: string): Promise<{ snapshot: Uint8Array; seq: number }> {
+    const { snapshot, seq } = await this.client.snapshot(docId)
+    const save = this.managed ? (await this.client.resolveRoom()).save : null
+    if (!save || save.savedSeq <= seq) return { snapshot, seq }
+    let replica: Replica
+    try {
+      replica = Replica.load(commentSchema(this.host.kit.id), snapshot, randomActor())
+    } catch (error) {
+      throw new Error(`the room's snapshot of ${this.host.file.name} does not load (${toError(error).message}); it is older than the file, so it is not stored as its replica`)
+    }
+    if (this.adoptJoined && this.adoptJoined !== docId) this.client.leave(this.adoptJoined)
+    const joined = await this.client.join(docId, seq, {})
+    this.adoptJoined = docId
+    const cut = !joined.snapshot && joined.changes.length === joined.seq - seq
+    const taken = cut ? joined.changes.slice(0, save.savedSeq - seq) : joined.changes
+    for (const changes of taken) replica.importChanges(changes)
+    return { snapshot: replica.exportChanges(), seq: cut ? save.savedSeq : joined.seq }
   }
 
   /** Once the kit has opened (again): relays its replica. Failures are reported as `error` events. */
@@ -551,6 +599,8 @@ export class CollabSession {
     this.stopClaim()
     this.unclaim()
     this.detach()
+    if (this.adoptJoined) this.client.leave(this.adoptJoined)
+    this.adoptJoined = null
     this.stopState()
     this.release()
     this.setState({ status: 'off' })
@@ -629,6 +679,7 @@ export class CollabSession {
       this.offerHeld()
       return pushed
     }
+    this.adoptJoined = null
     this.relay = startRelay({
       docId,
       replica,

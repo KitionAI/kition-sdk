@@ -15,8 +15,11 @@ export type CommentSource = {
 
 const buffer = (bytes: Uint8Array) => bytes.slice().buffer as ArrayBuffer
 
-/** A schema of the comment types alone, for `kit`'s documents of any schema version. */
-function commentSchema(kit: string): Schema {
+/**
+ * A schema of the comment types alone, for `kit`'s documents of any schema version: it loads any
+ * of the kit's documents and takes their changes without knowing the kit's own types.
+ */
+export function commentSchema(kit: string): Schema {
   return parseSchema({
     kdm: 1,
     kit,

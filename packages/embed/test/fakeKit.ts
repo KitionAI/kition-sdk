@@ -31,6 +31,8 @@ export class FakeEditor {
   /** Changed since it was opened or last saved; a save with nothing to write answers `saved: false`. */
   dirty = false
   closed = false
+  /** Opened with `rebuildsOnOpen` and recorded the file on top of its stored replica. */
+  rebuilt = false
   /** The agent's draft of the note's text, and its state, when the kit keeps drafts. */
   draftText: string | null = null
   draftState: 'none' | 'open' | 'ready' = 'none'
@@ -228,16 +230,31 @@ export class FakeEditor {
   }
 }
 
-/** `mountKit` for the embed: every editor it opened, in order. */
-export function fakeKit(kitId = 'kit.note', capabilities = ['ai', 'replica']) {
+/**
+ * `mountKit` for the embed: every editor it opened, in order. `rebuildsOnOpen`: the kit opens the
+ * file with its stored replica as Slide, Doc and Sheet do, recording what the file holds that the
+ * replica does not on top of it (here: the file's text, appended when the replica's differs), and
+ * notes it (`rebuilt`).
+ */
+export function fakeKit(kitId = 'kit.note', capabilities = ['ai', 'replica'], { rebuildsOnOpen = false } = {}) {
   const editors: FakeEditor[] = []
   const mountKit = async (frame: HTMLIFrameElement, options: MountOptions): Promise<KitConnection> => {
     let stored: Replica | null = null
+    let rebuilt = false
     if (options.handlers.replicaRead) {
       const kept = await options.handlers.replicaRead({ path: options.document.path })
       if (kept && kept.fileStamp === options.document.version) stored = Replica.load(NOTE_SCHEMA, new Uint8Array(kept.snapshot), (actors += 1n))
     }
+    if (rebuildsOnOpen && stored) {
+      const file = new TextDecoder().decode(options.document.bytes ?? new ArrayBuffer(0))
+      const note = stored.objectsOfType('Note')[0]
+      if (file && stored.text(note, 'body') !== file) {
+        stored.transact(person('user:kit'), (tx) => tx.textInsert(note, 'body', stored!.textLength(note, 'body'), file))
+        rebuilt = true
+      }
+    }
     const editor = new FakeEditor(options, stored, kitId, capabilities)
+    editor.rebuilt = rebuilt
     editors.push(editor)
     return editor.connection
   }

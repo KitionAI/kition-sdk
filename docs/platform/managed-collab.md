@@ -486,7 +486,11 @@ The SDK provides these integration points:
   hello `open` scope, bound `room/create`), with the reference server in
   `packages/sync/test/helpers.ts`; `@kition/embed` gives each open-token
   editor its own connection for its file, seeds a room once, reseeds from the
-  checkpoint (CK2), and lets a viewer join once an editor made the room.
+  checkpoint (CK2), and lets a viewer join once an editor made the room. An
+  editor opening the room keeps a stored checkpoint of the room's document
+  stamped with the file's version, whether or not its page has a record of the
+  room; otherwise it stores the room's snapshot brought up to the last save
+  (`savedSeq`), never a state older than the file.
 - Managed saves: `saveTransition` / `save::transition` and `save/*`; the embed runs
   every save of a managed room through `runSave`, passes
   `{ trigger, seq, authors, docKey, docId }` to `storage.write`, follows

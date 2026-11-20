@@ -12,9 +12,10 @@ import type { TransportFactory } from '../../sync/src/transport'
 import { signOpenToken } from '../../sync/src/openToken'
 import { mountEmbed } from '../src/mount'
 import { memoryReplicaStore } from '../src/replicaStore'
-import { localState } from '../src/rooms'
+import { localState, RoomRecords } from '../src/rooms'
 import type { EmbedCollaboration, EmbedEditor, EmbedSaveInfo } from '../src/types'
-import { fakeKit } from './fakeKit'
+import { Replica } from '@kition/kdm'
+import { fakeKit, NOTE_SCHEMA } from './fakeKit'
 import { memoryStorage } from './memoryStorage'
 
 const wait = { timeout: 4000, interval: 10 }
@@ -85,14 +86,14 @@ function holdingRooms(factory: TransportFactory, gate: Promise<void>): Transport
   }
 }
 
-type OpenOptions = { kept?: Browser; token?: string; collaboration?: Partial<EmbedCollaboration>; writes?: ReturnType<typeof recording>; wait?: boolean; joinGate?: Promise<void>; transport?: ReturnType<typeof fakeTransport>; rewrites?: boolean }
+type OpenOptions = { kept?: Browser; token?: string; collaboration?: Partial<EmbedCollaboration>; writes?: ReturnType<typeof recording>; wait?: boolean; joinGate?: Promise<void>; transport?: ReturnType<typeof fakeTransport>; rewrites?: boolean; rebuildsOnOpen?: boolean }
 
 /** One editor of `scoped.file` in `person`'s browser, with an open token for `scoped`. */
 async function open(at: ReturnType<typeof sync>, person: { id: string; name: string }, scoped: OpenScope, files: Files, options: OpenOptions = {}) {
   const kept = options.kept ?? browser()
   const token = options.token ?? fakeToken(person.id, scoped)
   at.server.identifyOpen(token, { id: `t:acme:${person.id}`, name: person.name, color: '#5645d4' }, scoped)
-  const kit = fakeKit()
+  const kit = fakeKit(undefined, undefined, { rebuildsOnOpen: options.rebuildsOnOpen })
   // A kit that rewrites what it opened (Doc, Sheet): unsaved changes from the moment it opens.
   const mountKit: typeof kit.mountKit = options.rewrites ? async (...args) => { const connection = await kit.mountKit(...args); kit.last().dirty = true; return connection } : kit.mountKit
   const element = document.createElement('div')
@@ -455,6 +456,80 @@ describe('managed co-editing: saves (D3)', () => {
     const save = writes.writes.find((write) => write.save?.trigger === 'command')!.save!
     expect(save.authors).toEqual([{ principalId: 't:acme:ann', name: 'Ann' }])
     await vi.waitFor(() => expect(at.server.rooms.get(docId)?.save.status).toBe('editing'), wait)
+  })
+})
+
+describe('managed co-editing: a browser with no record of the room (CK1, CK2)', () => {
+  /** The note's text in a stored replica. */
+  const storedText = (snapshot: ArrayBuffer) => {
+    const replica = Replica.load(NOTE_SCHEMA, new Uint8Array(snapshot), 990n)
+    return replica.text(replica.objectsOfType('Note')[0], 'body')
+  }
+
+  /** Ann seeds the room, writes "Hello" and saves it: the file and its checkpoint hold seq 1. */
+  async function saved() {
+    const at = sync()
+    const files = memoryStorage({ 'res:1': '' })
+    const ann = await open(at, { id: 'ann', name: 'Ann' }, scope('res:1', 'editor'), files)
+    await online(ann, 'editor')
+    const docId = ann.editor.collab.state.docId!
+    ann.kit.last().edit('Hello')
+    await vi.waitFor(() => expect(at.server.rooms.get(docId)?.save.headSeq).toBe(1), wait)
+    await ann.editor.save()
+    const version = `v${files.files.get('res:1')!.version}`
+    expect(files.text('res:1')).toBe('Hello')
+    await vi.waitFor(() => expect(at.server.rooms.get(docId)?.save).toMatchObject({ savedSeq: 1, version }), wait)
+    return { at, files, ann, docId, version }
+  }
+
+  it('opens the file`s checkpoint as it is, never the room`s older snapshot, and catches up without the file twice (issue-embed-adopt-checkpoint)', async () => {
+    const { at, files, ann, docId, version } = await saved()
+    const checkpoint = (await ann.kept.replicas.read('res:1'))!
+    expect(checkpoint.fileStamp).toBe(version)
+    const kept = new Uint8Array(checkpoint.snapshot).slice()
+    // The host's replica store, in a browser with no record of the room (another person, another
+    // browser, cleared site data); the kit records the file on top of a replica that lacks it.
+    const elsewhere: Browser = { replicas: ann.kept.replicas, state: localState(null), at: browser().at }
+    const bob = await open(at, { id: 'bob', name: 'Bob' }, scope('res:1', 'editor'), files, { kept: elsewhere, rebuildsOnOpen: true })
+    await online(bob, 'editor')
+    expect(bob.editor.collab.state.docId).toBe(docId)
+    const stored = (await elsewhere.replicas.read('res:1'))!
+    expect(stored.fileStamp).toBe(version)
+    expect(new Uint8Array(stored.snapshot)).toEqual(kept)
+    expect(bob.kit.editors[0]!.rebuilt).toBe(false)
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe('Hello'), wait)
+    ann.kit.last().edit('!')
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe('Hello!'), wait)
+    bob.kit.last().edit('?')
+    await vi.waitFor(() => expect(ann.kit.last().text()).toBe('Hello!?'), wait)
+    expect(bob.kit.last().text()).toBe('Hello!?')
+    expect([...ann.errors, ...bob.errors]).toEqual([])
+  })
+
+  it('stores the room`s state as the saved file holds it when the browser keeps no replica, and joins from there (issue-embed-adopt-checkpoint)', async () => {
+    const { at, files, ann, docId, version } = await saved()
+    // Unsaved since: the room is ahead of the file.
+    ann.kit.last().edit(' there')
+    await vi.waitFor(() => expect(at.server.rooms.get(docId)?.save.headSeq).toBe(2), wait)
+    const fresh = browser()
+    const bob = await open(at, { id: 'bob', name: 'Bob' }, scope('res:1', 'editor'), files, { kept: fresh, rebuildsOnOpen: true })
+    await online(bob, 'editor')
+    expect(bob.editor.collab.state.docId).toBe(docId)
+    // The room's snapshot (its creation, seq 0) brought up to the save's seq: what the file holds.
+    const stored = (await fresh.replicas.read('res:1'))!
+    expect(stored.fileStamp).toBe(version)
+    expect(storedText(stored.snapshot)).toBe('Hello')
+    expect(bob.kit.editors[0]!.rebuilt).toBe(false)
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe('Hello there'), wait)
+    // The relay joined from the save's seq, and the record holds what it has seen since.
+    const joins = at.server.calls.filter((call) => call.method === 'room/join').map((call) => call.params.since)
+    expect(joins.at(-1)).toBe(1)
+    await vi.waitFor(async () => expect((await new RoomRecords(fresh.state).read(docId))?.seen?.seq).toBe(2), wait)
+    ann.kit.last().edit('!')
+    await vi.waitFor(() => expect(bob.kit.last().text()).toBe('Hello there!'), wait)
+    bob.kit.last().edit('?')
+    await vi.waitFor(() => expect(ann.kit.last().text()).toBe('Hello there!?'), wait)
+    expect([...ann.errors, ...bob.errors]).toEqual([])
   })
 })
 
