@@ -3,7 +3,10 @@
 //! `cargo run -p kition-kdm --example write-fixture -- <dir>` writes `rust-page.bin` and
 //! `rust-page.json` into `<dir>`; `... -- <dir> shallow` writes only `rust-shallow.bin` and
 //! `rust-shallow.json`, a shallow snapshot (standard 2.0 rule M16a) of the same kind of document
-//! with more edits after its root.
+//! with more edits after its root; `... -- <dir> new-document` writes only
+//! `rust-new-document.bin` and `rust-new-document.json`, the committed `<dir>/rust-page.bin` copied
+//! as a new document (`Replica::copy_as_new_document`) under docId
+//! `01920000-0000-7000-8000-000000000002`.
 
 use std::sync::Arc;
 
@@ -17,6 +20,14 @@ fn fields(value: Value) -> Map<String, Value> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dir = std::env::args().nth(1).ok_or("usage: write-fixture <dir>")?;
     let schema = Arc::new(Schema::parse(include_str!("../tests/fixtures/test-schema.json"))?);
+    if std::env::args().nth(2).as_deref() == Some("new-document") {
+        let page = Replica::load(schema, &std::fs::read(format!("{dir}/rust-page.bin"))?, ActorId::from_u64(7)?)?;
+        let copy = page.copy_as_new_document(DocId::parse("01920000-0000-7000-8000-000000000002")?, ActorId::from_u64(8)?)?;
+        std::fs::write(format!("{dir}/rust-new-document.bin"), copy.snapshot()?)?;
+        std::fs::write(format!("{dir}/rust-new-document.json"), copy.state_json()?.to_string())?;
+        println!("{}", copy.state_hash()?);
+        return Ok(());
+    }
     let mut replica = Replica::create(schema, DocId::parse("01920000-0000-7000-8000-000000000001")?, ActorId::from_u64(7)?)?;
     replica.transact(&Origin::person("user:fixture"), |tx| {
         let page = tx.create("Page", fields(json!({ "title": "Fixture 页面" })))?;

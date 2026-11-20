@@ -300,6 +300,24 @@ twice. A document is shared by every replica starting from one replica (a
 room's seed, a draft's fork), never by building it twice; tool ids are the
 stable names across opens.
 
+**A copy is a new document.** A template instantiated twice, a copied file,
+or the same bytes uploaded twice must become independent documents, each with
+its own co-editing room, never two copies of one `docId`.
+`Replica::copy_as_new_document(doc_id, actor)` (`copyAsNewDocument` in
+TypeScript) makes one: a replica of the new `doc_id` with the same objects,
+`ObjectId`s, tree node ids and values, written into both places the id lives
+(the document's `meta` and the byte envelope). It carries no history: the copy
+is a shallow replica rooted at its own first change, so deleted content,
+earlier versions and the source's `docId` stay behind, it forks a draft only
+at its current version, and its undo starts empty. A blob is its
+content-addressed reference, kept as it is; a host whose blob store is per
+document copies the referenced blobs with it. Copies refuse each other's and
+the source's changes, drafts and snapshots (`WrongDocument`). There is no
+option to keep the history: the copy would share the source's change ids, its
+earlier versions would name the source's `docId`, and deleted content would
+travel. A kit that also writes the `docId` outside its replica (a container's
+manifest, a database row) writes the new one there too.
+
 **Two reads of one file compared.** When another program changes a file
 and a kit reads it again, what changed is found by pairing the objects of
 the two reads, never by `ObjectId` alone (`kition_kdm::reread`). Pairing is

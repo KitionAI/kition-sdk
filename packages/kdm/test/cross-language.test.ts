@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Replica } from '../src/index'
-import { crateFixture, me, testSchema, tsPage } from './helpers'
+import { crateFixture, me, reasonOf, testSchema, tsPage } from './helpers'
 
 /** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures`; never regenerated to make a test pass. */
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)))
@@ -83,5 +83,30 @@ describe('shallow snapshots across the two implementations', () => {
     const replica = Replica.load(testSchema(), bytes, 9n)
     expect(replica.isShallow()).toBe(true)
     expect(replica.stateText()).toBe(crateFixture('ts-shallow.json'))
+  })
+})
+
+describe('copies as new documents across the two implementations', () => {
+  const objects = (replica: Replica): unknown => (replica.stateJson() as { objects: unknown }).objects
+
+  /** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures new-document`: `rust-page.bin` copied. */
+  it('open a Rust-made copy as the new document with the same content', () => {
+    const copy = Replica.load(testSchema(), fixture('rust-new-document.bin'), 9n)
+    const source = Replica.load(testSchema(), fixture('rust-page.bin'), 10n)
+    expect(copy.docId).toBe('01920000-0000-7000-8000-000000000002')
+    expect(copy.isShallow()).toBe(true)
+    expect(copy.stateText()).toBe(fixture('rust-new-document.json').toString('utf8'))
+    expect(objects(copy)).toEqual(objects(source))
+    expect(reasonOf(() => copy.rebase(fixture('rust-page.bin')))).toBe('wrong-document')
+    expect(reasonOf(() => source.importChanges(copy.exportChanges(source.version())))).toBe('wrong-document')
+  })
+
+  /** `crates/kition-kdm/tests/cross_language.rs` checks the same pair from Rust. */
+  it('write a TypeScript-made copy that reloads to the canonical state next to it', () => {
+    const bytes = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-new-document.bin', import.meta.url)))
+    const copy = Replica.load(testSchema(), bytes, 9n)
+    expect(copy.docId).toBe('01920000-0000-7000-8000-0000000000ab')
+    expect(copy.stateText()).toBe(crateFixture('ts-new-document.json'))
+    expect(objects(copy)).toEqual(objects(Replica.load(testSchema(), readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-page.bin', import.meta.url))), 10n)))
   })
 })

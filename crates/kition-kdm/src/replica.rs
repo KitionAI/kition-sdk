@@ -1024,6 +1024,50 @@ impl Replica {
         Self::attach(doc, self.doc_id, Arc::clone(&self.schema), actor)
     }
 
+    /// A copy of this document as a **new document** (data model, "A copy is a new document"): the
+    /// same objects, ids and content under the new permanent `doc_id`, as a writable replica of
+    /// `actor`. For a template instantiated twice, a copied file, or the same bytes stored twice:
+    /// each copy is its own document, with its own co-editing room. Unlike [`Replica::fork`] (a
+    /// draft of the same document, merged back), a copy never merges with its source or another
+    /// copy: [`Replica::import_changes`], [`Replica::merge_changes`] and [`Replica::rebase`] refuse
+    /// each other's bytes ([`KdmError::WrongDocument`]).
+    ///
+    /// Answers a replica, as [`Replica::fork`] does, so a host edits it or stores its
+    /// [`Replica::snapshot`]. The copy is a shallow replica (rule M16a) rooted at its own first
+    /// change: it holds the current state and no history, so no deleted content, no earlier
+    /// version and not the source's `docId` travel with it; it forks only at its current version,
+    /// and [`Replica::changes_since`] a version before the copy is [`KdmError::HistoryMissing`]. Its
+    /// undo and redo histories are empty. Object ids, tree node ids and every value are kept; a
+    /// blob is its content-addressed reference, so it resolves wherever the source's blobs do (a
+    /// host whose blob store is per document copies the referenced blobs too).
+    ///
+    /// There is no option to keep the history: the copy would share the source's change ids with
+    /// another document's, every earlier version of it would name the source's `docId` (a fork or
+    /// a checkout there disagrees with its own envelope), and deleted content would travel.
+    ///
+    /// Refuses ([`KdmError::InvalidValue`]) `doc_id` equal to this document's. The changes still
+    /// pending on this replica are not in the copy.
+    pub fn copy_as_new_document(&self, doc_id: DocId, actor: ActorId) -> Result<Replica> {
+        if doc_id == self.doc_id {
+            return Err(KdmError::InvalidValue { ty: "$copy".into(), field: "docId".into(), reason: "is this document's; a copy needs a new one".into() });
+        }
+        let encoding = |error: loro::LoroEncodeError| KdmError::Encoding(error.to_string());
+        // The current state alone first, so the change that writes the new id is the copy's first
+        // and only change, never one the engine merges with the source's last.
+        let state = self.doc.export(ExportMode::shallow_snapshot(&self.doc.oplog_frontiers())).map_err(encoding)?;
+        let doc = LoroDoc::new();
+        crate::marks::configure(&doc, &self.schema);
+        doc.import(&state).map_err(importing)?;
+        doc.set_peer_id(actor.get()).map_err(engine)?;
+        doc.get_map(META).insert("docId", doc_id.to_string()).map_err(engine)?;
+        doc.set_next_commit_origin(OriginKind::System.as_str());
+        doc.set_next_commit_message(&Origin::system("new-document").encode_commit(self.schema.schema_version));
+        doc.commit();
+        // Rooted after that change: the source's id is overwritten, not kept as history.
+        let bytes = doc.export(ExportMode::shallow_snapshot(&doc.oplog_frontiers())).map_err(encoding)?;
+        Self::load(Arc::clone(&self.schema), &envelope::wrap(doc_id, bytes), actor)
+    }
+
     /// The canonical state this replica would have after importing `changes`, without changing it:
     /// the "after" of a draft's comparison ([`crate::diff::diff_states`]). Refuses changes that
     /// depend on changes this replica lacks, like [`Replica::merge_changes`].

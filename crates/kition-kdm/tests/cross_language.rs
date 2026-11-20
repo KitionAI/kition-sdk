@@ -54,3 +54,25 @@ fn a_typescript_shallow_snapshot_opens_to_the_identical_canonical_state() {
     assert_eq!(shallow.state_hash().unwrap(), other.state_hash().unwrap());
     assert!(other.text(&shape, "label").unwrap().starts_with("RS:"));
 }
+
+/// The committed `fixtures/ts-page.bin` copied as a new document by the TypeScript KDM
+/// (`fixtures/ts-new-document.*`, written by
+/// `KDM_WRITE_NEW_DOCUMENT_FIXTURE=1 pnpm vitest run packages/kdm/test/write-ts-fixture.test.ts`)
+/// opens here as the new document with the source's objects, and the two refuse each other.
+#[test]
+fn a_typescript_copy_as_a_new_document_opens_with_the_new_id_and_the_same_content() {
+    let mut copy = Replica::load(schema(), include_bytes!("fixtures/ts-new-document.bin"), ActorId::from_u64(15).unwrap()).unwrap();
+    let mut source = Replica::load(schema(), include_bytes!("fixtures/ts-page.bin"), ActorId::from_u64(16).unwrap()).unwrap();
+    assert_eq!(copy.doc_id(), DocId::parse("01920000-0000-7000-8000-0000000000ab").unwrap());
+    assert!(copy.is_shallow());
+    let state = copy.state_json().unwrap().to_string();
+    assert_eq!(
+        copy.state_hash().unwrap(),
+        include_str!("fixtures/ts-new-document.sha256"),
+        "canonical state differs from fixtures/ts-new-document.json:\n{state}"
+    );
+    assert_eq!(copy.state_json().unwrap()["objects"], source.state_json().unwrap()["objects"]);
+    assert!(matches!(copy.rebase(include_bytes!("fixtures/ts-page.bin")), Err(kition_kdm::KdmError::WrongDocument { .. })));
+    let changes = copy.export_changes(&source.version()).unwrap();
+    assert!(matches!(source.import_changes(&changes), Err(kition_kdm::KdmError::WrongDocument { .. })));
+}

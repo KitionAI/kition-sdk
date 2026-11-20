@@ -137,6 +137,14 @@ A kit on the KDM ships `model/schema.json`:
 - **M7** A document has a `docId` that never changes when its file is renamed
   or moved. Implementations generate a UUID v7 and accept any UUID when
   loading.
+- **M7a** A copy of a document under a new `docId` is a new document:
+  `copy_as_new_document(doc_id, actor)` (`copyAsNewDocument` in TypeScript)
+  answers a replica of `doc_id` with the same objects, ids and values and no
+  history (a shallow replica, M16a, rooted at its own first change, with
+  empty undo), and refuses (`invalid-value`) the source's own `docId`. Copies
+  and their source refuse each other's bytes (M17). Hosts use it for
+  templates, copied files and repeated uploads; a fork (A12) keeps the
+  `docId` and is merged back, a copy never is.
 - **M8** Objects have KDM ids (UUID strings), unique across replicas without
   coordination. Implementations generate UUID v7 ids and accept any UUID when
   loading. Engines MAY keep efficient local ids and file-format

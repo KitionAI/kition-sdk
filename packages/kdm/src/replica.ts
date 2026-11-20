@@ -792,6 +792,52 @@ export class Replica {
   }
 
   /**
+   * A copy of this document as a **new document** (data model, "A copy is a new document"): the
+   * same objects, ids and content under the new permanent `docId`, as a writable replica of
+   * `actor`. For a template instantiated twice, a copied file, or the same bytes stored twice: each
+   * copy is its own document, with its own co-editing room. Unlike `fork` (a draft of the same
+   * document, merged back), a copy never merges with its source or another copy: `importChanges`,
+   * `mergeChanges` and `rebase` refuse each other's bytes (`wrong-document`).
+   *
+   * Answers a replica, as `fork` does, so a host edits it or stores its `snapshot`. The copy is a
+   * shallow replica (rule M16a) rooted at its own first change: it holds the current state and no
+   * history, so no deleted content, no earlier version and not the source's `docId` travel with
+   * it; it forks only at its current version, and `changesSince` a version before the copy is
+   * `history-missing`. Its undo and redo histories are empty. Object ids, tree node ids and every
+   * value are kept; a blob is its content-addressed reference, so it resolves wherever the
+   * source's blobs do (a host whose blob store is per document copies the referenced blobs too).
+   *
+   * There is no option to keep the history: the copy would share the source's change ids with
+   * another document's, every earlier version of it would name the source's `docId`, and deleted
+   * content would travel. Refuses (`invalid-value`) a `docId` equal to this document's. The
+   * changes still pending on this replica are not in the copy. The Rust crate's
+   * `Replica::copy_as_new_document` does the same.
+   */
+  copyAsNewDocument(docId: string, actor: bigint): Replica {
+    this.idle()
+    this.checkOpen()
+    const idBytes = uuidToBytes(docId)
+    checkActor(actor)
+    if (sameBytes(idBytes, this.docIdBytes)) throw errors.invalidValue('$copy', 'docId', "is this document's; a copy needs a new one")
+    let bytes: Uint8Array
+    try {
+      // The current state alone first, so the change that writes the new id is the copy's first
+      // and only change, never one the engine merges with the source's last.
+      const doc = new LoroDoc()
+      configure(doc, this.schema)
+      doc.import(this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() }))
+      doc.setPeerId(actor)
+      doc.getMap(read.META).set('docId', uuidFromBytes(idBytes))
+      doc.commit({ origin: SYSTEM, message: encodeCommit(system('new-document'), this.schema.schemaVersion) })
+      // Rooted after that change: the source's id is overwritten, not kept as history.
+      bytes = doc.export({ mode: 'shallow-snapshot', frontiers: doc.oplogFrontiers() })
+    } catch (error) {
+      throw errors.encoding(engineMessage(error))
+    }
+    return Replica.load(this.schema, wrap(idBytes, bytes), actor)
+  }
+
+  /**
    * The canonical state this replica would have after importing `changes`, without changing it:
    * the "after" of a draft's comparison (`diffStates`). Refuses what `mergeChanges` refuses.
    */
