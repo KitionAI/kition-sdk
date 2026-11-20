@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-kits-index-npm-placeholder
+feature: sdk.distribution.kits-index
+intent: >-
+  npm adds a version of its own beside a package's first publish and keeps it: `0.0.0-stage`,
+  "Temporary package placeholder for staged publishing", with no `kition` field. The kits-index
+  workflow stopped on it for the first kit packages on npm (Board 0.1.4 and Table 0.5.8,
+  2026-11-20): "@kition/kit-board-darwin-arm64@0.0.0-stage has no kition field". The gatherer
+  leaves that placeholder out and lists the versions published; any other version without a
+  `kition` field is still refused.
+layer: gate
+source:
+  kind: probe
+  from: tools/kits-index.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kits-index.test.mjs, -t, "placeholder of a first publish"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-20"
+timeout_s: 300

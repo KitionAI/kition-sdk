@@ -66,6 +66,26 @@ function fakeRegistry(kits, { registry = REGISTRY, tamper = () => {}, fail = [] 
 }
 
 describe('kits-index: the kit index gathered from the npm registry', () => {
+  it('leaves out npm\'s placeholder of a first publish (0.0.0-stage), and refuses any other version without a kition field', async () => {
+    // What registry.npmjs.org shows of a package first published on 2026-11-20: the version
+    // published and, beside it, npm's own "Temporary package placeholder for staged publishing".
+    const placeholder = (name) => ({ name, version: '0.0.0-stage', description: 'Temporary package placeholder for staged publishing', dist: { integrity: integrityOf(Buffer.from('placeholder')) } })
+    const staged = (kits) => {
+      const registry = fakeRegistry(kits)
+      return { ...registry, net: async (url, options) => {
+        const answer = await registry.net(url, options)
+        if (answer && typeof answer === 'object' && answer.versions) answer.versions['0.0.0-stage'] = placeholder(answer.name)
+        return answer
+      } }
+    }
+    const { net } = staged({ board: { '0.1.4': {} } })
+    const { index, report } = await gatherIndex({ kits: ["board"], registry: REGISTRY, net })
+    expect(Object.keys(index.kits.board.versions)).toEqual(['0.1.4'])
+    expect(report).toEqual([{ kit: 'board', versions: ['0.1.4'], editors: ['0.1.4'], uiOnly: [] }])
+    const bare = fakeRegistry({ board: { '0.1.4': {} } }, { tamper: (name, version, manifest) => { if (name === '@kition/kit-board-ui') delete manifest.kition } })
+    await expect(gatherIndex({ kits: ["board"], registry: REGISTRY, net: bare.net })).rejects.toThrow('@kition/kit-board-ui@0.1.4 has no kition field')
+  })
+
   it('lists each kit’s versions with every platform’s package and its editor, sizes and integrity from the registry, valid against the schema', async () => {
     const { net, seen } = fakeRegistry({
       note: { '0.1.0': {}, '0.1.2': { views: ['txt'] } },

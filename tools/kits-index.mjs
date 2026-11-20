@@ -220,6 +220,13 @@ export function kitsOfModules(modules) {
   return kits
 }
 
+/**
+ * npm's own placeholder of a package's first publish ("staged publishing"): the version
+ * `0.0.0-stage`, with no `kition` field, which npm adds beside the version published and keeps.
+ * It is no version of a kit.
+ */
+const isNpmPlaceholder = (version, manifest) => version === '0.0.0-stage' && manifest?.kition === undefined
+
 const sameList = (a, b) => JSON.stringify(a ?? []) === JSON.stringify(b ?? [])
 
 /**
@@ -288,6 +295,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
       }
       if (packument === null) continue
       for (const [version, manifest] of Object.entries(packument?.versions ?? {})) {
+        if (isNpmPlaceholder(version, manifest)) continue
         if (!VERSION.test(version)) throw new Error(`${name} lists the version ${JSON.stringify(version)}, which is not semver`)
         const { kition, entry } = readPackage(name, kit, part, version, manifest)
         let found = versions.get(version)

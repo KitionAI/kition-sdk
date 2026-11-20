@@ -4,6 +4,10 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit index is gathered past npm's placeholder of a first publish**: npm keeps a version
+  `0.0.0-stage` of its own, without a `kition` field, beside a package's first version, and the
+  kits-index workflow stopped on it for the first kit packages on npm. It is left out; any other
+  version without the field is still refused (regressions/issue-kits-index-npm-placeholder).
 - **A kit of another protocol is refused with the right advice** (`kition kit install`, `kit add`):
   every protocol is version 1, so the refusal no longer says "upgrade kition" for a kit built
   before that; it names both protocols and says to install a version of the kit that speaks

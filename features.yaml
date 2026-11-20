@@ -577,6 +577,7 @@ features:
       - docs/sdk/cli.md
     cases:
       - sdk.distribution.kits-index/gather
+      - regressions/issue-kits-index-npm-placeholder
     since: "2026-11-18"
   - id: sdk.distribution.npm-registries
     title: "Kits, their editors, the kit index and kition itself come from npm, never from GitHub: each kit version is published as @kition/kit-<kit>-<platform> and @kition/kit-<kit>-ui (the same files, a kition field in package.json, published once), and kition, its installers and the SDK bundle take them from KITION_NPM_REGISTRY, npm's own .npmrc setting, registry.npmjs.org, then registry.npmmirror.com: a registry that does not answer or serves other bytes passes to the next, a cut download resumes or passes on, the integrity is always checked, and an error names every registry tried"
