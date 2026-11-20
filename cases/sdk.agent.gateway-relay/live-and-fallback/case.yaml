@@ -1,0 +1,25 @@
+format: 1
+id: sdk.agent.gateway-relay/live-and-fallback
+feature: sdk.agent.gateway-relay
+intent: >-
+  An MCP kit_run on a file open in an editor attached to the gateway's bridge reaches that editor
+  as kit/call, both over POST /api/v1/mcp/kits and through a kition mcp stdio process relaying to
+  the gateway, and changes nothing on disk; with no editor attached it runs in the headless kit;
+  when the gateway stops, the relaying kition mcp serves the next call in its own process; when a
+  gateway starts later, it hands over to it; --no-relay never relays.
+layer: gate
+dimension: ai
+source:
+  kind: synthetic
+  from: crates/kition-cli/tests/gateway.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: live_path }
+  - cargo-test: { package: kition-cli, test: gateway, filter: kition_mcp_relays_to_the_gateway_and_serves_alone_when_it_is_gone }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-19"
+timeout_s: 300

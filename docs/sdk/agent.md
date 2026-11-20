@@ -105,6 +105,8 @@ Other clients:
   skill per kit and the person's draft review.
 - **Kition running**: its loopback endpoint `POST /v1/mcp/kits` also edits files open in kit
   editors live.
+- **A `kition gateway` for the workspace**: `kition mcp` relays to it
+  ([below](#editors-attached-to-a-gateway)).
 - **Agent skill**: [skill/SKILL.md](skill/SKILL.md) tells a coding agent how to use the tools.
 
 ## The server
@@ -489,6 +491,40 @@ history limits. [Environment tasks](env.md) use the same guarded calls for repla
 
 Example: [examples/agent-mcp](../../examples/agent-mcp) appends a section to a note, then has the
 Note kit check it.
+
+## Editors attached to a gateway
+
+`kition mcp` runs the kits in its own process, so it cannot reach a kit editor someone has open:
+its edits go to the file, and an editor finds out only by watching the file. `kition gateway`
+([cli.md](cli.md#the-gateway)) holds a workspace's kits for everyone: editors attach to its Kit
+AI bridge, and when `kition mcp` starts for a workspace a live gateway serves, it relays to it:
+
+```text
+$ kition mcp --workspace ~/notes --unified
+kition mcp: workspace /Users/me/notes: relaying to the Kition gateway (pid 32783, http://127.0.0.1:51512); --no-relay serves in this process
+```
+
+Every message then goes to the gateway's `POST /api/v1/mcp/kits` with its token (read from its
+lockfile), and the answers come back on stdout. A call on a file open in an editor attached to
+the gateway runs in that editor, as the editor's own change (its undo, its view), and answers
+`live: true`; a call on any other file runs in the gateway's headless kit. Claude Code, Codex,
+Cursor and DeepSeek Harness need nothing else: their `kition mcp` relays on its own.
+
+- Each relaying `kition mcp` is its own connection to the gateway (the `Kition-Mcp-Connection`
+  header): its request ids and cancellations are its own, and it is its own agent, named from the
+  client's `clientInfo.name`, the same one after the gateway restarts.
+- `--drafts`, `--guard` and `--require-basis` go with each message. The kits, the sandbox, the
+  limits and the kit store are the gateway's: `--kit`, `--kits-dir` and the others apply only when
+  `kition mcp` serves in its own process, as it says on stderr. A gateway with or without
+  `--unified` serves only a `kition mcp` with the same tool names; any other serves in its own
+  process.
+- When the gateway stops, the next message it never got runs in `kition mcp`'s own process, which
+  tells its kits the client's `initialize` again and serves from then on. A call the gateway may
+  have run when its connection broke is not run again: it answers a tool error saying so.
+- When a gateway starts for the workspace later, `kition mcp` hands over to it before the next
+  request (when none of its own is running): it saves and stops its kits and relays.
+- Progress notifications and `notifications/tools/list_changed` do not come through the relay.
+- `--no-relay` never relays.
 
 ## Drafts
 

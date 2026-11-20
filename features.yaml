@@ -1878,6 +1878,23 @@ features:
     cases:
       - sdk.cli.gateway/lifecycle
     since: "2026-11-19"
+  - id: sdk.agent.gateway-relay
+    title: "kition mcp relays every message to a live gateway for the same canonical workspace, so an agent's call on a file open in an editor attached to the gateway runs in that editor; with no gateway it serves in its own process, takes over when the gateway stops and hands over when one starts; each relaying process is its own MCP connection and agent; --no-relay turns it off"
+    dimension: [ai, collab]
+    priority: P1
+    status: partial
+    gap: Progress notifications and notifications/tools/list_changed do not come through the relay (the gateway's endpoint answers JSON only); the call options travel per message, the kits, sandbox and limits are the gateway's
+    paths:
+      - crates/kition-cli/src/relay.rs
+      - crates/kition-cli/src/main.rs
+      - crates/kition-kits-http/src/mcp.rs
+      - crates/kition-kits/src/mcp.rs
+      - crates/kition-kits-http/tests/live_path.rs
+      - crates/kition-cli/tests/gateway.rs
+      - docs/sdk/agent.md
+    cases:
+      - sdk.agent.gateway-relay/live-and-fallback
+    since: "2026-11-19"
   - id: sdk.cli.usage
     title: "kition's usage is grouped and short, each command and kit command prints its own --help, a mistyped command names the closest known one instead of the whole usage, and kition mcp without --workspace serves the folder it starts in and says so"
     dimension: [platform, ai]

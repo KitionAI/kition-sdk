@@ -7,7 +7,7 @@ use std::process::ExitCode;
 
 use commands::{agent, doctor, gateway, help, kit};
 use kition_cli::index::{self, Source};
-use kition_cli::{VERSION, supply};
+use kition_cli::{VERSION, relay, supply};
 
 const MCP_STORE_USAGE: &str = "
 the kit store (kition mcp only):
@@ -18,6 +18,13 @@ the kit store (kition mcp only):
   the server then announces its new tools (notifications/tools/list_changed)
   --no-install           install nothing: a file of a kit not installed answers how to install it
   --index <address or file>  the kit index (default KITION_INDEX, else the SDK's kit index)
+
+the gateway (kition mcp only):
+  when a kition gateway serves the same workspace (its lockfile under KITION_HOME/run/ names a
+  live one), every message goes to it and its kits answer: a file open in a kit editor attached to
+  it is edited live; the kit options above are then the gateway's. Without one, or when it stops,
+  the kits run in this process, which hands over to a gateway that starts later
+  --no-relay             never relay: always serve in this process
 ";
 
 fn main() -> ExitCode {
@@ -82,7 +89,20 @@ fn mcp(args: Vec<String>) -> ExitCode {
         Ok(taken) => taken,
         Err(message) => return help::mistake(&["mcp"], message),
     };
-    kition_kits::cli::mcp::main("kition mcp", rest.into_iter(), Some(store_for("mcp", index, installs)))
+    let relays = !rest.iter().any(|arg| arg == "--no-relay");
+    let rest: Vec<String> = rest.into_iter().filter(|arg| arg != "--no-relay").collect();
+    let mut own: Vec<&str> = Vec::new();
+    if index.is_some() {
+        own.push("--index");
+    }
+    if !installs {
+        own.push("--no-install");
+    }
+    let store = store_for("mcp", index, installs);
+    if relays && let Some(plan) = relay::Plan::read(&rest, &own) {
+        return relay::run(plan, rest, store);
+    }
+    kition_kits::cli::mcp::main("kition mcp", rest.into_iter(), Some(store))
 }
 
 fn gateway_command(args: Vec<String>) -> ExitCode {

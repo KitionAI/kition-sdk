@@ -1,12 +1,16 @@
-//! `kition gateway` as a program (sdk.cli.gateway): the ready line and the lockfile, one gateway
-//! per workspace, a stale lockfile replaced, the ways it stops. The kit is the mock kit standing
-//! in for Kition Example.
+//! `kition gateway` and `kition mcp` relaying to it, as programs (sdk.cli.gateway,
+//! sdk.agent.gateway-relay): the ready line and the lockfile, one gateway per workspace, a stale
+//! lockfile replaced, the ways it stops; and an MCP client of `kition mcp` whose `kit_run` on a
+//! file open in an editor attached to the gateway reaches that editor as `kit/call`, runs headless
+//! with no editor, runs in `kition mcp`'s own process once the gateway stops, and goes to a
+//! gateway that starts later. The kit is the mock kit standing in for Kition Example; the editor
+//! is a scripted client of the gateway's bridge stream.
 #![cfg(unix)]
 
 mod support;
 
-use std::io::{BufRead, BufReader, Read};
-use std::net::TcpStream;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{Shutdown, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -261,4 +265,179 @@ fn a_gateway_stops_with_its_stdin_or_when_idle() {
     assert_eq!(wait(&mut idle.child, Duration::from_secs(30)), Some(0));
     assert!(started.elapsed() >= Duration::from_millis(900));
     assert!(!lockfile.exists());
+}
+
+/// An editor window attached to the gateway's bridge: it lists `FILE` as open, answers every
+/// request, and reports each `kit/call` on `calls`. Shutting `socket` down closes the window.
+struct Editor {
+    socket: TcpStream,
+    calls: mpsc::Receiver<Value>,
+}
+
+impl Editor {
+    fn attach(gateway: &Gateway) -> Self {
+        let (url, token, port) = (gateway.url(), gateway.token(), gateway.ready["port"].as_u64().unwrap());
+        let mut socket = TcpStream::connect(("127.0.0.1", port as u16)).unwrap();
+        write!(socket, "GET /api/v1/kits/bridge HTTP/1.0\r\nHost: 127.0.0.1:{port}\r\nKition-Token: {token}\r\nAccept: text/event-stream\r\n\r\n").unwrap();
+        let reader = BufReader::new(socket.try_clone().unwrap());
+        let (report, calls) = mpsc::channel();
+        let (ready, attached) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut session = 0;
+            for line in reader.lines() {
+                let Ok(line) = line else { break };
+                let Some(data) = line.strip_prefix("data:") else { continue };
+                let Ok(message) = serde_json::from_str::<Value>(data.trim()) else { continue };
+                let result = match message["method"].as_str() {
+                    Some("bridge.ready") => {
+                        session = message["params"]["session"].as_u64().unwrap_or_default();
+                        let _ = ready.send(());
+                        continue;
+                    }
+                    Some("kit/documents") => json!({ "documents": [{ "path": FILE, "kit": "kit.example", "dirty": false, "revision": 1 }] }),
+                    Some("kit/call") => {
+                        let _ = report.send(message["params"].clone());
+                        json!({ "completed": [{ "command": "text.append", "changed": true, "result": null }], "saved": true, "document": { "summary": "edited in the editor" } })
+                    }
+                    Some("kit/preview") => json!({ "png": "iVBORw0KGgo=" }),
+                    _ => continue,
+                };
+                http(
+                    "POST",
+                    &format!("{url}/api/v1/kits/bridge?session={session}"),
+                    Some(&token),
+                    Some(&json!({ "jsonrpc": "2.0", "id": message["id"], "result": result })),
+                );
+            }
+        });
+        attached.recv_timeout(Duration::from_secs(30)).unwrap();
+        Self { socket, calls }
+    }
+
+    fn close(self) {
+        let _ = self.socket.shutdown(Shutdown::Both);
+    }
+}
+
+/// `kition mcp` as an MCP client starts it, line by line.
+struct Client {
+    child: Child,
+    stdin: ChildStdin,
+    lines: mpsc::Receiver<String>,
+    next: u64,
+}
+
+impl Client {
+    fn start(setup: &Setup, extra: &[&str]) -> Self {
+        let mut child = kition(&setup.home)
+            .args(["mcp", "--workspace"])
+            .arg(&setup.workspace)
+            .args(["--kits-dir"])
+            .arg(&setup.kits)
+            .args(["--unified"])
+            .args(extra)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let (send, lines) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in stdout.lines().map_while(Result::ok) {
+                let _ = send.send(line);
+            }
+        });
+        let mut client = Self { child, stdin, lines, next: 0 };
+        let init = client
+            .request("initialize", json!({ "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "relay-test", "version": "1" } }));
+        assert_eq!(init["result"]["serverInfo"]["name"], "kition-kits", "{init}");
+        writeln!(client.stdin, "{}", json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })).unwrap();
+        client
+    }
+
+    fn request(&mut self, method: &str, params: Value) -> Value {
+        self.next += 1;
+        writeln!(self.stdin, "{}", json!({ "jsonrpc": "2.0", "id": self.next, "method": method, "params": params })).unwrap();
+        let line = self.lines.recv_timeout(Duration::from_secs(60)).unwrap_or_else(|_| panic!("no answer to {method}"));
+        let answer: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(answer["id"], self.next, "{answer}");
+        answer
+    }
+
+    fn run(&mut self) -> Value {
+        self.request(
+            "tools/call",
+            json!({ "name": "kit_run", "arguments": { "path": FILE, "steps": [{ "command": "text.append", "params": { "text": " B" } }] } }),
+        )
+    }
+
+    /// Closes stdin: its exit status and its stderr.
+    fn finish(mut self) -> (Option<i32>, String) {
+        drop(self.stdin);
+        let status = wait(&mut self.child, Duration::from_secs(60));
+        let mut stderr = String::new();
+        let _ = self.child.stderr.take().unwrap().read_to_string(&mut stderr);
+        (status, stderr)
+    }
+}
+
+#[test]
+fn kition_mcp_relays_to_the_gateway_and_serves_alone_when_it_is_gone() {
+    let Some(setup) = setup() else {
+        eprintln!("skipped: build kition-kit-mock first (cargo build -p kition-kit-mock)");
+        return;
+    };
+    let read = || std::fs::read_to_string(setup.workspace.join(FILE)).unwrap();
+    let gateway = Gateway::start(&setup, &[]);
+    let editor = Editor::attach(&gateway);
+    let mut client = Client::start(&setup, &[]);
+
+    // (a) The file is open in the editor attached to the gateway: the call reaches it.
+    let live = client.run();
+    assert_eq!(live["result"]["isError"], false, "{live}");
+    assert_eq!(live["result"]["structuredContent"]["live"], true, "{live}");
+    let call = editor.calls.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert_eq!((call["tool"].as_str(), call["path"].as_str()), (Some("run"), Some(FILE)));
+    assert_eq!(read(), "plan", "nothing ran headless");
+
+    // (b) The editor goes away: the gateway's headless kit runs the call.
+    editor.close();
+    let headless = client.run();
+    assert_eq!(headless["result"]["isError"], false, "{headless}");
+    assert_ne!(headless["result"]["structuredContent"]["live"], true, "{headless}");
+    assert_eq!(read(), "plan B");
+
+    // (c) The gateway stops: the next call runs in kition mcp's own process.
+    let (status, _) = gateway.stop("TERM");
+    assert_eq!(status, Some(0));
+    let alone = client.run();
+    assert_eq!(alone["result"]["isError"], false, "{alone}");
+    assert_eq!(read(), "plan B B");
+
+    // (d) A gateway starts for the workspace: kition mcp hands over to it.
+    let later = Gateway::start(&setup, &[]);
+    let editor = Editor::attach(&later);
+    let relayed = client.run();
+    assert_eq!(relayed["result"]["structuredContent"]["live"], true, "{relayed}");
+    assert!(editor.calls.recv_timeout(Duration::from_secs(10)).is_ok());
+    assert_eq!(read(), "plan B B");
+    let (status, stderr) = client.finish();
+    assert_eq!(status, Some(0), "{stderr}");
+    assert!(stderr.contains("relaying to the Kition gateway"), "{stderr}");
+    assert!(stderr.contains("the gateway stopped; serving in this process"), "{stderr}");
+    assert!(stderr.contains("a gateway started for this workspace; relaying"), "{stderr}");
+
+    // --no-relay serves in its own process, gateway or not.
+    let mut alone = Client::start(&setup, &["--no-relay"]);
+    let ran = alone.run();
+    assert_ne!(ran["result"]["structuredContent"]["live"], true, "{ran}");
+    assert!(editor.calls.recv_timeout(Duration::from_millis(500)).is_err(), "the editor got nothing");
+    assert_eq!(read(), "plan B B B");
+    let (status, stderr) = alone.finish();
+    assert_eq!(status, Some(0), "{stderr}");
+    assert!(!stderr.contains("relaying"), "{stderr}");
+    editor.close();
+    drop(later);
 }

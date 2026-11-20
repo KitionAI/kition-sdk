@@ -11,6 +11,10 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   its token in a 0600 lockfile under `KITION_HOME/run/`, serves one workspace once (a second
   gateway exits with status 3), and stops on SIGINT, SIGTERM, SIGHUP, `--stdin-lifetime` or
   `--idle-timeout`. It serves no editor page yet. `kition doctor` names the running gateways.
+- **`kition mcp` relays to a gateway** for the same workspace when one runs, so an agent's edit
+  of a file open in an editor attached to it happens in the editor; without one it serves as
+  before, takes over when the gateway stops and hands over when one starts; `--no-relay` turns it
+  off.
 - **The kits' HTTP API is an SDK crate**, `kition-kits-http`, ported from Kition's runtime with
   its route paths, envelope and error codes, behind a transport guard of its own,
   `kition-http-guard` (loopback `Host` and `Origin` fence, the per-launch token, signed GET URLs).
