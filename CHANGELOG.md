@@ -4,8 +4,8 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
-- **The kit index is format 1 and `@kition/kits-index` is versioned `1.0.<n>`**: every format and
-  protocol is version 1. `kition` refuses an index of any other format, naming both.
+- **The kit index is format 1 and `@kition/kits-index` is versioned `0.1.<n>`**: every format and
+  protocol is version 1, and nothing is released as 1.0 yet. `kition` refuses an index of any other format, naming both.
 - **The kit index is gathered past npm's placeholder of a first publish**: npm keeps a version
   `0.0.0-stage` of its own, without a `kition` field, beside a package's first version, and the
   kits-index workflow stopped on it for the first kit packages on npm. It is left out; any other

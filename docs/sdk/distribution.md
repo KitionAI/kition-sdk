@@ -133,8 +133,8 @@ with `tools/kits-index.mjs`:
   Process Protocol its packages declare. The index is checked against its schema and written in a
   fixed order, so the same packages give the same bytes.
 - An index with no kit is never published: the one published stays.
-- The workflow publishes a new version of `@kition/kits-index` (`1.0.<n>`, one more than the last;
-  1 is the index format) only when the index's bytes changed, and tags it `latest`. The versions
+- The workflow publishes a new version of `@kition/kits-index` (`0.1.<n>`, one more than the
+  last) only when the index's bytes changed, and tags it `latest`. The versions
   of `@kition/kits-index` are the index's history.
 
 **This is the one thing the repository publishes that moves.** Every package version, release and

@@ -561,7 +561,7 @@ features:
       - sdk.distribution.kition/install
     since: "2026-11-17"
   - id: sdk.distribution.kits-index
-    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (1.0.<n>, latest) only when the index changed"
+    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (0.1.<n>, latest) only when the index changed"
     dimension: [platform, security]
     priority: P1
     status: has

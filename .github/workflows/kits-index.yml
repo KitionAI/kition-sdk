@@ -15,7 +15,7 @@ name: kits-index
 # - publishes nothing when the index would hold no kit (exit status 3), so an empty index never
 #   replaces a good one;
 # - publishes a new version of @kition/kits-index only when the index's bytes differ from those of
-#   the one published: version 1.0.<n>, n one more than the published one's (1 is the index format),
+#   the one published: version 0.1.<n>, n one more than the published one's,
 #   tagged latest. A version published is never replaced.
 # Started by hand from the Actions tab, and every hour.
 on:
@@ -73,7 +73,7 @@ jobs:
           set -uo pipefail
           previous=()
           [ -f target/published/kits-index.json ] && previous=(--previous target/published/kits-index.json)
-          case "$PUBLISHED" in 1.0.*) next="1.0.$(( ${PUBLISHED##*.} + 1 ))" ;; *) next=1.0.0 ;; esac
+          case "$PUBLISHED" in 0.1.*) next="0.1.$(( ${PUBLISHED##*.} + 1 ))" ;; *) next=0.1.0 ;; esac
           node tools/kits-index.mjs --modules target/kition/kits/modules.json --registry "$REGISTRY" \
             --out target/kits-index/kits-index.json --package target/kits-index/package --version "$next" "${previous[@]}" | tee target/kits-index-report.txt
           status=${PIPESTATUS[0]}
@@ -88,9 +88,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NEXT: ${{ steps.gather.outputs.next }}
+          PUBLISHED: ${{ steps.published.outputs.version }}
         run: |
           set -euo pipefail
-          if [ -f target/published/kits-index.json ] && cmp -s target/published/kits-index.json target/kits-index/kits-index.json; then
+          # A published version that is not 0.1.<n> is replaced as latest even with the same bytes.
+          if [[ "$PUBLISHED" == 0.1.* ]] && [ -f target/published/kits-index.json ] && cmp -s target/published/kits-index.json target/kits-index/kits-index.json; then
             echo "kits-index.json is unchanged"
             exit 0
           fi
