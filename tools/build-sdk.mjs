@@ -12,7 +12,9 @@
 //                   (dist/lib/chunks), loro-crdt, React and Tessera left imports (a dependency and
 //                   optional peers); an import of @kition/embed or @kition/script points at
 //                   dist/standalone. The editor's worker (dist/lib/assets) is a bundle of its own,
-//                   with its own Loro, as a worker must be.
+//                   with its own Loro, as a worker must be; Loro's WebAssembly is a file beside it
+//                   (loro_wasm_bg-<hash>.wasm), never inlined, so a kit's bundler emits it as an
+//                   asset and a browser caches it and compiles it apart from the worker.
 // dist/types/<dir>/ the declarations of all twelve, from one TypeScript program: each package's
 //                   name is a relative import, Loro's types opaque (dist/types/loro-crdt.d.ts),
 //                   and every relative import has its .js, for `bundler` and `node16` alike.
@@ -29,7 +31,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
 import { packageNoticeSection } from './bundled-notices.mjs'
-import { BINS, jsBase, nodeOnlyStub, oldNamesIn, PARTS, renameOldNames, SDK, subpaths, tesseraImport } from './sdk-package.mjs'
+import { BINS, editorWorkerProblems, jsBase, nodeOnlyStub, oldNamesIn, PARTS, renameOldNames, SDK, subpaths, tesseraImport } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sdkDir = path.join(root, 'packages/sdk')
@@ -104,6 +106,107 @@ await build({
   },
 })
 
+// Loro's WebAssembly beside the editor's worker, as a file of its own (dist/lib/assets/
+// loro_wasm_bg-<hash>.wasm), which the worker names `new URL('./loro_wasm_bg-<hash>.wasm',
+// import.meta.url)`: the form a kit's bundler finds, emits as an asset and rewrites, and a server
+// sends as application/wasm. Library mode would inline it as a 3.4 MB data: URL (base64, 4.5 MB),
+// which every kit then ships inside its worker and the browser can neither cache apart nor compile
+// while it downloads. The URL is a placeholder until the chunk is rendered, so Vite's own
+// `new URL(..., import.meta.url)` handling (which inlines in library mode) never sees it.
+const LORO_WASM_URL = '__kition_loro_wasm_url__'
+const LORO_WASM_SOURCE = /\bnew URL\((["'])(?:\.\/)?loro_wasm_bg\.wasm\1,\s*import\.meta\.url\)/g
+const loroWasmFile = () => {
+  let ref = null
+  return {
+    name: 'kition-loro-wasm-file',
+    enforce: 'pre',
+    transform(code, id) {
+      const file = id.split('?')[0]
+      if (!/[\\/]loro-crdt[\\/](?:browser|web|bundler)[\\/]loro_wasm(?:_bg)?\.js$/.test(file)) return null
+      const found = code.match(LORO_WASM_SOURCE) ?? []
+      if (!found.length) return null
+      if (found.length !== 1) throw new Error(`${file} names loro_wasm_bg.wasm ${found.length} times; tools/build-sdk.mjs expects one new URL(...)`)
+      ref ??= this.emitFile({ type: 'asset', name: 'loro_wasm_bg.wasm', source: fs.readFileSync(path.join(path.dirname(file), 'loro_wasm_bg.wasm')) })
+      return { code: code.replace(LORO_WASM_SOURCE, `new URL(${LORO_WASM_URL}, import.meta.url)`), map: null }
+    },
+    renderChunk(code, chunk) {
+      if (!code.includes(LORO_WASM_URL)) return null
+      const relative = path.posix.relative(path.posix.dirname(chunk.fileName), this.getFileName(ref))
+      return { code: code.replaceAll(LORO_WASM_URL, JSON.stringify(relative.startsWith('.') ? relative : `./${relative}`)), map: null }
+    },
+  }
+}
+
+// Loro in the editor's worker is loro-crdt/web, whose init compiles the wasm with
+// WebAssembly.instantiateStreaming while it downloads (and lets the browser cache the compiled
+// code), instead of loro-crdt/browser's blocking request and synchronous compile when the worker
+// starts. Every import of loro-crdt in the worker is that one module. Its init is asynchronous, so
+// a gate, the worker entry's first import, holds the page's requests until Loro is ready and then
+// hands them to the worker's own handler in order; when Loro cannot load, the worker fails as a
+// worker whose module threw (the page's onerror, which fails the engine's calls). The twelve
+// packages' sources are unchanged: @kition/kit-editor's own worker still uses loro-crdt/browser.
+const WORKER_ENTRY = path.join(root, 'packages/kit-editor/src/engine/kitEngine.worker.ts')
+const LORO_WEB = path.join(fs.realpathSync(path.join(root, 'packages/kdm/node_modules/loro-crdt')), 'web/index.js')
+const LORO_GATE = '\0kition-loro-gate'
+const LORO_GATE_SOURCE = `import init from ${JSON.stringify(LORO_WEB)}
+const held = []
+let ready = false
+const hold = (event) => {
+  if (ready) return
+  event.stopImmediatePropagation()
+  held.push(event)
+}
+self.addEventListener('message', hold)
+init().then(
+  () => {
+    ready = true
+    self.removeEventListener('message', hold)
+    for (const event of held.splice(0)) self.dispatchEvent(new MessageEvent('message', { data: event.data, origin: event.origin, lastEventId: event.lastEventId, ports: [...event.ports] }))
+  },
+  (error) => {
+    setTimeout(() => {
+      throw new Error("Loro's WebAssembly did not load: " + (error && error.message ? error.message : String(error)))
+    })
+  },
+)
+`
+let gatedWorker = false
+const loroWeb = () => ({
+  name: 'kition-loro-web',
+  enforce: 'pre',
+  resolveId(source) {
+    if (source === LORO_GATE) return LORO_GATE
+    if (source === 'loro-crdt') return LORO_WEB
+    if (source.startsWith('loro-crdt/')) throw new Error(`the editor's worker imports ${source}; tools/build-sdk.mjs gives it loro-crdt (as loro-crdt/web) only`)
+    return null
+  },
+  load(id) {
+    return id === LORO_GATE ? LORO_GATE_SOURCE : null
+  },
+  transform(code, id) {
+    if (id.split('?')[0] !== WORKER_ENTRY) return null
+    gatedWorker = true
+    return { code: `import ${JSON.stringify(LORO_GATE)}\n${code}`, map: null }
+  },
+})
+
+// The editor's chunk starts the worker as `new Worker(new URL('../assets/kitEngine.worker-<hash>.js',
+// import.meta.url), { type: 'module' })`, the form a kit's bundler recognizes as a worker: it bundles
+// the worker for the kit (minified, Loro's wasm emitted as an asset beside it, its URL rewritten).
+// Library mode renders it as `new URL(/* @vite-ignore */ "" + new URL(...).href, import.meta.url)`,
+// which a bundler copies as an opaque file: the worker's own `new URL('./loro_wasm_bg-<hash>.wasm',
+// import.meta.url)` would then name a file the kit's build never emitted.
+const IGNORED_WORKER_URL = /new URL\(\s*\/\* @vite-ignore \*\/\s*""\s*\+\s*new URL\((["'])([^"']*\/kitEngine\.worker-[\w-]+\.js)\1,\s*import\.meta\.url\)\.href(?:\s*\+\s*"")?,\s*import\.meta\.url\s*\)/g
+const plainWorkerUrl = () => ({
+  name: 'kition-plain-worker-url',
+  enforce: 'post',
+  renderChunk(code) {
+    if (!code.includes('kitEngine.worker-')) return null
+    const next = code.replace(IGNORED_WORKER_URL, (_, quote, file) => `new URL(${JSON.stringify(file)}, import.meta.url)`)
+    return next === code ? null : { code: next, map: null }
+  },
+})
+
 // 2. The lib group.
 // An import of a standalone subpath stays an import, of `kition-sdk-standalone:<file under dist>`,
 // rendered per chunk as the relative path from that chunk to the file (renderChunk below).
@@ -151,8 +254,8 @@ await build({
   base: './',
   configFile: false,
   logLevel: 'warn',
-  plugins: [sdkImports(), recordBundled(), newNames()],
-  worker: { format: 'es', plugins: () => [recordBundled(), newNames()], rollupOptions: { output: { inlineDynamicImports: true } } },
+  plugins: [sdkImports(), recordBundled(), newNames(), plainWorkerUrl()],
+  worker: { format: 'es', plugins: () => [loroWeb(), loroWasmFile(), recordBundled(), newNames()], rollupOptions: { output: { inlineDynamicImports: true } } },
   build: {
     outDir: path.join(dist, 'lib'),
     emptyOutDir: false,
@@ -170,6 +273,8 @@ await build({
     },
   },
 })
+
+if (!gatedWorker) throw new Error(`the editor's worker is no longer built from ${path.relative(root, WORKER_ENTRY)}: update WORKER_ENTRY in tools/build-sdk.mjs`)
 
 // 3. Styles, pages and .mjs helpers, as the packages copy them; Tessera named by tesseraSpecifier.
 const tesseraInCss = (text) => text.replace(/(@import\s+['"])([^'"]+)(['"])/g, (whole, lead, specifier, close) => {
@@ -274,4 +379,8 @@ for (const { key, js } of list) if (!fs.existsSync(path.join(sdkDir, js))) throw
 // No old package name is left in what @kition/sdk ships, but the client names.
 const left = walk(dist).filter((file) => /\.(?:[cm]?js|d\.m?ts|css|html)$/.test(file)).flatMap((file) => oldNamesIn(fs.readFileSync(file, 'utf8')).map(({ name, line }) => `${path.relative(sdkDir, file)}:${line}: ${name}`))
 if (left.length) throw new Error(`old package names left in ${SDK}'s dist (rename them in tools/build-sdk.mjs, or add a client name to CLIENT_NAMES in tools/sdk-package.mjs):\n${left.join('\n')}`)
+// The editor's worker names Loro's WebAssembly beside it and inlines none (loroWasmFile above).
+const shipped = walk(dist).map((file) => path.relative(sdkDir, file).split(path.sep).join('/'))
+const workerProblems = editorWorkerProblems(shipped, (file) => fs.readFileSync(path.join(sdkDir, file), 'utf8'))
+if (workerProblems.length) throw new Error(`${SDK}'s editor worker:\n${workerProblems.join('\n')}`)
 console.log(`${SDK}: built ${list.length} subpaths in packages/sdk/dist (${declarations.length} declarations)`)

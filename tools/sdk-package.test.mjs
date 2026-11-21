@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { isPackageManagerFile, LOCKFILES, migrateFolder, migrateManifest, migrateText, packageManagerNotes } from './migrate-to-sdk.mjs'
-import { BINS, CLIENT_NAMES, OLD_TESSERA, PARTS, SDK, TESSERA, manifestOf, oldNamesIn, renameOldNames, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
+import { BINS, CLIENT_NAMES, OLD_TESSERA, PARTS, SDK, TESSERA, editorWorkerProblems, manifestOf, oldNamesIn, renameOldNames, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
@@ -100,6 +100,38 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(renameOldNames('{ name: "@kition/kdm", version: 1 }')).toBe('{ name: "@kition/sdk/kdm", version: 1 }')
     expect(oldNamesIn('a\n// @kition/kit-host\nconst name = "@kition/script"')).toEqual([{ name: '@kition/kit-host', line: 2 }, { name: '@kition/script', line: 3 }])
     expect(oldNamesIn(renameOldNames('@kition/embed-server @kition/tessera-icons/react @kition/kit-ui-protocol'))).toEqual([])
+  })
+
+  it("ships Loro's WebAssembly as a file beside the editor's worker, named as a bundler finds it, never inlined", () => {
+    const worker = 'dist/lib/assets/kitEngine.worker-AbC_1-x.js'
+    const wasm = 'dist/lib/assets/loro_wasm_bg-Gulzks_0.wasm'
+    const editor = 'dist/lib/kit-editor/index.js'
+    const glue = 'async function init(n) { return WebAssembly.instantiateStreaming(fetch(n), {}) }\n'
+    const good = {
+      [worker]: `${glue}init(new URL("./loro_wasm_bg-Gulzks_0.wasm", import.meta.url))\n`,
+      [wasm]: '\0asm',
+      [editor]: 'const w = new Worker(new URL("../assets/kitEngine.worker-AbC_1-x.js", import.meta.url), { type: "module" })\nconst v = new Worker(new URL(\'../assets/kitEngine.worker-AbC_1-x.js\', import.meta.url), { type: "module" })\n',
+    }
+    const problems = (files) => editorWorkerProblems(Object.keys(files), (file) => files[file])
+    expect(problems(good)).toEqual([])
+    // Library mode's inlining: no wasm file, the module as base64 in the worker.
+    const inlined = { [worker]: `${glue}init(new URL("data:application/wasm;base64,${'A'.repeat(70000)}", import.meta.url))\n`, [editor]: good[editor] }
+    expect(problems(inlined)).toEqual([expect.stringMatching(/0 Loro wasm files .*inlines Loro again/)])
+    expect(problems({ ...inlined, [wasm]: '\0asm' })).toEqual([expect.stringMatching(/does not name .*loro_wasm_bg-Gulzks_0\.wasm/), expect.stringMatching(/inlines a large data: URL/)])
+    expect(problems({ ...good, [worker]: `${glue}const x = "data:font/woff2;base64,${'B'.repeat(70000)}"\n${good[worker]}` })).toEqual([expect.stringMatching(/inlines a large data: URL/)])
+    // Library mode's worker URL, which a bundler copies as an opaque file (without the wasm).
+    const ignored = 'new Worker(new URL(/* @vite-ignore */ "" + new URL("../assets/kitEngine.worker-AbC_1-x.js", import.meta.url).href, import.meta.url), { type: "module" })'
+    expect(problems({ ...good, [editor]: `${good[editor]}${ignored}\n` })).toEqual([expect.stringMatching(/names .* 3 times, 2 of them as new Worker/)])
+    expect(problems({ ...good, [editor]: 'nothing' })).toEqual([expect.stringMatching(/no chunk of @kition\/sdk starts/)])
+    // loro-crdt/browser's loader: a blocking request and a synchronous compile.
+    expect(problems({ ...good, [worker]: 'throw new Error("loro-crdt browser build requires XMLHttpRequest for synchronous WASM loading.")\nnew WebAssembly.Module(new URL("./loro_wasm_bg-Gulzks_0.wasm", import.meta.url))' })).toEqual([expect.stringMatching(/as loro-crdt\/browser does/)])
+    expect(problems({ ...good, [worker.replace('AbC', 'Two')]: good[worker] })).toEqual([expect.stringMatching(/2 editor workers/)])
+    // The built package, when it is there, is as the check wants it.
+    const built = path.join(root, 'packages/sdk')
+    if (fs.existsSync(path.join(built, 'dist/lib/assets'))) {
+      const files = fs.readdirSync(path.join(built, 'dist'), { recursive: true }).map((file) => `dist/${file.split(path.sep).join('/')}`).filter((file) => /\.(?:js|wasm)$/.test(file))
+      expect(editorWorkerProblems(files, (file) => fs.readFileSync(path.join(built, file), 'utf8'))).toEqual([])
+    }
   })
 })
 

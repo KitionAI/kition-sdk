@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { undeclaredImports } from './check-public-package-imports.mjs'
-import { CLIENT_NAMES, oldNamesIn, SDK, sdkExports, TESSERA } from './sdk-package.mjs'
+import { CLIENT_NAMES, editorWorkerProblems, oldNamesIn, SDK, sdkExports, TESSERA } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const destination = path.join(root, 'target/npm-pack')
@@ -94,6 +94,8 @@ for (const { directory, manifest } of ordered) {
       for (const { name, line } of oldNamesIn(content.stdout)) left.push(`${file}:${line}: ${name}`)
     }
     assert.deepEqual(left, [], `${SDK} names old packages (allowed: the client names ${CLIENT_NAMES.join(', ')})`)
+    // The editor's worker names Loro's WebAssembly, a file beside it, and inlines none of it.
+    assert.deepEqual(editorWorkerProblems(files, (file) => run('tar', ['-xOf', archive, `package/${file}`], root).stdout), [], `${SDK}: its editor worker and Loro's wasm`)
   }
   // Bundled third-party code ships with its license (tools/build-package.mjs writes the notices).
   if (bundlesLoro) {

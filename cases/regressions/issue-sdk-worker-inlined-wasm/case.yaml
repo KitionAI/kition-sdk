@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-sdk-worker-inlined-wasm
+feature: sdk.packages.one-package
+intent: >-
+  kition-html's, kition-layout's and kition-doc's moves to @kition/sdk (2026-11-21) grew their
+  editors by about 40% gzip: @kition/sdk's editor worker (dist/lib/assets/kitEngine.worker-*.js,
+  5.0 MB) carried Loro's WebAssembly inlined as a base64 data: URL, an accident of Vite's library
+  mode, where the kits had shipped it as a 3.4 MB .wasm file of its own; and the editor's chunk
+  named the worker as new URL(/* @vite-ignore */ "" + new URL(...).href, import.meta.url), which a
+  kit's bundler copies as an opaque file. The built package must have Loro's wasm as a file beside
+  the worker (loro_wasm_bg-<hash>.wasm), named by the worker as new URL('./<file>',
+  import.meta.url) and compiled with WebAssembly.instantiateStreaming (loro-crdt/web), with no
+  large data: URL in the worker, and every chunk that starts the worker must name it as
+  new Worker(new URL('<relative path>', import.meta.url)); the build, the pack check
+  (editorWorkerProblems in tools/sdk-package.mjs) and the package smoke fail otherwise.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/build-sdk.mjs
+  license: owned
+input: []
+steps:
+  - exec: { cmd: [node, tools/pack-public-packages.mjs, sdk] }
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/sdk-package.test.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 300

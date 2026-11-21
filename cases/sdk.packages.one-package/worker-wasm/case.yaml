@@ -1,0 +1,27 @@
+format: 1
+id: sdk.packages.one-package/worker-wasm
+feature: sdk.packages.one-package
+intent: >-
+  The packed @kition/sdk, installed in a project outside the workspace with a kit editor's Vite
+  configuration (@kition/sdk not pre-bundled, module workers), in Chromium: the page starts the
+  editor's engine worker on a small kit engine, reads the object model, sets a field through the
+  worker's KDM and saves a document that carries it, once from the kit's production build served
+  as static files and once from the development server. Each time Loro's WebAssembly is fetched as
+  a .wasm response of its own with the content type application/wasm, the worker's script inlines
+  no WebAssembly, nothing fails and Loro's glue never falls back from
+  WebAssembly.instantiateStreaming.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/smoke-sdk-worker.mjs
+  license: owned
+input: []
+steps:
+  - exec: { cmd: [node, tools/pack-public-packages.mjs, sdk] }
+  - exec: { cmd: [node, tools/smoke-sdk-worker.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+requires: [chromium]
+timeout_s: 300

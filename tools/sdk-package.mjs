@@ -205,6 +205,46 @@ export function sdkSideEffects() {
   return ['*.css', './dist/standalone/script/kits/*.js', ...Object.values(sdkBin())]
 }
 
+/** The editor's worker in @kition/sdk (a path under the package), a bundle of its own with its own Loro. */
+export const EDITOR_WORKER = /^dist\/lib\/assets\/kitEngine\.worker-[\w-]+\.js$/
+/** Loro's WebAssembly beside it, a file of its own (tools/build-sdk.mjs emits it there). */
+export const LORO_WASM = /^dist\/lib\/assets\/loro_wasm_bg-[\w-]+\.wasm$/
+/** A data: URL of 64 kB or more: an inlined WebAssembly module, font or image. */
+const LARGE_DATA_URL = /data:[\w./+-]*;base64,[A-Za-z0-9+/]{65536}/
+
+/**
+ * What is wrong with the editor's worker and Loro's WebAssembly among @kition/sdk's `files` (paths
+ * under the package; `read(file)` gives a file's text): there is one worker and one Loro wasm in
+ * dist/lib/assets, the worker names the wasm `new URL('./<wasm file>', import.meta.url)` (the form
+ * a kit's bundler finds and emits as an asset), nothing is inlined in the worker as a large
+ * data: URL (as Vite's library mode inlines the wasm, 4.5 MB of base64), and the worker compiles
+ * Loro as loro-crdt/web does (WebAssembly.instantiateStreaming), not with loro-crdt/browser's
+ * blocking request. [] when all is right.
+ * tools/build-sdk.mjs, the pack check and tools/smoke-sdk-package.mjs ask it.
+ */
+export function editorWorkerProblems(files, read) {
+  const workers = files.filter((file) => EDITOR_WORKER.test(file))
+  const wasms = files.filter((file) => LORO_WASM.test(file))
+  if (workers.length !== 1) return [`${SDK} has ${workers.length} editor workers (dist/lib/assets/kitEngine.worker-*.js), not one`]
+  if (wasms.length !== 1) return [`${SDK} has ${wasms.length} Loro wasm files beside the editor's worker (dist/lib/assets/loro_wasm_bg-*.wasm), not one: the worker inlines Loro again`]
+  const problems = []
+  const worker = read(workers[0])
+  const name = path.posix.basename(wasms[0]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (!new RegExp(`new URL\\((["'\`])\\./${name}\\1,\\s*import\\.meta\\.url\\)`).test(worker)) problems.push(`${workers[0]} does not name ${wasms[0]} as new URL('./${path.posix.basename(wasms[0])}', import.meta.url)`)
+  if (/data:application\/wasm/.test(worker) || LARGE_DATA_URL.test(worker)) problems.push(`${workers[0]} inlines a large data: URL (Loro's WebAssembly as base64): it must name the .wasm file beside it`)
+  // Every chunk that starts it names it as a bundler recognizes a worker (and bundles it, emitting the wasm).
+  const workerName = path.posix.basename(workers[0]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const starters = files.filter((file) => /^dist\/lib\/.*\.js$/.test(file) && file !== workers[0]).map((file) => ({ file, text: read(file) })).filter(({ text }) => text.includes(path.posix.basename(workers[0])))
+  if (!starters.length) problems.push(`no chunk of ${SDK} starts ${workers[0]}`)
+  for (const { file, text } of starters) {
+    const named = text.split(path.posix.basename(workers[0])).length - 1
+    const plain = text.match(new RegExp(`new Worker\\(new URL\\((["'\`])\\.{1,2}/(?:[\\w-]+/)*${workerName}\\1,\\s*import\\.meta\\.url\\)`, 'g'))?.length ?? 0
+    if (plain !== named) problems.push(`${file} names ${workers[0]} ${named} times, ${plain} of them as new Worker(new URL('<relative path>', import.meta.url)): a bundler copies the others as opaque files, without the wasm`)
+  }
+  if (worker.includes('loro-crdt browser build requires XMLHttpRequest') || !worker.includes('WebAssembly.instantiateStreaming')) problems.push(`${workers[0]} loads Loro as loro-crdt/browser does (a blocking request, compiled synchronously), not as loro-crdt/web (WebAssembly.instantiateStreaming)`)
+  return problems
+}
+
 function main(argv) {
   const file = path.join(root, 'packages/sdk/package.json')
   if (argv.includes('--write') || argv.includes('--check')) {

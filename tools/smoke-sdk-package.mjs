@@ -17,7 +17,10 @@
 //      alone has no types.
 //   3. A browser bundle (Vite) of a page importing only @kition/sdk/embed holds nothing of the
 //      editor (no React, Tessera or editor worker) and keeps Loro out of its first chunk; one
-//      importing @kition/sdk/embed/server gets only the Node-only error.
+//      importing @kition/sdk/embed/server gets only the Node-only error. The editor's worker names
+//      Loro's WebAssembly, a file beside it (never inlined as a data: URL), and a page importing
+//      @kition/sdk/editor, bundled as a kit bundles it, emits that wasm as an asset of its own,
+//      which its worker names (tools/smoke-sdk-worker.mjs runs it in Chromium).
 //   4. Sizes: the archive, the unpacked files and the largest ones, beside the twelve packages'
 //      archives in target/npm-pack when they are there.
 //
@@ -30,25 +33,14 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
-import { PARTS, SDK, subpaths, TESSERA } from './sdk-package.mjs'
+import { consumerInputs, installSdk, kitViteConfig } from './sdk-consumer.mjs'
+import { EDITOR_WORKER, editorWorkerProblems, LORO_WASM, PARTS, SDK, subpaths, TESSERA } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
-const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
-const archive = path.resolve(flag('--archive') ?? path.join(root, 'target/npm-pack/sdk.tgz'))
-if (!fs.existsSync(archive)) {
-  console.error(`smoke-sdk-package: ${path.relative(root, archive)} is missing; run node tools/pack-public-packages.mjs sdk first`)
-  process.exit(2)
-}
-const tessera = path.resolve(flag('--tessera') ?? path.join(root, '..', 'kition-tessera/packages/tessera'))
-if (!fs.existsSync(path.join(tessera, 'package.json')) || !fs.existsSync(path.join(tessera, 'dist'))) {
-  console.error(`smoke-sdk-package: ${tessera} is not a built ${TESSERA} (no package.json or dist/); run pnpm build:packages in kition-tessera, or pass --tessera <folder>`)
-  process.exit(2)
-}
+const { archive, tessera } = consumerInputs('smoke-sdk-package', args)
 
 const consumer = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kition-sdk-consumer-')))
-const modules = path.join(consumer, 'node_modules')
-const installed = path.join(modules, '@kition/sdk')
 const results = []
 const pass = (line) => {
   results.push(line)
@@ -56,33 +48,7 @@ const pass = (line) => {
 }
 
 try {
-  // The package, as npm unpacks it.
-  fs.mkdirSync(path.dirname(installed), { recursive: true })
-  const unpack = fs.mkdtempSync(path.join(consumer, 'unpack-'))
-  execFileSync('tar', ['-xzf', archive, '-C', unpack])
-  fs.renameSync(path.join(unpack, 'package'), installed)
-  fs.rmSync(unpack, { recursive: true })
-  const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'))
-  assert.equal(manifest.name, SDK)
-
-  // Its dependency and peers, linked: nothing is downloaded.
-  const link = (target, name) => {
-    const at = path.join(modules, name)
-    fs.mkdirSync(path.dirname(at), { recursive: true })
-    fs.symlinkSync(fs.realpathSync(target), at, 'dir')
-  }
-  link(path.join(root, 'packages/kdm/node_modules/loro-crdt'), 'loro-crdt')
-  for (const name of ['react', 'react-dom', '@types/react', '@types/react-dom', '@types/node']) link(path.join(root, 'node_modules', name), name)
-  // @kition/tessera as npm serves it: its files, and its publishConfig exports when it has them. A
-  // rehearsal package (<scope>/tessera) is installed under the name @kition/tessera, as a consumer
-  // aliases it; its own dependencies resolve from where it is.
-  const ownTessera = JSON.parse(fs.readFileSync(path.join(tessera, 'package.json'), 'utf8'))
-  const tesseraAt = path.join(modules, TESSERA)
-  fs.mkdirSync(tesseraAt, { recursive: true })
-  fs.writeFileSync(path.join(tesseraAt, 'package.json'), JSON.stringify({ ...ownTessera, exports: ownTessera.publishConfig?.exports ?? ownTessera.exports }, null, 2))
-  for (const file of ownTessera.files) if (fs.existsSync(path.join(tessera, file))) fs.symlinkSync(path.join(tessera, file), path.join(tesseraAt, file))
-  assert.ok(Object.keys(manifest.peerDependencies ?? {}).includes(TESSERA), `${SDK} names ${TESSERA} as a peer`)
-  fs.writeFileSync(path.join(consumer, 'package.json'), '{ "name": "consumer", "private": true, "type": "module" }\n')
+  const { installed, manifest, ownTessera } = installSdk({ consumer, archive, tessera })
 
   const all = subpaths()
   const code = all.filter(({ types }) => types)
@@ -216,6 +182,31 @@ try {
   assert.ok(serverText.includes('runs in Node only'), 'a browser bundle of /embed/server gets the Node-only error')
   assert.ok(!/node:http|createServer|createHmac/.test(serverText), 'and none of the server')
   pass(`a page importing ${SDK}/embed/server gets only the error "${SDK}/embed/server runs in Node only ..." (${Buffer.byteLength(serverText)} bytes)`)
+
+  // An editor page bundled as a kit bundles it (kitViteConfig, as kition-html's): Loro's
+  // WebAssembly is a file beside the editor's worker in the package, and an asset of its own in the
+  // kit's build, which the bundled worker names; nothing of it is inlined.
+  const packaged = fs.readdirSync(installed, { recursive: true }).map((file) => file.split(path.sep).join('/'))
+  assert.deepEqual(editorWorkerProblems(packaged, (file) => fs.readFileSync(path.join(installed, file), 'utf8')), [], `${SDK}'s editor worker and Loro's wasm`)
+  const packagedWasm = packaged.find((file) => LORO_WASM.test(file))
+  const packagedWorker = packaged.find((file) => EDITOR_WORKER.test(file))
+  const kit = path.join(consumer, 'page-editor')
+  fs.mkdirSync(kit)
+  fs.writeFileSync(path.join(kit, 'index.html'), '<!doctype html><html><body><script type="module" src="./main.js"></script></body></html>\n')
+  fs.writeFileSync(path.join(kit, 'main.js'), `import { KitEngine } from '${SDK}/editor'\nwindow.KitEngine = KitEngine\n`)
+  await build(kitViteConfig(kit))
+  const kitAssets = path.join(kit, 'dist/assets')
+  const emitted = fs.readdirSync(kitAssets)
+  const kitWasm = emitted.filter((file) => file.endsWith('.wasm'))
+  const kitWorker = emitted.filter((file) => /^kitEngine\.worker-[\w-]+\.js$/.test(file))
+  assert.equal(kitWasm.length, 1, `the kit's build emits Loro's wasm as one asset: ${emitted.join(', ')}`)
+  assert.equal(kitWorker.length, 1, `the kit's build emits the editor's worker: ${emitted.join(', ')}`)
+  assert.ok(fs.readFileSync(path.join(kitAssets, kitWasm[0])).equals(fs.readFileSync(path.join(installed, packagedWasm))), `${kitWasm[0]} is ${packagedWasm}`)
+  const kitWorkerText = fs.readFileSync(path.join(kitAssets, kitWorker[0]), 'utf8')
+  assert.ok(new RegExp(`new URL\\((["'\`])(?:\\./)?${kitWasm[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\1,\\s*import\\.meta\\.url\\)`).test(kitWorkerText), `the kit's worker names ${kitWasm[0]} relative to itself`)
+  assert.ok(!/data:application\/wasm/.test(kitWorkerText) && !/;base64,[A-Za-z0-9+/]{65536}/.test(kitWorkerText), "the kit's worker inlines no wasm")
+  const kitBytes = emitted.reduce((sum, file) => sum + fs.statSync(path.join(kitAssets, file)).size, 0)
+  pass(`an editor page bundled as a kit (Vite, ${SDK} not pre-bundled): ${packagedWorker} names ${packagedWasm} beside it; the kit's dist/assets has ${kitWorker[0]} (${(Buffer.byteLength(kitWorkerText) / 1e3).toFixed(0)} kB) naming ${kitWasm[0]} (${(fs.statSync(path.join(kitAssets, kitWasm[0])).size / 1e6).toFixed(2)} MB), nothing inlined; ${emitted.length} files, ${(kitBytes / 1e6).toFixed(2)} MB in all`)
 
   // 4. Sizes.
   const files = fs.readdirSync(installed, { recursive: true }).map((file) => path.join(installed, file)).filter((file) => fs.statSync(file).isFile())
