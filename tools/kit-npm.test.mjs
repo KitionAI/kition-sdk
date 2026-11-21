@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFAULT_REGISTRIES, LEGACY_LAYOUT_SCOPES, indexPackage, integrityOf, kitionField, npmScope, packageManifest, packageName, parseNpmrc, registries, tarballPath, viewExtensions } from './kit-npm.mjs'
-import { missing, pack, state, writeHeadless, writeUi } from './kit-npm-package.mjs'
+import { headlessReadme, missing, pack, state, uiReadme, writeHeadless, writeUi } from './kit-npm-package.mjs'
 
 const scratch = []
 const tempDir = () => {
@@ -60,6 +60,27 @@ describe('the kit packages’ names and kition field', () => {
     expect(() => kitionField({ ...kitJson, headless: {} }, 'ui')).toThrow(/names no protocol/)
     expect(() => kitionField({ ...kitJson, formats: [] }, 'ui')).toThrow(/edits no file type/)
     expect(() => kitionField(kitJson, 'headless', { platform: 'beos-x86' })).toThrow(/no platform/)
+  })
+
+  it('introduces the kit on npm: its description, GitHub repository, homepage, bugs and keywords from repositories.json', () => {
+    const ui = packageManifest(kitJson, 'ui', { files: [] })
+    expect(ui).toMatchObject({
+      description: 'Kition Note: a Markdown editor that never rewrites your file, for people and AI agents',
+      repository: { type: 'git', url: 'git+https://github.com/KitionAI/kition-note.git' },
+      homepage: 'https://github.com/KitionAI/kition-note',
+      bugs: { url: 'https://github.com/KitionAI/kition-note/issues' },
+    })
+    expect(ui.keywords).toEqual(['kition', 'kit', 'khp', 'note', 'editor', 'webassembly', 'ai-agents'])
+    const headless = packageManifest(kitJson, 'headless', { platform: 'linux-x64', files: [], repository: 'someone/kition-note' })
+    expect(headless.description).toBe('Kition Note: a Markdown editor that never rewrites your file, for people and AI agents (linux-x64 executable)')
+    expect(headless.repository.url).toBe('git+https://github.com/someone/kition-note.git')
+    expect(headless.keywords).toEqual(['kition', 'kit', 'khp', 'note', 'headless', 'mcp', 'ai-agents'])
+    expect(JSON.stringify([ui, headless])).not.toMatch(/by hand/)
+    // The kition field is what the index reads: unchanged by the rest.
+    expect(ui.kition).toEqual(kitionField(kitJson, 'ui'))
+    const unknown = { ...kitJson, id: 'kit.quill', name: 'Quill', headless: { ...kitJson.headless, executable: 'kition-quill' } }
+    expect(() => packageManifest(unknown, 'ui', { files: [] })).toThrow('"quill" is not a kit of templates/community/repositories.json (no kit entry kition-quill)')
+    expect(() => packageManifest(kitJson, 'ui', { files: [], repository: 'not a repository' })).toThrow(/is not owner\/name/)
   })
 
   it('installs a headless package only on its platform (npm os, cpu, and glibc on Linux)', () => {
@@ -151,7 +172,7 @@ describe('kit-npm-package: the Package workflow’s packages', () => {
     const packed = pack({ folder, out: path.join(dir, 'packed') })
     expect(packed).toMatchObject({ name: '@kition/kit-note-darwin-arm64', version: '0.1.3' })
     expect(packed.integrity).toBe(integrityOf(fs.readFileSync(packed.file)))
-    expect(listed(packed.file)).toEqual(['package/kit.json', 'package/kition-note', 'package/package.json'])
+    expect(listed(packed.file)).toEqual(['package/README.md', 'package/kit.json', 'package/kition-note', 'package/package.json'])
     const mode = execFileSync('tar', ['-tvzf', path.basename(packed.file), 'package/kition-note'], { cwd: path.dirname(packed.file), encoding: 'utf8' })
     expect(mode).toMatch(/^-rwx/)
     const manifest = JSON.parse(fs.readFileSync(path.join(folder, 'package.json'), 'utf8'))
@@ -168,6 +189,47 @@ describe('kit-npm-package: the Package workflow’s packages', () => {
     expect(listed(fromFolder.file)).toEqual(['package/note-ui/engine/note_bg.wasm', 'package/note-ui/index.html', 'package/note-ui/kit.json', 'package/package.json'])
     expect(fromArchive.integrity).toBe(fromFolder.integrity)
     expect(() => writeUi({ from: path.join(dir, 'src'), out: path.join(dir, 'c') })).toThrow(/is note-ui, not src|has no index.html|ENOENT/)
+  })
+
+  it('writes each package’s README for npm, with absolute links, in both layouts', () => {
+    for (const [scope, editor] of [['@kition', '@kition/kit-note-ui'], ['@kitionstage', '@kitionstage/note']]) {
+      const dir = tempDir()
+      const folder = writeHeadless({ dir: headlessBuild(path.join(dir, 'build')), platform: 'linux-arm64', out: path.join(dir, 'folders'), scope })
+      const manifest = JSON.parse(fs.readFileSync(path.join(folder, 'package.json'), 'utf8'))
+      expect(manifest.files).toEqual(['README.md', 'kit.json', 'kition-note'])
+      expect(manifest).not.toHaveProperty('readme')
+      const readme = fs.readFileSync(path.join(folder, 'README.md'), 'utf8')
+      expect(readme).toBe(headlessReadme(kitJson, { platform: 'linux-arm64', scope }))
+      expect(readme.startsWith('# Kition Note for linux-arm64\n\nThe headless executable of Kition Note for linux-arm64')).toBe(true)
+      expect(readme).toContain('it is not meant to be installed by hand')
+      expect(readme).toContain('Kition Note: a Markdown editor that never rewrites your file, for people and AI agents.')
+      expect(readme).toContain(`GitHub: https://github.com/KitionAI/kition-note · The editor: [\`${editor}\`](https://www.npmjs.com/package/${editor})`)
+      expect(readme).toContain('Part of Kition: https://github.com/KitionAI')
+      expect(readme).not.toContain('## The Kition family')
+
+      // The editor package's top holds only <kit>-ui/ (kition and Kition take it so): its README is package.json's readme.
+      const ui = writeUi({ from: uiBuild(path.join(dir, 'src')), out: path.join(dir, 'ui'), scope })
+      expect(fs.readdirSync(ui).sort()).toEqual(['note-ui', 'package.json'])
+      const uiManifest = JSON.parse(fs.readFileSync(path.join(ui, 'package.json'), 'utf8'))
+      expect(uiManifest.files).toEqual(['note-ui'])
+      expect(uiManifest.readme).toBe(uiReadme(kitJson))
+      expect(Object.keys(uiManifest).at(-1)).toBe('kition')
+      const text = uiManifest.readme
+      expect(text.startsWith('# Kition Note\n\nKition Note: a Markdown editor that never rewrites your file, for people and AI agents.\n\n[GitHub](https://github.com/KitionAI/kition-note) · [Showcase](https://github.com/KitionAI/kition-showcase/tree/main/note) · [Developer docs](https://developer.kition.ai)\n')).toBe(true)
+      expect(text).toContain('kit `kit.note` version 0.1.3.')
+      expect(text).toContain('`kition kit install note`')
+      expect(text).toContain("KitionEmbed.mount(element, { kit: { id: 'kit.note', url: 'https://kits.example.com/note-ui/' }")
+      expect(text).toContain('| Opens | Creates | Exports |\n| --- | --- | --- |\n| `.MD`, `.markdown`, `.txt`, `.md` | — | — |')
+      expect(text).toContain('## The Kition family')
+      expect(text).toContain('| Office | **Note** · [Table](https://github.com/KitionAI/kition-table)')
+      expect(text.endsWith('## License\n\nApache-2.0 ([LICENSE](https://github.com/KitionAI/kition-note/blob/main/LICENSE)).\n')).toBe(true)
+      for (const body of [readme, text]) {
+        for (const [, target] of body.matchAll(/\]\(([^)]+)\)/g)) expect(target).toMatch(/^https:\/\//)
+      }
+      // No version in the prose but the editor package's own version line.
+      expect(readme).not.toMatch(/\d+\.\d+\.\d+/)
+      expect(text.match(/\d+\.\d+\.\d+/g)).toEqual(['0.1.3'])
+    }
   })
 
   it('refuses a pack whose archive is not the folder’s files', () => {

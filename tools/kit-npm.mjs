@@ -25,12 +25,19 @@
 //   { kit, id, name, version, role: "headless" | "ui", platform (headless), protocol,
 //     extensions (edited), views (only viewed), build: { commit, sdkCommit?, tesseraCommit?, fontsCommit? } }
 //
+// The rest of package.json introduces the kit on npm: its `description` is the kit's one-sentence
+// description and `repository`, `homepage` and `bugs` its GitHub repository, both from
+// templates/community/repositories.json (tools/kition-family.mjs); a kit not there is refused. The
+// package's README (tools/kit-npm-package.mjs) is a README.md file in a headless package and the
+// `readme` field in an editor package, whose top holds only `<kit>-ui/` (kition and Kition read it so).
+//
 // A package's integrity is npm's own `dist.integrity` (SHA-512 of the .tgz, `sha512-<base64>`),
 // which the index copies and `kition` checks whatever registry or mirror it downloads from.
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { kitOf } from './kition-family.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 /** The platforms kits and kition are built for (packages/kition/src/platforms.json). */
@@ -154,24 +161,35 @@ export function kitionField(kitJson, role, { platform, build = {} } = {}) {
   }
 }
 
+/** The GitHub repository `owner/name` of a kit's packages: `repository` when given, else the kit's (templates/community/repositories.json). */
+export function kitRepository(kit, repository) {
+  if (repository === undefined || repository === null || repository === '') return kitOf(kit).github
+  if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(repository)) throw new Error(`the repository ${JSON.stringify(repository)} is not owner/name`)
+  return repository
+}
+
 /**
- * The package.json of a kit's package: its name and version, the platform it installs on (npm
- * `os`, `cpu`, `libc`), the files it ships, and the `kition` field.
+ * The package.json of a kit's package: its name and version, what it is (the kit's description,
+ * its GitHub repository, keywords), the platform it installs on (npm `os`, `cpu`, `libc`), the files
+ * it ships, its `readme` when given (the editor package's), and the `kition` field.
  */
-export function packageManifest(kitJson, role, { platform, build, files, repository, scope = npmScope() } = {}) {
+export function packageManifest(kitJson, role, { platform, build, files, repository, scope = npmScope(), readme } = {}) {
   const kition = kitionField(kitJson, role, { platform, build })
+  const kit = kitOf(kition.kit)
   const target = role === 'headless' ? PLATFORM_TARGETS[platform] : null
+  const github = `https://github.com/${kitRepository(kition.kit, repository)}`
   return {
     name: packageName(kition.kit, role === 'ui' ? 'ui' : platform, scope),
     version: kition.version,
-    description:
-      role === 'ui'
-        ? `The editor of Kition's ${kition.name} kit (${kition.id} ${kition.version}), which kition installs and kition gateway serves. Not for installing by hand: kition installs it.`
-        : `Kition's ${kition.name} kit (${kition.id} ${kition.version}) for ${platform}: its headless executable and kit.json. Not for installing by hand: kition installs it.`,
+    description: role === 'ui' ? kit.description : `${kit.description} (${platform} executable)`,
+    keywords: ['kition', 'kit', 'khp', kition.kit, ...(role === 'ui' ? ['editor', 'webassembly'] : ['headless', 'mcp']), 'ai-agents'],
+    homepage: github,
+    bugs: { url: `${github}/issues` },
     license: typeof kitJson.license === 'string' ? kitJson.license : 'UNLICENSED',
-    ...(repository ? { repository: { type: 'git', url: `git+https://github.com/${repository}.git` } } : {}),
+    repository: { type: 'git', url: `git+${github}.git` },
     ...(target ? { os: [target.os], cpu: [target.cpu], ...(target.libc ? { libc: [target.libc] } : {}) } : {}),
     files,
+    ...(readme ? { readme } : {}),
     kition,
   }
 }

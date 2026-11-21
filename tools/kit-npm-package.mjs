@@ -8,10 +8,15 @@
 //
 //   node tools/kit-npm-package.mjs headless --dir <folder> --platform <platform> --out <folder> [--commit <sha>] [--repository <owner/name>]
 //       <folder> holds kit.json and the executable kition-<kit> (.exe on Windows), checked by the
-//       workflow before; writes <out>/kit-<kit>-<platform>/, the package @kition/kit-<kit>-<platform>.
+//       workflow before; writes <out>/kit-<kit>-<platform>/, the package @kition/kit-<kit>-<platform>,
+//       with a short README.md (headlessReadme).
 //   node tools/kit-npm-package.mjs ui --from <kition-<kit>-<version>.tgz | <kit>-ui folder> --out <folder>
 //        [--commit <sha>] [--sdk-commit <sha>] [--tessera-commit <sha>] [--fonts-commit <sha>] [--repository <owner/name>]
-//       writes <out>/kit-<kit>-ui/, the package @kition/kit-<kit>-ui holding the folder <kit>-ui/.
+//       writes <out>/kit-<kit>-ui/, the package @kition/kit-<kit>-ui holding the folder <kit>-ui/; its
+//       README (uiReadme) is package.json's `readme`, since kition and Kition take the package's
+//       top to hold only that folder.
+//   Without --repository the kit's repository is the one templates/community/repositories.json
+//   gives; a kit not there is refused.
 //   node tools/kit-npm-package.mjs pack --folder <package folder> --out <folder>
 //       `npm pack`s it into <out> and checks the archive holds exactly package/package.json and
 //       the folder's files, byte for byte; prints { file, name, version, size, integrity }.
@@ -26,7 +31,71 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { checkScope, integrityOf, npmScope, packageManifest, packageName, PLATFORMS } from './kit-npm.mjs'
+import { kitFormats, kitOf, readFamily, renderFamily } from './kition-family.mjs'
+import { checkScope, integrityOf, kitRepository, kitionField, npmScope, packageManifest, packageName, PLATFORMS } from './kit-npm.mjs'
+
+const DEVELOPER = 'https://developer.kition.ai'
+const SDK_DOCS = 'https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk'
+
+/** The license line of a kit package's README: kit.json's license and the repository's LICENSE. */
+const licenseSection = (kitJson, github) => `## License\n\n${typeof kitJson.license === 'string' ? kitJson.license : 'UNLICENSED'} ([LICENSE](${github}/blob/main/LICENSE)).\n`
+
+/**
+ * The README of a kit's editor package (npm shows it): the kit, its links, what the package holds
+ * (with its version and kit id), how it is used, its formats, the Kition family, the license. Every
+ * link is absolute.
+ */
+export function uiReadme(kitJson, { repository } = {}) {
+  const { kit, id, version } = kitionField(kitJson, 'ui')
+  const info = kitOf(kit)
+  const github = `https://github.com/${kitRepository(kit, repository)}`
+  const formats = kitFormats(kitJson)
+  return [
+    `# ${info.title}`,
+    '',
+    `${info.description}.`,
+    '',
+    `[GitHub](${github}) · [Showcase](https://github.com/KitionAI/kition-showcase/tree/main/${kit}) · [Developer docs](${DEVELOPER})`,
+    '',
+    `This package is ${info.title}'s editor and its WebAssembly engine: the folder \`${kit}-ui/\` (\`index.html\`, the engine, fonts and the kit's \`kit.json\`), kit \`${id}\` version ${version}.`,
+    '',
+    '## Use it',
+    '',
+    `You do not install this package by hand. [\`kition\`](${SDK_DOCS}/cli.md) installs it with the kit (\`kition kit install ${kit}\`, or \`npx @kition/cli kit install ${kit}\`), and \`kition gateway\` installs it the first time its page opens a ${info.name} file.`,
+    '',
+    `To embed the editor in your own page, host the folder \`${kit}-ui/\` on its own origin and mount it with [\`@kition/embed\`](https://www.npmjs.com/package/@kition/embed): \`KitionEmbed.mount(element, { kit: { id: '${id}', url: 'https://kits.example.com/${kit}-ui/' }, file, storage, identity })\` ([the embed guide](${SDK_DOCS}/embed.md)).`,
+    '',
+    '## Formats',
+    '',
+    '| Opens | Creates | Exports |',
+    '| --- | --- | --- |',
+    `| ${formats.opens} | ${formats.creates} | ${formats.exports} |`,
+    '',
+    renderFamily(readFamily(), { kit }).trimEnd(),
+    '',
+    licenseSection(kitJson, github),
+  ].join('\n')
+}
+
+/** The README of a kit's headless package for `platform` (npm shows it): short, no family table. */
+export function headlessReadme(kitJson, { platform, repository, scope = npmScope() }) {
+  const { kit } = kitionField(kitJson, 'headless', { platform })
+  const info = kitOf(kit)
+  const github = `https://github.com/${kitRepository(kit, repository)}`
+  return [
+    `# ${info.title} for ${platform}`,
+    '',
+    `The headless executable of ${info.title} for ${platform}, with the kit's \`kit.json\`. [\`kition\`](${SDK_DOCS}/cli.md) installs it (\`kition kit install ${kit}\`); it is not meant to be installed by hand.`,
+    '',
+    `${info.description}.`,
+    '',
+    `GitHub: ${github} · The editor: [\`${packageName(kit, 'ui', scope)}\`](https://www.npmjs.com/package/${packageName(kit, 'ui', scope)})`,
+    '',
+    `Part of Kition: ${readFamily().org}`,
+    '',
+    licenseSection(kitJson, github),
+  ].join('\n')
+}
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 
@@ -49,13 +118,15 @@ export function writeHeadless({ dir, platform, out, commit, repository, scope = 
   const executable = `${kitJson.headless?.executable ?? ''}${platform.startsWith('win32') ? '.exe' : ''}`
   if (!kitJson.headless?.executable || kitJson.headless.executable.includes('/')) throw new Error(`${dir}/kit.json names no executable (headless.executable)`)
   if (!fs.statSync(path.join(dir, executable), { throwIfNoEntry: false })?.isFile()) throw new Error(`${dir} has no ${executable}`)
-  const manifest = packageManifest(kitJson, 'headless', { platform, build: { commit }, files: ['kit.json', executable], repository, scope })
+  const manifest = packageManifest(kitJson, 'headless', { platform, build: { commit }, files: ['README.md', 'kit.json', executable], repository, scope })
+  const readme = headlessReadme(kitJson, { platform, repository, scope })
   const folder = path.join(out, manifest.name.split('/')[1])
   fs.rmSync(folder, { recursive: true, force: true })
   fs.mkdirSync(folder, { recursive: true })
   fs.copyFileSync(path.join(dir, 'kit.json'), path.join(folder, 'kit.json'))
   fs.copyFileSync(path.join(dir, executable), path.join(folder, executable))
   fs.chmodSync(path.join(folder, executable), 0o755)
+  fs.writeFileSync(path.join(folder, 'README.md'), readme)
   fs.writeFileSync(path.join(folder, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   return folder
 }
@@ -76,7 +147,7 @@ export function writeUi({ from, out, commit, sdkCommit, tesseraCommit, fontsComm
     const kit = String(kitJson.id).replace(/^kit\./, '')
     if (top !== `${kit}-ui`) throw new Error(`${source}: the folder of ${kitJson.id}'s editor is ${kit}-ui, not ${top}`)
     if (!fs.existsSync(path.join(source, 'index.html'))) throw new Error(`${source} has no index.html`)
-    const manifest = packageManifest(kitJson, 'ui', { build: { commit, sdkCommit, tesseraCommit, fontsCommit }, files: [top], repository, scope })
+    const manifest = packageManifest(kitJson, 'ui', { build: { commit, sdkCommit, tesseraCommit, fontsCommit }, files: [top], repository, scope, readme: uiReadme(kitJson, { repository }) })
     const folder = path.join(out, manifest.name.split('/')[1])
     fs.rmSync(folder, { recursive: true, force: true })
     fs.mkdirSync(folder, { recursive: true })

@@ -116,7 +116,14 @@ The files are those of the kit's archives before npm (the same names and bytes);
 is npm's, a `.tgz` with everything under `package/` beside a `package.json`. Each `package.json`
 carries a `kition` field (`tools/kit-npm.mjs`): `kit`, `id`, `name`, `version`, `role` (`headless`
 or `ui`), `platform` (headless), `protocol` (the Kit Process Protocol it speaks), `extensions` (the
-file types it edits), `views` (those it only views), and `build`, the commits it was built from. A
+file types it edits), `views` (those it only views), and `build`, the commits it was built from.
+The rest of the `package.json` introduces the kit on npm, from kition-sdk's
+`templates/community/repositories.json` (a kit not there is refused): `description` is the kit's
+one-sentence description (a headless package's adds `(<platform> executable)`), `repository`,
+`homepage` and `bugs` its GitHub repository, and `keywords`. A headless package also ships a short
+`README.md`; the editor package's README (the kit, what the package holds, how `kition` installs it
+and how to embed it, its formats, the Kition family) is its `package.json`'s `readme`, because
+`kition` and Kition take the package's top to hold only `<kit>-ui/`. A
 version is published once: the workflow publishes only what npm lacks, counts a version npm has
 with the same bytes (npm's integrity) as done, and stops when npm has other bytes. So a kit version
 is installable as soon as its packages are on npm; no SDK release is needed.

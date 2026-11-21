@@ -1,0 +1,29 @@
+format: 1
+id: sdk.community.family/kit-packages
+feature: sdk.community.family
+intent: >-
+  A kit's npm packages introduce the kit, in @kition's legacy layout and in layout 1 (@kitionstage):
+  package.json's description is the kit's description from templates/community/repositories.json
+  (a platform package's ends with "(<platform> executable)"), repository, homepage and bugs are the
+  kit's GitHub repository (--repository when given), keywords name kition, kit, khp and the kit, and
+  the kition field is unchanged; a kit not in the data is refused. The headless package ships a short
+  README.md (listed in files) naming its editor package by the scope's layout; the editor package's
+  README (the kit, its links, its version and kit id, how kition installs it and how to embed it, its
+  formats, the family with the kit bold, the license) is package.json's readme, so the package's top
+  still holds only <kit>-ui/. Every link is absolute.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kit-npm.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kit-npm.test.mjs, -t, "README|introduces|packs"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

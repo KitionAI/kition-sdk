@@ -1584,6 +1584,9 @@ features:
       - tools/kition-family.test.mjs
       - tools/sync-community.mjs
       - tools/sync-community.test.mjs
+      - tools/kit-npm.mjs
+      - tools/kit-npm-package.mjs
+      - tools/kit-npm.test.mjs
       - tools/public-packages.test.mjs
       - templates/community/**
       - packages/*/README.md
@@ -1591,6 +1594,7 @@ features:
     cases:
       - sdk.community.family/render-and-check
       - sdk.community.family/sdk-packages
+      - sdk.community.family/kit-packages
     since: "2026-11-21"
   - id: sdk.readme.shots
     title: Kits take their README pictures with one shared runner that opens a sample in the kit's development host, writes assets/readme/<name>.png at device scale 2, retakes only the named shots, and flags pictures over 400 KB
