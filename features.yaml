@@ -1593,6 +1593,7 @@ features:
       - templates/community/**
     cases:
       - sdk.community.sync/generate-and-check
+      - regressions/issue-community-sdk-names
     since: "2026-11-16"
   - id: sdk.community.family
     title: "The Kition family (every public product, and the 16 kits by product line with their Preview labels) has one source, the family of templates/community/repositories.json, and is rendered from it everywhere a visitor lands: the \"## The Kition family\" section of each repository's README (written and checked by sync-community between kition-family markers before \"## License\", the README's own kit or product in bold), the npm READMEs of the kit packages and of the SDK's packages (with absolute links), and the organization profile; each kit package carries its kit's description, GitHub repository, homepage, bugs and keywords, from that data, and a kit not in it is refused"

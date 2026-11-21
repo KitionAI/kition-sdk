@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFAULT_REGISTRIES, LEGACY_LAYOUT_SCOPES, indexPackage, integrityOf, kitionField, npmScope, packageManifest, packageName, parseNpmrc, registries, tarballPath, viewExtensions } from './kit-npm.mjs'
-import { headlessReadme, missing, notVisible, pack, state, uiReadme, waitVisible, writeHeadless, writeUi } from './kit-npm-package.mjs'
+import { headlessReadme, missing, notVisible, pack, README_EMBED_SPECIFIER, state, uiReadme, waitVisible, writeHeadless, writeUi } from './kit-npm-package.mjs'
 
 const scratch = []
 const tempDir = () => {
@@ -219,6 +219,8 @@ describe('kit-npm-package: the Package workflow’s packages', () => {
       expect(text).toContain('kit `kit.note` version 0.1.3.')
       expect(text).toContain('`kition kit install note`')
       expect(text).toContain("KitionEmbed.mount(element, { kit: { id: 'kit.note', url: 'https://kits.example.com/note-ui/' }")
+      // Embedding names the package npm installs today (README_EMBED_SPECIFIER; @kition/sdk/embed at its first release).
+      expect(text).toContain(`mount it with [\`${README_EMBED_SPECIFIER}\`](https://www.npmjs.com/package/${README_EMBED_SPECIFIER})`)
       expect(text).toContain('| Opens | Creates | Exports |\n| --- | --- | --- |\n| `.MD`, `.markdown`, `.txt`, `.md` | — | — |')
       expect(text).toContain('## The Kition family')
       expect(text).toContain('| Office | **Note** · [Table](https://github.com/KitionAI/kition-table)')

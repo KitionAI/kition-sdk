@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-community-sdk-names
+feature: sdk.community.sync
+intent: >-
+  The kits moved to @kition/sdk (kition-html and kition-note on 2026-11-21), but the community data
+  still said a kit's editor is on kition-sdk's @kition/kit-editor, text sync-community writes into
+  every kit's .github/CONTRIBUTING.md. No entry of templates/community/repositories.json names one
+  of the SDK's twelve old library packages: a kit's editor is on @kition/sdk/editor. The embedding
+  guidance for the people who embed a kit (the kit README skeleton's npm badge and "Embed it" note,
+  and the editor package's npm README) names the module npm installs today, @kition/embed, through
+  one constant per place (README_EMBED_SPECIFIER in tools/sync-community.mjs and in
+  tools/kit-npm-package.mjs), which switches to @kition/sdk/embed at the first release.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/sync-community.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-community.test.mjs, tools/kit-npm.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

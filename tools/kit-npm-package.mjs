@@ -42,6 +42,12 @@ import { checkScope, integrityOf, kitRepository, kitionField, npmScope, packageM
 
 const DEVELOPER = 'https://developer.kition.ai'
 const SDK_DOCS = 'https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk'
+/**
+ * The module an editor package's README tells a page to mount the editor with: one that npm
+ * installs today. Switch to @kition/sdk/embed at the first release of @kition/sdk (the link then
+ * names its package, @kition/sdk).
+ */
+export const README_EMBED_SPECIFIER = '@kition/embed'
 
 /** The license line of a kit package's README: kit.json's license and the repository's LICENSE. */
 const licenseSection = (kitJson, github) => `## License\n\n${typeof kitJson.license === 'string' ? kitJson.license : 'UNLICENSED'} ([LICENSE](${github}/blob/main/LICENSE)).\n`
@@ -69,7 +75,7 @@ export function uiReadme(kitJson, { repository } = {}) {
     '',
     `You do not install this package by hand. [\`kition\`](${SDK_DOCS}/cli.md) installs it with the kit (\`kition kit install ${kit}\`, or \`npx @kition/cli kit install ${kit}\`), and \`kition gateway\` installs it the first time its page opens a ${info.name} file.`,
     '',
-    `To embed the editor in your own page, host the folder \`${kit}-ui/\` on its own origin and mount it with [\`@kition/embed\`](https://www.npmjs.com/package/@kition/embed): \`KitionEmbed.mount(element, { kit: { id: '${id}', url: 'https://kits.example.com/${kit}-ui/' }, file, storage, identity })\` ([the embed guide](${SDK_DOCS}/embed.md)).`,
+    `To embed the editor in your own page, host the folder \`${kit}-ui/\` on its own origin and mount it with [\`${README_EMBED_SPECIFIER}\`](https://www.npmjs.com/package/${README_EMBED_SPECIFIER.split('/').slice(0, 2).join('/')}): \`KitionEmbed.mount(element, { kit: { id: '${id}', url: 'https://kits.example.com/${kit}-ui/' }, file, storage, identity })\` ([the embed guide](${SDK_DOCS}/embed.md)).`,
     '',
     '## Formats',
     '',

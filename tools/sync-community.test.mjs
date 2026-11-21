@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import YAML from 'yaml'
 import { FAMILY_BEGIN, FAMILY_END } from './kition-family.mjs'
-import { checkDevelopment, checkReadme, entryValues, fill, generate, readmeSkeleton, relink, writeFamily } from './sync-community.mjs'
+import { checkDevelopment, checkReadme, entryValues, fill, generate, README_EMBED_SPECIFIER, readmeSkeleton, relink, writeFamily } from './sync-community.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tool = path.join(here, 'sync-community.mjs')
@@ -193,6 +193,20 @@ describe('sync-community', () => {
     // A kit.json without formats, creates or exports gives a dash.
     const bare = tempRepo({ 'kit.json': JSON.stringify({ version: '0.1.0', khp: '1.0', level: 'basic' }) })
     expect(sync(bare, 'kition-design', '--print-readme').out).toContain('| — | — | — |')
+  })
+
+  it('names the SDK as kits depend on it, @kition/sdk/editor, and embedding by the package npm installs today', () => {
+    // A kit's own dependency (its CONTRIBUTING.md layout table) is @kition/sdk's editor subpath; no
+    // entry names one of the SDK's old library packages.
+    const old = /@kition\/(?:embed|embed-server|sync|script|extensions|kdm|kit-editor|kit-engine|kit-host|kit-dev-host|kit-ui-protocol|convergence)(?![\w-])/
+    expect(JSON.stringify(data)).not.toMatch(old)
+    const contributing = generate(entryValues('kition-film')).find((file) => file.path === '.github/CONTRIBUTING.md').text
+    expect(contributing).toContain("The kit's editor (React, on kition-sdk's `@kition/sdk/editor`)")
+    // The README's "Embed it" (badge and example) for people who embed the kit: README_EMBED_SPECIFIER.
+    const readme = readmeSkeleton(entryValues('kition-film'), MANIFEST)
+    expect(README_EMBED_SPECIFIER).toBe('@kition/embed')
+    expect(readme).toContain('[![npm: @kition/embed](https://img.shields.io/npm/v/@kition/embed?label=%40kition%2Fembed&color=5645d4)](https://www.npmjs.com/package/@kition/embed)')
+    expect(readme).toContain("@kition/embed's KitionEmbed.mount")
   })
 
   it('checks docs/development.md for the KITION_LINK=1 opt-in when the kit has web/', () => {

@@ -35,7 +35,7 @@
       ["`crates/`", "The engine (Rust), compiled to WebAssembly for the editor"],
       ["`bindings/wasm`", "The engine behind Kition's `KitDocument` contract"],
       ["`bindings/headless`", "The headless kit executable for Kition's agent"],
-      ["`web/`", "The kit's editor (React, on kition-sdk's `@kition/kit-editor`)"],
+      ["`web/`", "The kit's editor (React, on kition-sdk's `@kition/sdk/editor`)"],
       ["`kit.json`", "The kit manifest (KHP)"],
       ["`tools/xtask`", "The repository's tasks: `cargo xtask ci`, the check every change passes, and the others"]
     ],
@@ -91,7 +91,7 @@
         ["`crates/kition-html-engine`", "The renderer (Blitz and Vello CPU), with JavaScript in Boa"],
         ["`crates/kition-html-kit`", "The shared WASM engine behind Kition's `KitDocument` contract"],
         ["`apps/kition-html`", "The native executable: `render`, `preview`, and the headless KHP server"],
-        ["`web/`", "The kit's editor (on kition-sdk's `@kition/kit-editor`)"],
+        ["`web/`", "The kit's editor (on kition-sdk's `@kition/sdk/editor`)"],
         ["`conformance/`", "The pixel comparison corpus against Chrome"],
         ["`tools/`", "The comparison, sample, and WebAssembly build scripts"],
         ["`kit.json`", "The kit manifest (KHP)"]
@@ -176,7 +176,7 @@
         ["`crates/`", "The engine: the `.ktable` file, the request layer, AI fields, and timestamps (`crates/engine/*`); import (`crates/formats/*`)"],
         ["`bindings/wasm`", "The engine, `kition-table-kit` (`TableDocument`, the `KitDocument` contract)"],
         ["`apps/kition-table`", "The engine served headless, for agents, scripts, and the conformance suite"],
-        ["`web/`", "The kit's editor (on Tessera's components, through `@kition/kit-editor`)"],
+        ["`web/`", "The kit's editor (on Tessera's components, through `@kition/sdk/editor`)"],
         ["`model/schema.json`", "The document's KDM schema"],
         ["`kit.json`", "The kit manifest (KHP)"]
       ],

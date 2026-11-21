@@ -8,7 +8,7 @@
 Ability · Ability · Ability
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-5645d4)](LICENSE)
-[![npm: @kition/embed](https://img.shields.io/npm/v/@kition/embed?label=%40kition%2Fembed&color=5645d4)](https://www.npmjs.com/package/@kition/embed)
+[![npm: {{embedSpecifier}}](https://img.shields.io/npm/v/{{embedPackage}}?label={{embedLabel}}&color=5645d4)](https://www.npmjs.com/package/{{embedPackage}})
 [![KHP {{khp}}](https://img.shields.io/badge/KHP-{{khpBadge}}-5645d4)](https://github.com/kitharness/kitharness)
 [![Engine: Rust](https://img.shields.io/badge/engine-Rust%20%2B%20WebAssembly-5645d4)](bindings/wasm)
 
@@ -90,7 +90,7 @@ file. -->
 
 ### Embed it in your app
 
-<!-- Code that runs, ten lines or fewer: @kition/embed's KitionEmbed.mount with this kit's package
+<!-- Code that runs, ten lines or fewer: {{embedSpecifier}}'s KitionEmbed.mount with this kit's package
 (`{{kit}}-ui/` from the kit's releases), a file, and the host's storage. -->
 
 ### Give it to your agent
