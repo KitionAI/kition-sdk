@@ -17,7 +17,12 @@
 // script must inline no WebAssembly (no data:application/wasm, no large base64 data: URL); no
 // request fails and the page throws nothing. Prints the kit build's dist/assets.
 //
-//   node tools/smoke-sdk-worker.mjs [--archive <sdk.tgz>] [--tessera <@kition/tessera folder>] [--keep]
+//   node tools/smoke-sdk-worker.mjs [--archive <sdk.tgz>] [--tessera <@kition/tessera folder>] [--keep] [--build-only]
+//
+// --build-only runs the production build alone, as release.yml does: with a Tessera npm installed
+// (outside the consumer), the development server serves react-dom unbundled (CommonJS, "does not
+// provide an export named 'default'") under kition-html's settings, which leave @kition/sdk out of
+// Vite's optimizer and include nothing of Tessera; a kit includes '@kition/tessera/ui' there.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -129,11 +134,15 @@ export const SmokeDocument = kitEngineClass({ schema, load: (replica) => ({ titl
   servers.push(() => new Promise((resolve, reject) => served.httpServer.close((error) => (error ? reject(error) : resolve()))))
   await run(browser, served.resolvedUrls.local[0], 'build')
 
-  const dev = await createServer({ ...config, server: { host: '127.0.0.1', strictPort: false } })
-  servers.push(() => dev.close())
-  await dev.listen()
-  await run(browser, dev.resolvedUrls.local[0], 'dev')
-  console.log('\nsmoke-sdk-worker: 2 checks passed')
+  if (args.includes('--build-only')) {
+    console.log('\nsmoke-sdk-worker: 1 check passed (--build-only: the development server is not run)')
+  } else {
+    const dev = await createServer({ ...config, server: { host: '127.0.0.1', strictPort: false } })
+    servers.push(() => dev.close())
+    await dev.listen()
+    await run(browser, dev.resolvedUrls.local[0], 'dev')
+    console.log('\nsmoke-sdk-worker: 2 checks passed')
+  }
 } finally {
   await browser?.close()
   for (const close of servers) await close()

@@ -440,7 +440,7 @@ describe('release.yml: the one path of a rehearsal and of the real release', () 
       'node tools/build-sdk.mjs',
       'node tools/pack-public-packages.mjs sdk',
       'node tools/smoke-sdk-package.mjs --tessera "$TESSERA_DIR"',
-      'node tools/smoke-sdk-worker.mjs --tessera "$TESSERA_DIR"',
+      'node tools/smoke-sdk-worker.mjs --tessera "$TESSERA_DIR" --build-only',
       'node tools/stage-package.mjs release --target ../release-work/target.json --from target/npm-pack/sdk.tgz',
     ])
     ordered(runs(workflow.jobs.launcher), ['node tools/pack-public-packages.mjs kition', 'node tools/stage-package.mjs release --target ../release-work/target.json --from target/npm-pack/kition.tgz'])

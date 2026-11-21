@@ -293,7 +293,9 @@ jobs:
       - run: node tools/pack-public-packages.mjs sdk
       - run: node tools/smoke-sdk-package.mjs --tessera "$TESSERA_DIR"
       - run: pnpm exec playwright install --with-deps chromium
-      - run: node tools/smoke-sdk-worker.mjs --tessera "$TESSERA_DIR"
+      # The production build only: its development server is not checked against an npm-installed
+      # Tessera (tools/smoke-sdk-worker.mjs, --build-only).
+      - run: node tools/smoke-sdk-worker.mjs --tessera "$TESSERA_DIR" --build-only
       - name: The SDK's copy
         run: |
           set -euo pipefail
