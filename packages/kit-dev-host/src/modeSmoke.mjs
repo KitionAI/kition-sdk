@@ -52,6 +52,11 @@ async function modeOnce(page, wanted) {
 }
 
 /** Runs the smoke; `locale` is the dev page's `?locale=`. */
+
+// The modifier the editor reads for Mod+\ (kit-editor's isMac tests navigator.platform). Not
+// Playwright's ControlOrMeta, which follows the OS running the test: Playwright's WebKit reports a
+// Mac platform on Linux too, so there the editor expects Meta while ControlOrMeta presses Control.
+const primaryModifier = async (page) => ((await page.evaluate(() => /Mac|iPhone|iPad/i.test(navigator.platform))) ? 'Meta' : 'Control')
 export async function runModeSmoke({ kit, config, browser: type, createServer, locale = 'en-US', line = null }) {
   const server = await createServer({ configFile: config, server: { port: 0, host: '127.0.0.1' }, logLevel: 'error' })
   await server.listen()
@@ -78,7 +83,7 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
       const shown = await modeOnce(page, expected)
       step(`${mode}: shows ${expected}${tabs ? '' : ' (no tabs)'}`, shown === expected, shown ?? 'no frame')
       await app.focus()
-      await page.keyboard.press('ControlOrMeta+Backslash')
+      await page.keyboard.press(`${await primaryModifier(page)}+Backslash`)
       step(`${mode}: Cmd+\\ enters Focus`, (await app.getAttribute('data-mode')) === 'focus' && (await frame.locator('.kui-focus-bar').count()) === 1)
       await page.keyboard.press('Escape')
       step(`${mode}: Escape leaves Focus`, (await app.getAttribute('data-mode')) === expected)
@@ -129,7 +134,7 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
       else step(`classic ${width}: an editor without tabs shows Menus`, shown === 'menus', shown ?? 'no frame')
       if (shots) await page.screenshot({ path: `${shots}/${kit}-classic-${width}.png` })
       await app.focus()
-      await page.keyboard.press('ControlOrMeta+Backslash')
+      await page.keyboard.press(`${await primaryModifier(page)}+Backslash`)
       await page.waitForTimeout(300)
       const kitFrame = await (await page.$('#kit')).contentFrame()
       const covered = await kitFrame.evaluate(focusBarReport)
