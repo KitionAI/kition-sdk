@@ -1,0 +1,26 @@
+format: 1
+id: sdk.packages.one-package/consumer
+feature: sdk.packages.one-package
+intent: >-
+  The packed @kition/sdk, unpacked into a project outside the workspace with its dependency and
+  peers linked (offline): every subpath Node runs imports in Node and @kition/sdk alone is refused;
+  the embed server from /embed/server serves /embed's module and its chunks; every file that
+  registers a kit on load is in sideEffects; a project importing every subpath compiles under
+  moduleResolution bundler and node16 with skipLibCheck off for the package's declarations (under
+  node16 only the names Tessera's own declarations fail to re-export are excused); a page bundled
+  from /embed alone has nothing of the editor and no Loro in its first chunk; a page bundling
+  /embed/server gets only the Node-only error.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/smoke-sdk-package.mjs
+  license: owned
+input: []
+steps:
+  - exec: { cmd: [node, tools/pack-public-packages.mjs, sdk] }
+  - exec: { cmd: [node, tools/smoke-sdk-package.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 300

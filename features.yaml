@@ -59,6 +59,14 @@ features:
     paths: [packages/*/package.json, packages/kdm/src/schema.ts, packages/script/vite.config.ts, packages/extensions/src/runtime/document.ts, tools/build-package.mjs, tools/bundled-notices.mjs, tools/bundled-notices.test.mjs, tools/pack-public-packages.mjs, tools/smoke-public-packages.mjs, tools/public-packages.test.mjs, tools/check-public-package-imports.mjs, tools/package-imports.test.mjs, package.json]
     cases: [regressions/issue-npm-package-output, regressions/issue-consumer-schema-spread, regressions/issue-public-package-imports, regressions/issue-bundled-notices, regressions/issue-bundled-notice-files, sdk.packages.public/packed-worker]
     since: "2026-11-16"
+  - id: sdk.packages.one-package
+    title: "@kition/sdk is the SDK's twelve TypeScript library packages as one npm package, each a subpath that mirrors one of their exports (embed, embed/server for Node only, sync, script with its kits, extensions, kdm, editor, engine, host, dev-host, protocol, convergence) and no root module; built from their sources with their cross-imports as shared chunks, embed and script sharing one inlined Loro, loro-crdt its one dependency and React and Tessera optional peers named through one function, with one set of declarations for bundler and node16; checked packed outside the workspace, and a codemod moves a consumer to it; the twelve packages stay as they are until their consumers move"
+    dimension: [platform, function]
+    priority: P1
+    status: has
+    paths: [packages/sdk/package.json, packages/sdk/README.md, tools/sdk-package.mjs, tools/build-sdk.mjs, tools/smoke-sdk-package.mjs, tools/migrate-to-sdk.mjs, tools/sdk-package.test.mjs]
+    cases: [sdk.packages.one-package/mapping, sdk.packages.one-package/consumer]
+    since: "2026-11-21"
   - id: sdk.model.projected-containment
     title: Projected objects nest through lists trees and owning refs
     dimension: [function, collab]

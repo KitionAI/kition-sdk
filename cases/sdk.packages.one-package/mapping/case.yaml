@@ -1,0 +1,26 @@
+format: 1
+id: sdk.packages.one-package/mapping
+feature: sdk.packages.one-package
+intent: >-
+  @kition/sdk is the twelve library packages as one, each a subpath that mirrors one of their
+  exports (and the embed server's command), with no root module; its package.json is what
+  tools/sdk-package.mjs writes, depends on no other @kition library package (loro-crdt as kdm has
+  it; React and Tessera optional peers, Tessera named by one function), and the codemod rewrites a
+  consumer's quoted specifiers and package.json to it without touching a lockfile, with --check
+  listing the changes and exiting 1.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/sdk-package.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sdk-package.test.mjs, tools/public-packages.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

@@ -17,7 +17,9 @@ for (const directory of readdirSync(new URL('packages/', root))) {
     assert.equal(manifest.repository.directory, `packages/${directory}`)
     assert.deepEqual(manifest.files, ['dist'])
     assert.ok(manifest.scripts.build)
-    assert.ok(manifest.types.startsWith('./dist/'))
+    // A package without a root module (@kition/sdk: import a subpath) has no top-level types.
+    if (Object.hasOwn(manifest.exports, '.')) assert.ok(manifest.types.startsWith('./dist/'))
+    else assert.equal(manifest.types, undefined)
     const exports = manifest.publishConfig.exports ?? manifest.exports
     for (const target of Object.values(exports)) {
       for (const file of typeof target === 'string' ? [target] : Object.values(target)) assert.ok(file.startsWith('./dist/'), file)

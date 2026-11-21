@@ -1,0 +1,240 @@
+{
+  "name": "@kition/sdk",
+  "version": "0.5.2",
+  "description": "The Kition SDK's TypeScript libraries in one package: embed editors, script documents, KDM, sync, kit editor and host, each a subpath (@kition/sdk/embed, @kition/sdk/script, ...).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KitionAI/kition-sdk.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "sdk",
+    "embed",
+    "editor",
+    "kdm",
+    "crdt",
+    "collaboration",
+    "ai-agents"
+  ],
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../../tools/build-sdk.mjs",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "loro-crdt": "1.16.4"
+  },
+  "peerDependencies": {
+    "@kition/tessera-icons": "^0.1.0",
+    "@kition/tessera-tokens": "^0.1.0",
+    "@kition/tessera-ui": "^0.1.0",
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "@kition/tessera-icons": {
+      "optional": true
+    },
+    "@kition/tessera-tokens": {
+      "optional": true
+    },
+    "@kition/tessera-ui": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "kition-embed-server": "./dist/lib/embed-server/cli.js"
+  },
+  "exports": {
+    "./embed": {
+      "types": "./dist/types/embed/src/index.d.ts",
+      "import": "./dist/standalone/index.js"
+    },
+    "./embed/server": {
+      "types": "./dist/types/embed-server/src/index.d.ts",
+      "node": "./dist/lib/embed-server/index.js",
+      "default": "./dist/lib/node-only/embed-server.js"
+    },
+    "./embed/server/callbacks": {
+      "types": "./dist/types/embed-server/src/callbacks.d.ts",
+      "node": "./dist/lib/embed-server/callbacks.js",
+      "default": "./dist/lib/node-only/embed-server-callbacks.js"
+    },
+    "./sync": {
+      "types": "./dist/types/sync/src/index.d.ts",
+      "import": "./dist/lib/sync/index.js"
+    },
+    "./sync/replicaVersions": {
+      "types": "./dist/types/sync/src/replicaVersions.d.ts",
+      "import": "./dist/lib/sync/replicaVersions.js"
+    },
+    "./sync/openToken": {
+      "types": "./dist/types/sync/src/openToken.d.ts",
+      "import": "./dist/lib/sync/openToken.js"
+    },
+    "./script": {
+      "types": "./dist/types/script/src/index.d.ts",
+      "import": "./dist/standalone/script/index.js"
+    },
+    "./script/node": {
+      "types": "./dist/types/script/src/node.d.ts",
+      "import": "./dist/standalone/script/node.js"
+    },
+    "./script/proxy": {
+      "types": "./dist/types/script/src/proxy.d.ts",
+      "import": "./dist/standalone/script/proxy.js"
+    },
+    "./script/kits": {
+      "types": "./dist/types/script/kits/index.d.ts",
+      "import": "./dist/standalone/script/kits/index.js"
+    },
+    "./script/kits/board": {
+      "types": "./dist/types/script/kits/board.d.ts",
+      "import": "./dist/standalone/script/kits/board.js"
+    },
+    "./script/kits/cad": {
+      "types": "./dist/types/script/kits/cad.d.ts",
+      "import": "./dist/standalone/script/kits/cad.js"
+    },
+    "./script/kits/design": {
+      "types": "./dist/types/script/kits/design.d.ts",
+      "import": "./dist/standalone/script/kits/design.js"
+    },
+    "./script/kits/doc": {
+      "types": "./dist/types/script/kits/doc.d.ts",
+      "import": "./dist/standalone/script/kits/doc.js"
+    },
+    "./script/kits/film": {
+      "types": "./dist/types/script/kits/film.d.ts",
+      "import": "./dist/standalone/script/kits/film.js"
+    },
+    "./script/kits/html": {
+      "types": "./dist/types/script/kits/html.d.ts",
+      "import": "./dist/standalone/script/kits/html.js"
+    },
+    "./script/kits/layout": {
+      "types": "./dist/types/script/kits/layout.d.ts",
+      "import": "./dist/standalone/script/kits/layout.js"
+    },
+    "./script/kits/motion": {
+      "types": "./dist/types/script/kits/motion.d.ts",
+      "import": "./dist/standalone/script/kits/motion.js"
+    },
+    "./script/kits/note": {
+      "types": "./dist/types/script/kits/note.d.ts",
+      "import": "./dist/standalone/script/kits/note.js"
+    },
+    "./script/kits/pdf": {
+      "types": "./dist/types/script/kits/pdf.d.ts",
+      "import": "./dist/standalone/script/kits/pdf.js"
+    },
+    "./script/kits/photo": {
+      "types": "./dist/types/script/kits/photo.d.ts",
+      "import": "./dist/standalone/script/kits/photo.js"
+    },
+    "./script/kits/scene": {
+      "types": "./dist/types/script/kits/scene.d.ts",
+      "import": "./dist/standalone/script/kits/scene.js"
+    },
+    "./script/kits/sheet": {
+      "types": "./dist/types/script/kits/sheet.d.ts",
+      "import": "./dist/standalone/script/kits/sheet.js"
+    },
+    "./script/kits/slide": {
+      "types": "./dist/types/script/kits/slide.d.ts",
+      "import": "./dist/standalone/script/kits/slide.js"
+    },
+    "./script/kits/table": {
+      "types": "./dist/types/script/kits/table.d.ts",
+      "import": "./dist/standalone/script/kits/table.js"
+    },
+    "./script/kits/vector": {
+      "types": "./dist/types/script/kits/vector.d.ts",
+      "import": "./dist/standalone/script/kits/vector.js"
+    },
+    "./extensions": {
+      "types": "./dist/types/extensions/src/index.d.ts",
+      "import": "./dist/lib/extensions/index.js"
+    },
+    "./extensions/runtime": {
+      "types": "./dist/types/extensions/src/runtime/index.d.ts",
+      "import": "./dist/lib/extensions/runtime.js"
+    },
+    "./extensions/sandbox.html": "./dist/lib/extensions/sandbox.html",
+    "./extensions/panel.html": "./dist/lib/extensions/panel.html",
+    "./kdm": {
+      "types": "./dist/types/kdm/src/index.d.ts",
+      "import": "./dist/lib/kdm/index.js"
+    },
+    "./editor": {
+      "types": "./dist/types/kit-editor/src/index.d.ts",
+      "import": "./dist/lib/kit-editor/index.js"
+    },
+    "./editor/styles.css": "./dist/lib/kit-editor/styles.css",
+    "./editor/workspaceTree": {
+      "types": "./dist/types/kit-editor/src/workspaceTree.d.ts",
+      "import": "./dist/lib/kit-editor/workspaceTree.js"
+    },
+    "./engine": {
+      "types": "./dist/types/kit-engine/src/index.d.ts",
+      "import": "./dist/lib/kit-engine/index.js"
+    },
+    "./host": {
+      "types": "./dist/types/kit-host/src/index.d.ts",
+      "import": "./dist/lib/kit-host/index.js"
+    },
+    "./dev-host": {
+      "types": "./dist/types/kit-dev-host/src/index.d.ts",
+      "import": "./dist/lib/kit-dev-host/index.js"
+    },
+    "./dev-host/check-ui-ids": {
+      "types": "./dist/types/kit-dev-host/src/checkUiIds.d.mts",
+      "import": "./dist/lib/kit-dev-host/checkUiIds.mjs"
+    },
+    "./dev-host/mode-smoke": {
+      "types": "./dist/types/kit-dev-host/src/modeSmoke.d.mts",
+      "import": "./dist/lib/kit-dev-host/modeSmoke.mjs"
+    },
+    "./dev-host/line-row": {
+      "types": "./dist/types/kit-dev-host/src/lineRow.d.mts",
+      "import": "./dist/lib/kit-dev-host/lineRow.mjs"
+    },
+    "./protocol": {
+      "types": "./dist/types/kit-ui-protocol/src/index.d.ts",
+      "import": "./dist/lib/kit-ui-protocol/index.js"
+    },
+    "./convergence": {
+      "types": "./dist/types/convergence/src/index.d.ts",
+      "import": "./dist/lib/convergence/index.js"
+    },
+    "./convergence/node": {
+      "types": "./dist/types/convergence/src/node.d.ts",
+      "import": "./dist/lib/convergence/node.js"
+    }
+  },
+  "sideEffects": [
+    "*.css",
+    "./dist/standalone/script/kits/*.js",
+    "./dist/lib/embed-server/cli.js"
+  ]
+}

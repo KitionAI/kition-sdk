@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { undeclaredImports } from './check-public-package-imports.mjs'
+import { SDK, sdkExports, tesseraPackages } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const destination = path.join(root, 'target/npm-pack')
@@ -75,6 +76,14 @@ for (const { directory, manifest } of ordered) {
       assert.ok(files.includes(`dist/${script}`), `${published.name}: lacks dist/${script}`)
       assert.equal(run('tar', ['-xOf', archive, `package/dist/${script}`], root).stdout, fs.readFileSync(path.join(root, 'install', script), 'utf8'), `${published.name}: dist/${script} is not install/${script}`)
     }
+  }
+  // @kition/sdk carries the twelve library packages: it depends on none of them, and has every
+  // subpath tools/sdk-package.mjs gives (tools/smoke-sdk-package.mjs installs and uses it).
+  if (published.name === SDK) {
+    for (const section of ['dependencies', 'peerDependencies', 'optionalDependencies', 'devDependencies']) {
+      for (const name of Object.keys(published[section] ?? {})) assert.ok(!name.startsWith('@kition/') || tesseraPackages().includes(name), `${SDK}: ${section} names ${name}`)
+    }
+    assert.deepEqual(published.exports, sdkExports(), `${SDK}: its exports are not tools/sdk-package.mjs's`)
   }
   // Bundled third-party code ships with its license (tools/build-package.mjs writes the notices).
   if (bundlesLoro) {

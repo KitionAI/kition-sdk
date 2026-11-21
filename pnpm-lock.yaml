@@ -176,6 +176,27 @@ importers:
         specifier: workspace:*
         version: link:../sync
 
+  packages/sdk:
+    dependencies:
+      '@kition/tessera-icons':
+        specifier: link:../../../kition-tessera/packages/icons
+        version: link:../../../kition-tessera/packages/icons
+      '@kition/tessera-tokens':
+        specifier: link:../../../kition-tessera/packages/tokens
+        version: link:../../../kition-tessera/packages/tokens
+      '@kition/tessera-ui':
+        specifier: link:../../../kition-tessera/packages/ui
+        version: link:../../../kition-tessera/packages/ui
+      loro-crdt:
+        specifier: 1.16.4
+        version: 1.16.4
+      react:
+        specifier: '>=19'
+        version: 19.3.0
+      react-dom:
+        specifier: '>=19'
+        version: 19.3.0(react@19.3.0)
+
   packages/sync:
     dependencies:
       '@kition/kdm':
