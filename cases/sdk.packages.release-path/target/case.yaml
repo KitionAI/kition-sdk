@@ -1,0 +1,32 @@
+format: 1
+id: sdk.packages.release-path/target
+feature: sdk.packages.release-path
+intent: >-
+  release.yml is the one path of a rehearsal and of the real release. Its target refuses a real
+  release (@kition) whose version sources disagree or differ from the version given, a prerelease,
+  a platform left out, or a Tessera other than @kition/tessera in ^0.1.0; a rehearsal defaults to
+  <version>-stage.<run number> and darwin-arm64. The real copies keep their names and versions, the
+  launcher depending on every platform package and its installers naming @kition, @kition/sdk's
+  Tessera peer at ^0.1.0; a rehearsal's launcher carries installers naming its own scope, which
+  install that scope's platform package. The publishing order is every platform package, the
+  launcher, the SDK, and a folder holding anything else, a launcher installing another scope or an
+  SDK naming another peer range is refused. The workflow defaults to a stage scope, gives NPM_TOKEN
+  only to @kition, asks npm about every copy before publishing any, makes the GitHub Release and its
+  notes (naming <scope>/cli, its installers, <scope>/sdk and the scope's kit index) only for
+  @kition, and publishes neither the twelve library packages nor the DeepSeek Harness plugin.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/stage-package.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/stage-package.test.mjs, tools/sdk-release.test.mjs, tools/install-script.test.mjs, tools/dsh-plugin.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 180

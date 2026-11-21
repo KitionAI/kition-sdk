@@ -7,10 +7,13 @@ intent: >-
   file as packed; it is packed by npm without running scripts, from the archive or its folder, and
   what it was given and this checkout are untouched; @kition, a scope of another form, a version
   that is not semantic (or has build metadata) and a Tessera not named <scope>/tessera@<version>
-  are refused. The Stage workflow (by hand only) refuses @kition, builds and checks @kition/sdk
-  against the rehearsal Tessera installed from npm under the name @kition/tessera, publishes the
-  copy with the stage token, waits until npm serves it, and prints the two lines a kit puts in
-  web/package.json; migrate-to-sdk writes those lines with --sdk-spec and --tessera-spec.
+  are refused. release.yml with a stage scope (by hand only; its default) builds and checks
+  @kition/sdk against the rehearsal Tessera installed from npm under the name @kition/tessera,
+  publishes the copy with the stage token only, waits until npm serves it, and prints the two lines
+  a kit puts in web/package.json; migrate-to-sdk writes those lines with --sdk-spec and
+  --tessera-spec. The same path releases @kition: the release target (every version source agrees,
+  every platform, the peer at ^0.1.0), the copies as packed, and the publishing order and checks
+  are tested with it.
 layer: gate
 dimension: platform
 source:

@@ -15,10 +15,12 @@
 //   kits-index.json             (written by tools/kits-index.mjs before this runs) the kit index
 //                               gathered from the kit packages' npm metadata when the release was
 //                               made: a snapshot; the index `kition` reads is the npm package
-//                               @kition/kits-index
+//                               of the scope (tools/kit-npm.mjs indexPackage)
 //   SHA256SUMS                  every asset, in `sha256sum -c` form
 //
 //   node tools/sdk-release.mjs --dir <folder of kition-sdk-<version>-<platform>.tar.gz>
+//   node tools/sdk-release.mjs --notes <kition-sdk-<version>.json> --scope <@scope>
+//       prints the release's notes (Markdown) for the packages of the npm scope it published
 //
 // Every bundle must be of this SDK's version and commit and hold the same kits; every bundle's
 // platform needs its `kition-<version>-<platform>.tar.gz`; kits-index.json must be there, valid
@@ -31,6 +33,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { indexPackage } from './kit-npm.mjs'
 import { INDEX, schemaProblems } from './kits-index.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -182,17 +185,64 @@ export function writeRelease(dir, version) {
   return manifest
 }
 
+/**
+ * The GitHub Release's notes for the release manifest `m`, naming the npm packages of `scope` that
+ * the release published: the command line `<scope>/cli` (and the installers it carries, which
+ * download `<scope>/cli-<platform>`), the SDK `<scope>/sdk`, and the kit index of the scope's
+ * layout (tools/kit-npm.mjs indexPackage).
+ */
+export function releaseNotes(m, { scope }) {
+  const cli = `${scope}/cli`
+  const sdk = `${scope}/sdk`
+  const kits = m.kits.map((k) => `- ${k.id} ${k.version}: npm ${k.package}@${k.version} (${k.integrity}), built from ${k.commit}`).join('\n')
+  const platforms = Object.entries(m.platforms).map(([p, b]) => `- ${p}: ${b.bundle} (sha256 ${b.sha256})`).join('\n')
+  const archives = Object.entries(m.cli).map(([p, a]) => `- ${p}: ${a.file} (sha256 ${a.sha256})`).join('\n')
+  return [
+    `Kition SDK ${m.version}, built from ${m.commit}.`,
+    '',
+    'Install kition (kits download on first use into ~/.kition/kits), from npm or its mirrors:',
+    `- npm (Node.js 20 or later): npm install -g ${cli}, or npx -y ${cli} <command>`,
+    `- macOS, Linux, without Node.js: curl -fsSL https://unpkg.com/${cli}@${m.version}/dist/install.sh | sh (it downloads ${cli}-<platform> from registry.npmjs.org, else registry.npmmirror.com, checking npm's integrity)`,
+    `- Windows, without Node.js: irm https://unpkg.com/${cli}@${m.version}/dist/install.ps1 | iex`,
+    '',
+    `The SDK's TypeScript libraries are one npm package, ${sdk} (${sdk}/embed, ${sdk}/script, ${sdk}/kdm, ${sdk}/editor, ...): npm install ${sdk}@${m.version}; a kit editor also installs its optional peer @kition/tessera.`,
+    '',
+    'kition:',
+    archives,
+    '',
+    `kition installs kits from the npm packages the kit index ${indexPackage(scope)} lists (registry.npmjs.org, its mirror registry.npmmirror.com, or KITION_NPM_REGISTRY).`,
+    `The kits-index.json of this release is a snapshot of that index as of the release (sha256 ${m.index.sha256}).`,
+    '',
+    'Kits:',
+    kits,
+    '',
+    'SDK bundles (bin/<platform>/ holds kition-kits, kition-kits-mcp and each kit executable):',
+    platforms,
+    '',
+    `Every executable with its SHA-256 and the kit version it answers: kition-sdk-${m.version}.json. All assets: SHA256SUMS. Provenance: gh attestation verify <file> --repo ${m.repository}.`,
+    'See docs/sdk/distribution.md.',
+  ].join('\n')
+}
+
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const at = process.argv.indexOf('--dir')
-  const dir = at > 0 ? process.argv[at + 1] : null
-  if (!dir) {
-    process.stderr.write('usage: sdk-release.mjs --dir <folder of kition-sdk-<version>-<platform>.tar.gz>\n')
+  const value = (name) => {
+    const at = process.argv.indexOf(name)
+    return at > 0 ? process.argv[at + 1] : null
+  }
+  const dir = value('--dir')
+  const notes = value('--notes')
+  if (!dir && !(notes && value('--scope'))) {
+    process.stderr.write('usage: sdk-release.mjs --dir <folder of kition-sdk-<version>-<platform>.tar.gz> | --notes <kition-sdk-<version>.json> --scope <@scope>\n')
     process.exit(2)
   }
   try {
-    const { version } = JSON.parse(fs.readFileSync(path.join(root, 'sdk.json'), 'utf8'))
-    const manifest = writeRelease(path.resolve(dir), version)
-    process.stdout.write(`${manifest.tag}: ${Object.keys(manifest.platforms).join(', ')}; kits ${manifest.kits.map((kit) => `${kit.kit} ${kit.version}`).join(', ')}\n`)
+    if (notes) {
+      process.stdout.write(`${releaseNotes(JSON.parse(fs.readFileSync(notes, 'utf8')), { scope: value('--scope') })}\n`)
+    } else {
+      const { version } = JSON.parse(fs.readFileSync(path.join(root, 'sdk.json'), 'utf8'))
+      const manifest = writeRelease(path.resolve(dir), version)
+      process.stdout.write(`${manifest.tag}: ${Object.keys(manifest.platforms).join(', ')}; kits ${manifest.kits.map((kit) => `${kit.kit} ${kit.version}`).join(', ')}\n`)
+    }
   } catch (error) {
     process.stderr.write(`sdk-release: ${error.message}\n`)
     process.exit(1)

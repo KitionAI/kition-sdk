@@ -5,7 +5,7 @@
 // and peers are linked from the workspace (loro-crdt, React, their types), and its Tessera peer
 // @kition/tessera from the folder --tessera names (default: the built package in the
 // kition-tessera checkout beside this one, ../kition-tessera/packages/tessera, after its
-// `pnpm build:packages`; or a folder npm installed it in, as the Stage workflow passes the
+// `pnpm build:packages`; or a folder npm installed it in, as release.yml passes the
 // rehearsal Tessera), as npm serves it (its publishConfig exports, when it has them). It checks:
 //
 //   1. Node: every subpath Node runs imports (all but the editor's, which needs a page); the

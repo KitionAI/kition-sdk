@@ -1,7 +1,8 @@
 // install/install.sh against fake npm registries served on loopback: which package it takes, what
 // it checks, where it installs, and what it says. The public registries it tries last are behind a
 // proxy that answers nothing, so no test reaches the network; nor the real ~/.kition or ~/.npmrc.
-// (install/install.ps1 needs Windows PowerShell and is not run here.)
+// (install/install.ps1 needs Windows PowerShell and is not run here.) A rehearsal launcher's copy,
+// whose scope line names its own scope (tools/stage-package.mjs), installs that scope's package.
 import { execFile, execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -10,6 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { installerWithScope } from './stage-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const script = path.join(root, 'install', 'install.sh')
@@ -22,18 +24,18 @@ const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'install-script-'))
  * metadata of each version and of `latest` (the last one), and the tarballs. Answers its address
  * and the paths it was asked.
  */
-async function registry(versions) {
+async function registry(versions, scope = '@kition') {
   const files = new Map()
   let latest = null
   for (const [version, { wrong = false, forPlatform = platform } = {}] of Object.entries(versions)) {
     const stage = fs.mkdtempSync(path.join(scratch, 'stage-'))
     fs.mkdirSync(path.join(stage, 'package', 'bin'), { recursive: true })
     fs.writeFileSync(path.join(stage, 'package', 'bin', 'kition'), `#!/bin/sh\necho "kition ${version} (kit protocol kition-kit/1, index format 1)"\n`, { mode: 0o755 })
-    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: `@kition/cli-${forPlatform}`, version }))
+    fs.writeFileSync(path.join(stage, 'package', 'package.json'), JSON.stringify({ name: `${scope}/cli-${forPlatform}`, version }))
     const tgz = path.join(stage, 'cli.tgz')
     execFileSync('tar', ['-czf', tgz, '-C', stage, 'package'])
     const bytes = fs.readFileSync(tgz)
-    const name = `@kition/cli-${forPlatform}`
+    const name = `${scope}/cli-${forPlatform}`
     const metadata = JSON.stringify({ name, version, _nodeVersion: '24.1.0', dist: { integrity: wrong ? integrity(Buffer.from('other')) : integrity(bytes), tarball: 'elsewhere' } }, null, 1)
     files.set(`/${name.replace('/', '%2f')}/${version}`, metadata)
     files.set(`/${name}/-/cli-${forPlatform}-${version}.tgz`, bytes)
@@ -54,25 +56,27 @@ async function registry(versions) {
 let good
 let bad
 let older
+let staged
 beforeAll(async () => {
   good = await registry({ '9.9.8': {}, '9.9.9': {} })
   bad = await registry({ '9.9.9': { wrong: true } })
   older = await registry({ '9.9.6': { forPlatform: 'sunos-x64' } })
+  staged = await registry({ '9.9.7-stage.3': {} }, '@kitionstage')
 })
 afterAll(async () => {
-  for (const each of [good, bad, older]) await each.close()
+  for (const each of [good, bad, older, staged]) await each.close()
   fs.rmSync(scratch, { recursive: true, force: true })
 })
 
 /** Runs install.sh with `args` in a fresh HOME; answers its exit status, output and the home. */
-function install(args = [], env = {}) {
+function install(args = [], env = {}, file = script) {
   const home = fs.mkdtempSync(path.join(scratch, 'home-'))
   const kitionHome = path.join(home, 'kition-home')
   const dead = 'http://127.0.0.1:9'
   const vars = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin', HOME: home, KITION_HOME: kitionHome, KITION_NPM_REGISTRY: good.url, https_proxy: dead, http_proxy: dead, HTTPS_PROXY: dead, no_proxy: '127.0.0.1', ...env }
   for (const [key, value] of Object.entries(vars)) if (value === undefined) delete vars[key]
   return new Promise((resolve) => {
-    execFile('sh', [script, ...args], { env: vars, encoding: 'utf8' }, (error, stdout, stderr) => {
+    execFile('sh', [file, ...args], { env: vars, encoding: 'utf8' }, (error, stdout, stderr) => {
       resolve({ status: error ? error.code : 0, stdout, stderr, home, kitionHome })
     })
   })
@@ -159,5 +163,25 @@ describe.runIf(process.platform !== 'win32')('install.sh', { timeout: 60_000 }, 
     expect(missing.status).toBe(1)
     for (const tried of [good.url, 'https://registry.npmjs.org/', 'https://registry.npmmirror.com/']) expect(missing.stderr).toContain(`${tried}: no @kition/cli-${platform}@1.0.0 there`)
     expect(missing.stderr).toContain('KITION_NPM_REGISTRY')
+  })
+
+  it("as a rehearsal launcher carries it: installs its scope's package, from the registry the scope's own npm setting names", async () => {
+    const copy = path.join(fs.mkdtempSync(path.join(scratch, 'staged-')), 'install.sh')
+    fs.writeFileSync(copy, installerWithScope('install.sh', fs.readFileSync(script, 'utf8'), '@kitionstage'))
+    const result = await install([], { KITION_NPM_REGISTRY: staged.url }, copy)
+    expect(result.stderr).toContain(`installed kition 9.9.7-stage.3 (kit protocol kition-kit/1, index format 1) as ${result.kitionHome}/bin/kition (from ${staged.url})`)
+    expect(result.status).toBe(0)
+    expect(staged.asked).toContain(`/@kitionstage%2fcli-${platform}/latest`)
+    expect(staged.asked).toContain(`/@kitionstage/cli-${platform}/-/cli-${platform}-9.9.7-stage.3.tgz`)
+    // It never asks for @kition's package; the real installer finds no @kition package there.
+    expect(staged.asked.filter((asked) => asked.includes('@kition%2f') || asked.includes('@kition/'))).toEqual([])
+    const real = await install([], { KITION_NPM_REGISTRY: staged.url })
+    expect(real.status).toBe(1)
+    expect(real.stderr).toContain(`${staged.url}: no @kition/cli-${platform}@latest there`)
+    const home = fs.mkdtempSync(path.join(scratch, 'npmrc-'))
+    fs.writeFileSync(path.join(home, 'scoped'), `@kitionstage:registry=${staged.url}\n`)
+    const scoped = await install([], { KITION_NPM_REGISTRY: undefined, npm_config_userconfig: path.join(home, 'scoped') }, copy)
+    expect(scoped.status).toBe(0)
+    expect(scoped.stderr).toContain(`(from ${staged.url})`)
   })
 })

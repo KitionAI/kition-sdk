@@ -12,7 +12,7 @@
 #
 # The registries, in order (as kition itself reads them, docs/sdk/cli.md):
 #   KITION_NPM_REGISTRY  one address, or several separated by commas
-#   npm's own setting    `@kition:registry`, else `npm_config_registry`, else `registry`, in the
+#   npm's own setting    `@kition:registry` (the scope's), else `npm_config_registry`, else `registry`, in the
 #                        .npmrc that npm_config_userconfig names or ~/.npmrc (read; npm is not needed)
 #   https://registry.npmjs.org/, then https://registry.npmmirror.com/
 # A registry that does not answer within 5 seconds, lacks the version, or serves other bytes than
@@ -25,6 +25,11 @@
 # It never uses sudo and never edits a shell profile: it says how to put kition on the PATH.
 # See docs/sdk/cli.md in https://github.com/KitionAI/kition-sdk.
 set -eu
+
+# The npm scope of the packages it installs: <scope>/cli-<platform>. The one place it is named; a
+# rehearsal's launcher (<scope>/cli, made by kition-sdk's tools/stage-package.mjs) carries a copy
+# naming its own scope here.
+scope='@kition'
 
 version="${1:-${KITION_VERSION:-}}"
 version="${version#v}"
@@ -100,12 +105,12 @@ setting() {
 registries() {
   npmrc="${npm_config_userconfig:-${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}}"
   general="${npm_config_registry:-${NPM_CONFIG_REGISTRY:-$(setting registry "$npmrc")}}"
-  printf '%s\n' "$(printf '%s' "${KITION_NPM_REGISTRY:-}" | tr ',' '\n')" "$(setting @kition:registry "$npmrc")" "$general" https://registry.npmjs.org/ https://registry.npmmirror.com/ |
+  printf '%s\n' "$(printf '%s' "${KITION_NPM_REGISTRY:-}" | tr ',' '\n')" "$(setting "$scope:registry" "$npmrc")" "$general" https://registry.npmjs.org/ https://registry.npmmirror.com/ |
     sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^https?://' | sed 's#/*$#/#' | awk '!seen[$0]++'
 }
 
 target=$(platform) || exit 1
-package="@kition/cli-$target"
+package="$scope/cli-$target"
 mkdir -p "$home/tmp" || fail "cannot create $home/tmp"
 work=$(mktemp -d "$home/tmp/install.XXXXXX") || fail "cannot create a folder in $home/tmp"
 trap 'rm -rf "$work"' EXIT
@@ -115,7 +120,7 @@ tried=""
 installed_from=""
 for registry in $(registries); do
   # The version's metadata: its version and npm's integrity of its tarball.
-  if ! fetch "$registry@kition%2fcli-$target/${version:-latest}" "$work/metadata.json"; then
+  if ! fetch "$registry$scope%2fcli-$target/${version:-latest}" "$work/metadata.json"; then
     tried="$tried; $registry: no $package@${version:-latest} there, or no answer"
     continue
   fi
@@ -129,7 +134,7 @@ for registry in $(registries); do
     tried="$tried; $registry: it offers $package $found, not $version"
     continue
   fi
-  tarball="$registry@kition/cli-$target/-/cli-$target-$found.tgz"
+  tarball="$registry$scope/cli-$target/-/cli-$target-$found.tgz"
   if ! fetch "$tarball" "$work/package.tgz"; then
     tried="$tried; $registry: $tarball cannot be downloaded"
     continue

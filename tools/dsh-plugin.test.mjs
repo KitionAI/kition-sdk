@@ -32,23 +32,17 @@ describe('the kition that comes with the plugin', () => {
     expect(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/package.json'), 'utf8')).version).toBe(sdk.version)
   })
 
-  it('is published before the plugin, which the release installs from its archives first', () => {
-    const at = (text) => {
-      const found = release.indexOf(text)
-      expect(found, text).toBeGreaterThan(-1)
-      return found
-    }
-    // Platform packages, then @kition/cli, then the plugin that depends on it.
-    expect(at('for archive in target/kition/packed/*.tgz; do publish "$archive"; done')).toBeLessThan(at('publish target/npm-pack/kition.tgz\n'))
-    expect(at('publish target/npm-pack/kition.tgz\n')).toBeLessThan(at('publish target/npm-pack/dsh-kits.tgz'))
-    // The check runs on the linked @kition/cli, before anything is published.
-    const check = at('node tools/check-dsh-plugin-package.mjs --plugin target/npm-pack/dsh-kits.tgz --launcher target/npm-pack/kition.tgz --platforms target/kition/packed')
-    expect(at('platform-package.mjs link --launcher target/npm-pack/kition.tgz')).toBeLessThan(check)
-    expect(check).toBeLessThan(at('- name: Publish on npm in dependency order'))
+  it('is not published by the release while the plugin is frozen (until after the launch): its check stays for when it returns', () => {
+    // The release publishes the platform packages, the launcher and @kition/sdk only.
+    const scripts = Object.values(YAML.parse(release).jobs).flatMap((job) => job.steps.map((step) => step.run ?? '')).join('\n')
+    expect(scripts).not.toContain('dsh-kits')
+    expect(scripts).not.toContain('plugins/deepseek-harness')
+    expect(fs.existsSync(path.join(root, 'tools/check-dsh-plugin-package.mjs'))).toBe(true)
   })
 
   it('is built for the platforms of the release matrix, which the README names', () => {
-    const matrix = [...release.matchAll(/- \{ platform: ([a-z0-9-]+),/g)].map(([, platform]) => platform)
+    // The runner of each platform the release can build (its target job's matrix).
+    const matrix = [...release.matchAll(/"([a-z0-9]+-[a-z0-9]+)": \{ runner: /g)].map(([, platform]) => platform)
     expect(matrix.sort()).toEqual([...platforms].sort())
     // The README's paragraph that starts so, to its blank line.
     const readme = fs.readFileSync(path.join(plugin, 'README.md'), 'utf8')

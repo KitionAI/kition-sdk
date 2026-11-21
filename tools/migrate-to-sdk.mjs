@@ -41,7 +41,7 @@
 //   person: what it points at is the project's choice.
 // - --sdk-spec <spec> and --tessera-spec <spec> name what package.json gets for @kition/sdk and
 //   @kition/tessera, exactly as given: a range, or an npm alias such as
-//   npm:@kitionstage/sdk@0.5.2-stage.4 (a rehearsal, the Stage workflow's lines). Given, they also
+//   npm:@kitionstage/sdk@0.5.2-stage.4 (a rehearsal, the lines release.yml prints for a stage scope). Given, they also
 //   replace the entry a project has already (a project moved before, now pointed at a rehearsal).
 //   --tessera-spec adds @kition/tessera for the editor even when Tessera's old packages are there
 //   (still with the note: migrate-to-tessera.mjs then drops them and keeps this entry).

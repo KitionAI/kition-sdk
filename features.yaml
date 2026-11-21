@@ -1,6 +1,6 @@
 format: 1
 kit: sdk
-updated: "2026-11-20"
+updated: "2026-11-21"
 gate_budget_s: 600
 features:
   - id: sdk.agent.close-completion
@@ -68,20 +68,28 @@ features:
     cases: [sdk.packages.one-package/mapping, sdk.packages.one-package/consumer, sdk.packages.one-package/worker-wasm, regressions/issue-sdk-old-names-in-package, regressions/issue-migrate-to-sdk-gaps, regressions/issue-sdk-worker-inlined-wasm, regressions/issue-sdk-undeclared-dist-import, regressions/issue-migrate-to-sdk-loaders]
     since: "2026-11-21"
   - id: sdk.packages.stage
-    title: "A publishing rehearsal of @kition/sdk on another npm scope: the Stage workflow, started by hand and never on @kition, builds @kition/sdk, runs its pack and smoke checks against a published rehearsal Tessera installed as @kition/tessera, publishes a copy renamed <scope>/sdk at a prerelease version with its Tessera peer at that rehearsal's exact version, waits until npm serves it, and prints the two npm-alias lines a kit uses, which migrate-to-sdk writes with --sdk-spec and --tessera-spec"
+    title: "A publishing rehearsal of @kition/sdk on another npm scope through the release's own path: release.yml, started by hand with a stage scope (its default), builds @kition/sdk, runs its pack, smoke and Chromium worker checks against a published rehearsal Tessera installed as @kition/tessera, publishes a copy renamed <scope>/sdk at a prerelease version with its Tessera peer at that rehearsal's exact version, waits until npm serves it, and prints the two npm-alias lines a kit uses, which migrate-to-sdk writes with --sdk-spec and --tessera-spec"
     dimension: [platform]
     priority: P1
     status: has
-    paths: [.github/workflows/stage.yml, tools/stage-package.mjs, tools/stage-package.test.mjs]
+    paths: [.github/workflows/release.yml, tools/stage-package.mjs, tools/stage-package.test.mjs]
     cases: [sdk.packages.stage/rehearsal]
     since: "2026-11-21"
   - id: sdk.packages.stage-cli
-    title: "A publishing rehearsal of the command line on another npm scope: the Stage CLI workflow, started by hand and never on @kition, builds kition for the platforms asked (darwin-arm64 by default) as release.yml does, renames copies of @kition/cli-<platform> and the launcher @kition/cli to <scope>/cli-<platform> and <scope>/cli at a prerelease version (the launcher depending on exactly the platforms built), checks each on its platform, publishes the platform packages before the launcher and waits until npm serves them; the launcher starts the platform package of its own name and, published elsewhere than @kition, gives kition its scope as KITION_NPM_SCOPE when that is not set"
+    title: "A publishing rehearsal of the command line on another npm scope through the release's own path: release.yml, started by hand with a stage scope (its default), builds kition for the platforms asked (darwin-arm64 by default), renames copies of @kition/cli-<platform> and the launcher @kition/cli to <scope>/cli-<platform> and <scope>/cli at a prerelease version (the launcher depending on exactly the platforms built), checks each on its platform, publishes the platform packages before the launcher and waits until npm serves them; the launcher's installers install the platform package of its scope (their one scope line); the launcher starts the platform package of its own name and, published elsewhere than @kition, gives kition its scope as KITION_NPM_SCOPE when that is not set"
     dimension: [platform]
     priority: P1
     status: has
-    paths: [.github/workflows/stage-cli.yml, tools/stage-package.mjs, tools/stage-package.test.mjs, packages/kition/src/resolve.ts, packages/kition/src/machine.ts, packages/kition/src/cli.ts]
+    paths: [.github/workflows/release.yml, tools/stage-package.mjs, tools/stage-package.test.mjs, install/install.sh, install/install.ps1, packages/kition/src/resolve.ts, packages/kition/src/machine.ts, packages/kition/src/cli.ts]
     cases: [sdk.packages.stage-cli/rehearsal]
+    since: "2026-11-21"
+  - id: sdk.packages.release-path
+    title: "One release path for a rehearsal and the real release: release.yml's scope input (default @kitionstage; only @kition reaches the real packages and NPM_TOKEN) selects the scope; its target (tools/stage-package.mjs target) refuses a real release whose version sources (sdk.json, kition-cli's Cargo.toml, packages/kition and packages/sdk package.json) disagree or differ from the version given, that leaves out a platform, or whose Tessera is not @kition/tessera in ^0.1.0, the range the real @kition/sdk names as its peer; it publishes <scope>/cli-<platform>, <scope>/cli and <scope>/sdk only, in that order, after building and checking all of them and asking npm about each (same bytes: done; other bytes: nothing is published), waits until npm serves each, and makes the GitHub Release (draft, then published) and its notes only for @kition; the twelve library packages and the frozen DeepSeek Harness plugin are not published"
+    dimension: [platform, security]
+    priority: P1
+    status: has
+    paths: [.github/workflows/release.yml, tools/stage-package.mjs, tools/stage-package.test.mjs, tools/sdk-release.mjs, tools/sdk-release.test.mjs, install/install.sh, install/install.ps1, tools/install-script.test.mjs, docs/sdk/distribution.md]
+    cases: [sdk.packages.release-path/target]
     since: "2026-11-21"
   - id: sdk.model.projected-containment
     title: Projected objects nest through lists trees and owning refs
@@ -513,7 +521,7 @@ features:
       - sdk.distribution.container/context
     since: "2026-11-16"
   - id: sdk.distribution.npm
-    title: "npm install -g @kition/cli gives the kition command and npx -y @kition/cli <command> runs it: the npm package @kition/cli is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y @kition/cli or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform, and publishes the DeepSeek Harness plugin, which depends on it at its own version, after it, once the plugin installs by name from the packed archives with this platform's kition"
+    title: "npm install -g @kition/cli gives the kition command and npx -y @kition/cli <command> runs it: the npm package @kition/cli is a Node launcher that starts kition from its optional platform package @kition/cli-<platform> (no kit inside), passing arguments, stdio, exit status and signals through, says why and names install.sh when there is no kition for the platform, and tells kition how it was started (KITION_LAUNCHER) so that agent add registers npx -y @kition/cli or npm's kition command and doctor checks that command's folder on the PATH; the release smoke-tests it installed from the packed packages on every platform; the DeepSeek Harness plugin, which depends on it at its own version, is frozen until after the launch and the release does not publish it (tools/check-dsh-plugin-package.mjs still installs it by name from packed archives with this platform's kition)"
     dimension: [platform, ai]
     priority: P1
     status: has

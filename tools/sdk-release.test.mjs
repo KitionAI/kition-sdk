@@ -5,7 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { kitExecutables } from './kit-handshake.mjs'
-import { assetUrl, bundles, cliArchives, releaseManifest, writeRelease } from './sdk-release.mjs'
+import { indexPackage } from './kit-npm.mjs'
+import { assetUrl, bundles, cliArchives, releaseManifest, releaseNotes, writeRelease } from './sdk-release.mjs'
 
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 const scratch = []
@@ -181,5 +182,35 @@ describe('sdk-release: the release manifest of one SDK version', () => {
     const dir = tempDir()
     for (const file of ['kition-kits', 'kition-kits-mcp.exe', 'kition-note', 'kition-table.exe', 'handshakes.json', 'kition-note.pdb']) fs.writeFileSync(path.join(dir, file), '')
     expect(kitExecutables(dir)).toEqual(['kition-note', 'kition-table.exe'])
+  })
+})
+
+describe('the release notes', () => {
+  const m = {
+    version: '0.1.0',
+    commit: 'd'.repeat(40),
+    repository: 'KitionAI/kition-sdk',
+    kits: [{ id: 'kit.note', version: '0.3.0', package: '@kition/kit-note-ui', integrity, commit: 'a'.repeat(40) }],
+    platforms: { 'darwin-arm64': { bundle: 'kition-sdk-0.1.0-darwin-arm64.tar.gz', sha256: '1'.repeat(64) } },
+    cli: { 'darwin-arm64': { file: 'kition-0.1.0-darwin-arm64.tar.gz', sha256: '2'.repeat(64) } },
+    index: { sha256: '3'.repeat(64) },
+  }
+
+  it("name the scope's command line, its installers, @kition/sdk and the kit index of the scope's layout", () => {
+    const notes = releaseNotes(m, { scope: '@kition' })
+    for (const line of [
+      'npm install -g @kition/cli, or npx -y @kition/cli <command>',
+      'curl -fsSL https://unpkg.com/@kition/cli@0.1.0/dist/install.sh | sh (it downloads @kition/cli-<platform>',
+      'irm https://unpkg.com/@kition/cli@0.1.0/dist/install.ps1 | iex',
+      'one npm package, @kition/sdk (@kition/sdk/embed,',
+      'npm install @kition/sdk@0.1.0',
+      `the kit index ${indexPackage('@kition')} lists`,
+      '- darwin-arm64: kition-0.1.0-darwin-arm64.tar.gz',
+      `- kit.note 0.3.0: npm @kition/kit-note-ui@0.3.0 (${integrity}), built from ${'a'.repeat(40)}`,
+    ]) expect(notes, line).toContain(line)
+    // None of the twelve library packages @kition/sdk replaced.
+    expect(notes).not.toMatch(/@kition\/(?:kdm|kit-editor|embed|script|sync)\b/)
+    const staged = releaseNotes(m, { scope: '@kitionstage' })
+    for (const line of ['npm install -g @kitionstage/cli', 'https://unpkg.com/@kitionstage/cli@0.1.0/dist/install.sh', '@kitionstage/cli-<platform>', 'npm install @kitionstage/sdk@0.1.0', 'the kit index @kitionstage/kits lists']) expect(staged, line).toContain(line)
   })
 })

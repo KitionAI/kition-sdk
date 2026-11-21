@@ -6,12 +6,13 @@
 > ([below](#kit-packages-and-the-kit-index)). This page describes what the release workflow
 > produces today, the bundle included.
 
-Each Kition SDK version is the same version of every public `@kition/*` package and of `kition`
-on npm, and a GitHub Release of
+Each Kition SDK version is one version of `kition` on npm (`@kition/cli` and
+`@kition/cli-<platform>`) and of the SDK's TypeScript libraries (`@kition/sdk`, one package with a
+subpath per library), and a GitHub Release of
 [KitionAI/kition-sdk](https://github.com/KitionAI/kition-sdk/releases), tagged
 `sdk-v<version>`, with the SDK bundles. Both come from one build in the repository's release
-workflow (`.github/workflows/release.yml`). Downloading them needs no account, no token and no
-Rust.
+workflow (`.github/workflows/release.yml`), which also rehearses the release on another npm scope
+([below](#releasing-and-rehearsing)). Downloading them needs no account, no token and no Rust.
 
 What a person or an agent installs comes from npm: `kition` (the packages `@kition/cli` and
 `@kition/cli-<platform>`, and the installers `install.sh` and `install.ps1`, which download the
@@ -71,7 +72,8 @@ package `@kition/cli`, which depends on every one of them as an optional depende
 `kition` command that starts it (`npm install -g @kition/cli`, `npx -y @kition/cli <command>`;
 [cli.md](cli.md#installing-it)). The DeepSeek Harness plugin `@kition/dsh-kits` depends on
 `@kition/cli` at its own version, so installing it brings that `kition`, which it starts directly
-(the plugin is not on npm yet; its README says how to install it from a kition-sdk checkout). The executables a release ships, `kition` among them,
+(the plugin is frozen until after the launch: the release does not publish it, and its README says
+how to install it from a kition-sdk checkout). The executables a release ships, `kition` among them,
 are built with the workspace's `dist` profile (LTO, one code unit, symbols stripped).
 
 Without Node.js, `install.sh` and `install.ps1` install the same `kition`: they read the metadata of
@@ -112,14 +114,14 @@ packages by layout 1: `<scope>/<kit>-<platform>`, `<scope>/<kit>` (the editor) a
 (the index), and in it no kit may be named like another package of the scope (`cli`, `sdk`, `kits`,
 `tessera`, ...; `tools/kit-npm.mjs` `NOT_KIT_NAMES`).
 
-The command line is rehearsed on such a scope by `.github/workflows/stage-cli.yml` (by hand; never
-`@kition`): it builds kition for the platforms asked (`darwin-arm64` by default) as `release.yml`
-does, and publishes copies of its packages renamed `<scope>/cli-<platform>` and `<scope>/cli` at a
-prerelease version (`<sdk.json version>-stage.<run number>`), the launcher depending on exactly the
-platforms built, then waits until npm serves them. The launcher starts the platform package of its
-own name (`<launcher>-<platform>`) and, published elsewhere than `@kition`, sets
-`KITION_NPM_SCOPE` to its scope when it is not set, so `npx -y @kitionstage/cli@<version> kit
-install note` installs the staged kit.
+The release is rehearsed on such a scope by `.github/workflows/release.yml` itself, with a stage
+scope ([below](#releasing-and-rehearsing)): it publishes copies of the command line's packages
+renamed `<scope>/cli-<platform>` and `<scope>/cli`, and of the SDK renamed `<scope>/sdk`, at a
+prerelease version. The launcher starts the platform package of its own name
+(`<launcher>-<platform>`) and, published elsewhere than `@kition`, sets `KITION_NPM_SCOPE` to its
+scope when it is not set, so `npx -y @kitionstage/cli@<version> kit install note` installs the
+staged kit; its `install.sh` and `install.ps1` name the scope on their one scope line, so they
+install `<scope>/cli-<platform>`.
 
 The files are those of the kit's archives before npm (the same names and bytes); only the container
 is npm's, a `.tgz` with everything under `package/` beside a `package.json`. Each `package.json`
@@ -283,35 +285,119 @@ number is never used twice; the same holds for every npm package, the kit packag
 version. The repositories turn on GitHub's immutable releases, which enforces this for releases.
 The `latest` tag of `@kition/kits-index` is the one thing that moves (above).
 
+## Releasing and rehearsing
+
+`.github/workflows/release.yml` is the one path of the real release and of its rehearsal on another
+npm scope, so what is rehearsed is what ships. It is started by hand. Its inputs, all checked by
+`node tools/stage-package.mjs target` before anything is built:
+
+| Input | Rehearsal (any scope but `@kition`) | Real release (`@kition`) |
+| --- | --- | --- |
+| `scope` | `@kitionstage`, the default | `@kition`, given explicitly |
+| `version` | `<sdk.json version>-stage.<run number>` when empty | `sdk.json`'s; given or empty. `sdk.json`, `crates/kition-cli/Cargo.toml`, `packages/kition/package.json` and `packages/sdk/package.json` must all name it, else nothing starts |
+| `platforms` | `darwin-arm64` when empty (the organization runs at most 5 macOS jobs at once) | every platform; naming fewer stops the run |
+| `tessera` | the published `<scope>/tessera@<version>`, such as `@kitionstage/tessera@0.1.1-stage.2`; `<scope>/sdk` names its peer `@kition/tessera` at exactly that version | `@kition/tessera` at a published version in `^0.1.0`; `@kition/sdk` names its peer at `^0.1.0` |
+| `kition_commit` | empty: `kition`, `kition-kits` and `kition-kits-mcp` only, no kits, bundles or release files; given: as the real release builds them (the release files are an artifact of the run) | the KitionAI/kition commit whose `kits/kits.lock.json` pins, by npm package, the kits built for the SDK bundles |
+| `kit` | `note`: each platform's copy of `kition` installs it from the scope before anything is published | the same |
+| npm token | `NPM_TOKEN_STAGE` | `NPM_TOKEN` |
+
+```sh
+# A rehearsal
+gh workflow run release.yml -R KitionAI/kition-sdk -f scope=@kitionstage -f tessera=@kitionstage/tessera@0.1.1-stage.2
+# The real release
+gh workflow run release.yml -R KitionAI/kition-sdk -f scope=@kition -f version=0.1.0 \
+  -f tessera=@kition/tessera@0.1.0 -f kition_commit=<KitionAI/kition commit>
+```
+
+Both build `kition` (and the kits' executables and the SDK bundles) on each platform's runner,
+`@kition/sdk` with its pack check, its smoke check and its editor worker in Chromium against the
+Tessera given, and copies of the packed packages (`tools/stage-package.mjs release`): a rehearsal
+renames them to its scope and version; the real release keeps their names and versions, the
+launcher depending on every platform package. Each platform's copy runs with the launcher's copy
+there (`--version`, and the kit installed from the scope). Then `tools/stage-package.mjs order`
+checks the copies are exactly `<scope>/cli-<platform>` for each platform, `<scope>/cli` and
+`<scope>/sdk`, and npm is asked about each one (`tools/kit-npm-package.mjs state`): a version npm
+has with the same bytes is done, one with other bytes stops the run before anything is published.
+They are published in that order, each with `--tag latest` and provenance, and the run waits until
+npm serves each one with its bytes.
+
+Only the real release makes the GitHub Release (a draft, then published once npm has every
+package), with its notes (`node tools/sdk-release.mjs --notes`, naming `@kition/cli`, its
+installers, `@kition/sdk` and the scope's kit index), its provenance attestations, and asks
+npmmirror to copy the packages. A rehearsal makes no tag, no release and no notes on GitHub: its
+release files are an artifact of the run, and its step summary gives the lines a kit puts in
+`web/package.json` (`"@kition/sdk": "npm:<scope>/sdk@<version>"`, `"@kition/tessera":
+"npm:<tessera>"`).
+
+Not published: the SDK's twelve library packages (`@kition/kdm`, `@kition/kit-editor`, ...), which
+`@kition/sdk` carries; the kit packages and the kit index (above); and the DeepSeek Harness plugin
+`@kition/dsh-kits`, frozen until after the launch.
+
+### Cutover to the new layout
+
+On release day `@kition` moves from the legacy layout (`@kition/kit-<kit>-<platform>`,
+`@kition/kit-<kit>-ui`, `@kition/kits-index`) to layout 1 (`@kition/<kit>-<platform>`,
+`@kition/<kit>`, `@kition/kits`), as `@kitionstage` has it. Everything that changes:
+
+1. `crates/kition-cli/src/registry.rs`: `LEGACY_LAYOUT_SCOPES` (line 35) becomes empty; then
+   `Layout::Legacy` and its arms go (lines 114 and 120), and the tests that expect
+   `@kition/kits-index` and `@kition/kit-<kit>-*` names (`registry.rs` tests, `tests/registry.rs`,
+   `tests/store.rs`, `tests/editors.rs`, `tests/cli.rs`, `tests/doctor.rs`, `tests/support/mod.rs`)
+   name the layout 1 packages.
+2. `crates/kition-cli/src/index.rs`: `DEFAULT_INDEX` (line 29) becomes `npm:@kition/kits`, with its
+   doc comments (lines 8 and 27); `crates/kition-cli/src/commands/help.rs` line 37.
+3. `sdk.json`: `binaries.cli.defaultIndex` becomes `npm:@kition/kits` (`crates/kition-cli/src/main.rs`
+   checks it equals `DEFAULT_INDEX`).
+4. `tools/kit-npm.mjs`: `LEGACY_LAYOUT_SCOPES` (line 58) becomes empty; then the legacy branches of
+   `packageName` and `indexPackage` go, and `tools/kit-npm.test.mjs` and `tools/kits-index.test.mjs`
+   follow. The release notes then name `@kition/kits` by themselves (`indexPackage`).
+5. KitionAI/kition `scripts/lib/kitNpm.mjs`: its `LEGACY_LAYOUT_SCOPES` (line 35) likewise, and
+   `kits/kits.lock.json` pinned by npm package (`package`, `version`, `integrity`, `commit` per
+   kit) at the layout 1 names (`"package": "@kition/<kit>"`) by its `scripts/pin-kits.mjs` once the
+   kits are published under them. Its lock still pins GitHub Release assets (no `package`), which
+   the release refuses: the real release cannot start before this.
+6. Each kit repository's Package workflow publishes its version under the layout 1 names (it takes
+   the layout from `tools/kit-npm.mjs`), and `.github/workflows/kits-index.yml` (scope `@kition`)
+   then publishes the first `@kition/kits`.
+7. `tools/kit-npm-package.mjs` and `tools/sync-community.mjs`: `README_EMBED_SPECIFIER` (lines 50
+   and 76) becomes `@kition/sdk/embed`, once `@kition/sdk` is on npm.
+8. `tools/sdk-package.mjs` `CLIENT_NAMES` (line 101): the owner decides whether the client names
+   sent to servers become `@kition/sdk/...`.
+9. The versions, all at once (the owner's step): `sdk.json`, `crates/kition-cli/Cargo.toml` (and
+   `Cargo.lock`), `packages/kition/package.json`, `packages/sdk/package.json` and the DeepSeek Harness
+   plugin's dependency on `@kition/cli`, with a CHANGELOG.md entry; the release refuses to start
+   while they disagree.
+10. Docs that name the legacy packages: this page (the kit package table and the kit index
+    sections), `docs/sdk/cli.md` (lines 422, 517 to 519 and 557), `README.md`, and
+    `.github/workflows/kits-index.yml`'s header.
+11. After the release: `.github/workflows/npm-deprecate.yml` for the packages `@kition/sdk`
+    replaced (the twelve libraries) and the legacy kit and index packages.
+
 ## When a release stops half-way
 
 The release workflow builds and checks everything before it publishes anything. It then makes
 the GitHub Release as a draft (no tag yet; it can still be deleted), publishes the npm packages
 (a version published on npm can never be published again, so this is the step that cannot be
-undone), and publishes the draft last. On npm the scoped `@kition/*` libraries go first, then
-`@kition/cli-<platform>`, then `@kition/cli`, which depends on them, then `@kition/dsh-kits`, the
-DeepSeek Harness plugin, which depends on `@kition/cli` at its own version: a plugin on npm always
-has its kition there. Before anything is published, `tools/check-dsh-plugin-package.mjs` checks
-those dependencies in the packed archives and installs the plugin by name from them (a local
-registry) as DeepSeek Harness does, and runs the `kition` it brings.
+undone), and publishes the draft last. On npm `@kition/cli-<platform>` goes first for each
+platform, then `@kition/cli`, which depends on them, then `@kition/sdk`.
 
 - **It stopped before npm, or part-way through npm** (a refused token, the registry down): run it
   again from the same commit, best with "Re-run failed jobs", which keeps the executables already
-  built. The draft is replaced, every npm version already published is skipped, and the rest is
-  published. A draft from another commit stops the run: npm may hold packages published from that
-  commit; run again from it, or delete the draft when npm holds no package of the version.
-- **The release is published, and npm lacks packages of its version** (`kition`'s first publish
-  refused by an `NPM_TOKEN` that may only publish `@kition/*`, for example): give the token the
-  right, then run the workflow from the tag `sdk-v<version>` ("Use workflow from", the tag) with
-  the same `kition_commit`. The run sees the release published from that commit and publishes
-  only what npm lacks: no draft, no bundle, no new release. The `@kition/cli-<platform>` packages
-  carry the `kition` of the release's own `kition-<version>-<platform>.tar.gz`, checked against
-  its `SHA256SUMS`, not a new build. From any other commit the run stops.
-- **npm already has `@kition/cli`, a `@kition/cli-<platform>` or `@kition/dsh-kits` of the version
-  with other bytes** (a version released before, such as 0.5.2, whose `kition` has no `gateway`):
-  the run stops before publishing it, since npm never replaces a version and the plugin would
-  install that other `kition`. Bump `sdk.json`'s version and release again. Every platform's
-  `kition` must also answer `kition gateway --help` in its smoke test before anything is
+  built. The draft is replaced, every npm version already published with the same bytes counts as
+  done, and the rest is published. A draft from another commit stops the run: npm may hold
+  packages published from that commit; run again from it, or delete the draft when npm holds no
+  package of the version.
+- **The release is published, and npm lacks packages of its version** (a first publish refused by
+  an `NPM_TOKEN` that may not publish a new name, for example): give the token the right, then run
+  the workflow from the tag `sdk-v<version>` ("Use workflow from", the tag) with the same inputs.
+  The run sees the release published from that commit and publishes only what npm lacks: no draft,
+  no bundle, no new release. The `@kition/cli-<platform>` packages carry the `kition` of the
+  release's own `kition-<version>-<platform>.tar.gz`, checked against its `SHA256SUMS`, not a new
+  build. From any other commit the run stops.
+- **npm already has one of the packages at the version with other bytes** (`@kition/cli` 0.5.2, for
+  one, published before the gateway command): the run stops before publishing anything, since npm
+  never replaces a version. Move every version source to a new version and release again. Every
+  platform's `kition` must also answer `kition gateway --help` in its smoke test before anything is
   published.
 
 ## After a release

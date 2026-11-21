@@ -9,10 +9,11 @@ intent: >-
   platform and a version that is not semantic are refused. The launcher starts the platform package
   of its own name (a rehearsal's @kitionstage/cli starts @kitionstage/cli-<platform>, never the
   real one), registers npx and npm commands by that name, and, published elsewhere than @kition,
-  sets KITION_NPM_SCOPE to its scope unless the person set it. The Stage CLI workflow (by hand
-  only) refuses @kition, builds kition as release.yml does, checks each copy on its platform,
+  sets KITION_NPM_SCOPE to its scope unless the person set it. release.yml with a stage scope (by
+  hand only; its default) builds kition for the platforms asked, checks each copy on its platform,
   publishes the platform packages before the launcher with the stage token only, and waits until
-  npm serves them.
+  npm serves them; the launcher's installers name its scope on their one scope line, so they
+  install the rehearsal's platform package.
 layer: gate
 dimension: platform
 source:
