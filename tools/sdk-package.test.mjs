@@ -151,8 +151,8 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(notes).toEqual(['pnpm.overrides: @kition/kit-editor -> "link:../../kition-sdk/packages/kit-editor" names @kition/kit-editor; point it at @kition/sdk by hand'])
     expect(changes.length).toBeGreaterThan(4)
     // A project that still has Tessera's old packages keeps them, with a note naming kition-tessera's
-    // codemod (which moves them, and their link: paths, to @kition/tessera); --version names another range.
-    const old = migrateManifest({ dependencies: { '@kition/kit-editor': '^0.5.2', '@kition/tessera-ui': 'link:../ui' }, devDependencies: { '@kition/tessera-icons': '^0.1.0' } }, { version: 'workspace:*' })
+    // codemod (which moves them, and their link: paths, to @kition/tessera); --sdk-spec names another range.
+    const old = migrateManifest({ dependencies: { '@kition/kit-editor': '^0.5.2', '@kition/tessera-ui': 'link:../ui' }, devDependencies: { '@kition/tessera-icons': '^0.1.0' } }, { sdkSpec: 'workspace:*' })
     expect(old.manifest.dependencies).toEqual({ '@kition/sdk': 'workspace:*', '@kition/tessera-ui': 'link:../ui' })
     expect(old.manifest.devDependencies).toEqual({ '@kition/tessera-icons': '^0.1.0' })
     expect(old.notes).toEqual(["@kition/tessera-ui, @kition/tessera-icons: Tessera is one package now, @kition/tessera, which @kition/sdk/editor imports; move this project to it with kition-tessera's scripts/migrate-to-tessera.mjs <folder> (its package.json and its imports)"])
@@ -166,6 +166,47 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(migrateManifest({ dependencies: { react: '^19' } }).changes).toEqual([])
     // Only devDependencies: @kition/sdk goes there.
     expect(migrateManifest({ devDependencies: { '@kition/kit-dev-host': '^0.1.0', '@kition/kit-host': '^0.1.0' } }).manifest.devDependencies).toEqual({ '@kition/sdk': `^${sdk.version}` })
+  })
+
+  it('writes exactly the specs given for @kition/sdk and @kition/tessera (a rehearsal\'s npm aliases), also over entries the project has', () => {
+    const sdkSpec = 'npm:@kitionstage/sdk@0.5.2-stage.4'
+    const tesseraSpec = 'npm:@kitionstage/tessera@0.1.1-stage.3'
+    // A kit's web/package.json as the kits have it: the editor, the engine, the host and Tessera's icons.
+    const kit = {
+      name: 'kition-note-web',
+      dependencies: { '@kition/kdm': '^0.1.0', '@kition/kit-editor': '^0.1.0', '@kition/kit-engine': '^0.1.0', '@kition/kit-host': '^0.1.0', '@kition/kit-ui-protocol': '^0.1.0', '@kition/tessera-icons': '^0.1.0', react: '^19.0.0' },
+      devDependencies: { '@kition/kit-dev-host': '^0.1.0', vite: '^6.0.0' },
+    }
+    const moved = migrateManifest(kit, { sdkSpec, tesseraSpec })
+    expect(moved.manifest.dependencies).toEqual({ '@kition/sdk': sdkSpec, '@kition/tessera-icons': '^0.1.0', react: '^19.0.0', '@kition/tessera': tesseraSpec })
+    expect(moved.manifest.devDependencies).toEqual({ vite: '^6.0.0' })
+    expect(moved.changes).toContainEqual({ from: 'dependencies: (Tessera came with @kition/kit-editor)', to: `dependencies: @kition/tessera@${tesseraSpec}` })
+    // Tessera's old package stays for kition-tessera's codemod, which keeps the @kition/tessera entry.
+    expect(moved.notes).toEqual([expect.stringContaining("@kition/tessera-icons: Tessera is one package now, @kition/tessera, which @kition/sdk/editor imports; move this project to it with kition-tessera's scripts/migrate-to-tessera.mjs")])
+    expect(kit.dependencies['@kition/sdk']).toBeUndefined()
+    // A project moved before: its entries take the new specs, in their places.
+    const again = migrateManifest({ dependencies: { '@kition/sdk': '^0.5.2', '@kition/tessera': '^0.1.0', react: '^19.0.0' } }, { sdkSpec, tesseraSpec })
+    expect(again.manifest.dependencies).toEqual({ '@kition/sdk': sdkSpec, '@kition/tessera': tesseraSpec, react: '^19.0.0' })
+    expect(again.changes).toEqual([
+      { from: 'dependencies: @kition/sdk@^0.5.2', to: `dependencies: @kition/sdk@${sdkSpec}` },
+      { from: 'dependencies: @kition/tessera@^0.1.0', to: `dependencies: @kition/tessera@${tesseraSpec}` },
+    ])
+    expect(migrateManifest(again.manifest, { sdkSpec, tesseraSpec }).changes).toEqual([])
+    // Without the specs, an entry the project has is its own; --tessera-spec alone adds nothing where no Tessera was.
+    expect(migrateManifest({ dependencies: { '@kition/sdk': '^0.5.0', '@kition/tessera': '^0.1.0' } }).changes).toEqual([])
+    expect(migrateManifest({ dependencies: { '@kition/embed': '^0.5.2' } }, { tesseraSpec }).manifest.dependencies).toEqual({ '@kition/sdk': `^${sdk.version}` })
+    // With a spec, beside Tessera's old packages in a project already on @kition/sdk.
+    expect(migrateManifest({ devDependencies: { '@kition/sdk': '^0.5.2', '@kition/tessera-ui': '^0.1.0' } }, { tesseraSpec }).manifest.devDependencies).toEqual({ '@kition/sdk': '^0.5.2', '@kition/tessera-ui': '^0.1.0', '@kition/tessera': tesseraSpec })
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-to-sdk-spec-'))
+    scratch.push(dir)
+    fs.writeFileSync(path.join(dir, 'package.json'), `${JSON.stringify(kit, null, 2)}\n`)
+    const tool = path.join(root, 'tools/migrate-to-sdk.mjs')
+    const ran = spawnSync(process.execPath, [tool, dir, '--sdk-spec', sdkSpec, '--tessera-spec', tesseraSpec], { encoding: 'utf8' })
+    expect(ran.status, ran.stderr).toBe(0)
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).dependencies).toEqual(moved.manifest.dependencies)
+    expect(ran.stdout).toContain('by hand: @kition/tessera-icons: Tessera is one package now')
+    for (const bad of [[dir, '--sdk-spec'], [dir, '--tessera-spec', '--check'], [dir, '--version', '^1.0.0']]) expect(spawnSync(process.execPath, [tool, ...bad], { encoding: 'utf8' }).status, bad.join(' ')).toBe(2)
   })
 
   it('migrates a folder, never a lockfile, node_modules or build output; --check lists and exits 1', () => {

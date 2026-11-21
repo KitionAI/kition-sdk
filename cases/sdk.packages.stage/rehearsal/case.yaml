@@ -1,0 +1,29 @@
+format: 1
+id: sdk.packages.stage/rehearsal
+feature: sdk.packages.stage
+intent: >-
+  The rehearsal copy of the packed @kition/sdk is <scope>/sdk at the version given, its optional
+  peer kept as @kition/tessera at exactly the rehearsal Tessera's version, every other field and
+  file as packed; it is packed by npm without running scripts, from the archive or its folder, and
+  what it was given and this checkout are untouched; @kition, a scope of another form, a version
+  that is not semantic (or has build metadata) and a Tessera not named <scope>/tessera@<version>
+  are refused. The Stage workflow (by hand only) refuses @kition, builds and checks @kition/sdk
+  against the rehearsal Tessera installed from npm under the name @kition/tessera, publishes the
+  copy with the stage token, waits until npm serves it, and prints the two lines a kit puts in
+  web/package.json; migrate-to-sdk writes those lines with --sdk-spec and --tessera-spec.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/stage-package.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/stage-package.test.mjs, tools/sdk-package.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

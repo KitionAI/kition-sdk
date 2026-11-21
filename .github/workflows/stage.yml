@@ -1,0 +1,175 @@
+name: Stage
+
+# A publishing rehearsal for @kition/sdk, which is not on npm yet: builds @kition/sdk, runs its pack
+# check and its smoke check against a published rehearsal Tessera, renames a copy to <scope>/sdk at
+# a prerelease version (tools/stage-package.mjs), publishes that with a token, and waits until npm
+# serves it. The checkout's tracked files are not changed, and nothing release.yml publishes is
+# touched. The real @kition release is not this workflow.
+#
+# Inputs: scope (never @kition), version (default <sdk.json version>-stage.<run number>, a
+# prerelease, so no real version is used), and tessera, the published Tessera the rehearsal names:
+# <scope>/tessera@<version>, such as @kitionstage/tessera@0.1.1-stage.3 (kition-tessera's Stage
+# workflow prints it). The copy keeps its optional peer under the name @kition/tessera, at exactly
+# that version; a consumer installs both under the real names:
+#   "@kition/sdk": "npm:<scope>/sdk@<version>",
+#   "@kition/tessera": "npm:<tessera>"
+#
+# Tessera is needed twice. The build compiles the twelve library packages' sources, which import
+# Tessera's three old packages (@kition/tessera-ui, -icons, -tokens), linked from a kition-tessera
+# checkout beside this one as in ci.yml. The checks of @kition/sdk, which imports @kition/tessera,
+# use the rehearsal Tessera from npm instead: installed in a folder of its own under the alias
+# @kition/tessera (npm:<tessera>), never in the workspace, and passed to the smoke check with
+# --tessera.
+#
+# Needs the organization secret NPM_TOKEN_STAGE, an npm token that can publish to the scope.
+# Start it with: gh workflow run stage.yml -R KitionAI/kition-sdk -f tessera=<scope>/tessera@<version>
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: npm scope to publish to (never @kition)
+        type: string
+        default: '@kitionstage'
+      version:
+        description: Version to publish (empty for <sdk.json version>-stage.<run number>)
+        type: string
+        default: ''
+      tessera:
+        description: The published Tessera @kition/sdk names, <scope>/tessera@<version> (e.g. @kitionstage/tessera@0.1.1-stage.3)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    name: Publish @kition/sdk to a stage scope
+    runs-on: ubuntu-24.04
+    # The build and checks, then up to 40 minutes for npm to serve the new version.
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      # npm publish --provenance, as release.yml publishes.
+      id-token: write
+    env:
+      SCOPE: ${{ inputs.scope }}
+      VERSION_INPUT: ${{ inputs.version }}
+      TESSERA: ${{ inputs.tessera }}
+      REGISTRY: https://registry.npmjs.org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          registry-url: https://registry.npmjs.org
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - name: Scope, version and Tessera
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE" = "@kition" ]; then
+            echo "::error::This workflow does not publish to @kition: the real release is release.yml. Pick a stage scope such as @kitionstage."
+            exit 1
+          fi
+          version="$VERSION_INPUT"
+          if [ -z "$version" ]; then
+            version="$(node -p 'require("./sdk.json").version')-stage.$GITHUB_RUN_NUMBER"
+          fi
+          node tools/stage-package.mjs --check --scope "$SCOPE" --version "$version" --tessera "$TESSERA"
+          {
+            echo "NAME=$SCOPE/sdk"
+            echo "VERSION=$version"
+          } >> "$GITHUB_ENV"
+      - name: Check out Kition Tessera beside the SDK
+        run: |
+          git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
+          cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - name: The rehearsal Tessera from npm, as @kition/tessera
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/tessera"
+          mkdir -p "$dir"
+          cd "$dir"
+          echo '{ "name": "stage-tessera", "private": true }' > package.json
+          npm install --ignore-scripts --no-audit --no-fund --no-package-lock "@kition/tessera@npm:$TESSERA"
+          installed=$(node -p 'const p = require("./node_modules/@kition/tessera/package.json"); p.name + "@" + p.version')
+          if [ "$installed" != "$TESSERA" ]; then
+            echo "::error::npm installed $installed for npm:$TESSERA"
+            exit 1
+          fi
+          echo "TESSERA_DIR=$dir/node_modules/@kition/tessera" >> "$GITHUB_ENV"
+      - run: node tools/build-sdk.mjs
+      # The checks of the merged package; a failure stops the rehearsal.
+      - run: node tools/pack-public-packages.mjs sdk
+      - run: node tools/smoke-sdk-package.mjs --tessera "$TESSERA_DIR"
+      - name: The rehearsal copy
+        run: |
+          set -euo pipefail
+          node tools/stage-package.mjs --from target/npm-pack/sdk.tgz --scope "$SCOPE" --version "$VERSION" --tessera "$TESSERA" --out "$RUNNER_TEMP/stage" > "$RUNNER_TEMP/stage.json"
+          cat "$RUNNER_TEMP/stage.json"
+          {
+            echo "TARBALL=$(node -p 'require(process.argv[1]).tarball' "$RUNNER_TEMP/stage.json")"
+            echo "INTEGRITY=$(node -p 'require(process.argv[1]).integrity' "$RUNNER_TEMP/stage.json")"
+          } >> "$GITHUB_ENV"
+          # The rename happened on a copy: the checkout's tracked files are as they were.
+          if ! git diff --quiet; then
+            echo "::error::tracked files changed: $(git diff --name-only | head -n 5 | tr '\n' ' ')"
+            exit 1
+          fi
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_STAGE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::The secret NPM_TOKEN_STAGE is not available to this repository."
+            exit 1
+          fi
+          if npm view "$NAME@$VERSION" version 2>/dev/null | grep -qx "$VERSION"; then
+            echo "::error::$NAME@$VERSION is already on npm. A re-run keeps the run number: start a new run, or pass another version."
+            exit 1
+          fi
+          # A prerelease version needs an explicit tag; latest, so the rehearsal installs without one.
+          npm publish "$TARBALL" --access public --tag latest --provenance --ignore-scripts
+      - name: Wait until npm serves it
+        run: |
+          set -euo pipefail
+          # Its metadata, latest pointing at it (not npm's placeholder 0.0.0-stage of a first
+          # publish), and its tarball with the metadata's integrity; every 30 s for 40 minutes.
+          node tools/kit-npm-package.mjs visible --name "$NAME" --version "$VERSION" --registry "$REGISTRY" --tag latest --minutes 40
+          listed=$(npm view "$NAME@$VERSION" dist.integrity --registry "$REGISTRY")
+          if [ "$listed" != "$INTEGRITY" ]; then
+            echo "::error::npm lists $NAME@$VERSION with integrity $listed, not the published $INTEGRITY"
+            exit 1
+          fi
+      - name: How a kit uses it
+        run: |
+          set -euo pipefail
+          sdk_line="\"@kition/sdk\": \"npm:$NAME@$VERSION\","
+          tessera_line="\"@kition/tessera\": \"npm:$TESSERA\""
+          echo "$sdk_line"
+          echo "$tessera_line"
+          {
+            echo "### $NAME@$VERSION is on npm"
+            echo
+            echo "With \`@kition/tessera\` at \`$TESSERA\`. In a kit's \`web/package.json\` \`dependencies\`:"
+            echo
+            echo '```json'
+            echo "$sdk_line"
+            echo "$tessera_line"
+            echo '```'
+            echo
+            echo "Or from a kit's \`web/\` folder, with kition-sdk beside it:"
+            echo
+            echo '```sh'
+            echo "node ../../kition-sdk/tools/migrate-to-sdk.mjs . --sdk-spec npm:$NAME@$VERSION --tessera-spec npm:$TESSERA"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -2,7 +2,7 @@
 // Moves a consumer project from the SDK's twelve library packages to @kition/sdk, by the mapping in
 // tools/sdk-package.mjs (`@kition/kit-editor/styles.css` -> `@kition/sdk/editor/styles.css`):
 //
-//   node tools/migrate-to-sdk.mjs <folder> [--check] [--version <range>]
+//   node tools/migrate-to-sdk.mjs <folder> [--check] [--sdk-spec <spec>] [--tessera-spec <spec>]
 //
 // - In code, styles and pages (.js .jsx .mjs .cjs .ts .tsx .mts .cts .vue .svelte .css .scss .less
 //   .html): every module specifier that is one of the old names or a subpath of one becomes its
@@ -15,7 +15,7 @@
 // - In each package.json: the old names leave dependencies, devDependencies, peerDependencies and
 //   optionalDependencies (and peerDependenciesMeta); @kition/sdk takes the place of the first, once,
 //   in the most runtime of dependencies, optionalDependencies and devDependencies that had one (and
-//   in peerDependencies when they had one), at `--version` (default ^<packages/sdk's version>). When
+//   in peerDependencies when they had one), at `--sdk-spec` (default ^<packages/sdk's version>). When
 //   @kition/kit-editor was there, @kition/sdk/editor imports Tessera as the one package
 //   @kition/tessera (an optional peer of @kition/sdk): it is added beside @kition/sdk at
 //   packages/sdk's peer range when the project names no Tessera package. A project that still names
@@ -23,6 +23,12 @@
 //   move to @kition/tessera, in package.json and in the code, with kition-tessera's
 //   scripts/migrate-to-tessera.mjs (this tool leaves them alone). An old name in overrides,
 //   pnpm.overrides or resolutions is listed for a person: what it points at is the project's choice.
+// - --sdk-spec <spec> and --tessera-spec <spec> name what package.json gets for @kition/sdk and
+//   @kition/tessera, exactly as given: a range, or an npm alias such as
+//   npm:@kitionstage/sdk@0.5.2-stage.4 (a rehearsal, the Stage workflow's lines). Given, they also
+//   replace the entry a project has already (a project moved before, now pointed at a rehearsal).
+//   --tessera-spec adds @kition/tessera for the editor even when Tessera's old packages are there
+//   (still with the note: migrate-to-tessera.mjs then drops them and keeps this entry).
 // - Lockfiles (pnpm-lock.yaml, package-lock.json, npm-shrinkwrap.json, yarn.lock, bun.lock,
 //   bun.lockb) are never touched: run the package manager's install afterwards. node_modules, .git
 //   and build output (dist, build, target, coverage, .next, .turbo) are skipped.
@@ -72,9 +78,12 @@ export const PACKAGE_MANAGER_FILES = ['.pnpmfile.cjs', '.pnpmfile.mjs', '.yarnrc
 
 /**
  * A package.json's object with the old names replaced by @kition/sdk: { manifest, changes, notes }.
- * `version` is the range @kition/sdk is added at.
+ * `sdkSpec` is what @kition/sdk is added at (default ^<packages/sdk's version>), `tesseraSpec` what
+ * @kition/tessera is added at (default packages/sdk's peer range); given, each also replaces the
+ * project's own entry.
  */
-export function migrateManifest(manifest, { version = `^${SDK_MANIFEST.version}` } = {}) {
+export function migrateManifest(manifest, { sdkSpec, tesseraSpec } = {}) {
+  const version = sdkSpec ?? `^${SDK_MANIFEST.version}`
   const next = structuredClone(manifest)
   const changes = []
   const notes = []
@@ -103,14 +112,30 @@ export function migrateManifest(manifest, { version = `^${SDK_MANIFEST.version}`
     }
     next[section] = rebuilt
   }
+  // An entry the project has already takes a spec given.
+  const respec = (name, spec) => {
+    for (const section of SECTIONS) {
+      const deps = next[section]
+      if (!deps || typeof deps !== 'object' || !Object.hasOwn(deps, name) || deps[name] === spec) continue
+      changes.push({ from: `${section}: ${name}@${deps[name]}`, to: `${section}: ${name}@${spec}` })
+      deps[name] = spec
+    }
+  }
+  if (sdkSpec !== undefined) respec(SDK, sdkSpec)
   // Tessera came with @kition/kit-editor; @kition/sdk/editor imports it as @kition/tessera, an
   // optional peer of @kition/sdk. Its three old packages move with kition-tessera's own codemod.
   const oldTessera = [...new Set(SECTIONS.flatMap((section) => Object.keys(next[section] ?? {}).filter((name) => OLD_TESSERA.includes(name))))]
   const hasTessera = SECTIONS.some((section) => Object.hasOwn(next[section] ?? {}, TESSERA))
-  if (hadEditor && home && !hasTessera && !oldTessera.length) {
-    const range = SDK_MANIFEST.peerDependencies[TESSERA]
-    next[home] = { ...next[home], [TESSERA]: range }
-    changes.push({ from: `${home}: (Tessera came with @kition/kit-editor)`, to: `${home}: ${TESSERA}@${range}` })
+  if (hasTessera) {
+    if (tesseraSpec !== undefined) respec(TESSERA, tesseraSpec)
+  } else {
+    // Beside @kition/sdk for the editor; with a spec given, beside Tessera's old packages too.
+    const at = hadEditor && home ? home : tesseraSpec !== undefined ? SECTIONS.find((section) => Object.keys(next[section] ?? {}).some((name) => OLD_TESSERA.includes(name))) : undefined
+    if (at && (tesseraSpec !== undefined || !oldTessera.length)) {
+      const range = tesseraSpec ?? SDK_MANIFEST.peerDependencies[TESSERA]
+      next[at] = { ...next[at], [TESSERA]: range }
+      changes.push({ from: `${at}: (Tessera ${hadEditor ? 'came with @kition/kit-editor' : `was ${oldTessera.join(', ')}`})`, to: `${at}: ${TESSERA}@${range}` })
+    }
   }
   if (oldTessera.length) notes.push(`${oldTessera.join(', ')}: Tessera is one package now, ${TESSERA}, which ${SDK}/editor imports; move this project to it with kition-tessera's scripts/migrate-to-tessera.mjs <folder> (its package.json and its imports)`)
   const meta = next.peerDependenciesMeta
@@ -144,7 +169,7 @@ function* filesUnder(dir) {
 }
 
 /** Migrates every file under `dir` (writes nothing with `check`): [{ file, changes, notes }] of the files that change or need a hand. */
-export function migrateFolder(dir, { check = false, version } = {}) {
+export function migrateFolder(dir, { check = false, sdkSpec, tesseraSpec } = {}) {
   const report = []
   for (const file of filesUnder(dir)) {
     const text = fs.readFileSync(file, 'utf8')
@@ -155,7 +180,7 @@ export function migrateFolder(dir, { check = false, version } = {}) {
       } catch {
         continue
       }
-      const migrated = migrateManifest(manifest, { version })
+      const migrated = migrateManifest(manifest, { sdkSpec, tesseraSpec })
       if (!migrated.changes.length && !migrated.notes.length) continue
       if (!check && migrated.changes.length) fs.writeFileSync(file, `${JSON.stringify(migrated.manifest, null, text.match(/^\{\n(\s+)/)?.[1] ?? 2)}${text.endsWith('\n') ? '\n' : ''}`)
       report.push({ file, changes: migrated.changes, notes: migrated.notes })
@@ -175,20 +200,30 @@ export function migrateFolder(dir, { check = false, version } = {}) {
 }
 
 function main(argv) {
-  const check = argv.includes('--check')
-  const at = argv.indexOf('--version')
-  const version = at >= 0 ? argv[at + 1] : undefined
-  const folders = argv.filter((arg, i) => !arg.startsWith('--') && !(at >= 0 && i === at + 1))
-  if (folders.length !== 1 || (at >= 0 && !version) || argv.some((arg) => arg.startsWith('--') && !['--check', '--version'].includes(arg))) {
-    console.error('usage: migrate-to-sdk.mjs <folder> [--check] [--version <range>]')
+  const usage = () => {
+    console.error('usage: migrate-to-sdk.mjs <folder> [--check] [--sdk-spec <spec>] [--tessera-spec <spec>]')
     process.exit(2)
   }
+  const options = {}
+  const folders = []
+  let check = false
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === '--check') check = true
+    else if (arg === '--sdk-spec' || arg === '--tessera-spec') {
+      const value = argv[++i]
+      if (!value || value.startsWith('--')) usage()
+      options[arg === '--sdk-spec' ? 'sdkSpec' : 'tesseraSpec'] = value
+    } else if (arg.startsWith('--')) usage()
+    else folders.push(arg)
+  }
+  if (folders.length !== 1) usage()
   const dir = path.resolve(folders[0])
   if (!fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) {
     console.error(`migrate-to-sdk: ${folders[0]} is not a folder`)
     process.exit(2)
   }
-  const report = migrateFolder(dir, { check, version })
+  const report = migrateFolder(dir, { check, ...options })
   let changed = 0
   for (const { file, changes, notes } of report) {
     const where = path.relative(process.cwd(), file) || file
