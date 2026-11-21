@@ -47,30 +47,31 @@ export const PARTS = [
 /** Executables a package carries (its package.json `bin`), with the source each is built from. */
 export const BINS = { 'kition-embed-server': { dir: 'embed-server', source: 'src/cli.ts' } }
 
+/** The Tessera package @kition/sdk/editor imports, an optional peer of @kition/sdk. */
+export const TESSERA = '@kition/tessera'
+
 /**
  * Tessera's import specifiers in @kition/sdk/editor (JavaScript, declarations and styles.css):
  * `part` is ui, icons or tokens, `rest` the subpath after it ('' or '/react', '/styles.css', ...).
- * Today Tessera is three npm packages, @kition/tessera-ui, -icons and -tokens. When the one package
- * @kition/tessera (subpaths /ui, /icons, /tokens) is on npm, the switch is this one line:
- *
- *   export const tesseraSpecifier = (part, rest) => `@kition/tessera/${part}${rest}`
- *
- * then peerDependencies in packages/sdk/package.json name @kition/tessera instead of the three
+ * Tessera is one package, @kition/tessera, whose subpaths /ui, /icons and /tokens mirror the three
+ * packages it replaced (kition-tessera's scripts/migrate-to-tessera.mjs moves a consumer). The
+ * twelve packages here (@kition/kit-editor) still name those three; only @kition/sdk's build
+ * renames them, and peerDependencies in packages/sdk/package.json name @kition/tessera
  * (tools/sdk-package.test.mjs fails until they agree with this function).
  */
-export const tesseraSpecifier = (part, rest) => `@kition/tessera-${part}${rest}`
+export const tesseraSpecifier = (part, rest) => `${TESSERA}/${part}${rest}`
 
-/** Tessera's packages as the editor names them today: `@kition/tessera-<part><rest>`. */
-const TESSERA = /^@kition\/tessera-(ui|icons|tokens)((?:\/.*)?)$/
+/** Tessera's old packages, as the twelve packages name them: `@kition/tessera-<part><rest>`. */
+const OLD_TESSERA_SPECIFIER = /^@kition\/tessera-(ui|icons|tokens)((?:\/.*)?)$/
 
-/** `specifier` with Tessera named by tesseraSpecifier, or null when it is not Tessera's. */
+/** The three packages @kition/tessera replaced (a consumer that still names them moves with migrate-to-tessera). */
+export const OLD_TESSERA = ['@kition/tessera-icons', '@kition/tessera-tokens', '@kition/tessera-ui']
+
+/** An old Tessera `specifier` as tesseraSpecifier names it, or null when it is not one. */
 export function tesseraImport(specifier) {
-  const match = TESSERA.exec(specifier)
+  const match = OLD_TESSERA_SPECIFIER.exec(specifier)
   return match ? tesseraSpecifier(match[1], match[2]) : null
 }
-
-/** The npm packages tesseraSpecifier names (for peerDependencies). */
-export const tesseraPackages = () => [...new Set(['ui', 'icons', 'tokens'].map((part) => packageOf(tesseraSpecifier(part, ''))))].sort()
 
 /** The package a bare specifier names: `@scope/name` or `name`. */
 export const packageOf = (specifier) => specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/')

@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LOCKFILES, migrateFolder, migrateManifest, migrateText } from './migrate-to-sdk.mjs'
-import { BINS, PARTS, SDK, manifestOf, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraPackages, tesseraSpecifier } from './sdk-package.mjs'
+import { BINS, OLD_TESSERA, PARTS, SDK, TESSERA, manifestOf, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
@@ -61,25 +61,29 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(spawnSync(process.execPath, [path.join(root, 'tools/sdk-package.mjs'), '--check'], { encoding: 'utf8' }).status).toBe(0)
   })
 
-  it('depends on no other @kition library package: loro-crdt as kdm has it, React and Tessera optional peers named by tesseraSpecifier', () => {
+  it('depends on no other @kition library package: loro-crdt as kdm has it, React and @kition/tessera optional peers', () => {
     for (const section of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-      for (const name of Object.keys(sdk[section] ?? {})) expect(name.startsWith('@kition/') && !tesseraPackages().includes(name), `${section}: ${name}`).toBe(false)
+      for (const name of Object.keys(sdk[section] ?? {})) expect(name.startsWith('@kition/') && name !== TESSERA, `${section}: ${name}`).toBe(false)
     }
     expect(sdk.dependencies).toEqual({ 'loro-crdt': read('packages/kdm/package.json').dependencies['loro-crdt'] })
-    expect(Object.keys(sdk.peerDependencies).sort()).toEqual([...tesseraPackages(), 'react', 'react-dom'].sort())
+    expect(Object.keys(sdk.peerDependencies).sort()).toEqual([TESSERA, 'react', 'react-dom'])
     for (const name of Object.keys(sdk.peerDependencies)) expect(sdk.peerDependenciesMeta[name], name).toEqual({ optional: true })
+    // The twelve packages keep Tessera's three old packages; @kition/sdk's one peer takes their range.
     const editor = read('packages/kit-editor/package.json')
-    for (const name of tesseraPackages()) expect(sdk.peerDependencies[name]).toBe(editor.dependencies[name])
+    expect(Object.keys(editor.dependencies).filter((name) => name.startsWith('@kition/tessera')).sort()).toEqual(OLD_TESSERA)
+    for (const name of OLD_TESSERA) expect(sdk.peerDependencies[TESSERA], name).toBe(editor.dependencies[name])
     for (const name of ['react', 'react-dom']) expect(sdk.peerDependencies[name]).toBe(editor.peerDependencies[name])
     expect(sdk.version).toBe(read('sdk.json').version)
   })
 
-  it('names Tessera through one function: the three packages today, one line away from @kition/tessera/<part>', () => {
-    expect(tesseraSpecifier('ui', '/styles.css')).toBe('@kition/tessera-ui/styles.css')
-    expect(tesseraImport('@kition/tessera-icons/react')).toBe(tesseraSpecifier('icons', '/react'))
-    expect(tesseraImport('@kition/tessera-ui')).toBe(tesseraSpecifier('ui', ''))
-    expect(tesseraImport('@kition/kit-editor')).toBeNull()
-    expect(tesseraPackages()).toEqual(['@kition/tessera-icons', '@kition/tessera-tokens', '@kition/tessera-ui'])
+  it('names Tessera as the one package @kition/tessera: @kition/tessera-<part><rest> is @kition/tessera/<part><rest>', () => {
+    expect(TESSERA).toBe('@kition/tessera')
+    expect(tesseraSpecifier('ui', '/styles.css')).toBe('@kition/tessera/ui/styles.css')
+    expect(tesseraImport('@kition/tessera-ui/styles.css')).toBe('@kition/tessera/ui/styles.css')
+    expect(tesseraImport('@kition/tessera-icons/react')).toBe('@kition/tessera/icons/react')
+    expect(tesseraImport('@kition/tessera-tokens')).toBe('@kition/tessera/tokens')
+    expect(tesseraImport('@kition/tessera-ui/workspaceTree')).toBe('@kition/tessera/ui/workspaceTree')
+    for (const other of ['@kition/kit-editor', '@kition/tessera', '@kition/tessera/ui', '@kition/tessera-uix', 'react']) expect(tesseraImport(other), other).toBeNull()
   })
 })
 
@@ -128,7 +132,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(css.text).toBe("@import '@kition/sdk/editor/styles.css';\n@import \"@kition/tessera-ui/styles.css\";\n")
   })
 
-  it('replaces the old names in package.json by @kition/sdk once per section, adds the editor\'s Tessera packages, and lists overrides for a person', () => {
+  it('replaces the old names in package.json by @kition/sdk once per section, adds @kition/tessera for the editor, and lists overrides for a person', () => {
     const { manifest, changes, notes } = migrateManifest({
       name: 'kition-note-web',
       dependencies: { '@kition/kit-editor': '^0.5.2', '@kition/kdm': '^0.5.2', react: '^19.0.0', 'loro-crdt': '1.16.4' },
@@ -137,7 +141,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
       peerDependenciesMeta: { '@kition/embed': { optional: true } },
       pnpm: { overrides: { '@kition/kit-editor': 'link:../../kition-sdk/packages/kit-editor', '@kition/tessera-ui': 'link:../x' } },
     })
-    expect(manifest.dependencies).toEqual({ '@kition/sdk': `^${sdk.version}`, react: '^19.0.0', 'loro-crdt': '1.16.4', ...Object.fromEntries(tesseraPackages().map((name) => [name, sdk.peerDependencies[name]])) })
+    expect(manifest.dependencies).toEqual({ '@kition/sdk': `^${sdk.version}`, react: '^19.0.0', 'loro-crdt': '1.16.4', '@kition/tessera': sdk.peerDependencies['@kition/tessera'] })
     expect(Object.keys(manifest.dependencies)[0]).toBe('@kition/sdk')
     // Once: devDependencies lose @kition/kit-dev-host, which @kition/sdk in dependencies covers.
     expect(manifest.devDependencies).toEqual({ vitest: '^2.1.0' })
@@ -146,9 +150,19 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(manifest.pnpm.overrides).toEqual({ '@kition/kit-editor': 'link:../../kition-sdk/packages/kit-editor', '@kition/tessera-ui': 'link:../x' })
     expect(notes).toEqual(['pnpm.overrides: @kition/kit-editor -> "link:../../kition-sdk/packages/kit-editor" names @kition/kit-editor; point it at @kition/sdk by hand'])
     expect(changes.length).toBeGreaterThan(4)
-    // A project that has a Tessera package keeps its own range; --version names another range.
-    const own = migrateManifest({ dependencies: { '@kition/kit-editor': '^0.5.2', '@kition/tessera-ui': 'link:../ui' } }, { version: 'workspace:*' })
-    expect(own.manifest.dependencies).toEqual({ '@kition/sdk': 'workspace:*', '@kition/tessera-ui': 'link:../ui', '@kition/tessera-icons': sdk.peerDependencies['@kition/tessera-icons'], '@kition/tessera-tokens': sdk.peerDependencies['@kition/tessera-tokens'] })
+    // A project that still has Tessera's old packages keeps them, with a note naming kition-tessera's
+    // codemod (which moves them, and their link: paths, to @kition/tessera); --version names another range.
+    const old = migrateManifest({ dependencies: { '@kition/kit-editor': '^0.5.2', '@kition/tessera-ui': 'link:../ui' }, devDependencies: { '@kition/tessera-icons': '^0.1.0' } }, { version: 'workspace:*' })
+    expect(old.manifest.dependencies).toEqual({ '@kition/sdk': 'workspace:*', '@kition/tessera-ui': 'link:../ui' })
+    expect(old.manifest.devDependencies).toEqual({ '@kition/tessera-icons': '^0.1.0' })
+    expect(old.notes).toEqual(["@kition/tessera-ui, @kition/tessera-icons: Tessera is one package now, @kition/tessera, which @kition/sdk/editor imports; move this project to it with kition-tessera's scripts/migrate-to-tessera.mjs <folder> (its package.json and its imports)"])
+    // A project that has @kition/tessera keeps its own range.
+    const own = migrateManifest({ dependencies: { '@kition/kit-editor': '^0.5.2' }, devDependencies: { '@kition/tessera': 'link:../tessera' } })
+    expect(own.manifest.dependencies).toEqual({ '@kition/sdk': `^${sdk.version}` })
+    expect(own.manifest.devDependencies).toEqual({ '@kition/tessera': 'link:../tessera' })
+    expect(own.notes).toEqual([])
+    // Without the editor, no Tessera.
+    expect(migrateManifest({ dependencies: { '@kition/embed': '^0.5.2' } }).manifest.dependencies).toEqual({ '@kition/sdk': `^${sdk.version}` })
     expect(migrateManifest({ dependencies: { react: '^19' } }).changes).toEqual([])
     // Only devDependencies: @kition/sdk goes there.
     expect(migrateManifest({ devDependencies: { '@kition/kit-dev-host': '^0.1.0', '@kition/kit-host': '^0.1.0' } }).manifest.devDependencies).toEqual({ '@kition/sdk': `^${sdk.version}` })

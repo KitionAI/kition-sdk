@@ -36,20 +36,12 @@
     "loro-crdt": "1.16.4"
   },
   "peerDependencies": {
-    "@kition/tessera-icons": "^0.1.0",
-    "@kition/tessera-tokens": "^0.1.0",
-    "@kition/tessera-ui": "^0.1.0",
+    "@kition/tessera": "^0.1.0",
     "react": ">=19",
     "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
-    "@kition/tessera-icons": {
-      "optional": true
-    },
-    "@kition/tessera-tokens": {
-      "optional": true
-    },
-    "@kition/tessera-ui": {
+    "@kition/tessera": {
       "optional": true
     },
     "react": {

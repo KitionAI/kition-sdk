@@ -3,13 +3,15 @@ id: sdk.packages.one-package/consumer
 feature: sdk.packages.one-package
 intent: >-
   The packed @kition/sdk, unpacked into a project outside the workspace with its dependency and
-  peers linked (offline): every subpath Node runs imports in Node and @kition/sdk alone is refused;
-  the embed server from /embed/server serves /embed's module and its chunks; every file that
-  registers a kit on load is in sideEffects; a project importing every subpath compiles under
-  moduleResolution bundler and node16 with skipLibCheck off for the package's declarations (under
-  node16 only the names Tessera's own declarations fail to re-export are excused); a page bundled
-  from /embed alone has nothing of the editor and no Loro in its first chunk; a page bundling
-  /embed/server gets only the Node-only error.
+  peers linked (offline; its Tessera peer the built @kition/tessera of the kition-tessera checkout
+  beside it, or the folder --tessera names): every subpath Node runs imports in Node and
+  @kition/sdk alone is refused; every Tessera specifier it names is a subpath @kition/tessera
+  exports; the embed server from /embed/server serves /embed's module and its chunks; every file
+  that registers a kit on load is in sideEffects; a project importing every subpath compiles under
+  moduleResolution bundler and node16 with skipLibCheck off for the package's declarations and no
+  error excused, reading @kition/tessera's declarations; a page bundled from /embed alone has
+  nothing of the editor and no Loro in its first chunk; a page bundling /embed/server gets only the
+  Node-only error.
 layer: gate
 dimension: platform
 source:

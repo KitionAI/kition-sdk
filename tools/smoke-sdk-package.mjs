@@ -2,11 +2,16 @@
 // @kition/sdk as a consumer installs it: its packed archive (node tools/pack-public-packages.mjs sdk
 // writes target/npm-pack/sdk.tgz) unpacked into a project in the system's temporary folder, outside
 // the workspace, so nothing resolves through the workspace's node_modules. Offline: its dependency
-// and peers are linked from the workspace (loro-crdt, React, their types) and from the
-// kition-tessera checkout beside it, Tessera as npm serves it (its publishConfig exports). It checks:
+// and peers are linked from the workspace (loro-crdt, React, their types), and its Tessera peer
+// @kition/tessera from the folder --tessera names (default: the built package in the
+// kition-tessera checkout beside this one, ../kition-tessera/packages/tessera, after its
+// `pnpm build:packages`; or a folder npm installed it in, as the Stage workflow passes the
+// rehearsal Tessera), as npm serves it (its publishConfig exports, when it has them). It checks:
 //
 //   1. Node: every subpath Node runs imports (all but the editor's, which needs a page); the
-//      embed server's command carries its #!; `@kition/sdk` alone is refused (no root module).
+//      embed server's command carries its #!; `@kition/sdk` alone is refused (no root module);
+//      every Tessera specifier in the package (code, declarations, styles) is one @kition/tessera
+//      exports.
 //   2. Types: a project importing every subpath compiles under `moduleResolution: bundler` and
 //      under `node16`, with skipLibCheck off for @kition/sdk's own declarations; `@kition/sdk`
 //      alone has no types.
@@ -16,7 +21,7 @@
 //   4. Sizes: the archive, the unpacked files and the largest ones, beside the twelve packages'
 //      archives in target/npm-pack when they are there.
 //
-//   node tools/smoke-sdk-package.mjs [--archive <sdk.tgz>] [--keep]
+//   node tools/smoke-sdk-package.mjs [--archive <sdk.tgz>] [--tessera <@kition/tessera folder>] [--keep]
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -25,7 +30,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
-import { PARTS, SDK, subpaths, tesseraPackages } from './sdk-package.mjs'
+import { PARTS, SDK, subpaths, TESSERA } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
@@ -33,6 +38,11 @@ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : und
 const archive = path.resolve(flag('--archive') ?? path.join(root, 'target/npm-pack/sdk.tgz'))
 if (!fs.existsSync(archive)) {
   console.error(`smoke-sdk-package: ${path.relative(root, archive)} is missing; run node tools/pack-public-packages.mjs sdk first`)
+  process.exit(2)
+}
+const tessera = path.resolve(flag('--tessera') ?? path.join(root, '..', 'kition-tessera/packages/tessera'))
+if (!fs.existsSync(path.join(tessera, 'package.json')) || !fs.existsSync(path.join(tessera, 'dist'))) {
+  console.error(`smoke-sdk-package: ${tessera} is not a built ${TESSERA} (no package.json or dist/); run pnpm build:packages in kition-tessera, or pass --tessera <folder>`)
   process.exit(2)
 }
 
@@ -63,17 +73,15 @@ try {
   }
   link(path.join(root, 'packages/kdm/node_modules/loro-crdt'), 'loro-crdt')
   for (const name of ['react', 'react-dom', '@types/react', '@types/react-dom', '@types/node']) link(path.join(root, 'node_modules', name), name)
-  // Tessera as npm serves it: its publishConfig exports over its built files.
-  const tessera = path.join(root, '..', 'kition-tessera/packages')
-  for (const part of ['ui', 'icons', 'tokens']) {
-    const source = path.join(tessera, part)
-    const own = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'))
-    const at = path.join(modules, own.name)
-    fs.mkdirSync(at, { recursive: true })
-    fs.writeFileSync(path.join(at, 'package.json'), JSON.stringify({ ...own, exports: own.publishConfig.exports }, null, 2))
-    for (const file of own.files) if (fs.existsSync(path.join(source, file))) fs.symlinkSync(path.join(source, file), path.join(at, file))
-  }
-  assert.deepEqual(tesseraPackages().filter((name) => !fs.existsSync(path.join(modules, name))), [], 'the Tessera packages tesseraSpecifier names are linked')
+  // @kition/tessera as npm serves it: its files, and its publishConfig exports when it has them. A
+  // rehearsal package (<scope>/tessera) is installed under the name @kition/tessera, as a consumer
+  // aliases it; its own dependencies resolve from where it is.
+  const ownTessera = JSON.parse(fs.readFileSync(path.join(tessera, 'package.json'), 'utf8'))
+  const tesseraAt = path.join(modules, TESSERA)
+  fs.mkdirSync(tesseraAt, { recursive: true })
+  fs.writeFileSync(path.join(tesseraAt, 'package.json'), JSON.stringify({ ...ownTessera, exports: ownTessera.publishConfig?.exports ?? ownTessera.exports }, null, 2))
+  for (const file of ownTessera.files) if (fs.existsSync(path.join(tessera, file))) fs.symlinkSync(path.join(tessera, file), path.join(tesseraAt, file))
+  assert.ok(Object.keys(manifest.peerDependencies ?? {}).includes(TESSERA), `${SDK} names ${TESSERA} as a peer`)
   fs.writeFileSync(path.join(consumer, 'package.json'), '{ "name": "consumer", "private": true, "type": "module" }\n')
 
   const all = subpaths()
@@ -104,6 +112,26 @@ console.log(JSON.stringify(results))
   assert.deepEqual(failed, [], 'every Node-safe subpath imports in Node')
   assert.ok(nodeSafe.every((specifier) => imported[specifier].exports > 0), 'every subpath exports something')
   assert.ok(!imported[SDK].ok && /ERR_PACKAGE_PATH_NOT_EXPORTED/.test(imported[SDK].error), `${SDK} alone is refused: ${imported[SDK].error}`)
+  // Every Tessera specifier the package names (the editor's code, declarations and styles) is one
+  // that @kition/tessera exports, resolved as Node resolves it (CSS by the default condition).
+  const tesseraSpecifiers = new Set()
+  for (const file of fs.readdirSync(path.join(installed, 'dist'), { recursive: true }).filter((file) => /\.(?:js|d\.ts|css)$/.test(file))) {
+    for (const match of fs.readFileSync(path.join(installed, 'dist', file), 'utf8').matchAll(/(?:from\s*|import\s*\(?\s*|@import\s+)['"](@kition\/tessera[^'"]*)['"]/g)) tesseraSpecifiers.add(match[1])
+  }
+  assert.ok(tesseraSpecifiers.size > 0, `${SDK}/editor names ${TESSERA}`)
+  assert.deepEqual([...tesseraSpecifiers].filter((specifier) => !specifier.startsWith(`${TESSERA}/`)), [], `every Tessera specifier is a subpath of ${TESSERA}`)
+  const resolveCheck = path.join(consumer, 'resolve-check.mjs')
+  fs.writeFileSync(resolveCheck, `
+const missing = []
+for (const specifier of JSON.parse(process.argv[2])) {
+  try { import.meta.resolve(specifier) } catch (error) { missing.push(specifier + ': ' + (error?.code ?? error)) }
+}
+console.log(JSON.stringify(missing))
+`)
+  const resolved = spawnSync(process.execPath, [resolveCheck, JSON.stringify([...tesseraSpecifiers].sort())], { cwd: consumer, encoding: 'utf8' })
+  assert.equal(resolved.status, 0, resolved.stderr)
+  assert.deepEqual(JSON.parse(resolved.stdout.trim().split('\n').pop()), [], `every Tessera specifier of ${SDK} is exported by ${TESSERA} (${ownTessera.name}@${ownTessera.version})`)
+  pass(`the ${tesseraSpecifiers.size} Tessera specifiers ${SDK} names resolve in ${TESSERA} (${ownTessera.name}@${ownTessera.version}): ${[...tesseraSpecifiers].sort().join(', ')}`)
   pass(`Node imports ${nodeSafe.length} subpaths; ${SDK} alone is refused (${imported[SDK].error.trim().split(' ')[0]}); not imported in Node (a page's): ${[...browserOnly].join(', ')}`)
   // The embed server, installed from @kition/sdk, finds the embed module in its own package and
   // serves it with its chunks (it found @kition/embed's before).
@@ -151,21 +179,18 @@ try {
   ]) {
     const compilerOptions = { ...options, target: ts.ScriptTarget.ES2022, lib: ['lib.es2022.d.ts', 'lib.dom.d.ts', 'lib.dom.iterable.d.ts'], strict: true, noEmit: true, skipLibCheck: false, jsx: ts.JsxEmit.ReactJSX, types: ['node', 'react', 'react-dom'] }
     const program = ts.createProgram([typesCheck], compilerOptions)
-    const found = ts.getPreEmitDiagnostics(program).filter((diagnostic) => !diagnostic.file || ours(diagnostic.file.fileName))
-    // Tessera 0.1.x's own declarations re-export with extensionless relative paths (`export * from
-    // './ui'`), which node16 does not follow, so a name the editor takes from it is missing there:
-    // Tessera's to fix (the editor's declarations name it correctly). Every other error counts.
-    const tesseraNames = tesseraPackages().map((name) => `"${name}`)
-    const fromTessera = (diagnostic) => mode === 'node16' && diagnostic.code === 2305 && tesseraNames.some((name) => ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ').includes(name))
-    const diagnostics = found.filter((diagnostic) => !fromTessera(diagnostic))
+    // Every error counts, under both resolutions: @kition/tessera's declarations name their relative
+    // imports with .js, so node16 follows them as bundler does.
+    const diagnostics = ts.getPreEmitDiagnostics(program).filter((diagnostic) => !diagnostic.file || ours(diagnostic.file.fileName))
     const text = ts.formatDiagnostics(diagnostics, { getCanonicalFileName: (file) => file, getCurrentDirectory: () => consumer, getNewLine: () => '\n' })
     assert.equal(diagnostics.length, 0, `types under ${mode}:\n${text.slice(0, 4000)}`)
-    const tesseraMissing = found.length - diagnostics.length
-    if (tesseraMissing) console.log(`NOTE under ${mode}, ${tesseraMissing} names the editor's declarations import from Tessera are missing: Tessera's declarations re-export without .js, which node16 does not follow (bundler resolves them)`)
     const declarations = program.getSourceFiles().filter((file) => file.fileName.startsWith(`${installed}${path.sep}`)).length
+    // The editor's Tessera names are read from Tessera's declarations (not unresolved, which would make them any).
+    const tesseraDeclarations = program.getSourceFiles().filter((file) => fs.realpathSync(file.fileName).startsWith(`${fs.realpathSync(tessera)}${path.sep}`)).length
+    assert.ok(tesseraDeclarations > 0, `${TESSERA}'s declarations are read under ${mode}`)
     const refused = ts.getPreEmitDiagnostics(ts.createProgram([rootCheck], compilerOptions)).filter((diagnostic) => diagnostic.file?.fileName === rootCheck)
     assert.ok(refused.some((diagnostic) => [2307, 2792].includes(diagnostic.code)), `${SDK} alone has no types under ${mode}`)
-    pass(`types of ${code.length} subpaths resolve under moduleResolution ${mode} (${declarations} declaration files, skipLibCheck off for ${SDK}); ${SDK} alone: TS${refused[0].code}`)
+    pass(`types of ${code.length} subpaths resolve under moduleResolution ${mode} (${declarations} declaration files, skipLibCheck off for ${SDK}, ${tesseraDeclarations} of ${TESSERA}'s); ${SDK} alone: TS${refused[0].code}`)
   }
 
   // 3. Browser bundles.

@@ -15,11 +15,14 @@
 // - In each package.json: the old names leave dependencies, devDependencies, peerDependencies and
 //   optionalDependencies (and peerDependenciesMeta); @kition/sdk takes the place of the first, once,
 //   in the most runtime of dependencies, optionalDependencies and devDependencies that had one (and
-//   in peerDependencies when they had one), at `--version` (default ^<packages/sdk's version>); when
-//   @kition/kit-editor was there, the Tessera packages it brought (now optional peers of
-//   @kition/sdk, as tesseraSpecifier names them) are added beside it when missing. An old name in
-//   overrides, pnpm.overrides or resolutions is listed for a person: what it points at is the
-//   project's choice.
+//   in peerDependencies when they had one), at `--version` (default ^<packages/sdk's version>). When
+//   @kition/kit-editor was there, @kition/sdk/editor imports Tessera as the one package
+//   @kition/tessera (an optional peer of @kition/sdk): it is added beside @kition/sdk at
+//   packages/sdk's peer range when the project names no Tessera package. A project that still names
+//   Tessera's three old packages (@kition/tessera-ui, -icons, -tokens) gets a note instead: they
+//   move to @kition/tessera, in package.json and in the code, with kition-tessera's
+//   scripts/migrate-to-tessera.mjs (this tool leaves them alone). An old name in overrides,
+//   pnpm.overrides or resolutions is listed for a person: what it points at is the project's choice.
 // - Lockfiles (pnpm-lock.yaml, package-lock.json, npm-shrinkwrap.json, yarn.lock, bun.lock,
 //   bun.lockb) are never touched: run the package manager's install afterwards. node_modules, .git
 //   and build output (dist, build, target, coverage, .next, .turbo) are skipped.
@@ -28,7 +31,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PARTS, SDK, packageOf, sdkSpecifier, tesseraPackages } from './sdk-package.mjs'
+import { OLD_TESSERA, PARTS, SDK, TESSERA, packageOf, sdkSpecifier } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SDK_MANIFEST = JSON.parse(fs.readFileSync(path.join(root, 'packages/sdk/package.json'), 'utf8'))
@@ -98,17 +101,18 @@ export function migrateManifest(manifest, { version = `^${SDK_MANIFEST.version}`
         placed = true
       }
     }
-    // The editor's Tessera packages were its dependencies; they are optional peers of @kition/sdk.
-    if (hadEditor && section === home) {
-      for (const name of tesseraPackages()) {
-        if (SECTIONS.some((other) => next[other]?.[name])) continue
-        const range = SDK_MANIFEST.peerDependencies[name]
-        rebuilt[name] = range
-        changes.push({ from: `${section}: (${name} came with @kition/kit-editor)`, to: `${section}: ${name}@${range}` })
-      }
-    }
     next[section] = rebuilt
   }
+  // Tessera came with @kition/kit-editor; @kition/sdk/editor imports it as @kition/tessera, an
+  // optional peer of @kition/sdk. Its three old packages move with kition-tessera's own codemod.
+  const oldTessera = [...new Set(SECTIONS.flatMap((section) => Object.keys(next[section] ?? {}).filter((name) => OLD_TESSERA.includes(name))))]
+  const hasTessera = SECTIONS.some((section) => Object.hasOwn(next[section] ?? {}, TESSERA))
+  if (hadEditor && home && !hasTessera && !oldTessera.length) {
+    const range = SDK_MANIFEST.peerDependencies[TESSERA]
+    next[home] = { ...next[home], [TESSERA]: range }
+    changes.push({ from: `${home}: (Tessera came with @kition/kit-editor)`, to: `${home}: ${TESSERA}@${range}` })
+  }
+  if (oldTessera.length) notes.push(`${oldTessera.join(', ')}: Tessera is one package now, ${TESSERA}, which ${SDK}/editor imports; move this project to it with kition-tessera's scripts/migrate-to-tessera.mjs <folder> (its package.json and its imports)`)
   const meta = next.peerDependenciesMeta
   if (meta && typeof meta === 'object') {
     const old = Object.keys(meta).filter((name) => OLD.has(name))

@@ -29,10 +29,9 @@ import { Replica } from '@kition/sdk/kdm'
 | `@kition/sdk/protocol` | The Kit UI protocol's types and messages |
 | `@kition/sdk/convergence` | Convergence checks of a kit engine, with `/convergence/node` |
 
-Only `@kition/sdk/editor` needs React, React DOM and Kition Tessera (`@kition/tessera-ui`,
-`@kition/tessera-icons`, `@kition/tessera-tokens`): they are optional peer dependencies, so install
-them beside it when you use the editor. A bundler that builds a page from `@kition/sdk/embed` takes
-nothing of the editor.
+Only `@kition/sdk/editor` needs React, React DOM and Kition Tessera (`@kition/tessera`): they are
+optional peer dependencies, so install them beside it when you use the editor. A bundler that builds
+a page from `@kition/sdk/embed` takes nothing of the editor.
 
 Documentation: https://developer.kition.ai/docs
 

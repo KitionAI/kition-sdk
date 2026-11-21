@@ -8,7 +8,8 @@
     "overrides": {
       "@kition/tessera-ui": "link:../kition-tessera/packages/ui",
       "@kition/tessera-icons": "link:../kition-tessera/packages/icons",
-      "@kition/tessera-tokens": "link:../kition-tessera/packages/tokens"
+      "@kition/tessera-tokens": "link:../kition-tessera/packages/tokens",
+      "@kition/tessera": "link:../kition-tessera/packages/tessera"
     }
   },
   "scripts": {
