@@ -19,15 +19,28 @@ import { Replica } from '@kition/sdk/kdm'
 | `@kition/sdk/embed` | Kit editors in any web page (`KitionEmbed.mount`); Loro's WebAssembly inlined, so no bundler setup |
 | `@kition/sdk/embed/server` | The embed server and its signed callbacks (`/embed/server/callbacks`), for Node only; the `kition-embed-server` command |
 | `@kition/sdk/sync` | The `kition-sync/1` client, with `/sync/replicaVersions` and `/sync/openToken` |
-| `@kition/sdk/script` | Documents by script: `/script/node`, `/script/proxy`, `/script/kits` and `/script/kits/<kit>` for each kit |
-| `@kition/sdk/extensions` | Kit extensions: their host, `/extensions/runtime`, and the sandbox pages `/extensions/sandbox.html` and `/extensions/panel.html` |
-| `@kition/sdk/kdm` | The Kit Data Model: a replicated document of typed objects |
+| `@kition/sdk/script` | Documents by script: `/script/node`, `/script/proxy`, `/script/kits` and `/script/kits/<kit>` for each kit; `/script/standalone` for a page without a bundler |
+| `@kition/sdk/extensions` | Kit extensions: their host, `/extensions/runtime` (with the built sandbox worker `WORKER_RUNTIME`), and the sandbox pages `/extensions/sandbox.html` and `/extensions/panel.html` |
+| `@kition/sdk/kdm` | The Kit Data Model: a replicated document of typed objects (`wrapEnvelope` and `openEnvelope` for its bytes) |
 | `@kition/sdk/editor` | The kit editor shell, with `/editor/styles.css` and `/editor/workspaceTree`; needs React and Kition Tessera |
 | `@kition/sdk/engine` | The kit engine harness for TypeScript kit engines |
 | `@kition/sdk/host` | The Kit UI protocol host |
 | `@kition/sdk/dev-host` | The development host, with `/dev-host/check-ui-ids`, `/dev-host/mode-smoke` and `/dev-host/line-row` |
 | `@kition/sdk/protocol` | The Kit UI protocol's types and messages |
 | `@kition/sdk/convergence` | Convergence checks of a kit engine, with `/convergence/node` |
+
+`@kition/sdk/kdm`, `/sync`, `/script` and `/extensions` import `loro-crdt` (the package's one
+dependency) and share their code, so an app that imports several of them holds one Loro and one
+KDM. `@kition/sdk/embed` and `@kition/sdk/script/standalone` are self-contained instead: Loro's
+WebAssembly is inlined and they import nothing, for a `<script type="module">` page without a
+bundler (`/script/standalone` registers every kit; its types are those of `/script` and
+`/script/kits`). Each carries its own Loro and KDM, so an app with a bundler imports `/script`.
+
+A host of extensions serves the sandbox and panel pages as static files: copy
+`node_modules/@kition/sdk/dist/lib/extensions/sandbox.html` and `panel.html` (the exports
+`@kition/sdk/extensions/sandbox.html` and `/extensions/panel.html`; in Node,
+`import.meta.resolve('@kition/sdk/extensions/sandbox.html')`) into your public folder at build time,
+and give their URLs to `iframeSandbox` and `openPanelFrame`.
 
 Only `@kition/sdk/editor` needs React, React DOM and Kition Tessera (`@kition/tessera`): they are
 optional peer dependencies, so install them beside it when you use the editor. A bundler that builds

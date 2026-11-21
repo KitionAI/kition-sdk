@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-sdk-script-second-loro
+feature: sdk.packages.one-package
+intent: >-
+  Kition Desktop's move to @kition/sdk (KitionAI/kition ae1d86a4, 2026-11-21) had to keep copies of
+  the object model and the extension host: @kition/sdk/script was the standalone build, with Loro's
+  WebAssembly inlined (4.5 MB of base64) and a KDM of its own, and @kition/sdk/extensions imported
+  it, so an app that also imports /kdm and /sync held two Loros and two KDMs; /kdm did not export
+  the envelope writer, and LICENSE was only in dist/. A page importing @kition/sdk/kdm, /sync,
+  /script, /script/kits, /extensions and /extensions/runtime together must hold exactly one Loro
+  WebAssembly module (emitted or inlined) and one KDM; the self-contained object model is
+  @kition/sdk/script/standalone, which imports no loro-crdt; /kdm exports wrapEnvelope, which
+  openEnvelope reads; /extensions/runtime exports WORKER_RUNTIME, and the sandbox and panel pages
+  resolve to files a host copies; LICENSE is at the package's top.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/smoke-sdk-package.mjs
+  license: owned
+input: []
+steps:
+  - exec: { cmd: [node, tools/pack-public-packages.mjs, sdk] }
+  - exec: { cmd: [node, tools/smoke-sdk-package.mjs] }
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/sdk-package.test.mjs, packages/kdm/test/replica.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 300

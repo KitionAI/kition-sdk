@@ -1,7 +1,7 @@
 import { LoroText } from 'loro-crdt'
 import { canonical } from '../src/canonical'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { agent, KdmError, newDocId, newObjectId, NodeRef, parseSchema, Replica, Rng, system, Version, type KdmErrorReason, type ObjectId, type Tx } from '../src/index'
+import { agent, KdmError, newDocId, newObjectId, NodeRef, openEnvelope, parseSchema, Replica, Rng, system, uuidToBytes, Version, wrapEnvelope, type KdmErrorReason, type ObjectId, type Tx } from '../src/index'
 import {
   envelope,
   me,
@@ -233,6 +233,18 @@ describe('Replica', () => {
     const other = parseSchema({ kdm: 1, kit: 'kit.other', schemaVersion: 1, root: 'A', types: { A: { fields: {} } } })
     expect(() => Replica.load(other, doc.snapshot(), 3n)).toThrow(/belongs to/)
     expect(reasonOf(() => Replica.load(other, doc.snapshot(), 3n))).toBe('schema')
+  })
+
+  it('wraps engine bytes in the envelope openEnvelope and Replica.load read (wrapEnvelope)', () => {
+    const doc = replica()
+    pageWithShape(doc)
+    const { docId, engine } = openEnvelope(doc.snapshot())
+    expect([...docId]).toEqual([...uuidToBytes(doc.docId)])
+    const wrapped = wrapEnvelope(docId, engine)
+    expect([...wrapped]).toEqual([...doc.snapshot()])
+    expect([...wrapped.subarray(0, 4)]).toEqual([0x4b, 0x44, 0x4d, 0x01])
+    expect(Replica.load(testSchema(), wrapped, 2n).stateText()).toBe(doc.stateText())
+    expect(reasonOf(() => openEnvelope(wrapped.subarray(0, 19)))).toBe('encoding')
   })
 
   it('refuses a bad document id or actor', () => {

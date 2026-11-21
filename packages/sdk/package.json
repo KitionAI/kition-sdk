@@ -86,83 +86,87 @@
     },
     "./script": {
       "types": "./dist/types/script/src/index.d.ts",
-      "import": "./dist/standalone/script/index.js"
+      "import": "./dist/lib/script/index.js"
     },
     "./script/node": {
       "types": "./dist/types/script/src/node.d.ts",
-      "import": "./dist/standalone/script/node.js"
+      "import": "./dist/lib/script/node.js"
     },
     "./script/proxy": {
       "types": "./dist/types/script/src/proxy.d.ts",
-      "import": "./dist/standalone/script/proxy.js"
+      "import": "./dist/lib/script/proxy.js"
     },
     "./script/kits": {
       "types": "./dist/types/script/kits/index.d.ts",
-      "import": "./dist/standalone/script/kits/index.js"
+      "import": "./dist/lib/script/kits/index.js"
     },
     "./script/kits/board": {
       "types": "./dist/types/script/kits/board.d.ts",
-      "import": "./dist/standalone/script/kits/board.js"
+      "import": "./dist/lib/script/kits/board.js"
     },
     "./script/kits/cad": {
       "types": "./dist/types/script/kits/cad.d.ts",
-      "import": "./dist/standalone/script/kits/cad.js"
+      "import": "./dist/lib/script/kits/cad.js"
     },
     "./script/kits/design": {
       "types": "./dist/types/script/kits/design.d.ts",
-      "import": "./dist/standalone/script/kits/design.js"
+      "import": "./dist/lib/script/kits/design.js"
     },
     "./script/kits/doc": {
       "types": "./dist/types/script/kits/doc.d.ts",
-      "import": "./dist/standalone/script/kits/doc.js"
+      "import": "./dist/lib/script/kits/doc.js"
     },
     "./script/kits/film": {
       "types": "./dist/types/script/kits/film.d.ts",
-      "import": "./dist/standalone/script/kits/film.js"
+      "import": "./dist/lib/script/kits/film.js"
     },
     "./script/kits/html": {
       "types": "./dist/types/script/kits/html.d.ts",
-      "import": "./dist/standalone/script/kits/html.js"
+      "import": "./dist/lib/script/kits/html.js"
     },
     "./script/kits/layout": {
       "types": "./dist/types/script/kits/layout.d.ts",
-      "import": "./dist/standalone/script/kits/layout.js"
+      "import": "./dist/lib/script/kits/layout.js"
     },
     "./script/kits/motion": {
       "types": "./dist/types/script/kits/motion.d.ts",
-      "import": "./dist/standalone/script/kits/motion.js"
+      "import": "./dist/lib/script/kits/motion.js"
     },
     "./script/kits/note": {
       "types": "./dist/types/script/kits/note.d.ts",
-      "import": "./dist/standalone/script/kits/note.js"
+      "import": "./dist/lib/script/kits/note.js"
     },
     "./script/kits/pdf": {
       "types": "./dist/types/script/kits/pdf.d.ts",
-      "import": "./dist/standalone/script/kits/pdf.js"
+      "import": "./dist/lib/script/kits/pdf.js"
     },
     "./script/kits/photo": {
       "types": "./dist/types/script/kits/photo.d.ts",
-      "import": "./dist/standalone/script/kits/photo.js"
+      "import": "./dist/lib/script/kits/photo.js"
     },
     "./script/kits/scene": {
       "types": "./dist/types/script/kits/scene.d.ts",
-      "import": "./dist/standalone/script/kits/scene.js"
+      "import": "./dist/lib/script/kits/scene.js"
     },
     "./script/kits/sheet": {
       "types": "./dist/types/script/kits/sheet.d.ts",
-      "import": "./dist/standalone/script/kits/sheet.js"
+      "import": "./dist/lib/script/kits/sheet.js"
     },
     "./script/kits/slide": {
       "types": "./dist/types/script/kits/slide.d.ts",
-      "import": "./dist/standalone/script/kits/slide.js"
+      "import": "./dist/lib/script/kits/slide.js"
     },
     "./script/kits/table": {
       "types": "./dist/types/script/kits/table.d.ts",
-      "import": "./dist/standalone/script/kits/table.js"
+      "import": "./dist/lib/script/kits/table.js"
     },
     "./script/kits/vector": {
       "types": "./dist/types/script/kits/vector.d.ts",
-      "import": "./dist/standalone/script/kits/vector.js"
+      "import": "./dist/lib/script/kits/vector.js"
+    },
+    "./script/standalone": {
+      "types": "./dist/types/script/src/standalone.d.ts",
+      "import": "./dist/standalone/script/index.js"
     },
     "./extensions": {
       "types": "./dist/types/extensions/src/index.d.ts",
@@ -226,6 +230,8 @@
   },
   "sideEffects": [
     "*.css",
+    "./dist/lib/script/kits/*.js",
+    "./dist/standalone/script/index.js",
     "./dist/standalone/script/kits/*.js",
     "./dist/lib/embed-server/cli.js"
   ]

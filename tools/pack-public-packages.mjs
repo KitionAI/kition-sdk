@@ -84,6 +84,8 @@ for (const { directory, manifest } of ordered) {
       for (const name of Object.keys(published[section] ?? {})) assert.ok(!name.startsWith('@kition/') || name === TESSERA, `${SDK}: ${section} names ${name}`)
     }
     assert.deepEqual(published.exports, sdkExports(), `${SDK}: its exports are not tools/sdk-package.mjs's`)
+    assert.ok(files.includes('LICENSE'), `${SDK}: no LICENSE at the package's top`)
+    assert.equal(run('tar', ['-xOf', archive, 'package/LICENSE'], root).stdout, fs.readFileSync(path.join(root, 'LICENSE'), 'utf8'), `${SDK}: its LICENSE is not the repository's`)
     // No file names one of the old packages (the twelve, Tessera's three) to its reader: comments,
     // messages and declarations say @kition/sdk/<subpath>. Allowed: the client names a library sends
     // a server (CLIENT_NAMES in tools/sdk-package.mjs), which the owner renames at cutover or not.

@@ -58,6 +58,10 @@ export class Version {
 /** Every byte string a replica exports: 4-byte magic, the 16-byte document UUID, then the engine's bytes. */
 const MAGIC = [0x4b, 0x44, 0x4d, 0x01]
 
+/**
+ * `bytes` (a Loro snapshot or update) in the envelope of the document `docId` (16 bytes): what
+ * `Replica.load` and `openEnvelope` read. Exported as `wrapEnvelope`.
+ */
 export function wrap(docId: Uint8Array, bytes: Uint8Array): Uint8Array {
   const out = new Uint8Array(MAGIC.length + docId.length + bytes.length)
   out.set(MAGIC)

@@ -23,9 +23,13 @@ export const SDK = '@kition/sdk'
 /**
  * Each library package: its npm name, its folder under packages/, the subpath it becomes, and its
  * build group. `standalone` packages inline Loro's WebAssembly (base64), so a page needs no bundler
- * setup (as @kition/embed and @kition/script do today); they are built together, so they share one
- * copy of Loro. `lib` packages leave loro-crdt an import, so a kit engine that imports loro-crdt
- * itself and @kition/sdk/kdm shares one Loro. `node` marks a package for Node only.
+ * setup (as @kition/embed does); they are built together, so they share one copy of Loro. `lib`
+ * packages leave loro-crdt an import and share their chunks, so a page or a host app that imports
+ * @kition/sdk/kdm, /sync, /script and /extensions (or loro-crdt itself) holds one Loro and one
+ * KDM. `node` marks a package for Node only. `sdkOnly` gives subpaths @kition/sdk has beyond the
+ * old package's exports, each with its source and group: @kition/sdk/script/standalone is the
+ * object model built self-contained (Loro inlined, every generated kit registered) for a page
+ * without a bundler.
  */
 export const PARTS = [
   // @kition/embed's workspace exports name its dist (its declarations are built by its own script):
@@ -33,7 +37,7 @@ export const PARTS = [
   { name: '@kition/embed', dir: 'embed', subpath: 'embed', group: 'standalone', sources: { '.': './src/index.ts' } },
   { name: '@kition/embed-server', dir: 'embed-server', subpath: 'embed/server', group: 'lib', node: true },
   { name: '@kition/sync', dir: 'sync', subpath: 'sync', group: 'lib' },
-  { name: '@kition/script', dir: 'script', subpath: 'script', group: 'standalone' },
+  { name: '@kition/script', dir: 'script', subpath: 'script', group: 'lib', sdkOnly: { './standalone': { source: './src/standalone.ts', group: 'standalone', file: './dist/index.js' } } },
   { name: '@kition/extensions', dir: 'extensions', subpath: 'extensions', group: 'lib' },
   { name: '@kition/kdm', dir: 'kdm', subpath: 'kdm', group: 'lib' },
   { name: '@kition/kit-editor', dir: 'kit-editor', subpath: 'editor', group: 'lib' },
@@ -135,9 +139,9 @@ export function oldNamesIn(text) {
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 export const manifestOf = (part) => readJson(path.join(root, 'packages', part.dir, 'package.json'))
 
-/** Where a part's built JavaScript goes, relative to packages/sdk/dist. */
-export function jsBase(part) {
-  if (part.group !== 'standalone') return `lib/${part.dir}`
+/** Where a part's built JavaScript of `group` (default its own) goes, relative to packages/sdk/dist. */
+export function jsBase(part, group = part.group) {
+  if (group !== 'standalone') return `lib/${part.dir}`
   // The embed module is the top of standalone/, which the embed server serves as /assets/embed/.
   return part.dir === 'embed' ? 'standalone' : `standalone/${part.dir}`
 }
@@ -150,13 +154,21 @@ export function declarationOf(part, source) {
 }
 
 /**
- * Every subpath of @kition/sdk: [{ part, from, key, source, js, types }] where `from` is the old
- * specifier, `key` the export key (`./editor/styles.css`), `source` the file in the old package's
- * workspace exports, `js` the built file (relative to packages/sdk) and `types` its declarations
- * (null for CSS and HTML).
+ * Every subpath of @kition/sdk: [{ part, from, key, source, group, js, types, sdkOnly }] where
+ * `from` is the old specifier (for an `sdkOnly` subpath, the one it would have been), `key` the
+ * export key (`./editor/styles.css`), `source` the file in the old package's workspace exports,
+ * `group` its build group, `js` the built file (relative to packages/sdk) and `types` its
+ * declarations (null for CSS and HTML).
  */
 export function subpaths() {
   const list = []
+  const add = (part, key, source, file, group, sdkOnly) => {
+    if (!file.startsWith('./dist/')) throw new Error(`${part.name}: export ${key} is published as ${file}, not under ./dist/`)
+    const sub = key === '.' ? '' : key.slice(1)
+    const js = `./dist/${jsBase(part, group)}/${file.slice('./dist/'.length)}`
+    const code = /\.(?:[cm]?[jt]sx?)$/.test(source)
+    list.push({ part, from: `${part.name}${sub}`, key: `./${part.subpath}${sub}`, source, group, js, types: code ? declarationOf(part, source) : null, sdkOnly })
+  }
   for (const part of PARTS) {
     const manifest = manifestOf(part)
     const published = manifest.publishConfig?.exports ?? manifest.exports
@@ -164,12 +176,11 @@ export function subpaths() {
       const source = part.sources?.[key] ?? exported
       if (typeof source !== 'string' || !source.startsWith('./') || source.startsWith('./dist/')) throw new Error(`${part.name}: export ${key} names no source file in the workspace (give it in PARTS sources)`)
       const target = published[key]
-      const file = typeof target === 'string' ? target : target.import
-      if (!file.startsWith('./dist/')) throw new Error(`${part.name}: export ${key} is published as ${file}, not under ./dist/`)
-      const sub = key === '.' ? '' : key.slice(1)
-      const js = `./dist/${jsBase(part)}/${file.slice('./dist/'.length)}`
-      const code = /\.(?:[cm]?[jt]sx?)$/.test(source)
-      list.push({ part, from: `${part.name}${sub}`, key: `./${part.subpath}${sub}`, source, js, types: code ? declarationOf(part, source) : null })
+      add(part, key, source, typeof target === 'string' ? target : target.import, part.group, false)
+    }
+    for (const [key, { source, group, file }] of Object.entries(part.sdkOnly ?? {})) {
+      if (key in manifest.exports) throw new Error(`${part.name}: ${key} is an export of its own; it is no sdkOnly subpath`)
+      add(part, key, source, file, group, true)
     }
   }
   return list
@@ -197,12 +208,31 @@ export function sdkBin() {
 /**
  * The files with side effects on import, so a bundler keeps them when nothing they export is used:
  * the editor's styles, the kit registrations of @kition/sdk/script/kits (each kit module registers
- * its schema when it loads; tools/sdk-package.test.mjs checks no chunk does), and the embed
- * server's command.
+ * its schema when it loads; tools/smoke-sdk-package.mjs checks no other file does), the standalone
+ * object model (@kition/sdk/script/standalone registers every kit), and the embed server's command.
  * Everything else is free of side effects, so a bundler drops what a page does not use.
  */
 export function sdkSideEffects() {
-  return ['*.css', './dist/standalone/script/kits/*.js', ...Object.values(sdkBin())]
+  const script = PARTS.find((part) => part.dir === 'script')
+  const standalone = subpaths().filter((entry) => entry.part === script && entry.sdkOnly).map(({ js }) => js)
+  return ['*.css', `./dist/${jsBase(script)}/kits/*.js`, ...standalone, `./dist/${jsBase(script, 'standalone')}/kits/*.js`, ...Object.values(sdkBin())]
+}
+
+/**
+ * The kit modules of the standalone build (no subpaths of their own): `{ <file under
+ * dist/standalone, without .js>: <source under packages/script> }`. @kition/sdk/script/standalone
+ * and /embed (which loads a kit's schema on demand) import them; each registers its kit when it
+ * loads, so tools/build-sdk.mjs builds each as a file of its own (dist/standalone/script/kits/
+ * <kit>.js, in sideEffects), never merged into a shared chunk.
+ */
+export function standaloneKitModules() {
+  const script = PARTS.find((part) => part.dir === 'script')
+  const base = `./dist/${jsBase(script)}/`
+  return Object.fromEntries(
+    subpaths()
+      .filter((entry) => entry.part === script && entry.source.startsWith('./kits/') && entry.source !== './kits/index.ts')
+      .map(({ js, source }) => [`${jsBase(script, 'standalone').slice('standalone/'.length)}/${js.slice(base.length).replace(/\.js$/, '')}`, source]),
+  )
 }
 
 /** The editor's worker in @kition/sdk (a path under the package), a bundle of its own with its own Loro. */

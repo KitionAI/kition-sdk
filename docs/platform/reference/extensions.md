@@ -153,7 +153,11 @@ panel.dispose()                                          // closes it here and i
 Serve `sandbox/sandbox.html` (also `SANDBOX_HTML` from
 `@kition/extensions/runtime`) as a static file at the sandbox URL, and
 `sandbox/panel.html` (`PANEL_HTML`) at the panel URL, without a CSP header of
-your own that loosens them. Keep the host page's own `frame-src` to its own
+your own that loosens them. From the npm package `@kition/sdk`, copy them at
+build time from `node_modules/@kition/sdk/dist/lib/extensions/sandbox.html`
+and `panel.html` (its exports `@kition/sdk/extensions/sandbox.html` and
+`@kition/sdk/extensions/panel.html`); the built worker they run is
+`WORKER_RUNTIME` of `@kition/sdk/extensions/runtime`. Keep the host page's own `frame-src` to its own
 origin (and `data:`/`blob:`): it is what keeps a panel's frame from loading
 another origin's page, which a sandboxed frame may otherwise do to itself.
 `openPanelFrame` also removes a panel frame that loads another page.

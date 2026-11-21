@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { formatReport, isPackageManagerFile, LOCKFILES, mentionsLeft, migrateCase, migrateFolder, migrateManifest, migrateText, migrateTsv, packageManagerNotes } from './migrate-to-sdk.mjs'
-import { BINS, CLIENT_NAMES, OLD_TESSERA, PARTS, SDK, TESSERA, editorWorkerProblems, manifestOf, oldNamesIn, renameOldNames, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
+import { BINS, CLIENT_NAMES, OLD_TESSERA, PARTS, SDK, TESSERA, editorWorkerProblems, manifestOf, oldNamesIn, renameOldNames, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, standaloneKitModules, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
@@ -29,7 +29,7 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     for (const part of PARTS) {
       const manifest = manifestOf(part)
       const keys = Object.keys(manifest.publishConfig.exports)
-      expect(list.filter((entry) => entry.part === part).map(({ from }) => from)).toEqual(keys.map((key) => `${part.name}${key === '.' ? '' : key.slice(1)}`))
+      expect(list.filter((entry) => entry.part === part && !entry.sdkOnly).map(({ from }) => from)).toEqual(keys.map((key) => `${part.name}${key === '.' ? '' : key.slice(1)}`))
       for (const name of Object.keys(manifest.bin ?? {})) expect(Object.keys(BINS)).toContain(name)
     }
     const keys = list.map(({ key }) => key)
@@ -58,6 +58,16 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(sdk.exports['./editor/styles.css']).toBe('./dist/lib/kit-editor/styles.css')
     expect(sdk.exports['./embed']).toEqual({ types: './dist/types/embed/src/index.d.ts', import: './dist/standalone/index.js' })
     expect(sdk.sideEffects).toContain('*.css')
+    // The object model and the extension host are library builds, sharing Loro and the KDM with
+    // /kdm and /sync; the self-contained object model is /script/standalone, beside /embed.
+    expect(sdk.exports['./script']).toEqual({ types: './dist/types/script/src/index.d.ts', import: './dist/lib/script/index.js' })
+    expect(sdk.exports['./script/kits/note']).toEqual({ types: './dist/types/script/kits/note.d.ts', import: './dist/lib/script/kits/note.js' })
+    expect(sdk.exports['./extensions']).toEqual({ types: './dist/types/extensions/src/index.d.ts', import: './dist/lib/extensions/index.js' })
+    expect(sdk.exports['./script/standalone']).toEqual({ types: './dist/types/script/src/standalone.d.ts', import: './dist/standalone/script/index.js' })
+    expect(Object.entries(sdk.exports).filter(([, target]) => JSON.stringify(target).includes('/dist/standalone/')).map(([key]) => key)).toEqual(['./embed', './script/standalone'])
+    expect(sdk.sideEffects).toEqual(['*.css', './dist/lib/script/kits/*.js', './dist/standalone/script/index.js', './dist/standalone/script/kits/*.js', './dist/lib/embed-server/cli.js'])
+    expect(Object.keys(standaloneKitModules())).toHaveLength(16)
+    expect(standaloneKitModules()['script/kits/note']).toBe('./kits/note.ts')
     expect(spawnSync(process.execPath, [path.join(root, 'tools/sdk-package.mjs'), '--check'], { encoding: 'utf8' }).status).toBe(0)
   })
 

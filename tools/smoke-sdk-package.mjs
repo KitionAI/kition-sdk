@@ -23,8 +23,14 @@
 //      Loro's WebAssembly, a file beside it (never inlined as a data: URL), and a page importing
 //      @kition/sdk/editor, bundled as a kit bundles it, emits that wasm as an asset of its own,
 //      which its worker names (tools/smoke-sdk-worker.mjs runs it in Chromium).
+//      A page importing @kition/sdk/kdm, /sync, /script and /extensions together holds exactly one
+//      Loro WebAssembly module (an emitted .wasm or an inlined base64 one) and one KDM (its envelope
+//      code); @kition/sdk/script/standalone imports no loro-crdt (Loro inlined) and a page of it
+//      alone holds one Loro; /kdm exports wrapEnvelope and /extensions/runtime WORKER_RUNTIME.
 //   4. Sizes: the archive, the unpacked files and the largest ones, beside the twelve packages'
-//      archives in target/npm-pack when they are there.
+//      archives in target/npm-pack when they are there; the /script library entry beside
+//      /script/standalone (each with the package files it imports). LICENSE is at the package's
+//      top, the repository's.
 //
 //   node tools/smoke-sdk-package.mjs [--archive <sdk.tgz>] [--tessera <@kition/tessera folder>] [--keep]
 import assert from 'node:assert/strict'
@@ -35,13 +41,30 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
-import { packageFolderImports } from './check-public-package-imports.mjs'
+import { importedPackages, packageFolderImports } from './check-public-package-imports.mjs'
 import { consumerInputs, installSdk, kitViteConfig } from './sdk-consumer.mjs'
 import { EDITOR_WORKER, editorWorkerProblems, LORO_WASM, PARTS, SDK, subpaths, TESSERA } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const { archive, tessera } = consumerInputs('smoke-sdk-package', args)
+
+/** The KDM's envelope error (packages/kdm/src/envelope.ts): once in each copy of the KDM's code. */
+const KDM_MARKER = 'the bytes are not a KDM export'
+
+/** The package files `entry` (a path under `dir`) imports, itself and transitively, by relative specifiers. */
+function moduleClosure(dir, entry) {
+  const seen = new Set()
+  const visit = (file) => {
+    const normal = path.posix.normalize(file.replace(/^\.\//, ''))
+    if (seen.has(normal)) return
+    seen.add(normal)
+    const text = fs.readFileSync(path.join(dir, normal), 'utf8')
+    for (const match of text.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.{1,2}\/[^"']+)["']/g)) visit(path.posix.join(path.posix.dirname(normal), match[1]))
+  }
+  visit(entry)
+  return [...seen]
+}
 
 const consumer = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kition-sdk-consumer-')))
 const results = []
@@ -129,6 +152,28 @@ try {
   for (const [name, file] of Object.entries(manifest.bin ?? {})) {
     assert.ok(fs.readFileSync(path.join(installed, file), 'utf8').startsWith('#!/usr/bin/env node\n'), `${name}: ${file} starts with #!`)
   }
+  assert.ok(fs.existsSync(path.join(installed, 'LICENSE')), `${SDK} has LICENSE at its top`)
+  assert.equal(fs.readFileSync(path.join(installed, 'LICENSE'), 'utf8'), fs.readFileSync(path.join(root, 'LICENSE'), 'utf8'), `${SDK}'s LICENSE is the repository's`)
+  pass(`${SDK} has LICENSE at its top (the repository's)`)
+  // What a host app takes from the package instead of copying kition-sdk's sources.
+  const exportsCheck = path.join(consumer, 'exports-check.mjs')
+  fs.writeFileSync(exportsCheck, `
+const kdm = await import('${SDK}/kdm')
+const runtime = await import('${SDK}/extensions/runtime')
+const docId = new Uint8Array(16).fill(7)
+const wrapped = kdm.wrapEnvelope(docId, new Uint8Array([1, 2, 3]))
+const opened = kdm.openEnvelope(wrapped)
+console.log(JSON.stringify({ wrapped: wrapped.length, docId: [...opened.docId].every((byte) => byte === 7), engine: [...opened.engine], runtime: typeof runtime.WORKER_RUNTIME, runtimeLength: runtime.WORKER_RUNTIME?.length ?? 0, sandbox: typeof runtime.SANDBOX_HTML, panel: typeof runtime.PANEL_HTML }))
+`)
+  const exportsRan = spawnSync(process.execPath, [exportsCheck], { cwd: consumer, encoding: 'utf8' })
+  assert.equal(exportsRan.status, 0, exportsRan.stderr)
+  const exported = JSON.parse(exportsRan.stdout.trim().split('\n').pop())
+  assert.deepEqual({ ...exported, runtimeLength: exported.runtimeLength > 1000 }, { wrapped: 23, docId: true, engine: [1, 2, 3], runtime: 'string', runtimeLength: true, sandbox: 'string', panel: 'string' }, `${SDK}/kdm's wrapEnvelope and ${SDK}/extensions/runtime's WORKER_RUNTIME, SANDBOX_HTML and PANEL_HTML`)
+  for (const page of ['sandbox.html', 'panel.html']) {
+    const file = fileURLToPath(spawnSync(process.execPath, ['--input-type=module', '-e', `console.log(import.meta.resolve('${SDK}/extensions/${page}'))`], { cwd: consumer, encoding: 'utf8' }).stdout.trim())
+    assert.ok(fs.readFileSync(file, 'utf8').startsWith('<!doctype html>'), `${SDK}/extensions/${page} resolves to a page (${file})`)
+  }
+  pass(`${SDK}/kdm exports wrapEnvelope (openEnvelope reads what it writes); ${SDK}/extensions/runtime exports WORKER_RUNTIME (${exported.runtimeLength} characters), SANDBOX_HTML and PANEL_HTML; /extensions/sandbox.html and /extensions/panel.html resolve to files a host copies`)
 
   // Side effects: only the files package.json's sideEffects names register anything on load (each
   // kit module of /script/kits registers its schema).
@@ -189,6 +234,28 @@ try {
   assert.ok(!/node:http|createServer|createHmac/.test(serverText), 'and none of the server')
   pass(`a page importing ${SDK}/embed/server gets only the error "${SDK}/embed/server runs in Node only ..." (${Buffer.byteLength(serverText)} bytes)`)
 
+  // A host app's page (as Kition Desktop's) importing the KDM, sync, the object model and the
+  // extension host together: one Loro and one KDM. Loro's WebAssembly is counted as Vite emits it
+  // (a .wasm asset) and as a bundle may inline it (base64 of the \0asm header); the KDM by its
+  // envelope's error, which each copy of its code has once.
+  const lorosAndKdms = (dir, files) => {
+    const wasm = fs.readdirSync(path.join(dir, 'dist'), { recursive: true }).filter((file) => file.endsWith('.wasm')).length
+    const text = files.map(({ text }) => text).join('\n')
+    return { loro: wasm + (text.match(/AGFzbQ[A-Za-z0-9+/]{1000}/g)?.length ?? 0), kdm: text.split(KDM_MARKER).length - 1 }
+  }
+  const host = await bundle('page-host', `import { Replica, wrapEnvelope } from '${SDK}/kdm'\nimport { SyncClient } from '${SDK}/sync'\nimport { openDocument, portFromConnection } from '${SDK}/script'\nimport '${SDK}/script/kits'\nimport { ExtensionHost, iframeSandbox } from '${SDK}/extensions'\nimport { WORKER_RUNTIME } from '${SDK}/extensions/runtime'\nwindow.used = { Replica, wrapEnvelope, SyncClient, openDocument, portFromConnection, ExtensionHost, iframeSandbox, WORKER_RUNTIME }\n`)
+  const hostCounts = lorosAndKdms(path.join(consumer, 'page-host'), host)
+  assert.deepEqual(hostCounts, { loro: 1, kdm: 1 }, `a page importing ${SDK}/kdm, /sync, /script, /script/kits, /extensions and /extensions/runtime holds one Loro wasm and one KDM`)
+  const hostBytes = host.reduce((sum, { text }) => sum + Buffer.byteLength(text), 0)
+  pass(`a page importing ${SDK}/kdm, /sync, /script, /script/kits, /extensions and /extensions/runtime: one Loro wasm and one KDM (${(hostBytes / 1e6).toFixed(2)} MB of JavaScript in ${host.length} files)`)
+  const standaloneFiles = Object.values(manifest.exports).flatMap((target) => (typeof target === 'string' ? [] : [target.import ?? target.default])).filter((file) => file?.startsWith('./dist/standalone/'))
+  const loroImports = fs.readdirSync(path.join(installed, 'dist/standalone'), { recursive: true }).filter((file) => file.endsWith('.js') && importedPackages(fs.readFileSync(path.join(installed, 'dist/standalone', file), 'utf8')).includes('loro-crdt'))
+  assert.deepEqual(loroImports, [], `${SDK}'s standalone build (${standaloneFiles.join(', ')}) imports no loro-crdt`)
+  const scriptStandalone = await bundle('page-script-standalone', `import { openDocument, KITS } from '${SDK}/script/standalone'\nwindow.used = { openDocument, KITS }\n`)
+  const standaloneCounts = lorosAndKdms(path.join(consumer, 'page-script-standalone'), scriptStandalone)
+  assert.deepEqual(standaloneCounts, { loro: 1, kdm: 1 }, `a page importing ${SDK}/script/standalone holds its own Loro (inlined) and KDM`)
+  pass(`${SDK}/script/standalone is self-contained: no loro-crdt import in dist/standalone, a page of it alone has one Loro (inlined) and one KDM`)
+
   // An editor page bundled as a kit bundles it (kitViteConfig, as kition-html's): Loro's
   // WebAssembly is a file beside the editor's worker in the package, and an asset of its own in the
   // kit's build, which the bundled worker names; nothing of it is inlined.
@@ -221,6 +288,11 @@ try {
   const mb = (bytes) => `${(bytes / 1e6).toFixed(2)} MB`
   console.log(`\n${SDK}: packed ${mb(fs.statSync(archive).size)}, unpacked ${mb(unpacked)} in ${files.length} files`)
   for (const { file, size } of largest) console.log(`  ${mb(size).padStart(9)}  ${file}`)
+  for (const key of ['./script', './script/standalone']) {
+    const own = moduleClosure(installed, manifest.exports[key].import)
+    const bytes = own.reduce((sum, file) => sum + fs.statSync(path.join(installed, file)).size, 0)
+    console.log(`${SDK}${key.slice(1)}: ${mb(bytes)} in ${own.length} files of the package${key === './script' ? ', loro-crdt (3.4 MB of WebAssembly) imported' : ', Loro inlined'}`)
+  }
   const old = PARTS.map((part) => path.join(path.dirname(archive), `${part.dir}.tgz`))
   if (old.every((file) => fs.existsSync(file))) {
     let oldUnpacked = 0

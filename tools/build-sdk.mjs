@@ -5,16 +5,18 @@
 //   node tools/build-sdk.mjs
 //
 // dist/standalone/  @kition/sdk/embed (its index.js is the top, which the embed server serves as
-//                   /assets/embed/) and @kition/sdk/script/*: one Vite build with Loro's
-//                   WebAssembly inlined (loro-crdt/base64), so a page needs no bundler setup; the
-//                   two share their chunks, so Loro is there once.
-// dist/lib/<dir>/   every other package: one Vite build, its packages' cross-imports shared chunks
-//                   (dist/lib/chunks), loro-crdt, React and Tessera left imports (a dependency and
-//                   optional peers); an import of @kition/embed or @kition/script points at
-//                   dist/standalone. The editor's worker (dist/lib/assets) is a bundle of its own,
-//                   with its own Loro, as a worker must be; Loro's WebAssembly is a file beside it
-//                   (loro_wasm_bg-<hash>.wasm), never inlined, so a kit's bundler emits it as an
-//                   asset and a browser caches it and compiles it apart from the worker.
+//                   /assets/embed/) and @kition/sdk/script/standalone (script/index.js): one Vite
+//                   build with Loro's WebAssembly inlined (loro-crdt/base64), so a page needs no
+//                   bundler setup; the two share their chunks, so Loro is there once.
+// dist/lib/<dir>/   every other subpath, /script and /extensions among them: one Vite build, its
+//                   packages' cross-imports shared chunks (dist/lib/chunks), loro-crdt, React and
+//                   Tessera left imports (a dependency and optional peers), so /kdm, /sync, /script
+//                   and /extensions in one page hold one Loro and one KDM; an import of
+//                   @kition/embed points at dist/standalone. The editor's worker (dist/lib/assets)
+//                   is a bundle of its own, with its own Loro, as a worker must be; Loro's
+//                   WebAssembly is a file beside it (loro_wasm_bg-<hash>.wasm), never inlined,
+//                   so a kit's bundler emits it as an asset and a browser caches it and compiles
+//                   it apart from the worker.
 // dist/types/<dir>/ the declarations of all twelve, from one TypeScript program: each package's
 //                   name is a relative import, Loro's types opaque (dist/types/loro-crdt.d.ts),
 //                   and every relative import has its .js, for `bundler` and `node16` alike.
@@ -31,7 +33,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
 import { packageNoticeSection } from './bundled-notices.mjs'
-import { BINS, editorWorkerProblems, jsBase, nodeOnlyStub, oldNamesIn, PARTS, renameOldNames, SDK, subpaths, tesseraImport } from './sdk-package.mjs'
+import { BINS, editorWorkerProblems, jsBase, nodeOnlyStub, oldNamesIn, PARTS, renameOldNames, SDK, standaloneKitModules, subpaths, tesseraImport } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sdkDir = path.join(root, 'packages/sdk')
@@ -60,10 +62,12 @@ const recordBundled = () => ({
 /** `{ <name under base>: <source file> }` of a group's built subpaths. */
 function entries(group, base) {
   const found = {}
-  for (const { part, source, js } of list) {
-    if (part.group !== group || !isCode(source)) continue
+  for (const { group: built, part, source, js } of list) {
+    if (built !== group || !isCode(source)) continue
     found[js.slice(`./dist/${base}/`.length).replace(/\.js$/, '')] = sourceOf(part, source)
   }
+  // The kit modules register their kit on load: files of their own (standaloneKitModules).
+  if (group === 'standalone') for (const [name, source] of Object.entries(standaloneKitModules())) found[name] = sourceOf(PARTS.find((part) => part.dir === 'script'), source)
   return found
 }
 
@@ -81,7 +85,7 @@ const newNames = () => ({
   },
 })
 
-// 1. The standalone group: Loro inlined, one copy for embed and script.
+// 1. The standalone group: Loro inlined, one copy for embed and the standalone object model.
 await build({
   root: sdkDir,
   base: './',
@@ -211,7 +215,7 @@ const plainWorkerUrl = () => ({
 // An import of a standalone subpath stays an import, of `kition-sdk-standalone:<file under dist>`,
 // rendered per chunk as the relative path from that chunk to the file (renderChunk below).
 const STANDALONE = 'kition-sdk-standalone:'
-const standaloneTarget = new Map(list.filter(({ part }) => part.group === 'standalone').map(({ from, js }) => [from, `${STANDALONE}${js.slice('./dist/'.length)}`]))
+const standaloneTarget = new Map(list.filter(({ group, sdkOnly }) => group === 'standalone' && !sdkOnly).map(({ from, js }) => [from, `${STANDALONE}${js.slice('./dist/'.length)}`]))
 const standaloneNames = new Set(PARTS.filter((part) => part.group === 'standalone').map((part) => part.name))
 const embedServer = path.join(root, 'packages/embed-server/src/server.ts')
 const sdkImports = () => ({
@@ -364,8 +368,9 @@ if (loroNames.size) {
 }
 for (const { key, types: declared } of list) if (declared && !fs.existsSync(path.join(sdkDir, declared))) throw new Error(`${SDK}${key.slice(1)}: ${declared} was not emitted`)
 
-// 6. The license, and the notices of the third-party code the bundles contain.
-fs.copyFileSync(path.join(root, 'LICENSE'), path.join(dist, 'LICENSE'))
+// 6. The license, at the package's top (where npm and a reader look for it; not in git), and the
+// notices of the third-party code the bundles contain.
+fs.copyFileSync(path.join(root, 'LICENSE'), path.join(sdkDir, 'LICENSE'))
 const notices = new Map()
 for (const dir of bundled) {
   const section = packageNoticeSection(dir)
