@@ -90,6 +90,48 @@ export function sdkSpecifier(specifier) {
   return `${SDK}/${part.subpath}${specifier.slice(part.name.length)}`
 }
 
+/**
+ * Old names @kition/sdk keeps on purpose: the client name a library sends a server as
+ * `{ name: '<old>', version }`, in the sync protocol's hello (@kition/sync's SyncClient, and the
+ * clients @kition/embed and @kition/script make of it) and in the Kit Process Protocol's
+ * kits.initialize (@kition/script's headless kits). A server may log, count or match it, so
+ * renaming one changes what servers see: decided at cutover, not by the build. tools/build-sdk.mjs
+ * leaves these, and the pack check allows exactly these in @kition/sdk.
+ */
+export const CLIENT_NAMES = ['@kition/embed', '@kition/script', '@kition/sync']
+
+/** The fifteen old package names (the twelve and Tessera's three), longest first. */
+const OLD_NAMES = [...PARTS.map((part) => part.name), ...OLD_TESSERA].sort((a, b) => b.length - a.length)
+
+/** An old package name anywhere in text (a comment, a message, a usage line); a subpath after it stays. */
+const OLD_NAME = new RegExp(`@kition/(?:${OLD_NAMES.map((name) => name.slice('@kition/'.length)).join('|')})(?![\\w-])`, 'g')
+
+/** Whether the old name at `offset` of `text` is a client name: `{ name: '<name>', version: ...`. */
+function isClientName(text, offset, name) {
+  if (!CLIENT_NAMES.includes(name)) return false
+  const before = /\{\s*name:\s*(['"])$/.exec(text.slice(Math.max(0, offset - 40), offset))
+  return Boolean(before) && new RegExp(`^${before[1]}\\s*,\\s*version:`).test(text.slice(offset + name.length, offset + name.length + 40))
+}
+
+/**
+ * `text` with every old package name as @kition/sdk names it (`@kition/kit-dev-host/mode-smoke` ->
+ * `@kition/sdk/dev-host/mode-smoke`, `@kition/tessera-ui` -> `@kition/tessera/ui`), the client
+ * names aside: what @kition/sdk's build does to the comments, messages and declarations it emits,
+ * by the same mapping as its specifiers (sdkSpecifier, tesseraImport).
+ */
+export function renameOldNames(text) {
+  return text.replace(OLD_NAME, (name, offset) => (isClientName(text, offset, name) ? name : (sdkSpecifier(name) ?? tesseraImport(name))))
+}
+
+/** The old package names left in `text`, client names aside: [{ name, line }]. */
+export function oldNamesIn(text) {
+  const found = []
+  for (const match of text.matchAll(OLD_NAME)) {
+    if (!isClientName(text, match.index, match[0])) found.push({ name: match[0], line: text.slice(0, match.index).split('\n').length })
+  }
+  return found
+}
+
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 export const manifestOf = (part) => readJson(path.join(root, 'packages', part.dir, 'package.json'))
 

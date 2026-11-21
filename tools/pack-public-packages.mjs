@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { undeclaredImports } from './check-public-package-imports.mjs'
-import { SDK, sdkExports, TESSERA } from './sdk-package.mjs'
+import { CLIENT_NAMES, oldNamesIn, SDK, sdkExports, TESSERA } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const destination = path.join(root, 'target/npm-pack')
@@ -84,6 +84,16 @@ for (const { directory, manifest } of ordered) {
       for (const name of Object.keys(published[section] ?? {})) assert.ok(!name.startsWith('@kition/') || name === TESSERA, `${SDK}: ${section} names ${name}`)
     }
     assert.deepEqual(published.exports, sdkExports(), `${SDK}: its exports are not tools/sdk-package.mjs's`)
+    // No file names one of the old packages (the twelve, Tessera's three) to its reader: comments,
+    // messages and declarations say @kition/sdk/<subpath>. Allowed: the client names a library sends
+    // a server (CLIENT_NAMES in tools/sdk-package.mjs), which the owner renames at cutover or not.
+    const left = []
+    for (const file of files) {
+      const content = run('tar', ['-xOf', archive, `package/${file}`], root)
+      assert.equal(content.status, 0)
+      for (const { name, line } of oldNamesIn(content.stdout)) left.push(`${file}:${line}: ${name}`)
+    }
+    assert.deepEqual(left, [], `${SDK} names old packages (allowed: the client names ${CLIENT_NAMES.join(', ')})`)
   }
   // Bundled third-party code ships with its license (tools/build-package.mjs writes the notices).
   if (bundlesLoro) {

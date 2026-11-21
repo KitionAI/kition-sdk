@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LOCKFILES, migrateFolder, migrateManifest, migrateText } from './migrate-to-sdk.mjs'
-import { BINS, OLD_TESSERA, PARTS, SDK, TESSERA, manifestOf, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
+import { BINS, CLIENT_NAMES, OLD_TESSERA, PARTS, SDK, TESSERA, manifestOf, oldNamesIn, renameOldNames, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
@@ -84,6 +84,22 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(tesseraImport('@kition/tessera-tokens')).toBe('@kition/tessera/tokens')
     expect(tesseraImport('@kition/tessera-ui/workspaceTree')).toBe('@kition/tessera/ui/workspaceTree')
     for (const other of ['@kition/kit-editor', '@kition/tessera', '@kition/tessera/ui', '@kition/tessera-uix', 'react']) expect(tesseraImport(other), other).toBeNull()
+  })
+
+  it('renames the old package names in what it ships (comments, messages, declarations) by the same mapping, but the client names a library sends a server', () => {
+    expect(renameOldNames("//   import { runModeSmoke } from '@kition/kit-dev-host/mode-smoke'")).toBe("//   import { runModeSmoke } from '@kition/sdk/dev-host/mode-smoke'")
+    expect(renameOldNames('throw new Error("@kition/embed is not installed next to @kition/embed-server: install it")')).toBe('throw new Error("@kition/sdk/embed is not installed next to @kition/sdk/embed/server: install it")')
+    expect(renameOldNames(" * Import `@kition/kit-editor/styles.css` once; Tessera (`@kition/tessera-ui`), `@kition/script/kits/<kit>`, @kition/kdm's changesSince")).toBe(" * Import `@kition/sdk/editor/styles.css` once; Tessera (`@kition/tessera/ui`), `@kition/sdk/script/kits/<kit>`, @kition/sdk/kdm's changesSince")
+    for (const other of ['@kition/embedded', '@kition/sdk/embed', '@kition/tessera/ui', '@kition/cli', '@kition/kit-note-ui']) expect(renameOldNames(other)).toBe(other)
+    // Client names go over the wire (the sync hello, kits.initialize): kept, and allowed by the checks.
+    expect(CLIENT_NAMES).toEqual(['@kition/embed', '@kition/script', '@kition/sync'])
+    const clients = 'client: t.client ?? { name: "@kition/script", version: "0.1.0" }\nclient: { name: \'@kition/sync\', version: v }\n{ name: "@kition/embed", version: pe }'
+    expect(renameOldNames(clients)).toBe(clients)
+    expect(oldNamesIn(clients)).toEqual([])
+    // Only those three, and only as a client's { name, version }.
+    expect(renameOldNames('{ name: "@kition/kdm", version: 1 }')).toBe('{ name: "@kition/sdk/kdm", version: 1 }')
+    expect(oldNamesIn('a\n// @kition/kit-host\nconst name = "@kition/script"')).toEqual([{ name: '@kition/kit-host', line: 2 }, { name: '@kition/script', line: 3 }])
+    expect(oldNamesIn(renameOldNames('@kition/embed-server @kition/tessera-icons/react @kition/kit-ui-protocol'))).toEqual([])
   })
 })
 

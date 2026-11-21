@@ -65,7 +65,7 @@ features:
     priority: P1
     status: has
     paths: [packages/sdk/package.json, packages/sdk/README.md, tools/sdk-package.mjs, tools/build-sdk.mjs, tools/smoke-sdk-package.mjs, tools/migrate-to-sdk.mjs, tools/sdk-package.test.mjs]
-    cases: [sdk.packages.one-package/mapping, sdk.packages.one-package/consumer]
+    cases: [sdk.packages.one-package/mapping, sdk.packages.one-package/consumer, regressions/issue-sdk-old-names-in-package]
     since: "2026-11-21"
   - id: sdk.packages.stage
     title: "A publishing rehearsal of @kition/sdk on another npm scope: the Stage workflow, started by hand and never on @kition, builds @kition/sdk, runs its pack and smoke checks against a published rehearsal Tessera installed as @kition/tessera, publishes a copy renamed <scope>/sdk at a prerelease version with its Tessera peer at that rehearsal's exact version, waits until npm serves it, and prints the two npm-alias lines a kit uses, which migrate-to-sdk writes with --sdk-spec and --tessera-spec"

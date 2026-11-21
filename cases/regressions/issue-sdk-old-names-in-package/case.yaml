@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-sdk-old-names-in-package
+feature: sdk.packages.one-package
+intent: >-
+  kition-html's and kition-note's moves to @kition/sdk (2026-11-21) found the built package still
+  naming the old packages to its readers: declarations' doc comments (@kition/kit-editor's index
+  names @kition/script, @kition/embed and @kition/tessera-ui), the dev host's usage lines
+  ("import { runModeSmoke } from '@kition/kit-dev-host/mode-smoke'"), the editor's styles and
+  worker, and the embed server's error "@kition/embed is not installed next to
+  @kition/embed-server". The build renames every old package name it emits (JavaScript, the worker,
+  CSS, pages, .mjs helpers, declarations) by the mapping that rewrites its specifiers
+  (renameOldNames in tools/sdk-package.mjs), and fails when one is left; the pack check finds none
+  in any file of the packed @kition/sdk. Allowed, and kept: the client names a library sends a
+  server as { name, version } (@kition/sync, @kition/script, @kition/embed in the sync hello and
+  kits.initialize; CLIENT_NAMES), which change what servers see and are decided at cutover.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/pack-public-packages.mjs
+  license: owned
+input: []
+steps:
+  - exec: { cmd: [node, tools/pack-public-packages.mjs, sdk] }
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/sdk-package.test.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 300

@@ -19,6 +19,9 @@
 // dist/lib/node-only/  what a browser gets for a Node-only subpath (@kition/sdk/embed/server): an
 //                   error naming why.
 // Styles, HTML pages and .mjs helpers are copied; Tessera is named by tesseraSpecifier everywhere.
+// Old package names in what is emitted (comments, error messages, usage lines, declarations' doc
+// comments) are renamed by the same mapping (renameOldNames), but the client names a library sends a
+// server (CLIENT_NAMES); the build fails when an old name is left anywhere in dist/.
 import fs from 'node:fs'
 import { isBuiltin } from 'node:module'
 import path from 'node:path'
@@ -26,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
 import { packageNoticeSection } from './bundled-notices.mjs'
-import { BINS, jsBase, nodeOnlyStub, PARTS, SDK, subpaths, tesseraImport } from './sdk-package.mjs'
+import { BINS, jsBase, nodeOnlyStub, oldNamesIn, PARTS, renameOldNames, SDK, subpaths, tesseraImport } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sdkDir = path.join(root, 'packages/sdk')
@@ -62,13 +65,27 @@ function entries(group, base) {
   return found
 }
 
+/** Old package names in emitted code (renderChunk, before hashing) and text assets, as @kition/sdk names them. */
+const newNames = () => ({
+  name: 'kition-sdk-names',
+  renderChunk(code) {
+    const next = renameOldNames(code)
+    return next === code ? null : { code: next, map: null }
+  },
+  generateBundle(_, bundle) {
+    for (const file of Object.values(bundle)) {
+      if (file.type === 'asset' && /\.(?:css|js|mjs|html)$/.test(file.fileName)) file.source = renameOldNames(typeof file.source === 'string' ? file.source : Buffer.from(file.source).toString('utf8'))
+    }
+  },
+})
+
 // 1. The standalone group: Loro inlined, one copy for embed and script.
 await build({
   root: sdkDir,
   base: './',
   configFile: false,
   logLevel: 'warn',
-  plugins: [recordBundled()],
+  plugins: [recordBundled(), newNames()],
   resolve: { alias: [{ find: /^loro-crdt$/, replacement: 'loro-crdt/base64' }] },
   build: {
     outDir: path.join(dist, 'standalone'),
@@ -134,8 +151,8 @@ await build({
   base: './',
   configFile: false,
   logLevel: 'warn',
-  plugins: [sdkImports(), recordBundled()],
-  worker: { format: 'es', plugins: () => [recordBundled()], rollupOptions: { output: { inlineDynamicImports: true } } },
+  plugins: [sdkImports(), recordBundled(), newNames()],
+  worker: { format: 'es', plugins: () => [recordBundled(), newNames()], rollupOptions: { output: { inlineDynamicImports: true } } },
   build: {
     outDir: path.join(dist, 'lib'),
     emptyOutDir: false,
@@ -164,7 +181,7 @@ for (const { part, source, js } of list) {
   const output = path.join(sdkDir, js)
   fs.mkdirSync(path.dirname(output), { recursive: true })
   const text = fs.readFileSync(sourceOf(part, source))
-  fs.writeFileSync(output, source.endsWith('.css') ? tesseraInCss(text.toString('utf8')) : text)
+  fs.writeFileSync(output, source.endsWith('.css') ? renameOldNames(tesseraInCss(text.toString('utf8'))) : /\.(?:mjs|html)$/.test(source) ? renameOldNames(text.toString('utf8')) : text)
 }
 
 // 4. A browser's answer for a Node-only subpath.
@@ -231,6 +248,7 @@ for (const file of declarations) {
     if (named.startsWith('@kition/') && !named.startsWith('@kition/tessera')) throw new Error(`${path.relative(sdkDir, file)} names ${named}, which is not a subpath of ${SDK}`)
     return whole
   })
+  next = renameOldNames(next)
   if (/['"]loro-crdt['"]/.test(next)) throw new Error(`${path.relative(sdkDir, file)} names loro-crdt in a way tools/build-sdk.mjs does not rewrite`)
   if (/\/\/\/\s*<reference types="vite/.test(next)) throw new Error(`${path.relative(sdkDir, file)} references Vite's types, which a consumer does not have`)
   if (next !== text) fs.writeFileSync(file, next)
@@ -253,4 +271,7 @@ if (notices.size) {
   fs.writeFileSync(path.join(dist, 'THIRD_PARTY_NOTICES'), `Third-party notices for ${SDK}\n\nThe files in dist/ include code from the packages below, each under its own license.\n\n${sections.join('\n')}`)
 }
 for (const { key, js } of list) if (!fs.existsSync(path.join(sdkDir, js))) throw new Error(`${SDK}${key.slice(1)}: ${js} was not built`)
+// No old package name is left in what @kition/sdk ships, but the client names.
+const left = walk(dist).filter((file) => /\.(?:[cm]?js|d\.m?ts|css|html)$/.test(file)).flatMap((file) => oldNamesIn(fs.readFileSync(file, 'utf8')).map(({ name, line }) => `${path.relative(sdkDir, file)}:${line}: ${name}`))
+if (left.length) throw new Error(`old package names left in ${SDK}'s dist (rename them in tools/build-sdk.mjs, or add a client name to CLIENT_NAMES in tools/sdk-package.mjs):\n${left.join('\n')}`)
 console.log(`${SDK}: built ${list.length} subpaths in packages/sdk/dist (${declarations.length} declarations)`)
