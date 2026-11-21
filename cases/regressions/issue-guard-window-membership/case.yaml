@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-guard-window-membership
+feature: sdk.agent.premise-guard
+intent: >-
+  A told ordinal window (`within`) holds which objects are at its positions, not their order:
+  another writer's reorder among the members applies (the motion kit's all-mask assignment,
+  window [0, n+1), refused a swap of masks 0 and 1 as `relocated`), while an object moved in or
+  out, created or deleted inside, or shifted across an end by an insertion or removal before the
+  window refuses, and edits after it apply. Each change is read in the list just before and just
+  after it, with the window's indexes naming the same positions in every version.
+layer: gate
+source: { kind: issue, from: kition-motion independent_masks reorder, license: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: window_membership_matrix }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: window_membership_matrix, env: { KITION_TEST_READER: editor } }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: ordered_place_matrix }
+  - cargo-test: { package: kition-kits, test: space_guard, filter: held_order_forms_matrix }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 300

@@ -25,7 +25,12 @@ neighbours and boundaries, and moves hold their source. Nested container paths
 resolve through lists and owned refs at supported path depths. Move indexes use
 pre-removal coordinates. Kits update the SDK without a new schema property or
 hook; use either `target:"comp:1", field:"layers"` or the actual nested holder
-path. Strictly unrelated later list edits remain independent.
+path. A raw operation on a nested holder path (`target: 1, field: "comp.layers"`,
+the place a receipt's move names) is checked with the `batchOps` contract of the
+object holding its last field (the comp's `list.move.layers`), on that object; an
+operation that object declares no contract for still refuses. A receipt's parent
+is a `target` as given, the number `1` or the string `"1"`. Strictly unrelated
+later list edits remain independent.
 
 Environment creation replay reconstructs the owning graph: create referenced
 objects first, bind their refs, restore their containers and then create the
@@ -47,6 +52,22 @@ optionally `end` or `duration`. With neither, `start` is a point ordering field
 (for example a key's time). Entries inserted, removed or moved into/out of the
 window refuse, including changes later reversed in the journal. Changes outside
 the window and member content not otherwise held remain independent.
+
+An ordinal window holds which objects are at its positions `[from,to)`, the
+indexes the kit answers for the list as it is now, which name the same positions
+in every version of the list. Each change by another writer is read in the list
+just before and just after it: it refuses when it creates or deletes an object
+inside the window, moves one across an end of it (in or out, to another list
+too), shifts one across an end by inserting or removing items before the window
+(the window counts positions, so an insertion or removal before `from` changes
+which objects are in it), or changes a member's `position` field. A reorder among
+the members (every object stays inside) applies, as do edits after `to` and
+member content not otherwise held; hold an exact order with an id's position
+premise (`positions: [<list field>]`) or `orders`. A window over a whole list
+starts at 0 and ends past the last item, `[0, n+1)` for the `n` members there
+are now: the kit answers it after others' changes, so a window ending at `n`
+would leave a removed last member (at index `n` before its removal) outside it.
+`[i,i)` is an insertion gap, which holds its two neighbours.
 
 The SDK retains historical bytes across headless file reloads. Complete blob
 references remain in journal `before` values; public `after` values remain size

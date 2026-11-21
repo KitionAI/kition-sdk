@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-guard-held-batch-target
+feature: sdk.agent.premise-guard
+intent: >-
+  A receipt's place (`{parent: 1, field: "comp.layers"}`) is a raw batch target as given: the
+  number `1` reached the kit's planning copy unconverted and was refused as "`target` is a
+  string", and `"1"` was refused as "the kit declares no premise contract", although the object
+  holding the last field (the comp) declares `list.move.layers`. Number ids are passed as
+  strings, a nested holder path uses the contract of the object holding its last field, an
+  undeclared operation still refuses, and the object model says what it got for an id that is
+  no string (the same messages in Rust and TypeScript).
+layer: gate
+source: { kind: issue, from: kition-motion land13 model_moves_and_creates, license: owned }
+input: []
+steps:
+  - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: nested_holder_receipts_replay_as_batch_targets }
+  - cargo-test: { package: kition-kdm, test: tool_ids }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/tool-ids.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 300

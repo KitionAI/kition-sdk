@@ -4,6 +4,18 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A list window holds which objects are in it, not their order**: a kit's ordinal `within`
+  window refused any move of a member by another writer, so the motion kit's all-mask assignment
+  (window `[0, n+1)`) was refused as `relocated` after a swap of two masks. Each change is now read
+  in the list before and after it: an object created or deleted inside, moved or shifted across an
+  end (an insertion or removal before the window shifts one), or a member's position field changed
+  refuses; a reorder among the members applies (regressions/issue-guard-window-membership).
+- **A receipt's place is a raw batch target as given**: `{parent: 1, field: "comp.layers"}` replayed
+  as `target: 1` reached the kit's planning copy as a number ("`target` is a string"), and as `"1"`
+  was refused for a missing premise contract although the comp declares `list.move.layers`.
+  Number ids are passed as strings, a nested holder path is checked with the contract of the
+  object holding its last field, and the object model says what it got for an id that is no string
+  (`give "1" for the number 1`) (regressions/issue-guard-held-batch-target).
 - **`@kition/sdk/script` and `/extensions` share Loro and the KDM with `/kdm` and `/sync`**: they
   were the standalone build (Loro's WebAssembly inlined, a KDM of its own), so an app importing
   them beside `/kdm` held two of each, and Kition Desktop kept copies of their sources. They are

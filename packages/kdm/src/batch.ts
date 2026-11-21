@@ -112,9 +112,35 @@ function kdmError(index: number | null, error: unknown): BatchError {
 const refused = (index: number | null, unresolved: Unresolved): BatchError =>
   new BatchError(unresolved.reason === 'not-found' ? 'not-found' : 'invalid-op', index, unresolved.message)
 
+/**
+ * Why `key` was refused: it takes a string, and what it was given instead. An id given as a number
+ * (`target: 1`, as receipts show an integer tool id) is the same id as a string here: the agent
+ * tools pass it so; a direct `model.batch` caller writes `"1"`.
+ */
+function notAString(key: string, given: unknown): string {
+  const id = ['target', 'item', 'node', 'parent', 'id'].includes(key)
+  if (given === undefined || given === null) return `\`${key}\` is missing: give a string${id ? ' naming an object by its id' : ''}`
+  if (typeof given === 'number' && id && Number.isSafeInteger(given) && given >= 0) {
+    return `\`${key}\` names an object by its id as a string: give "${given}" for the number ${given}`
+  }
+  if (typeof given === 'number') return `\`${key}\` is a string; got the number ${given}`
+  if (typeof given === 'boolean') return `\`${key}\` is a string; got ${given}`
+  if (Array.isArray(given)) return `\`${key}\` is a string; got an array`
+  if (typeof given === 'object') return `\`${key}\` is a string; got an object`
+  return `\`${key}\` is a string`
+}
+
 /** The id a target names: `root`, a bound `$reference`, a tool id (rule OM9), or an object id (for which `exists` holds, when the schema declares tool ids). */
-function targetId(text: unknown, refs: Refs, names: ToolIds, exists: (id: ObjectId) => boolean, root: () => ObjectId | null, index: number | null): ObjectId {
-  if (typeof text !== 'string') throw new BatchError('invalid-op', index, '`target` is a string')
+function targetId(
+  text: unknown,
+  refs: Refs,
+  names: ToolIds,
+  exists: (id: ObjectId) => boolean,
+  root: () => ObjectId | null,
+  index: number | null,
+  key = 'target',
+): ObjectId {
+  if (typeof text !== 'string') throw new BatchError('invalid-op', index, notAString(key, text))
   if (text === 'root') {
     const id = root()
     if (id === null) throw new BatchError('not-found', index, 'the document has no root object')
@@ -165,7 +191,7 @@ function opName(index: number, op: unknown): string {
 
 const str = (index: number, op: BatchOp, key: string): string => {
   const value = op[key]
-  if (typeof value !== 'string') throw new BatchError('invalid-op', index, `\`${key}\` is a string`)
+  if (typeof value !== 'string') throw new BatchError('invalid-op', index, notAString(key, value))
   return value
 }
 
@@ -304,7 +330,7 @@ export async function runBatch(target: BatchTarget, request: BatchRequest): Prom
   const loaded = loads.map((entry, at) => {
     try {
       if (projected) {
-        if (!isRecord(entry) || typeof entry.target !== 'string') throw new BatchError('invalid-op', null, '`target` is a string')
+        if (!isRecord(entry) || typeof entry.target !== 'string') throw new BatchError('invalid-op', null, notAString('target', isRecord(entry) ? entry.target : undefined))
         return projected.load(rootId(replica) ? names.show(rootId(replica)!) : null, refs.get(entry.target) ?? entry.target, entry.fields)
       }
       return load(replica, names, entry, refs)
@@ -490,7 +516,7 @@ function checkRefs(tx: Tx, schema: Schema, index: number, ty: string, fields: Ar
 function apply(tx: Tx, schema: Schema, names: ToolIds, index: number, op: BatchOp, refs: Refs, root: () => ObjectId | null): unknown {
   const name = opName(index, op)
   const exists = (id: ObjectId) => tx.exists(id) || (name === 'delete' && tx.wasDeleted(id))
-  const target = (key: string) => targetId(op[key], refs, names, exists, root, index)
+  const target = (key: string) => targetId(op[key], refs, names, exists, root, index, key)
   const containerField = (id: ObjectId, path: string): [ObjectId, string] => {
     const [held, field, inner] = heldPath(tx, schema, names, index, id, path)
     if (inner.length) throw new BatchError('invalid-op', index, 'a container operation requires a container field, not a JSON member')
@@ -521,7 +547,7 @@ function apply(tx: Tx, schema: Schema, names: ToolIds, index: number, op: BatchO
           if (typeof path !== 'string' || dot < 0) throw new BatchError('invalid-op', index, '`in` is "<target>.<field>"')
           container = containerField(targetId(path.slice(0, dot), refs, names, exists, root, index), path.slice(dot + 1))
         }
-        if (op.id !== undefined && op.id !== null && typeof op.id !== 'string') throw new BatchError('invalid-op', index, '`id` is a string')
+        if (op.id !== undefined && op.id !== null && typeof op.id !== 'string') throw new BatchError('invalid-op', index, notAString('id', op.id))
         guardNew(schema, index, ty, fields)
         checkRefs(tx, schema, index, ty, sortedKeys(fields).map((key): [string, unknown] => [key, fields[key]]))
         const id = tx.create(ty, fields, typeof op.id === 'string' ? { id: op.id } : undefined)
@@ -765,14 +791,14 @@ function liveNode(tx: Tx, id: ObjectId, field: string, object: ObjectId): NodeRe
 function treeParent(tx: Tx, refs: Refs, names: ToolIds, root: () => ObjectId | null, index: number, op: BatchOp, id: ObjectId, field: string): NodeRef | null {
   if (op.parent === undefined || op.parent === null) return null
   if (typeof op.parent !== 'string') throw new BatchError('invalid-op', index, '`parent` is an object or null')
-  const parent = targetId(op.parent, refs, names, (object) => tx.exists(object), root, index)
+  const parent = targetId(op.parent, refs, names, (object) => tx.exists(object), root, index, 'parent')
   const node = liveNode(tx, id, field, parent)
   if (!node) throw new BatchError('not-found', index, `the parent \`${names.show(parent)}\` is not in \`${names.show(id)}.${field}\``)
   return node
 }
 
 function load(replica: Replica, names: ToolIds, entry: unknown, refs: Refs): LoadedObject {
-  if (!isRecord(entry) || typeof entry.target !== 'string') throw new BatchError('invalid-op', null, '`target` is a string')
+  if (!isRecord(entry) || typeof entry.target !== 'string') throw new BatchError('invalid-op', null, notAString('target', isRecord(entry) ? entry.target : undefined))
   const id = targetId(entry.target, refs, names, (object) => replica.exists(object), () => rootId(replica), null)
   const ty = replica.objectType(id)
   const def = typeDef(replica.schema, ty)

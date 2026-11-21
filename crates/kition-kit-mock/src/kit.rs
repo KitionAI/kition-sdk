@@ -1098,6 +1098,15 @@ impl Kit {
                                 json!({"command":"clip.opacity","params":{"clip":"target","opacity":"value"}});
                         }
                     }
+                    // Only the object holding a list declares a contract, for one operation on it
+                    // (as a motion kit's comp declares `list.move.layers`): a nested holder path
+                    // from its owner must find it there.
+                    if IDENTITY.0 == "kit.heldcontract" {
+                        for def in described["types"].as_object_mut().into_iter().flat_map(|types| types.values_mut()) {
+                            def.as_object_mut().map(|def| def.remove("batchOps"));
+                        }
+                        described["types"]["TextBody"]["batchOps"] = json!({"list.move.paragraphs":{"direct":true}});
+                    }
                     Ok(described)
                 })
             }

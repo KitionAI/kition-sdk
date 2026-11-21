@@ -186,7 +186,10 @@ Update the Rust SDK, KDM TypeScript package, editor worker and host together.
   calls without `basis`. Declare a command mapping for operations that read
   command-specific inputs, or `{ "direct": true }` when the SDK's ordinary
   object, field, reference and insertion-window holds describe every read.
-  Keys are `op.field`, `op`, or an explicit `*` default. Parameter paths are
+  Keys are `op.field`, `op`, or an explicit `*` default. An operation on a nested
+  holder path (`target: 1, field: "comp.layers"`) uses the contract of the object
+  holding the last field (`list.move.layers` on the comp), whose parameter paths
+  then read `target` as that object and `field` as the last field. Parameter paths are
   structural paths into the raw operation. For example:
 
   ```json
@@ -601,7 +604,10 @@ neighbours (or the beginning/end boundary). An insertion, deletion, move-in,
 move-out or reorder that changes either neighbour refuses `relocated`; edits strictly
 after the gap and neighbour field edits alone apply. A distant reorder that leaves
 both neighbours in place also applies. Non-empty windows hold their selected members,
-without holding an adjacent item outside `[i,j)`. Stored `index` and reversed index
+without holding an adjacent item outside `[i,j)`: which objects are at the positions
+`[i,j)`, not their order among themselves, so a reorder that keeps every member inside
+applies ([the data model](../data-model.md), "List windows hold membership").
+Stored `index` and reversed index
 spellings retain their own counting direction; an id's position premise still detects
 implicit shifts caused by another item being inserted or removed.
 

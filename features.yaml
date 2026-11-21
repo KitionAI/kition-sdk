@@ -1212,6 +1212,7 @@ features:
       - crates/kition-kits/tests/support/guard_regressions.rs
       - crates/kition-kit-mock/src/matrix.rs
       - crates/kition-kit-mock/src/order.rs
+      - crates/kition-kit-mock/src/paragraphs.rs
     cases:
       - regressions/issue-30
       - regressions/issue-32-owned-register
@@ -1283,6 +1284,8 @@ features:
       - regressions/issue-declared-hold-scope
       - regressions/issue-c8-fix-16-batch-places
       - regressions/issue-c8-fix-16-windows
+      - regressions/issue-guard-window-membership
+      - regressions/issue-guard-held-batch-target
       - regressions/issue-c8-fix-12-gap
       - regressions/issue-c8-fix-12-name-union
       - regressions/issue-c8-fix-13-position
