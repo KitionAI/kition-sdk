@@ -122,6 +122,15 @@ with `tools/kits-index.mjs`:
   npm integrity, and the `kition` field. No tarball is downloaded. The registry is the only source:
   nothing is carried from an earlier index but the sizes of the same bytes, and every kit is in it,
   not only those in `published-kits.json` (the kits this SDK documents and bundles).
+- A version still being published is held back. A kit's Package workflow publishes a version's
+  packages one after another over several minutes, and npm shows each a little later; an index
+  gathered in between listed Layout 0.1.4 without its editor, and `kition kit install layout` took
+  it over 0.1.3, which has one. So a version that lacks a package (a platform, or the editor) which
+  the kit's highest listed lower version has is not listed; the next version is compared with that
+  same listed one. A kit's first version, and a version with the same packages or more, is listed.
+  The report names each held version (`held layout 0.1.4: still being published (no ui package;
+  0.1.3 has one)`), and with `--previous` its packages leave; holding is not an error, so a kit
+  that really dropped a platform or its editor stays visible there until its maintainer acts.
 - Each index entry names, per platform and for the editor, the package, its size and its integrity.
   `kition` downloads that package from whichever registry answers and refuses it unless its bytes
   have that size and integrity, and its `package.json` names that package and version.

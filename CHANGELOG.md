@@ -4,6 +4,11 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit index holds back a version still being published**: a kit's packages reach npm one
+  after another, and an index gathered in between listed Layout 0.1.4 without its editor, so
+  `kition kit install layout` took it over 0.1.3, which has one. A version that lacks a platform or
+  editor package the kit's highest listed lower version has is no longer listed; the gatherer's
+  report names it (regressions/issue-kits-index-unfinished-version).
 - **Undo passes over a group whose changes came to nothing** (`kition-kdm`): an undo group whose
   edits cancel out (Enter then Backspace, a value written and written back) was, since the replica
   keeps its own undo steps, a step whose undo changed nothing, and the typing before it stayed for

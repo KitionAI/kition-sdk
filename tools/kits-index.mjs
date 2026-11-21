@@ -15,7 +15,8 @@
 //             names each kit
 // --registry  the npm registry read (default https://registry.npmjs.org/)
 // --out       where the index goes
-// --previous  the index published now: the report names the archives that enter or leave, and a
+// --previous  the index published now: the report names the archives that enter or leave (a
+//             version listed there and held back now leaves), and a
 //             package listed there with the same integrity keeps its size (the registry gives a
 //             tarball's size only to a HEAD request of it, or to a one-byte range)
 // --package   with --version, also writes the folder of the package @kition/kits-index at that
@@ -31,6 +32,13 @@
 // - A version is listed when it has a headless package for at least one platform; its editor
 //   package (`ui`) when it has one. An editor package of a version without a headless one is named
 //   in the report and left out.
+// - A version still being published is held back: a kit's Package workflow publishes a version's
+//   packages one after another, and npm shows each a little later. A version that lacks a package
+//   (a platform, or `ui`) which the kit's highest listed lower version has is not listed, and the
+//   report names it (`held <kit> <version>: still being published ...`); the next version is
+//   compared with that same listed one. A kit's first version, and one with the same packages or
+//   more, is listed. Holding a version is not an error: a kit that really dropped a platform or its
+//   editor shows in the report until a maintainer acts.
 // - Every package of a version must say the same kit, id, name, protocol and extensions in its
 //   `kition` field, be the role and platform its name says, and have npm's sha512 integrity; any
 //   that does not stops the run. So does a registry answer other than the metadata or a 404 (a
@@ -280,15 +288,21 @@ function sizesOf(previous) {
   return sizes
 }
 
+/** The packages of a gathered version: its platforms, sorted, then `ui` when it has an editor. */
+const partsOf = ({ platforms, ui }) => [...Object.keys(platforms).sort(), ...(ui ? ['ui'] : [])]
+
 /**
  * The kit index gathered from the registry's metadata of each kit's packages, and a report:
- * `{ index, report: [{ kit, versions, editors, uiOnly }] }`.
+ * `{ index, report: [{ kit, versions, editors, uiOnly }], held: [{ kit, version, preceding, missing }] }`.
+ * `held` names the versions still being published, left out of the index: each lacks the packages
+ * `missing` (platforms, `ui`) that `preceding`, the kit's highest listed lower version, has.
  */
 export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null }) {
   const base = registry.endsWith('/') ? registry : `${registry}/`
   const previousSizes = sizesOf(previous)
   const index = { schemaVersion: SCHEMA_VERSION, kits: {} }
   const report = []
+  const held = []
   for (const kit of kits) {
     /** version → { kition, platforms, ui } */
     const versions = new Map()
@@ -314,8 +328,16 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
         else found.platforms[part] = sized
       }
     }
-    const listed = [...versions.keys()].filter((version) => Object.keys(versions.get(version).platforms).length).sort(compareVersions)
-    const uiOnly = [...versions.keys()].filter((version) => !listed.includes(version)).sort(compareVersions)
+    const headless = [...versions.keys()].filter((version) => Object.keys(versions.get(version).platforms).length).sort(compareVersions)
+    const uiOnly = [...versions.keys()].filter((version) => !headless.includes(version)).sort(compareVersions)
+    // A version still being published: it lacks a package the highest listed lower version has.
+    const listed = []
+    for (const version of headless) {
+      const preceding = listed[listed.length - 1]
+      const missing = preceding ? partsOf(versions.get(preceding)).filter((part) => !partsOf(versions.get(version)).includes(part)) : []
+      if (missing.length) held.push({ kit, version, preceding, missing })
+      else listed.push(version)
+    }
     report.push({ kit, versions: listed, editors: listed.filter((version) => versions.get(version).ui), uiOnly })
     if (!listed.length) continue
     const newest = versions.get(listed[listed.length - 1]).kition
@@ -334,7 +356,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
   }
   const problems = schemaProblems(ordered(index))
   if (problems.length) throw new Error(`the gathered index is not a kit index:\n  ${problems.join('\n  ')}`)
-  return { index: ordered(index), report }
+  return { index: ordered(index), report, held }
 }
 
 /** `<kit> <version> <platform>` lines of every package in `index`. */
@@ -351,13 +373,17 @@ export function compareIndexes(previous, index) {
 }
 
 /** The report as text lines. */
-export function reportLines({ index, report }, previous) {
+export function reportLines({ index, report, held }, previous) {
   const lines = []
   for (const { kit, versions, editors, uiOnly } of report) {
     lines.push(`${kit}: ${versions.length ? versions.join(', ') : 'no version'}`)
     const without = versions.filter((version) => !editors.includes(version))
     if (versions.length && without.length) lines.push(`  no editor package: ${without.join(', ')}`)
     if (uiOnly.length) lines.push(`  an editor package without a headless one, left out: ${uiOnly.join(', ')}`)
+    for (const { version, preceding, missing } of held.filter((entry) => entry.kit === kit)) {
+      const many = missing.length > 1
+      lines.push(`  held ${kit} ${version}: still being published (no ${missing.join(', ')} package${many ? 's' : ''}; ${preceding} has ${many ? 'them' : 'one'})`)
+    }
   }
   const kits = Object.keys(index.kits)
   lines.push(

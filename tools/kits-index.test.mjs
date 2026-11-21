@@ -148,6 +148,75 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     expect(lines).toContain('  an editor package without a headless one, left out: 0.2.0')
   })
 
+  it('holds back a version still being published: one that lacks a package the highest listed lower version has', async () => {
+    // What npm showed on 2026-11-21: Layout 0.1.4's five platform packages, not yet its editor.
+    const unfinished = fakeRegistry({ layout: { '0.1.3': {}, '0.1.4': { ui: false, name: 'Layout 4' } } })
+    const gathered = await gatherIndex({ kits: ['layout'], net: unfinished.net })
+    expect(Object.keys(gathered.index.kits.layout.versions)).toEqual(['0.1.3'])
+    expect(gathered.index.kits.layout.versions['0.1.3'].ui.package).toBe('@kition/kit-layout-ui')
+    expect(gathered.index.kits.layout.name).toBe('Layout')
+    expect(gathered.held).toEqual([{ kit: 'layout', version: '0.1.4', preceding: '0.1.3', missing: ['ui'] }])
+    expect(reportLines(gathered)).toContain('  held layout 0.1.4: still being published (no ui package; 0.1.3 has one)')
+    expect(reportLines(gathered)).toContain('layout: 0.1.3')
+    // The editor arrives: the version is listed with it.
+    const finished = fakeRegistry({ layout: { '0.1.3': {}, '0.1.4': {} } })
+    const done = await gatherIndex({ kits: ['layout'], net: finished.net })
+    expect(Object.keys(done.index.kits.layout.versions)).toEqual(['0.1.3', '0.1.4'])
+    expect(done.held).toEqual([])
+    expect(reportLines(done).some((line) => line.includes('held'))).toBe(false)
+
+    // Some platforms only; the next version is compared with the same listed one (0.1.3), not
+    // with the held 0.1.4; one with more packages than the one before is listed.
+    const partial = fakeRegistry({
+      layout: {
+        '0.1.3': {},
+        '0.1.4': { platforms: ['darwin-arm64', 'linux-x64'] },
+        '0.1.5': { platforms: PLATFORMS.filter((platform) => platform !== 'win32-x64') },
+        '0.1.6': {},
+      },
+      table: {
+        '0.5.6': { platforms: ['linux-x64'], ui: false },
+        '0.5.7': { platforms: ['linux-x64', 'darwin-arm64'], ui: false },
+        '0.5.8': {},
+        '0.5.9': { ui: false, platforms: ['linux-x64'] },
+      },
+    })
+    const held = await gatherIndex({ kits: ['layout', 'table'], net: partial.net })
+    expect(Object.keys(held.index.kits.layout.versions)).toEqual(['0.1.3', '0.1.6'])
+    expect(Object.keys(held.index.kits.table.versions)).toEqual(['0.5.6', '0.5.7', '0.5.8'])
+    const missing = PLATFORMS.filter((platform) => !['darwin-arm64', 'linux-x64'].includes(platform)).sort()
+    expect(held.held).toEqual([
+      { kit: 'layout', version: '0.1.4', preceding: '0.1.3', missing },
+      { kit: 'layout', version: '0.1.5', preceding: '0.1.3', missing: ['win32-x64'] },
+      { kit: 'table', version: '0.5.9', preceding: '0.5.8', missing: [...PLATFORMS.filter((platform) => platform !== 'linux-x64').sort(), 'ui'] },
+    ])
+    const lines = reportLines(held)
+    expect(lines).toContain(`  held layout 0.1.4: still being published (no ${missing.join(', ')} packages; 0.1.3 has them)`)
+    expect(lines).toContain('  held layout 0.1.5: still being published (no win32-x64 package; 0.1.3 has one)')
+    expect(lines).toContain('  no editor package: 0.5.6, 0.5.7')
+    expect(held.report.find(({ kit }) => kit === 'table').versions).toEqual(['0.5.6', '0.5.7', '0.5.8'])
+  })
+
+  it('holds back a version still being published without failing the command line, and names what leaves the previous index', async () => {
+    const dir = tempDir()
+    const modules = path.join(dir, 'modules.json')
+    fs.writeFileSync(modules, JSON.stringify({ layout: { repository: 'KitionAI/kition-layout' } }))
+    // The index published on 2026-11-21 (0.1.3) listed Layout 0.1.4 without an editor.
+    const previous = path.join(dir, 'previous.json')
+    const before = await gatherIndex({ kits: ['layout'], net: fakeRegistry({ layout: { '0.1.4': { ui: false } } }).net })
+    const early = await gatherIndex({ kits: ['layout'], net: fakeRegistry({ layout: { '0.1.3': {} } }).net })
+    fs.writeFileSync(previous, serialize({ ...early.index, kits: { layout: { ...early.index.kits.layout, versions: { ...early.index.kits.layout.versions, ...before.index.kits.layout.versions } } } }))
+    const { net } = fakeRegistry({ layout: { '0.1.3': {}, '0.1.4': { ui: false } } })
+    const out = path.join(dir, 'kits-index.json')
+    const lines = { out: '', err: '' }
+    expect(await main(['--modules', modules, '--out', out, '--previous', previous], { net, out: (text) => (lines.out += text), err: (text) => (lines.err += text) })).toBe(0)
+    expect(lines.err).toBe('')
+    expect(lines.out).toContain('  held layout 0.1.4: still being published (no ui package; 0.1.3 has one)')
+    expect(lines.out).toContain(`compared with the previous index: 0 packages enter, ${PLATFORMS.length} leave`)
+    expect(lines.out).toContain('  - layout 0.1.4 linux-x64')
+    expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).kits.layout.versions)).toEqual(['0.1.3'])
+  })
+
   it('stops on a package whose kition field disagrees with its name or with the other packages of its version, or has no sha512 integrity', async () => {
     const cases = [
       [(name, version, manifest) => name.endsWith('linux-x64') && (manifest.kition.protocol = 'kition-kit/9'), /says protocol/],

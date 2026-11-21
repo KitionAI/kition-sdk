@@ -1,0 +1,28 @@
+format: 1
+id: regressions/issue-kits-index-unfinished-version
+feature: sdk.distribution.kits-index
+intent: >-
+  A kit's Package workflow publishes the six packages of a version one after another over several
+  minutes, and npm shows each a little later. The kits-index workflow ran while Layout 0.1.4 had its
+  five platform packages on npm but not yet its editor (2026-11-21): index 0.1.3 listed Layout 0.1.4
+  without an editor, and `kition kit install layout` took 0.1.4 and said kition gateway cannot show
+  its editor, although 0.1.3 with an editor was listed. The gatherer now holds back a version that
+  lacks a package (the editor, or a platform) the kit's highest listed lower version has: it is not
+  listed, the next version is compared with the same lower one, and the report names it ("held
+  layout 0.1.4: still being published (no ui package; 0.1.3 has one)"). A kit's first version, and
+  a version with the same packages or more, is listed as before; holding a version is not an error.
+layer: gate
+source:
+  kind: probe
+  from: tools/kits-index.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kits-index.test.mjs, -t, "still being published"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 300
