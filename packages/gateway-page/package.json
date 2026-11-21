@@ -19,6 +19,18 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/gateway-page"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/gateway-page#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "gateway",
+    "editor",
+    "postmessage"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

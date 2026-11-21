@@ -27,6 +27,19 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/extensions"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/extensions#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "extensions",
+    "sandbox",
+    "plugins",
+    "object-model"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

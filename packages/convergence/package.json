@@ -23,6 +23,19 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/convergence"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/convergence#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "convergence",
+    "crdt",
+    "testing",
+    "kdm"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

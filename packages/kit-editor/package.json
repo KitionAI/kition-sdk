@@ -29,6 +29,18 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/kit-editor"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/kit-editor#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "kit-ui",
+    "editor",
+    "react"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

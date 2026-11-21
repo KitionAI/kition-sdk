@@ -15,6 +15,18 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/kit-ui-protocol"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/kit-ui-protocol#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "kit-ui",
+    "protocol",
+    "json-rpc"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

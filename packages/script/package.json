@@ -43,6 +43,18 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/script"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/script#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "scripting",
+    "object-model",
+    "automation"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

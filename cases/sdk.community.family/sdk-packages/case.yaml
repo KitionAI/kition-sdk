@@ -1,0 +1,25 @@
+format: 1
+id: sdk.community.family/sdk-packages
+feature: sdk.community.family
+intent: >-
+  Every SDK package introduces itself on npm: a README that starts with the package's name and what
+  it is, has only absolute links, and ends with the tail tools/kition-family.mjs generates ("Part of
+  the Kition SDK", the family with the package's product in bold, the license), as the tool renders
+  it; and a package.json with a description, the repository with its directory, a homepage, bugs,
+  the license and keywords.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/public-packages.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/public-packages.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 60

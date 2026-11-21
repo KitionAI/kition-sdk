@@ -25,6 +25,10 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/kition"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/kition#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
   "keywords": ["kition", "cli", "mcp", "model-context-protocol", "khp", "agent", "markdown"],
   "types": "./dist/index.d.ts",
   "publishConfig": {

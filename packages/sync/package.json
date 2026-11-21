@@ -25,6 +25,19 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/sync"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/sync#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "sync",
+    "websocket",
+    "collaboration",
+    "kdm"
+  ],
   "types": "./dist/index.d.ts",
   "publishConfig": {
     "access": "public",

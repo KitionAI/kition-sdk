@@ -18,6 +18,18 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/kit-host"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/kit-host#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "kit-ui",
+    "iframe",
+    "host"
+  ],
   "types": "./dist/types/src/index.d.ts",
   "publishConfig": {
     "access": "public",

@@ -26,6 +26,19 @@
     "url": "git+https://github.com/KitionAI/kition-sdk.git",
     "directory": "packages/kdm"
   },
+  "homepage": "https://github.com/KitionAI/kition-sdk/tree/main/packages/kdm#readme",
+  "bugs": {
+    "url": "https://github.com/KitionAI/kition-sdk/issues"
+  },
+  "keywords": [
+    "kition",
+    "kit",
+    "khp",
+    "kdm",
+    "crdt",
+    "document-model",
+    "collaboration"
+  ],
   "types": "./dist/index.d.ts",
   "publishConfig": {
     "access": "public",
