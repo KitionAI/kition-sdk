@@ -2,7 +2,7 @@
 
 `@kition/dsh-kits` is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin
 (a bundle) for the 16 Kition kits: Note, for Markdown notes; Table, for `.ktable` tables; Board,
-for whiteboards; Doc, for Word documents; Sheet, for spreadsheets; Slide, for presentations; PDF;
+for whiteboards; Doc, for word-processing documents (`.docx`); Sheet, for spreadsheets; Slide, for presentations; PDF;
 HTML, for `.html` pages; Photo, for layered images; Vector, for vector drawings; Layout, for page
 layouts; Design, for interface designs; Film, for video projects; Motion, for motion graphics; CAD,
 for `.dxf` drawings; and Scene, for 3D scenes. A kit's file opens in the kit's own editor in
@@ -120,7 +120,7 @@ npm pack ./plugins/deepseek-harness/kition-kits        # kition-dsh-kits-<versio
 `dsh plugin` needs `pnpm` on the `PATH`. Install into the profile you run, `web` for the browser UI:
 
 ```sh
-dsh plugin --profile web add @kition/dsh-kits          # or ./kition-dsh-kits-<version>.tgz
+dsh plugin --profile web add ./kition-dsh-kits-<version>.tgz   # by name, @kition/dsh-kits, after the package is published
 ```
 
 `dsh plugin` creates a profile it does not know with DeepSeek Harness's base bundle only, which has
@@ -138,21 +138,23 @@ Restart a running profile after adding the plugin. `dsh plugin --profile <profil
 the agents the tools and the skills.
 
 **DeepSeek Harness Desktop.** Its profile, `desktop`, takes plugins only through the app's Plugins
-page or its own command line (the npm `dsh` refuses it). On the Plugins page, **Add plugin**, type
-`@kition/dsh-kits`, **Install**, then **Enable now**, and start the app again. The page installs
-from the registry it shows (by default a mirror of npm in mainland China, which copies new npm
-versions within minutes). Or quit the app, then:
+page or its own command line (the npm `dsh` refuses it). Quit the app, then:
 
 ```sh
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add @kition/dsh-kits
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add ./kition-dsh-kits-<version>.tgz
 ```
 
-and start the app again (a `.tgz` works there too).
+and start the app again. After the package is published, the Plugins page installs it by name:
+**Add plugin**, type `@kition/dsh-kits`, **Install**, then **Enable now**, and start the app
+again; the page installs from the registry it shows (by default a mirror of npm in mainland China,
+which copies new npm versions within minutes), and its own command line takes the name in place of
+the `.tgz`.
 
 **A folder.** `dsh plugin add <folder>` and the Plugins page's local folder link the folder as it
 is: neither installs its dependencies (pnpm `add <folder>`, seen on 0.2.2-rc.5 and Desktop's
 0.2.2-rc.2), so the plugin has no kition of its own until you run `npm install --omit=dev` in the
-folder; a tab says so. It is for a checkout; add the plugin by name or `.tgz` otherwise.
+folder; a tab says so. It is for a checkout; add the plugin's `.tgz` otherwise (or, once it is
+published, its name).
 
 ## Settings
 

@@ -1,5 +1,11 @@
 # Distribution: the SDK release and its bundles
 
+> The per-platform SDK bundle is being retired as the way customers get the kits. Get them with
+> `kition` and the kit store instead: `npm install -g @kition/cli`, then `kition kit install
+> <kit>` ([cli.md](cli.md)); the kits and the kit index are on npm
+> ([below](#kit-packages-and-the-kit-index)). This page describes what the release workflow
+> produces today, the bundle included.
+
 Each Kition SDK version is the same version of every public `@kition/*` package and of `kition`
 on npm, and a GitHub Release of
 [KitionAI/kition-sdk](https://github.com/KitionAI/kition-sdk/releases), tagged
@@ -64,7 +70,8 @@ as `bin/kition` (`bin/kition.exe` on Windows); `kition --version` names its vers
 package `@kition/cli`, which depends on every one of them as an optional dependency, gives the
 `kition` command that starts it (`npm install -g @kition/cli`, `npx -y @kition/cli <command>`;
 [cli.md](cli.md#installing-it)). The DeepSeek Harness plugin `@kition/dsh-kits` depends on
-`@kition/cli` at its own version, so installing it brings that `kition`, which it starts directly. The executables a release ships, `kition` among them,
+`@kition/cli` at its own version, so installing it brings that `kition`, which it starts directly
+(the plugin is not on npm yet; its README says how to install it from a kition-sdk checkout). The executables a release ships, `kition` among them,
 are built with the workspace's `dist` profile (LTO, one code unit, symbols stripped).
 
 Without Node.js, `install.sh` and `install.ps1` install the same `kition`: they read the metadata of
