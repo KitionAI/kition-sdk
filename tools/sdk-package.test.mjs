@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { isPackageManagerFile, LOCKFILES, migrateFolder, migrateManifest, migrateText, packageManagerNotes } from './migrate-to-sdk.mjs'
+import { formatReport, isPackageManagerFile, LOCKFILES, mentionsLeft, migrateCase, migrateFolder, migrateManifest, migrateText, migrateTsv, packageManagerNotes } from './migrate-to-sdk.mjs'
 import { BINS, CLIENT_NAMES, OLD_TESSERA, PARTS, SDK, TESSERA, editorWorkerProblems, manifestOf, oldNamesIn, renameOldNames, sdkBin, sdkExports, sdkSideEffects, sdkSpecifier, subpaths, tesseraImport, tesseraSpecifier } from './sdk-package.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -383,6 +383,137 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(notes[5].text).toContain("a path into kition-sdk's packages/kit-dev-host/src/modeSmoke.mjs: import @kition/sdk/dev-host/mode-smoke instead")
     expect(notes[6].text).toContain('import @kition/sdk/dev-host/check-ui-ids instead')
     expect(notes[7].text).toContain("a path into kition-sdk's packages/kit-engine")
+  })
+
+  it('rewrites specifiers dynamic loaders take (a dev server\'s ssrLoadModule, createRequire\'s and a plugin\'s resolve, a runner\'s import, jiti, import() with a comment); lists <old>/package.json', () => {
+    // kition-layout's web/tests/collab.mjs before its move (ea0050f0^), and the other loaders' forms.
+    const source = [
+      "const { SyncClient, startRelay, SyncRpcError } = await vite.ssrLoadModule('@kition/sync')",
+      "const { LORO_REPLICA_VERSIONS: versions } = await vite.ssrLoadModule('@kition/sync/replicaVersions')",
+      'const editor = await server.ssrLoadModule("@kition/kit-editor")',
+      "const smoke = createRequire(import.meta.url).resolve('@kition/kit-dev-host/mode-smoke')",
+      "const kdm = await import(/* @vite-ignore */ '@kition/kdm')",
+      "const id = await this.resolve('@kition/sync', importer)",
+      "const sync = await runner.import('@kition/sync')",
+      "const loaded = jiti('@kition/kit-engine')",
+      "const manifest = require.resolve('@kition/kit-engine/package.json')",
+      "const label = '@kition/kdm'",
+    ].join('\n')
+    const { text, changes, notes } = migrateText(source)
+    expect(text.split('\n')).toEqual([
+      "const { SyncClient, startRelay, SyncRpcError } = await vite.ssrLoadModule('@kition/sdk/sync')",
+      "const { LORO_REPLICA_VERSIONS: versions } = await vite.ssrLoadModule('@kition/sdk/sync/replicaVersions')",
+      'const editor = await server.ssrLoadModule("@kition/sdk/editor")',
+      "const smoke = createRequire(import.meta.url).resolve('@kition/sdk/dev-host/mode-smoke')",
+      "const kdm = await import(/* @vite-ignore */ '@kition/sdk/kdm')",
+      "const id = await this.resolve('@kition/sdk/sync', importer)",
+      "const sync = await runner.import('@kition/sdk/sync')",
+      "const loaded = jiti('@kition/sdk/engine')",
+      "const manifest = require.resolve('@kition/kit-engine/package.json')",
+      "const label = '@kition/kdm'",
+    ])
+    expect(changes).toHaveLength(8)
+    expect(notes).toEqual([
+      { line: 9, text: '@kition/kit-engine/package.json: @kition/sdk exports no package.json; resolve one of its subpaths (@kition/sdk/engine) or read packages/sdk/package.json by hand' },
+      { line: 10, text: "@kition/kdm is named here as something other than an import (const label = '@kition/kdm'); change it by hand: the package is @kition/sdk, this subpath @kition/sdk/kdm" },
+    ])
+  })
+
+  it('rewrites old names in a .tsv catalog\'s comments and lists them in its data', () => {
+    // kition-cad's web/src/i18n/upstream/uk.tsv before its move (8618050e^).
+    const catalog = [
+      '# UTF-8: (empty)<TAB>English source<TAB>Ukrainian translation. The first column is ignored by',
+      "# this kit's loader (@kition/kit-editor's loadPhrases); it is kept empty so the catalog keeps its",
+      '# three-column form, as @kition/kit-dev-host/mode-smoke.',
+      '\t  Cancel  \tСкасувати',
+      '\tOpened by @kition/kit-editor\tВідкрито @kition/kit-editor',
+      '',
+    ].join('\n')
+    const { text, changes, notes } = migrateTsv(catalog)
+    expect(text.split('\n')).toEqual([
+      '# UTF-8: (empty)<TAB>English source<TAB>Ukrainian translation. The first column is ignored by',
+      "# this kit's loader (@kition/sdk/editor's loadPhrases); it is kept empty so the catalog keeps its",
+      '# three-column form, as @kition/sdk/dev-host/mode-smoke.',
+      '\t  Cancel  \tСкасувати',
+      '\tOpened by @kition/kit-editor\tВідкрито @kition/kit-editor',
+      '',
+    ])
+    expect(changes).toEqual([{ from: '@kition/kit-editor', to: '@kition/sdk/editor' }, { from: '@kition/kit-dev-host/mode-smoke', to: '@kition/sdk/dev-host/mode-smoke' }])
+    expect(notes).toEqual([{ line: 5, text: "@kition/kit-editor -> @kition/sdk/editor in the catalog's data (a source string or a translation): change it by hand if it names the package (Opened by @kition/kit-editor\tВідкрито @kition/kit-editor)" }])
+  })
+
+  it('rewrites old names in a case.yaml\'s intent and lists them in its protected fields', () => {
+    // kition-layout's cases/regressions/issue-published-editor-shim/case.yaml before its move (ea0050f0^).
+    const kase = [
+      'format: 1',
+      'id: regressions/issue-published-editor-shim',
+      'intent: >-',
+      '  The development page opens the editor on the published @kition/kit-editor installed from',
+      '  npm, with the CommonJS shim that @kition/kit-editor/styles.css. reaches.',
+      'layer: gate',
+      'steps:',
+      "  - exec: { cmd: [node, -e, \"import('@kition/kit-editor')\"] }",
+      'expected:',
+      '  - actual: out:exec',
+      '',
+    ].join('\n')
+    const { text, changes, notes } = migrateCase(kase)
+    expect(text.split('\n').slice(3, 5)).toEqual([
+      '  The development page opens the editor on the published @kition/sdk/editor installed from',
+      '  npm, with the CommonJS shim that @kition/sdk/editor/styles.css. reaches.',
+    ])
+    expect(text.split('\n').slice(5)).toEqual(kase.split('\n').slice(5))
+    expect(changes).toEqual([{ from: '@kition/kit-editor', to: '@kition/sdk/editor' }, { from: '@kition/kit-editor/styles.css', to: '@kition/sdk/editor/styles.css' }])
+    expect(notes).toEqual([{ line: 8, text: "@kition/kit-editor -> @kition/sdk/editor in the case's steps: a case's steps, input and expected results are protected, so only a maintainer changes them (- exec: { cmd: [node, -e, \"import('@kition/kit-editor')\"] })" }])
+  })
+
+  it('lists the mentions left in text files it does not rewrite, in the folder and in the repository around it, without failing --check for them', () => {
+    // A kit repository as kition-cad was before its move: web/ is migrated; AGENTS.md, docs/ and
+    // cases/ are outside it.
+    const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-to-sdk-repo-')))
+    scratch.push(repo)
+    const write = (file, text) => {
+      fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+      fs.writeFileSync(path.join(repo, file), text)
+    }
+    fs.mkdirSync(path.join(repo, '.git'))
+    write('AGENTS.md', "- `web/` is a React app on `@kition/kit-editor` (kition-sdk's\n")
+    write('docs/development.md', 'Links @kition/kdm, @kition/kit-editor and @kition/kit-engine.\n')
+    write('cases/x/case.yaml', 'intent: >-\n  relayed by @kition/sync\n')
+    write('golden_docs/a.md', '@kition/kit-editor\n')
+    write('target/b.md', '@kition/kit-editor\n')
+    write('web/package.json', `${JSON.stringify({ name: 'web', dependencies: { '@kition/kit-editor': '0.1.0' } }, null, 2)}\n`)
+    write('web/src/main.tsx', "import { mountEditor } from '@kition/kit-editor'\n")
+    write('web/src/i18n/uk.tsv', "# this kit's loader (@kition/kit-editor's loadPhrases)\n")
+    write('web/cases/y/case.yaml', 'intent: >-\n  on @kition/kit-editor\nsteps: []\n')
+    write('web/README.md', 'Built on @kition/kit-editor.\n')
+    write('web/fixtures/note.json', '{ "by": "@kition\\/kdm" }\n')
+    write('web/pnpm-lock.yaml', "'@kition/kit-editor': 0.1.0\n")
+    fs.writeFileSync(path.join(repo, 'web/logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0x40, ...Buffer.from('@kition/kit-editor')]))
+    const web = path.join(repo, 'web')
+    const where = (list) => list.map(({ file, line }) => `${path.relative(repo, file)}:${line}`).sort()
+    expect(where(mentionsLeft(web))).toEqual(['AGENTS.md:1', 'cases/x/case.yaml:2', 'docs/development.md:1', 'web/README.md:1', 'web/fixtures/note.json:1'])
+    expect(where(mentionsLeft(web, { repo: false }))).toEqual(['web/README.md:1', 'web/fixtures/note.json:1'])
+    expect(mentionsLeft(web).find(({ file }) => file.endsWith('development.md')).text).toBe('@kition/kdm -> @kition/sdk/kdm, @kition/kit-editor -> @kition/sdk/editor, @kition/kit-engine -> @kition/sdk/engine (Links @kition/kdm, @kition/kit-editor and @kition/kit-engine.)')
+    expect(mentionsLeft(web).find(({ file }) => file.endsWith('note.json')).text).toContain('@kition\\/kdm -> @kition/sdk/kdm')
+    const tool = path.join(root, 'tools/migrate-to-sdk.mjs')
+    const checked = spawnSync(process.execPath, [tool, web, '--check'], { encoding: 'utf8', cwd: repo })
+    expect(checked.status).toBe(1)
+    expect(checked.stdout).toContain('4 file(s) would change, 0 place(s) need a person, 5 mention(s) left')
+    expect(checked.stdout).toMatch(/\nmentions left \(text files not rewritten; change them by hand where they mean the package\): 5 line\(s\)\n {2}web\/README\.md:1: @kition\/kit-editor -> @kition\/sdk\/editor \(Built on @kition\/kit-editor\.\)\n/)
+    expect(checked.stdout).toContain('\n  AGENTS.md:1: @kition/kit-editor -> @kition/sdk/editor (')
+    expect(spawnSync(process.execPath, [tool, web, '--check', '--no-repo'], { encoding: 'utf8', cwd: repo }).stdout).toContain('2 mention(s) left')
+    const written = spawnSync(process.execPath, [tool, web], { encoding: 'utf8', cwd: repo })
+    expect(written.status, written.stderr).toBe(0)
+    expect(fs.readFileSync(path.join(web, 'src/i18n/uk.tsv'), 'utf8')).toBe("# this kit's loader (@kition/sdk/editor's loadPhrases)\n")
+    expect(fs.readFileSync(path.join(web, 'cases/y/case.yaml'), 'utf8')).toBe('intent: >-\n  on @kition/sdk/editor\nsteps: []\n')
+    expect(fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8')).toContain('@kition/kit-editor')
+    expect(fs.readFileSync(path.join(web, 'pnpm-lock.yaml'), 'utf8')).toContain('@kition/kit-editor')
+    // Only the mentions are left: --check passes, and still names them.
+    const after = spawnSync(process.execPath, [tool, web, '--check'], { encoding: 'utf8', cwd: repo })
+    expect(after.status, after.stdout).toBe(0)
+    expect(after.stdout).toContain('0 file(s) would change, 0 place(s) need a person, 5 mention(s) left')
+    expect(formatReport([], { mentions: [] }).text).toContain('mentions left (text files not rewritten; change them by hand where they mean the package): 0 line(s)')
   })
 
   it('puts @kition/sdk and @kition/tessera in sorted position and keeps the other keys in their order', () => {

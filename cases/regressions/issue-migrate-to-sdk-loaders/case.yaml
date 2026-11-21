@@ -1,0 +1,31 @@
+format: 1
+id: regressions/issue-migrate-to-sdk-loaders
+feature: sdk.packages.one-package
+intent: >-
+  Moving seven kits to @kition/sdk (2026-11-21) found what tools/migrate-to-sdk.mjs left to a
+  person or never read: the module a dev server loads (kition-layout's tests/collab.mjs,
+  vite.ssrLoadModule('@kition/sync')), a .tsv catalog's comment naming the editor's package
+  (kition-cad's uk.tsv), the intents of cases/**/case.yaml, and the kits' AGENTS.md and docs. Now
+  a specifier passed to ssrLoadModule, ssrImport, loadModule, importModule, a runner's import, any
+  .resolve() (createRequire's, a plugin's this.resolve), jiti() or import() with a comment before
+  it is rewritten like an import; <old>/package.json is listed (@kition/sdk exports none); a .tsv's
+  comment lines and a case.yaml's intent are rewritten, its data lines and other fields (steps,
+  input, expected are protected) listed; and every other text file naming an old package, under
+  the folder and in the git repository around it (read only), is listed as "mentions left" with
+  file:line and the replacement, which does not change --check's exit.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/sdk-package.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sdk-package.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

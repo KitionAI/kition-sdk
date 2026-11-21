@@ -6,9 +6,12 @@
 //
 // - In code, styles and pages (.js .jsx .mjs .cjs .ts .tsx .mts .cts .vue .svelte .css .scss .less
 //   .html): every module specifier that is one of the old names or a subpath of one becomes its
-//   @kition/sdk subpath: `from '...'`, `import '...'`, import(), require(), require.resolve(),
-//   import.meta.resolve(), a test runner's vi.*()/jest.*(), `declare module '...'`, and CSS's
-//   @import, @use and @forward.
+//   @kition/sdk subpath: `from '...'`, `import '...'`, import() (also with a comment before the
+//   string, import(/* @vite-ignore */ '...')), require(), require.resolve(), import.meta.resolve(),
+//   any <x>.resolve() (createRequire(...).resolve(), a Vite plugin's this.resolve()), a dev server's
+//   or module runner's <x>.ssrLoadModule(), .ssrImport(), .loadModule(), .importModule() and
+//   .import(), jiti(), a test runner's vi.*()/jest.*(), `declare module '...'`, and CSS's @import,
+//   @use and @forward. `<old>/package.json` is listed instead: @kition/sdk exports no package.json.
 // - Package-name lists (a bundler config's exclude, include, dedupe, noExternal and external arrays
 //   of plain strings): an old package name becomes the package @kition/sdk (a package name names
 //   the package, not a subpath), once per list; a Vite nested dependency such as
@@ -42,14 +45,28 @@
 //   replace the entry a project has already (a project moved before, now pointed at a rehearsal).
 //   --tessera-spec adds @kition/tessera for the editor even when Tessera's old packages are there
 //   (still with the note: migrate-to-tessera.mjs then drops them and keeps this entry).
+// - A .tsv file (a phrase catalog): an old name in a comment line (# ...) becomes its @kition/sdk
+//   subpath (`@kition/kit-editor's loadPhrases` -> `@kition/sdk/editor's loadPhrases`); one in a
+//   data line (a source string or a translation) is listed for a person.
+// - A case.yaml (cases/**/case.yaml, a test case): an old name in its `intent` text becomes its
+//   @kition/sdk subpath; one anywhere else (steps, input, expected: protected, a maintainer changes
+//   them) is listed for a person.
+// - Mentions left: every other text file (Markdown, YAML, JSON, shell, Rust, ...) that names an old
+//   package in any spelling is listed, file:line and what replaces it, never rewritten: the ones
+//   under <folder>, and, when <folder> is inside a git repository (a kit's web/), the rest of that
+//   repository too (its AGENTS.md, docs/, cases/; read only, --no-repo skips it). The list does
+//   not change --check's exit.
 // - Lockfiles (pnpm-lock.yaml, package-lock.json, npm-shrinkwrap.json, yarn.lock, bun.lock,
 //   bun.lockb) are never touched: run the package manager's install afterwards. node_modules, .git
 //   and build output (dist, build, target, coverage, .next, .turbo) are skipped.
 //
-// The report ends with two lists: "changed" (each file and its rewrites) and "needs a person"
-// (file:line, what is there, what replaces it; lines are the file's as written). --check writes
-// nothing and exits 1 when either list has anything; without it, the files are written, both lists
-// printed, and the exit is 0.
+// The report ends with three lists: "changed" (each file and its rewrites), "needs a person"
+// (file:line, what is there, what replaces it; lines are the file's as written) and "mentions left"
+// (file:line in the text files it does not rewrite). --check writes nothing and exits 1 when either
+// of the first two has anything; without it, the files are written, the lists printed, and the exit
+// is 0.
+//
+//   node tools/migrate-to-sdk.mjs <folder> [--check] [--sdk-spec <spec>] [--tessera-spec <spec>] [--no-repo]
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -60,7 +77,15 @@ const SDK_MANIFEST = JSON.parse(fs.readFileSync(path.join(root, 'packages/sdk/pa
 
 export const LOCKFILES = ['pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'bun.lock', 'bun.lockb']
 const SKIPPED = new Set(['node_modules', '.git', 'dist', 'build', 'target', 'coverage', '.next', '.turbo', '.svelte-kit'])
+/** Folders never read, also for mentions: golden_* corpora stay as they are and are large. */
+const skippedFolder = (name) => SKIPPED.has(name) || name.startsWith('golden_')
 const SOURCES = /\.(?:[cm]?[jt]sx?|vue|svelte|css|scss|less|html)$/
+/** A phrase catalog: comment lines rewritten, data lines listed. */
+const TSV = /\.tsv$/
+/** A test case: its intent rewritten, the rest listed. */
+const isCaseFile = (name) => name === 'case.yaml'
+/** Larger files are not read for mentions; nor is one with a NUL byte (not text). */
+const MENTION_LIMIT = 2 * 1024 * 1024
 const SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 const OLD = new Set(PARTS.map((part) => part.name))
 
@@ -68,7 +93,7 @@ const OLD = new Set(PARTS.map((part) => part.name))
 export const isPackageManagerFile = (name) => /^(?:\.?pnpmfile\.[cm]?js|\.yarnrc\.yml)$/.test(name)
 
 /** Where a quoted string is a module specifier: the code before the quote ends with one of these. */
-const SPECIFIER_LEAD = /(?:\bfrom\s*|\bimport\s*|\b(?:import|require|require\.resolve|import\.meta\.resolve|(?:vi|jest)\.[A-Za-z]+)\s*\(\s*|\bdeclare\s+module\s+|@(?:import|use|forward)\s+(?:url\(\s*)?)$/
+const SPECIFIER_LEAD = /(?:\bfrom\s*|\bimport\s*|(?:\b(?:import|require|jiti|(?:vi|jest)\.[A-Za-z]+)|\.(?:resolve|ssrLoadModule|ssrImport|loadModule|importModule|import))\s*\(\s*(?:\/\*[^*]*\*\/\s*)*|\bdeclare\s+module\s+|@(?:import|use|forward)\s+(?:url\(\s*)?)$/
 
 /** The old packages' short names, which are also their folders under kition-sdk's packages/. */
 const SHORT = PARTS.map((part) => part.dir).sort((a, b) => b.length - a.length).join('|')
@@ -85,6 +110,27 @@ const PLAIN_ITEM = /^(\s*)(['"`])([^'"`]*)\2(\s*)$/
 const NESTED = /(['"`])(@kition\/[a-z0-9-]+)(\s*>\s*[^'"`]*)\1/g
 
 const lineAt = (text, offset) => text.slice(0, offset).split('\n').length
+
+/** An old name in prose with its subpath: @kition/<short>[/<path>] (a sentence's last dot is not the path's). */
+const OLD_PROSE = new RegExp(String.raw`@kition\/(?:${SHORT})(?![\w-])(?:\/[\w@-][\w.@-]*)*`, 'g')
+
+/** `line` with every old name in prose as its @kition/sdk subpath: { line, changes }. */
+function renameProse(line) {
+  const changes = []
+  const next = line.replace(OLD_PROSE, (whole) => {
+    const name = whole.replace(/\.+$/, '')
+    const to = sdkSpecifier(name)
+    changes.push({ from: name, to })
+    return `${to}${whole.slice(name.length)}`
+  })
+  return { line: next, changes }
+}
+
+/** What an old name in any spelling is now: `@kition/kit-editor -> @kition/sdk/editor` for each on the line. */
+function replacementsOn(line) {
+  const names = [...new Set([...line.matchAll(OLD_ANY)].map((match) => match[0]))]
+  return names.map((name) => `${name} -> ${sdkSpecifier(name.replace(/^@kition(?:\/|\\\/|\\\\\/)/, '@kition/'))}`)
+}
 
 /** What replaces a path into kition-sdk's packages/<dir><rest>: the @kition/sdk subpath of that file, or the package's. */
 function checkoutReplacement(dir, rest) {
@@ -156,7 +202,13 @@ export function migrateText(input) {
     const to = sdkSpecifier(specifier)
     if (!to) return whole
     const lineStart = source.lastIndexOf('\n', offset - 1) + 1
-    if (!SPECIFIER_LEAD.test(source.slice(Math.max(lineStart, offset - 80), offset))) {
+    if (specifier === `${packageOf(specifier)}/package.json`) {
+      const line = lineAt(source, offset)
+      notes.push({ line, text: `${specifier}: ${SDK} exports no package.json; resolve one of its subpaths (${to.replace(/\/package\.json$/, '')}) or read packages/sdk/package.json by hand` })
+      noted.add(line)
+      return whole
+    }
+    if (!SPECIFIER_LEAD.test(source.slice(Math.max(lineStart, offset - 120), offset))) {
       const line = lineAt(source, offset)
       const lineEnd = source.indexOf('\n', offset)
       notes.push({ line, text: `${specifier} is named here as something other than an import (${source.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim().slice(0, 120)}); change it by hand: the package is ${SDK}, this subpath ${to}` })
@@ -199,6 +251,51 @@ export function packageManagerNotes(text) {
     if (what.length) notes.push({ line: index + 1, text: `${what.join(' and ')} (${line.trim().slice(0, 120)}): link ${SDK} to kition-sdk's packages/sdk (one package for the twelve) and ${TESSERA} to kition-tessera's packages/tessera instead` })
   })
   return notes
+}
+
+/**
+ * A .tsv phrase catalog: old names in its comment lines (`# ...`) as their @kition/sdk subpaths;
+ * one in a data line is listed. { text, changes, notes }.
+ */
+export function migrateTsv(input) {
+  const changes = []
+  const notes = []
+  const lines = input.split('\n').map((line, index) => {
+    if (/^\s*#/.test(line)) {
+      const renamed = renameProse(line)
+      changes.push(...renamed.changes)
+      if ([...renamed.line.matchAll(OLD_ANY)].length) notes.push({ line: index + 1, text: `${replacementsOn(renamed.line).join(', ')} in a comment, in another spelling: change it by hand (${renamed.line.trim().slice(0, 120)})` })
+      return renamed.line
+    }
+    const found = replacementsOn(line)
+    if (found.length) notes.push({ line: index + 1, text: `${found.join(', ')} in the catalog's data (a source string or a translation): change it by hand if it names the package (${line.trim().slice(0, 120)})` })
+    return line
+  })
+  return { text: lines.join('\n'), changes, notes }
+}
+
+/**
+ * A test case (case.yaml): old names in its top-level `intent` as their @kition/sdk subpaths; one
+ * under any other key is listed, since a case's steps, input and expected results are protected.
+ * { text, changes, notes }.
+ */
+export function migrateCase(input) {
+  const changes = []
+  const notes = []
+  let key = null
+  const lines = input.split('\n').map((line, index) => {
+    const top = /^([A-Za-z_][\w-]*)\s*:/.exec(line)
+    if (top) key = top[1]
+    if (key === 'intent') {
+      const renamed = renameProse(line)
+      changes.push(...renamed.changes)
+      return renamed.line
+    }
+    const found = replacementsOn(line)
+    if (found.length) notes.push({ line: index + 1, text: `${found.join(', ')} in the case's ${key ?? 'text'}: a case's steps, input and expected results are protected, so only a maintainer changes them (${line.trim().slice(0, 120)})` })
+    return line
+  })
+  return { text: lines.join('\n'), changes, notes }
 }
 
 /** `deps` with `name` at `range` in sorted position: before the first key that sorts after it; the others keep their order. */
@@ -304,10 +401,61 @@ function* filesUnder(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (!SKIPPED.has(entry.name)) yield* filesUnder(path.join(dir, entry.name))
-    } else if (entry.isFile() && !LOCKFILES.includes(entry.name) && (entry.name === 'package.json' || isPackageManagerFile(entry.name) || SOURCES.test(entry.name))) {
+    } else if (entry.isFile() && handled(entry.name)) {
       yield path.join(dir, entry.name)
     }
   }
+}
+
+/** Whether `migrateFolder` reads (and may rewrite) a file of this name. */
+const handled = (name) => !LOCKFILES.includes(name) && (name === 'package.json' || isPackageManagerFile(name) || SOURCES.test(name) || TSV.test(name) || isCaseFile(name))
+
+/** Every file under `dir` but those in skipped folders and under `except`. */
+function* everyFile(dir, except) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name)
+    if (file === except) continue
+    if (entry.isDirectory()) {
+      if (!skippedFolder(entry.name)) yield* everyFile(file, except)
+    } else if (entry.isFile()) {
+      yield file
+    }
+  }
+}
+
+/** The root of the git repository holding `dir` (a folder above it with .git), or null; `dir` itself is not one. */
+function repositoryAbove(dir) {
+  for (let at = path.dirname(dir); ; at = path.dirname(at)) {
+    if (fs.existsSync(path.join(dir, '.git'))) return null
+    if (fs.existsSync(path.join(at, '.git'))) return at
+    if (path.dirname(at) === at) return null
+  }
+}
+
+/**
+ * Mentions left: every text file `migrateFolder` does not read (all but code, package.json, hooks,
+ * .tsv and case.yaml under `dir`; lockfiles never) that names an old package in any spelling, with
+ * the line and what replaces each name; with `repo`, also every text file of the git repository
+ * holding `dir` outside it (any kind: nothing there is rewritten). [{ file, line, text }].
+ */
+export function mentionsLeft(dir, { repo = true } = {}) {
+  dir = path.resolve(dir)
+  const mentions = []
+  const read = (file) => {
+    if (LOCKFILES.includes(path.basename(file))) return
+    const size = fs.statSync(file).size
+    if (!size || size > MENTION_LIMIT) return
+    const bytes = fs.readFileSync(file)
+    if (bytes.subarray(0, 8000).includes(0)) return
+    bytes.toString('utf8').split('\n').forEach((line, index) => {
+      const found = replacementsOn(line)
+      if (found.length) mentions.push({ file, line: index + 1, text: `${found.join(', ')} (${line.trim().slice(0, 120)})` })
+    })
+  }
+  for (const file of everyFile(dir)) if (!handled(path.basename(file))) read(file)
+  const root = repo ? repositoryAbove(dir) : null
+  if (root) for (const file of everyFile(root, dir)) read(file)
+  return mentions
 }
 
 /** Migrates every file under `dir` (writes nothing with `check`): [{ file, changes, notes }] of the files that change or need a person. */
@@ -333,7 +481,7 @@ export function migrateFolder(dir, { check = false, sdkSpec, tesseraSpec } = {})
       if (notes.length) report.push({ file, changes: [], notes })
       continue
     }
-    const migrated = migrateText(text)
+    const migrated = TSV.test(file) ? migrateTsv(text) : isCaseFile(path.basename(file)) ? migrateCase(text) : migrateText(text)
     if (!migrated.changes.length && !migrated.notes.length) continue
     if (!check && migrated.changes.length) fs.writeFileSync(file, migrated.text)
     report.push({ file, changes: migrated.changes, notes: migrated.notes })
@@ -342,7 +490,7 @@ export function migrateFolder(dir, { check = false, sdkSpec, tesseraSpec } = {})
 }
 
 /** The report's two lists, as printed: "changed" and "needs a person". */
-export function formatReport(report, { check = false, cwd = process.cwd() } = {}) {
+export function formatReport(report, { check = false, cwd = process.cwd(), mentions = [] } = {}) {
   const where = (file) => path.relative(cwd, file) || file
   const changed = report.filter(({ changes }) => changes.length)
   const people = report.flatMap(({ file, notes }) => notes.map((note) => ({ file, ...note })))
@@ -355,21 +503,25 @@ export function formatReport(report, { check = false, cwd = process.cwd() } = {}
   }
   out.push(`needs a person: ${people.length} place(s)`)
   for (const { file, line, text } of people) out.push(`  ${where(file)}${line ? `:${line}` : ''}: ${text}`)
-  out.push(`${changed.length} file(s) ${check ? 'would change' : 'changed'}, ${people.length} place(s) need a person${check || !changed.length ? '' : "; run the package manager's install (lockfiles were not touched)"}`)
-  return { text: `${out.join('\n')}\n`, changed: changed.length, people: people.length }
+  out.push(`mentions left (text files not rewritten; change them by hand where they mean the package): ${mentions.length} line(s)`)
+  for (const { file, line, text } of mentions) out.push(`  ${where(file)}:${line}: ${text}`)
+  out.push(`${changed.length} file(s) ${check ? 'would change' : 'changed'}, ${people.length} place(s) need a person, ${mentions.length} mention(s) left${check || !changed.length ? '' : "; run the package manager's install (lockfiles were not touched)"}`)
+  return { text: `${out.join('\n')}\n`, changed: changed.length, people: people.length, mentions: mentions.length }
 }
 
 function main(argv) {
   const usage = () => {
-    console.error('usage: migrate-to-sdk.mjs <folder> [--check] [--sdk-spec <spec>] [--tessera-spec <spec>]')
+    console.error('usage: migrate-to-sdk.mjs <folder> [--check] [--sdk-spec <spec>] [--tessera-spec <spec>] [--no-repo]')
     process.exit(2)
   }
   const options = {}
   const folders = []
   let check = false
+  let repo = true
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--check') check = true
+    else if (arg === '--no-repo') repo = false
     else if (arg === '--sdk-spec' || arg === '--tessera-spec') {
       const value = argv[++i]
       if (!value || value.startsWith('--')) usage()
@@ -383,7 +535,8 @@ function main(argv) {
     console.error(`migrate-to-sdk: ${folders[0]} is not a folder`)
     process.exit(2)
   }
-  const { text, changed, people } = formatReport(migrateFolder(dir, { check, ...options }), { check })
+  const report = migrateFolder(dir, { check, ...options })
+  const { text, changed, people } = formatReport(report, { check, mentions: mentionsLeft(dir, { repo }) })
   process.stdout.write(text)
   process.exit(check && (changed || people) ? 1 : 0)
 }
