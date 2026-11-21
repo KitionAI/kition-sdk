@@ -1,0 +1,33 @@
+format: 1
+id: regressions/issue-migrate-to-sdk-gaps
+feature: sdk.packages.one-package
+intent: >-
+  Moving kition-html and kition-note to @kition/sdk (2026-11-21) found what tools/migrate-to-sdk.mjs
+  silently missed: a .pnpmfile.cjs that builds the old names from short ones
+  (['kit-editor', ...].map((name) => `@kition/${name}`)); a nested optimizeDeps include
+  ('@kition/kit-editor > use-sync-external-store/shim'); old names in comments, regex-escaped
+  (/^@kition\/kdm$/) or in alias tables to kition-sdk/packages/<old folder>/src; path imports into
+  the checkout (packages/kit-dev-host/src/modeSmoke.mjs); @kition/sdk placed where the first old
+  name was, not in sorted position. Now a nested include becomes '@kition/sdk > ...', a
+  package-name list (exclude, include, dedupe, noExternal, external) names the package @kition/sdk
+  once, and @kition/sdk and @kition/tessera go into package.json in sorted position; every other
+  case is listed for a person with file:line, what is there and what replaces it (the
+  @kition/sdk subpath of a checkout file when it is an export, such as @kition/sdk/dev-host/mode-smoke).
+  The report ends with "changed" and "needs a person"; --check exits 1 when either has anything,
+  and a write run prints both.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/sdk-package.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sdk-package.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120
