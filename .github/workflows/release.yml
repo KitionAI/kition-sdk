@@ -19,7 +19,7 @@ name: release
 # <scope>/tessera@<version> @kition/sdk is checked with; the real @kition/sdk names its peer
 # @kition/tessera at ^0.1.0, a rehearsal's at exactly the rehearsal Tessera's version, which a
 # consumer installs as "@kition/tessera": "npm:<tessera>"); kition_commit (the KitionAI/kition
-# commit whose kits/kits.lock.json pins, by npm package, the kits built for the SDK bundles: needed
+# commit whose kits/kits.lock.json pins on npm, in this scope, the kits built for the SDK bundles: needed
 # by the real release; a rehearsal given one builds the bundles and release files too, one without
 # builds kition and the packages only); kit (a kit each platform's copy of kition installs from the
 # scope before anything is published; empty: none). tools/stage-package.mjs `target` checks them.
@@ -181,18 +181,16 @@ jobs:
           set -euo pipefail
           [[ "$KITION_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::kition_commit must be a full commit SHA (the real release names it)" >&2; exit 1; }
           mkdir -p target/lock
-          # Kition's lock pins each kit's npm package and the commit it was built from; its
-          # modules.json names the kit's repository.
+          # Kition's lock pins each kit on npm in a scope (its packages named from the kit and the
+          # scope), with the commit it was built from (tools/kit-lock.mjs); every published kit must
+          # be pinned in this release's scope. Its modules.json names the kit's repository.
           curl -fsSL "https://raw.githubusercontent.com/KitionAI/kition/$KITION_COMMIT/kits/kits.lock.json" -o target/lock/kits.lock.json
           curl -fsSL "https://raw.githubusercontent.com/KitionAI/kition/$KITION_COMMIT/kits/modules.json" -o target/lock/modules.json
+          node tools/kit-lock.mjs target/lock/kits.lock.json --scope "$SCOPE"
           node -e '
-            const lock = require("./target/lock/kits.lock.json")
             const modules = require("./target/lock/modules.json")
             for (const kit of require("./published-kits.json")) {
-              const pinned = lock[kit]
-              if (!pinned?.package || !/^[0-9a-f]{40}$/.test(pinned.commit ?? "")) { console.error(`the lock pins no npm package of ${kit} with its commit`); process.exit(1) }
               if (!modules[kit]?.repository) { console.error(`modules.json names no repository of ${kit}`); process.exit(1) }
-              console.log(`${kit} ${pinned.version} ${pinned.package} ${modules[kit].repository} ${pinned.commit}`)
             }'
       - uses: actions/upload-artifact@v4
         if: steps.target.outputs.bundle == 'true'

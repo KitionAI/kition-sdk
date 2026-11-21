@@ -60,12 +60,12 @@ features:
     cases: [regressions/issue-npm-package-output, regressions/issue-consumer-schema-spread, regressions/issue-public-package-imports, regressions/issue-bundled-notices, regressions/issue-bundled-notice-files, sdk.packages.public/packed-worker]
     since: "2026-11-16"
   - id: sdk.packages.one-package
-    title: "@kition/sdk is the SDK's twelve TypeScript library packages as one npm package, each a subpath that mirrors one of their exports (embed, embed/server for Node only, sync, script with its kits, extensions, kdm, editor, engine, host, dev-host, protocol, convergence) and no root module; built from their sources with their cross-imports as shared chunks, embed and script sharing one inlined Loro, the editor's worker with Loro's WebAssembly as a .wasm file beside it that a kit's bundler emits as an asset, loro-crdt its one dependency and React and Tessera (the one package @kition/tessera) optional peers, with one set of declarations for bundler and node16; checked packed outside the workspace, and a codemod moves a consumer to it; the twelve packages stay as they are until their consumers move"
+    title: "@kition/sdk is the SDK's twelve TypeScript library packages as one npm package, each a subpath that mirrors one of their exports (embed, embed/server for Node only, sync, script with its kits, extensions, kdm, editor, engine, host, dev-host, protocol, convergence) and no root module; built from their sources with their cross-imports as shared chunks, embed and the standalone object model (script/standalone) sharing one inlined Loro while script, extensions, kdm and sync share loro-crdt and one KDM, the editor's worker with Loro's WebAssembly as a .wasm file beside it that a kit's bundler emits as an asset, loro-crdt its one dependency and React and Tessera (the one package @kition/tessera) optional peers, with one set of declarations for bundler and node16; checked packed outside the workspace, and a codemod moves a consumer to it; the twelve packages stay as they are until their consumers move"
     dimension: [platform, function]
     priority: P1
     status: has
-    paths: [packages/sdk/package.json, packages/sdk/README.md, tools/sdk-package.mjs, tools/build-sdk.mjs, tools/sdk-consumer.mjs, tools/smoke-sdk-package.mjs, tools/smoke-sdk-worker.mjs, tools/migrate-to-sdk.mjs, tools/sdk-package.test.mjs]
-    cases: [sdk.packages.one-package/mapping, sdk.packages.one-package/consumer, sdk.packages.one-package/worker-wasm, regressions/issue-sdk-old-names-in-package, regressions/issue-migrate-to-sdk-gaps, regressions/issue-sdk-worker-inlined-wasm, regressions/issue-sdk-undeclared-dist-import, regressions/issue-migrate-to-sdk-loaders]
+    paths: [packages/sdk/package.json, packages/sdk/README.md, tools/sdk-package.mjs, tools/build-sdk.mjs, tools/sdk-consumer.mjs, tools/smoke-sdk-package.mjs, tools/smoke-sdk-worker.mjs, tools/migrate-to-sdk.mjs, tools/sdk-package.test.mjs, packages/script/src/standalone.ts]
+    cases: [sdk.packages.one-package/mapping, sdk.packages.one-package/consumer, sdk.packages.one-package/worker-wasm, regressions/issue-sdk-old-names-in-package, regressions/issue-migrate-to-sdk-gaps, regressions/issue-sdk-worker-inlined-wasm, regressions/issue-sdk-undeclared-dist-import, regressions/issue-migrate-to-sdk-loaders, regressions/issue-sdk-script-second-loro]
     since: "2026-11-21"
   - id: sdk.packages.stage
     title: "A publishing rehearsal of @kition/sdk on another npm scope through the release's own path: release.yml, started by hand with a stage scope (its default), builds @kition/sdk, runs its pack, smoke and Chromium worker checks against a published rehearsal Tessera installed as @kition/tessera, publishes a copy renamed <scope>/sdk at a prerelease version with its Tessera peer at that rehearsal's exact version, waits until npm serves it, and prints the two npm-alias lines a kit uses, which migrate-to-sdk writes with --sdk-spec and --tessera-spec"
@@ -553,11 +553,14 @@ features:
       - tools/sdk-release.test.mjs
       - tools/kit-handshake.mjs
       - tools/sdk-bundle.mjs
+      - tools/kit-lock.mjs
+      - tools/kit-lock.test.mjs
       - tools/kits-index.mjs
       - docs/sdk/distribution.md
     cases:
       - sdk.distribution.release/manifest
       - sdk.distribution.release/index-snapshot
+      - regressions/issue-kit-lock-npm-pin
     since: "2026-11-17"
   - id: sdk.distribution.glibc-floor
     title: The Linux executables a release ships (kition, kition-kits, kition-kits-mcp, each kit's) run on glibc 2.17 and later; the release fails a Linux build that needs a newer GLIBC symbol version

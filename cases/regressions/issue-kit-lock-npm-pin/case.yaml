@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-kit-lock-npm-pin
+feature: sdk.distribution.release
+intent: >-
+  The release's kit check (833d35a) and the SDK bundle required a `package` field in each entry of
+  KitionAI/kition's kits/kits.lock.json, which Kition's npm pin (its commit 1a21a6ba) does not
+  write: an npm pin is { scope, version, commit, sdkCommit, tesseraCommit, fontsCommit, editor:
+  { integrity, size }, platforms: { <platform>: { integrity, size } } }, its packages named from the
+  kit and the scope. tools/kit-lock.mjs must read exactly that form, naming the editor and platform
+  packages by tools/kit-npm.mjs packageName in both layouts; refuse a GitHub Release pin, a
+  `package` field, any malformed or missing field, an unknown platform, a kit name the scope's
+  layout refuses, and a pin of another scope than the release's, naming every kit's problems; and
+  its command prints each kit's version, editor package and commit or exits 1.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kit-lock.mjs
+  license: owned
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/kit-lock.test.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-21"
+timeout_s: 60

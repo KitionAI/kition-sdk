@@ -4,6 +4,17 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **`@kition/sdk/script` and `/extensions` share Loro and the KDM with `/kdm` and `/sync`**: they
+  were the standalone build (Loro's WebAssembly inlined, a KDM of its own), so an app importing
+  them beside `/kdm` held two of each, and Kition Desktop kept copies of their sources. They are
+  library builds now, importing `loro-crdt`; the self-contained object model for a page without a
+  bundler is `@kition/sdk/script/standalone` (every kit registered). `/kdm` exports `wrapEnvelope`
+  beside `openEnvelope`; `LICENSE` is at the package's top (regressions/issue-sdk-script-second-loro).
+- **The release reads Kition's npm kit pins**: the kit check and the SDK bundle wanted a `package`
+  field Kition's lock never writes; `tools/kit-lock.mjs` reads its pin (`scope`, `version`, the build
+  commits, `editor` and `platforms` with integrity and size), naming the packages from the kit and
+  the scope, and refuses a GitHub Release pin and a pin of another scope than the release's
+  (regressions/issue-kit-lock-npm-pin).
 - **The kit index leaves out withdrawn kit versions**: Kition Table was published by mistake as
   0.5.8 before its first version, 0.1.0; npm keeps it, so `kition kit install table` took 0.5.8 as
   the highest version. `kits-withdrawn.json` names such versions per kit (`{ "table": ["0.5.8"] }`),

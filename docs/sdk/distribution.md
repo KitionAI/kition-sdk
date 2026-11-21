@@ -297,7 +297,7 @@ npm scope, so what is rehearsed is what ships. It is started by hand. Its inputs
 | `version` | `<sdk.json version>-stage.<run number>` when empty | `sdk.json`'s; given or empty. `sdk.json`, `crates/kition-cli/Cargo.toml`, `packages/kition/package.json` and `packages/sdk/package.json` must all name it, else nothing starts |
 | `platforms` | `darwin-arm64` when empty (the organization runs at most 5 macOS jobs at once) | every platform; naming fewer stops the run |
 | `tessera` | the published `<scope>/tessera@<version>`, such as `@kitionstage/tessera@0.1.1-stage.2`; `<scope>/sdk` names its peer `@kition/tessera` at exactly that version | `@kition/tessera` at a published version in `^0.1.0`; `@kition/sdk` names its peer at `^0.1.0` |
-| `kition_commit` | empty: `kition`, `kition-kits` and `kition-kits-mcp` only, no kits, bundles or release files; given: as the real release builds them (the release files are an artifact of the run) | the KitionAI/kition commit whose `kits/kits.lock.json` pins, by npm package, the kits built for the SDK bundles |
+| `kition_commit` | empty: `kition`, `kition-kits` and `kition-kits-mcp` only, no kits, bundles or release files; given: as the real release builds them (the release files are an artifact of the run), from a lock that pins every published kit on npm in the rehearsal's scope | the KitionAI/kition commit whose `kits/kits.lock.json` pins every published kit on npm in `@kition` (below), the kits built for the SDK bundles |
 | `kit` | `note`: each platform's copy of `kition` installs it from the scope before anything is published | the same |
 | npm token | `NPM_TOKEN_STAGE` | `NPM_TOKEN` |
 
@@ -352,10 +352,17 @@ On release day `@kition` moves from the legacy layout (`@kition/kit-<kit>-<platf
    `packageName` and `indexPackage` go, and `tools/kit-npm.test.mjs` and `tools/kits-index.test.mjs`
    follow. The release notes then name `@kition/kits` by themselves (`indexPackage`).
 5. KitionAI/kition `scripts/lib/kitNpm.mjs`: its `LEGACY_LAYOUT_SCOPES` (line 35) likewise, and
-   `kits/kits.lock.json` pinned by npm package (`package`, `version`, `integrity`, `commit` per
-   kit) at the layout 1 names (`"package": "@kition/<kit>"`) by its `scripts/pin-kits.mjs` once the
-   kits are published under them. Its lock still pins GitHub Release assets (no `package`), which
-   the release refuses: the real release cannot start before this.
+   `kits/kits.lock.json` pinned on npm in `@kition` by its `scripts/pin-kits.mjs` once the kits are
+   published under the layout 1 names. An npm pin names no package: it is `{ scope, version,
+   commit, sdkCommit, tesseraCommit, fontsCommit, editor: { integrity, size }, platforms:
+   { <platform>: { integrity, size } } }`, and the kit (its key) and `scope` name the packages by
+   `tools/kit-npm.mjs` `packageName` (Kition's `uiPackageName` and `headlessPackageName`), so a
+   lock pinned before the layout moves needs no change but a new pin. `tools/kit-lock.mjs` reads it
+   for the release (every published kit, in the release's scope) and for `tools/sdk-bundle.mjs`
+   (the editor package's integrity and size). Kition's lock on `main` still pins GitHub Release
+   assets (`repository`, `tag`, `asset`, `size`, `sha256`), which the release refuses, naming each
+   kit: the real release, and a rehearsal with `kition_commit`, cannot start before every published
+   kit is pinned on npm.
 6. Each kit repository's Package workflow publishes its version under the layout 1 names (it takes
    the layout from `tools/kit-npm.mjs`), and `.github/workflows/kits-index.yml` (scope `@kition`)
    then publishes the first `@kition/kits`.
@@ -444,9 +451,9 @@ registries in the same way, and from any index named with `KITION_INDEX` or `--i
 `tools/kits-index.mjs --out` wrote, whose packages are on those registries. Supply a KHP specification with
 `--standard <folder>` (or `KIT_STANDARD_DIR`; a clone of
 [kitharness/kitharness](https://github.com/kitharness/kitharness)) and a kit lock with `--lock <file>` (or
-`KITION_KITS_LOCK`; Kition's `kits/kits.lock.json`). The editor packages are downloaded from the
-npm registries (`KITION_NPM_REGISTRY`, the `.npmrc`'s, npmjs.org, npmmirror.com) and checked
-against the integrity the lock pins.
+`KITION_KITS_LOCK`; Kition's `kits/kits.lock.json`, an npm pin per kit as `tools/kit-lock.mjs`
+reads it). The editor packages are downloaded from the npm registries (`KITION_NPM_REGISTRY`, the
+`.npmrc`'s, npmjs.org, npmmirror.com) and checked against the integrity and size the lock pins.
 
 ```sh
 pnpm sdk:bundle -- --archive                       # all kits in sdk.json, no executables
