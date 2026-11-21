@@ -131,12 +131,19 @@ with `tools/kits-index.mjs`:
   The report names each held version (`held layout 0.1.4: still being published (no ui package;
   0.1.3 has one)`), and with `--previous` its packages leave; holding is not an error, so a kit
   that really dropped a platform or its editor stays visible there until its maintainer acts.
+- A package whose tarball npm does not serve yet counts as not published in that run: for a minute
+  or two after a publish, npm's metadata lists the version while its tarball answers 404 (to the
+  size request, a HEAD or a one-byte range). The package is left out, so the version is held back
+  when a lower listed version has that package (`held doc 0.1.4: still being published (no
+  darwin-arm64 package; 0.1.3 has one; the darwin-arm64 tarball is not downloadable yet)`), and a
+  kit's first version is listed without it; the report names it, and a later run lists it. A size
+  the previous index gives for the same integrity needs no request.
 - Each index entry names, per platform and for the editor, the package, its size and its integrity.
   `kition` downloads that package from whichever registry answers and refuses it unless its bytes
   have that size and integrity, and its `package.json` names that package and version.
 - A package whose `kition` field is missing, or disagrees with the version's other packages (id,
-  protocol, extensions), stops the run; so does a registry that cannot be read. A failure never
-  publishes a smaller index.
+  protocol, extensions), stops the run; so does a registry that cannot be read (any answer but the
+  metadata, a size, or a 404). A failure never publishes a smaller index.
 - A kit's id, name, extensions and views come from its newest version's `kition` field, so a
   gateway opens the views read-only before the kit is installed. Each version keeps the Kit
   Process Protocol its packages declare. The index is checked against its schema and written in a

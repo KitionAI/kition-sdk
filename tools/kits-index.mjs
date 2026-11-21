@@ -39,11 +39,15 @@
 //   compared with that same listed one. A kit's first version, and one with the same packages or
 //   more, is listed. Holding a version is not an error: a kit that really dropped a platform or its
 //   editor shows in the report until a maintainer acts.
+// - A package whose tarball npm does not serve yet (a 404 to its HEAD or to its one-byte range; npm
+//   lists a version's metadata a minute or two before its tarball) counts as not published in this
+//   run: it is left out, so the rule above holds its version back when a lower listed version has
+//   that package, and the report says the tarball is not downloadable yet.
 // - Every package of a version must say the same kit, id, name, protocol and extensions in its
 //   `kition` field, be the role and platform its name says, and have npm's sha512 integrity; any
 //   that does not stops the run. So does a registry answer other than the metadata or a 404 (a
-//   package never published), and a tarball whose size cannot be read: a failure never yields a
-//   smaller index.
+//   package never published, or a tarball not served yet), and a tarball whose size cannot be read
+//   otherwise: a failure never yields a smaller index.
 // - A kit's id, name, extensions and views come from its newest version.
 // - The index is checked against the schema and written with kits, versions and platforms in a
 //   fixed order, so the same metadata gives the same bytes.
@@ -189,15 +193,15 @@ export const serialize = (index) => `${JSON.stringify(ordered(index), null, 2)}\
 
 /**
  * The npm registry over HTTP: `net(url, { as })` answers the parsed JSON of a 200 (`as: 'json'`),
- * null for a 404, or the size a HEAD request of a tarball gives, else a one-byte range of it
- * (`as: 'size'`); it throws on
- * anything else.
+ * or the size a HEAD request of a tarball gives, else a one-byte range of it (`as: 'size'`); null
+ * for a 404 (a package never published; a tarball npm does not serve yet, as for a minute or two
+ * after a publish, whether the HEAD or the range answers it); it throws on anything else.
  */
 export function registryNet({ fetchImpl = globalThis.fetch } = {}) {
   return async (url, { as = 'json' } = {}) => {
     const headers = { 'User-Agent': 'kition-sdk tools/kits-index.mjs', Accept: 'application/json' }
     const response = await fetchImpl(url, { method: as === 'size' ? 'HEAD' : 'GET', headers, redirect: 'follow' })
-    if (as !== 'size' && response.status === 404) return null
+    if (response.status === 404) return null
     if (!response.ok) {
       const detail = as === 'size' ? '' : (await response.text().catch(() => '')).slice(0, 200).replace(/\s+/g, ' ')
       throw new Error(`${url}: HTTP ${response.status}${detail ? ` ${detail}` : ''}`)
@@ -209,6 +213,7 @@ export function registryNet({ fetchImpl = globalThis.fetch } = {}) {
       // one-byte range (Content-Range: bytes 0-0/<size>) is the size.
       const ranged = await fetchImpl(url, { method: 'GET', headers: { ...headers, Range: 'bytes=0-0' }, redirect: 'follow' })
       await ranged.body?.cancel().catch(() => {})
+      if (ranged.status === 404) return null
       const total = ranged.status === 206 ? Number(/^bytes 0-0\/([0-9]+)$/.exec(ranged.headers.get('content-range') ?? '')?.[1]) : NaN
       if (!Number.isSafeInteger(total) || total < 1) throw new Error(`${url}: no size (Content-Length of a HEAD, or Content-Range of a one-byte range)`)
       return total
@@ -264,7 +269,10 @@ function readPackage(name, kit, part, version, manifest) {
   return { kition, entry: { package: name, integrity } }
 }
 
-/** The size of `name`@`version`'s tarball: the previous index's for the same integrity, else asked of the registry. */
+/**
+ * The size of `name`@`version`'s tarball: the previous index's for the same integrity, else asked
+ * of the registry; null when the registry does not serve the tarball yet (a 404).
+ */
 async function sizeOf(net, registry, previousSizes, entry, version) {
   const known = previousSizes.get(`${entry.package}@${version} ${entry.integrity}`)
   if (known) return known
@@ -293,9 +301,11 @@ const partsOf = ({ platforms, ui }) => [...Object.keys(platforms).sort(), ...(ui
 
 /**
  * The kit index gathered from the registry's metadata of each kit's packages, and a report:
- * `{ index, report: [{ kit, versions, editors, uiOnly }], held: [{ kit, version, preceding, missing }] }`.
- * `held` names the versions still being published, left out of the index: each lacks the packages
- * `missing` (platforms, `ui`) that `preceding`, the kit's highest listed lower version, has.
+ * `{ index, report: [{ kit, versions, editors, uiOnly }], held: [{ kit, version, preceding, missing }],
+ * notReady: [{ kit, version, part }] }`. `held` names the versions still being published, left out
+ * of the index: each lacks the packages `missing` (platforms, `ui`) that `preceding`, the kit's
+ * highest listed lower version, has. `notReady` names the packages whose metadata npm lists but
+ * whose tarball it does not serve yet (a 404): they count as not published in this run.
  */
 export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null }) {
   const base = registry.endsWith('/') ? registry : `${registry}/`
@@ -303,6 +313,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
   const index = { schemaVersion: SCHEMA_VERSION, kits: {} }
   const report = []
   const held = []
+  const notReady = []
   for (const kit of kits) {
     /** version → { kition, platforms, ui } */
     const versions = new Map()
@@ -323,13 +334,18 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
         if (!found) versions.set(version, (found = { kition, platforms: {}, ui: null }))
         for (const field of ['name', 'protocol']) if (found.kition[field] !== kition[field]) throw new Error(`${name}@${version} says ${field} ${JSON.stringify(kition[field])}; the other packages of ${kit} ${version} say ${JSON.stringify(found.kition[field])}`)
         for (const field of ['extensions', 'views']) if (!sameList(found.kition[field], kition[field])) throw new Error(`${name}@${version} lists other ${field} than the other packages of ${kit} ${version}`)
-        const sized = { ...entry, size: await sizeOf(net, base, previousSizes, entry, version) }
+        const size = await sizeOf(net, base, previousSizes, entry, version)
+        if (size === null) {
+          notReady.push({ kit, version, part })
+          continue
+        }
+        const sized = { ...entry, size }
         if (part === 'ui') found.ui = sized
         else found.platforms[part] = sized
       }
     }
     const headless = [...versions.keys()].filter((version) => Object.keys(versions.get(version).platforms).length).sort(compareVersions)
-    const uiOnly = [...versions.keys()].filter((version) => !headless.includes(version)).sort(compareVersions)
+    const uiOnly = [...versions.keys()].filter((version) => !headless.includes(version) && versions.get(version).ui).sort(compareVersions)
     // A version still being published: it lacks a package the highest listed lower version has.
     const listed = []
     for (const version of headless) {
@@ -356,7 +372,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
   }
   const problems = schemaProblems(ordered(index))
   if (problems.length) throw new Error(`the gathered index is not a kit index:\n  ${problems.join('\n  ')}`)
-  return { index: ordered(index), report, held }
+  return { index: ordered(index), report, held, notReady }
 }
 
 /** `<kit> <version> <platform>` lines of every package in `index`. */
@@ -373,17 +389,23 @@ export function compareIndexes(previous, index) {
 }
 
 /** The report as text lines. */
-export function reportLines({ index, report, held }, previous) {
+export function reportLines({ index, report, held, notReady }, previous) {
   const lines = []
   for (const { kit, versions, editors, uiOnly } of report) {
     lines.push(`${kit}: ${versions.length ? versions.join(', ') : 'no version'}`)
     const without = versions.filter((version) => !editors.includes(version))
     if (versions.length && without.length) lines.push(`  no editor package: ${without.join(', ')}`)
     if (uiOnly.length) lines.push(`  an editor package without a headless one, left out: ${uiOnly.join(', ')}`)
-    for (const { version, preceding, missing } of held.filter((entry) => entry.kit === kit)) {
+    const heldOfKit = held.filter((entry) => entry.kit === kit)
+    const waiting = (version) => notReady.filter((entry) => entry.kit === kit && entry.version === version).map(({ part }) => part)
+    for (const { version, preceding, missing } of heldOfKit) {
       const many = missing.length > 1
-      lines.push(`  held ${kit} ${version}: still being published (no ${missing.join(', ')} package${many ? 's' : ''}; ${preceding} has ${many ? 'them' : 'one'})`)
+      const tarballs = missing.filter((part) => waiting(version).includes(part))
+      const why = tarballs.length ? `; the ${tarballs.join(', ')} tarball${tarballs.length > 1 ? 's are' : ' is'} not downloadable yet` : ''
+      lines.push(`  held ${kit} ${version}: still being published (no ${missing.join(', ')} package${many ? 's' : ''}; ${preceding} has ${many ? 'them' : 'one'}${why})`)
     }
+    const elsewhere = notReady.filter((entry) => entry.kit === kit && !heldOfKit.some(({ version }) => version === entry.version))
+    if (elsewhere.length) lines.push(`  a tarball not downloadable yet, left out for now: ${elsewhere.map(({ version, part }) => `${version} ${part}`).join(', ')}`)
   }
   const kits = Object.keys(index.kits)
   lines.push(

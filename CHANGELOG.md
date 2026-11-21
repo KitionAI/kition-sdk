@@ -4,6 +4,12 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit index is gathered while a tarball is not downloadable yet**: for a minute or two after
+  a publish npm lists a version whose tarball still answers 404, and the kits-index run stopped on
+  it ("the size of @kition/kit-doc-darwin-arm64@0.1.4 cannot be read"), during every kit publish.
+  Such a package now counts as not published in that run: its version is held back when a lower
+  listed version has it, and the report says the tarball is not downloadable yet; any other failure
+  still stops the run (regressions/issue-kits-index-tarball-not-ready).
 - **The kit index holds back a version still being published**: a kit's packages reach npm one
   after another, and an index gathered in between listed Layout 0.1.4 without its editor, so
   `kition kit install layout` took it over 0.1.3, which has one. A version that lacks a platform or

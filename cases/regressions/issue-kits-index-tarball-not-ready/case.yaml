@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-kits-index-tarball-not-ready
+feature: sdk.distribution.kits-index
+intent: >-
+  For a minute or two after a publish, npm's metadata lists a package's new version while its
+  tarball still answers HTTP 404. The kits-index run during Doc 0.1.4's publish (2026-11-21) stopped
+  with "the size of @kition/kit-doc-darwin-arm64@0.1.4 cannot be read: ... HTTP 404", so every kit
+  publish failed the hourly index. A package whose tarball answers exactly 404 (to the HEAD, or to
+  the one-byte range) is not published yet for this run: it is left out, the version is held back
+  when a lower listed version has that package, and the report says the tarball is not downloadable
+  yet. Any other failure to read a size still stops the run.
+layer: gate
+source:
+  kind: probe
+  from: tools/kits-index.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kits-index.test.mjs, -t, "not downloadable yet"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 300

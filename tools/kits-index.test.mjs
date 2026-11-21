@@ -28,10 +28,11 @@ const kitJson = (kit, version, { protocol = 'kition-kit/1', name = kit[0].toUppe
  * A fake npm registry: `kits` maps a kit to its versions, each `{ platforms, ui, ...kit.json
  * options }`. `net` answers each package's metadata (all its versions, with the `kition` field
  * and npm's dist.integrity), null for a package never published, and each tarball's size to a
- * HEAD; it records every URL asked. `tamper(name, version, manifest)` changes a manifest;
- * `fail` names URLs that answer an error.
+ * HEAD (null, as registryNet answers a 404, for a tarball npm does not serve yet); it records
+ * every URL asked. `tamper(name, version, manifest)` changes a manifest; `fail` names URLs that
+ * answer an error; `notReady` names tarballs whose metadata is listed but that answer 404.
  */
-function fakeRegistry(kits, { registry = REGISTRY, tamper = () => {}, fail = [] } = {}) {
+function fakeRegistry(kits, { registry = REGISTRY, tamper = () => {}, fail = [], notReady = [] } = {}) {
   const packuments = new Map()
   const sizes = new Map()
   for (const [kit, versions] of Object.entries(kits)) {
@@ -56,7 +57,7 @@ function fakeRegistry(kits, { registry = REGISTRY, tamper = () => {}, fail = [] 
     seen.push(`${as} ${url}`)
     if (fail.includes(url)) throw new Error(`${url}: HTTP 500`)
     if (as === 'size') {
-      if (!sizes.has(url)) throw new Error(`${url}: HTTP 404`)
+      if (!sizes.has(url) || notReady.includes(url)) return null
       return sizes.get(url)
     }
     const name = decodeURIComponent(url.slice(registry.length))
@@ -217,6 +218,53 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).kits.layout.versions)).toEqual(['0.1.3'])
   })
 
+  it('leaves out a package whose tarball is not downloadable yet (npm answers 404), holding its version back like one still being published', async () => {
+    // What npm showed on 2026-11-21: Doc 0.1.4 listed in the metadata, its darwin-arm64 tarball 404.
+    const tarball = (kit, part, version) => `${REGISTRY}${tarballPath(packageName(kit, part), version)}`
+    const notReady = [
+      tarball('doc', 'darwin-arm64', '0.1.4'),
+      tarball('table', 'ui', '0.5.8'),
+      ...[...PLATFORMS, 'ui'].map((part) => tarball('note', part, '0.2.0')),
+    ]
+    const { net } = fakeRegistry({ doc: { '0.1.3': {}, '0.1.4': {} }, note: { '0.1.0': {}, '0.2.0': {} }, table: { '0.5.8': {} } }, { notReady })
+    const gathered = await gatherIndex({ kits: ['doc', 'note', 'table'], net })
+    expect(Object.keys(gathered.index.kits.doc.versions)).toEqual(['0.1.3'])
+    expect(gathered.held).toEqual([{ kit: 'doc', version: '0.1.4', preceding: '0.1.3', missing: ['darwin-arm64'] }])
+    // A kit's first version is listed without the package, until npm serves it.
+    expect(gathered.index.kits.table.versions['0.5.8'].ui).toBeUndefined()
+    expect(Object.keys(gathered.index.kits.table.versions['0.5.8'].platforms)).toEqual([...PLATFORMS].sort())
+    // A version none of whose tarballs npm serves yet is in no list of the index or the report.
+    expect(Object.keys(gathered.index.kits.note.versions)).toEqual(['0.1.0'])
+    expect(gathered.report.find(({ kit }) => kit === 'note')).toEqual({ kit: 'note', versions: ['0.1.0'], editors: ['0.1.0'], uiOnly: [] })
+    expect(gathered.notReady).toEqual([
+      { kit: 'doc', version: '0.1.4', part: 'darwin-arm64' },
+      ...[...PLATFORMS, 'ui'].map((part) => ({ kit: 'note', version: '0.2.0', part })),
+      { kit: 'table', version: '0.5.8', part: 'ui' },
+    ])
+    const lines = reportLines(gathered)
+    expect(lines).toContain('  held doc 0.1.4: still being published (no darwin-arm64 package; 0.1.3 has one; the darwin-arm64 tarball is not downloadable yet)')
+    expect(lines).toContain(`  a tarball not downloadable yet, left out for now: ${[...PLATFORMS, 'ui'].map((part) => `0.2.0 ${part}`).join(', ')}`)
+    expect(lines).toContain('  a tarball not downloadable yet, left out for now: 0.5.8 ui')
+    expect(lines.filter((line) => line.includes('0.1.4') && line.includes('left out for now'))).toEqual([])
+
+    // A size the previous index gives for the same integrity needs no request.
+    const previous = (await gatherIndex({ kits: ['doc'], net: fakeRegistry({ doc: { '0.1.3': {}, '0.1.4': {} } }).net })).index
+    const known = fakeRegistry({ doc: { '0.1.3': {}, '0.1.4': {} } }, { notReady })
+    const kept = await gatherIndex({ kits: ['doc'], net: known.net, previous })
+    expect(Object.keys(kept.index.kits.doc.versions)).toEqual(['0.1.3', '0.1.4'])
+    expect(kept.notReady).toEqual([])
+    expect(known.seen.filter((line) => line.startsWith('size '))).toEqual([])
+
+    // The command line succeeds and says why.
+    const dir = tempDir()
+    const modules = path.join(dir, 'modules.json')
+    fs.writeFileSync(modules, JSON.stringify({ doc: { repository: 'KitionAI/kition-doc' } }))
+    const io = { out: '', err: '' }
+    expect(await main(['--modules', modules, '--out', path.join(dir, 'kits-index.json')], { net, out: (text) => (io.out += text), err: (text) => (io.err += text) })).toBe(0)
+    expect(io.err).toBe('')
+    expect(io.out).toContain('held doc 0.1.4: still being published (no darwin-arm64 package; 0.1.3 has one; the darwin-arm64 tarball is not downloadable yet)')
+  })
+
   it('stops on a package whose kition field disagrees with its name or with the other packages of its version, or has no sha512 integrity', async () => {
     const cases = [
       [(name, version, manifest) => name.endsWith('linux-x64') && (manifest.kition.protocol = 'kition-kit/9'), /says protocol/],
@@ -260,6 +308,31 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     expect(await net(`${REGISTRY}x/-/x-1.0.0.tgz`, { as: 'size' })).toBe(10138522)
     expect(asked).toEqual([`HEAD ${REGISTRY}x/-/x-1.0.0.tgz`, `GET ${REGISTRY}x/-/x-1.0.0.tgz bytes=0-0`])
     await expect(net(`${REGISTRY}x/-/whole.tgz`, { as: 'size' })).rejects.toThrow('no size')
+  })
+
+  it('answers null for a tarball not downloadable yet: a 404 to its HEAD or to its one-byte range; any other answer is an error', async () => {
+    const asked = []
+    const fetchImpl = async (url, { method, headers }) => {
+      asked.push(`${method} ${url}${headers.Range ? ` ${headers.Range}` : ''}`)
+      if (url.endsWith('head-404.tgz')) return new Response(null, { status: 404 })
+      if (url.endsWith('head-503.tgz')) return new Response(null, { status: 503 })
+      if (method === 'HEAD') return new Response(null, { status: 200 })
+      if (url.endsWith('range-404.tgz')) return new Response('{"error":"Not found"}', { status: 404 })
+      return new Response('down', { status: 502 })
+    }
+    const net = registryNet({ fetchImpl })
+    expect(await net(`${REGISTRY}x/-/head-404.tgz`, { as: 'size' })).toBeNull()
+    expect(await net(`${REGISTRY}x/-/range-404.tgz`, { as: 'size' })).toBeNull()
+    await expect(net(`${REGISTRY}x/-/head-503.tgz`, { as: 'size' })).rejects.toThrow(/HTTP 503/)
+    await expect(net(`${REGISTRY}x/-/range-502.tgz`, { as: 'size' })).rejects.toThrow('no size')
+    expect(asked).toEqual([
+      `HEAD ${REGISTRY}x/-/head-404.tgz`,
+      `HEAD ${REGISTRY}x/-/range-404.tgz`,
+      `GET ${REGISTRY}x/-/range-404.tgz bytes=0-0`,
+      `HEAD ${REGISTRY}x/-/head-503.tgz`,
+      `HEAD ${REGISTRY}x/-/range-502.tgz`,
+      `GET ${REGISTRY}x/-/range-502.tgz bytes=0-0`,
+    ])
   })
 
   it('asks the registry over HTTP: metadata, a 404 as no package, a tarball’s size by HEAD, an error otherwise', async () => {

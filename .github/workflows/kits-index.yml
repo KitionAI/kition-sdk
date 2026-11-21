@@ -10,7 +10,9 @@ name: kits-index
 # tools/kits-index.mjs reads the registry's metadata of the packages of every kit KitionAI/kition's
 # kits/modules.json names (no tarball is downloaded) and writes the index (docs/sdk/distribution.md).
 # A version still being published (lacking a package, a platform or the editor, that the kit's
-# highest listed lower version has) is held back, not listed, and named in the report.
+# highest listed lower version has) is held back, not listed, and named in the report; a package
+# whose tarball npm does not serve yet (a 404, for a minute or two after a publish) counts as
+# not published in that run.
 # A run:
 # - stops, publishing nothing, when the registry cannot be read or a package's metadata is not what
 #   the contract says (the tool's exit status 1);
