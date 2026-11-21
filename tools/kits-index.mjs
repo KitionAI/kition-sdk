@@ -5,12 +5,14 @@
 // `@kition/kit-<kit>-ui` (tools/kit-npm.mjs), whose package.json carries a `kition` field with
 // what the index needs; this tool reads the registry's metadata of those packages (never their
 // tarballs) and writes the index, and the package `@kition/kits-index` that holds it, which
-// .github/workflows/kits-index.yml publishes when it changed.
+// .github/workflows/kits-index.yml publishes when it changed. Those are @kition's names; in another
+// npm scope (`--scope`, else `KITION_NPM_SCOPE`) the packages are named by layout 1
+// (`<scope>/<kit>-<platform>`, `<scope>/<kit>`, the index `<scope>/kits`; tools/kit-npm.mjs).
 //
 //   node tools/kits-index.mjs --modules <file> --out <file> [--registry <address>] [--previous <kits-index.json>]
-//        [--withdrawn <file>] [--package <folder> --version <version>]
+//        [--withdrawn <file>] [--package <folder> --version <version>] [--scope <@scope>]
 //   node tools/kits-index.mjs --modules <file> --dry-run [--registry <address>] [--previous <kits-index.json>]
-//        [--withdrawn <file>]
+//        [--withdrawn <file>] [--scope <@scope>]
 //
 // --modules   KitionAI/kition's kits/modules.json (a file: the workflow checks Kition out), which
 //             names each kit
@@ -24,9 +26,14 @@
 // --package   with --version, also writes the folder of the package @kition/kits-index at that
 //             version (package.json and kits-index.json) for `npm publish`
 // --dry-run   writes nothing; prints what the index would hold
+// --scope     the npm scope of the kit packages and the index package (default: KITION_NPM_SCOPE,
+//             else @kition)
 //
 // The rules:
 //
+// - Only the kits modules.json names are read, each under its own packages' names; in layout 1 a
+//   kit named like another package of the scope (cli, sdk, kits, tessera, ...: kit-npm.mjs
+//   NOT_KIT_NAMES) stops the run before anything is read, so no other package is taken for a kit.
 // - The registry is the only source: the index holds what the packages' metadata says, nothing
 //   carried from an earlier index but a size known for the same integrity, and every kit
 //   modules.json names (published-kits.json, the kits the SDK documents and bundles, does not
@@ -68,7 +75,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { INDEX_PACKAGE, packageName, PLATFORMS, tarballPath } from './kit-npm.mjs'
+import { checkScope, indexPackage, npmScope, packageName, PLATFORMS, tarballPath } from './kit-npm.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const INDEX = 'kits-index.json'
@@ -345,8 +352,10 @@ const partsOf = ({ platforms, ui }) => [...Object.keys(platforms).sort(), ...(ui
  * highest listed lower version, has. `notReady` names the packages whose metadata npm lists but
  * whose tarball it does not serve yet (a 404): they count as not published in this run.
  */
-export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null, withdrawn = {} }) {
+export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null, withdrawn = {}, scope = npmScope() }) {
   const base = registry.endsWith('/') ? registry : `${registry}/`
+  // Every kit's names first: a kit named like another package of the scope stops the run unread.
+  for (const kit of kits) packageName(kit, 'ui', scope)
   const previousSizes = sizesOf(previous)
   const index = { schemaVersion: SCHEMA_VERSION, kits: {} }
   const report = []
@@ -358,7 +367,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
     const versions = new Map()
     const withdrawnOfKit = new Set()
     for (const part of [...PLATFORMS, 'ui']) {
-      const name = packageName(kit, part)
+      const name = packageName(kit, part, scope)
       let packument
       try {
         packument = await net(`${base}${name.replace('/', '%2f')}`, { as: 'json' })
@@ -469,13 +478,13 @@ export function reportLines({ index, report, held, notReady, withdrawn = [] }, p
   return lines
 }
 
-/** The package @kition/kits-index at `version` holding `index`, written into `folder`. */
-export function writeIndexPackage(folder, index, version) {
+/** The index package of `scope` (@kition/kits-index) at `version` holding `index`, written into `folder`. */
+export function writeIndexPackage(folder, index, version, scope = npmScope()) {
   if (!VERSION.test(version)) throw new Error(`${JSON.stringify(version)} is not a version (semver)`)
   fs.rmSync(folder, { recursive: true, force: true })
   fs.mkdirSync(folder, { recursive: true })
   const manifest = {
-    name: INDEX_PACKAGE,
+    name: indexPackage(scope),
     version,
     description: `The kit index kition reads: every published Kition kit's npm packages, with their sizes and integrity (format ${SCHEMA_VERSION}, kition-sdk schemas/kits-index.schema.json). Published by kition-sdk's kits-index workflow.`,
     license: 'Apache-2.0',
@@ -488,8 +497,8 @@ export function writeIndexPackage(folder, index, version) {
 }
 
 /** The command line; answers its exit status. */
-export async function main(args, { net = registryNet(), out: write = (text) => process.stdout.write(text), err = (text) => process.stderr.write(text) } = {}) {
-  const valued = ['--out', '--modules', '--previous', '--registry', '--package', '--version', '--withdrawn']
+export async function main(args, { net = registryNet(), out: write = (text) => process.stdout.write(text), err = (text) => process.stderr.write(text), env = process.env } = {}) {
+  const valued = ['--out', '--modules', '--previous', '--registry', '--package', '--version', '--withdrawn', '--scope']
   const flag = (name) => {
     const at = args.indexOf(name)
     return at >= 0 ? args[at + 1] : undefined
@@ -498,24 +507,25 @@ export async function main(args, { net = registryNet(), out: write = (text) => p
   const dryRun = args.includes('--dry-run')
   const unknown = args.filter((arg, i) => arg.startsWith('--') && arg !== '--dry-run' && !valued.includes(arg) && !(i > 0 && valued.includes(args[i - 1])))
   if ((!out && !dryRun) || (out && dryRun) || !flag('--modules') || unknown.length || Boolean(flag('--package')) !== Boolean(flag('--version'))) {
-    err('usage: kits-index.mjs --modules <file> (--out <file> [--package <folder> --version <version>] | --dry-run) [--registry <address>] [--previous <kits-index.json>] [--withdrawn <file>]\n')
+    err('usage: kits-index.mjs --modules <file> (--out <file> [--package <folder> --version <version>] | --dry-run) [--registry <address>] [--previous <kits-index.json>] [--withdrawn <file>] [--scope <@scope>]\n')
     return 2
   }
   try {
+    const scope = args.includes('--scope') ? checkScope(flag('--scope'), '--scope') : npmScope(env)
     const modules = JSON.parse(fs.readFileSync(flag('--modules'), 'utf8'))
     const kits = kitsOfModules(modules)
     const withdrawnFile = flag('--withdrawn') ?? WITHDRAWN
     const withdrawn = withdrawnVersions(fs.readFileSync(withdrawnFile, 'utf8'), kits, withdrawnFile)
     const previousFile = flag('--previous')
     const previous = previousFile && fs.existsSync(previousFile) ? JSON.parse(fs.readFileSync(previousFile, 'utf8')) : null
-    const gathered = await gatherIndex({ kits, net, registry: flag('--registry') ?? REGISTRY, previous, withdrawn })
+    const gathered = await gatherIndex({ kits, net, registry: flag('--registry') ?? REGISTRY, previous, withdrawn, scope })
     write(`${reportLines(gathered, previous).join('\n')}\n`)
     if (!Object.keys(gathered.index.kits).length) return EMPTY
     if (out) {
       fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true })
       fs.writeFileSync(out, serialize(gathered.index))
       write(`wrote ${out}\n`)
-      if (flag('--package')) write(`wrote ${writeIndexPackage(flag('--package'), gathered.index, flag('--version'))}\n`)
+      if (flag('--package')) write(`wrote ${writeIndexPackage(flag('--package'), gathered.index, flag('--version'), scope)}\n`)
     }
     return 0
   } catch (error) {

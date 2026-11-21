@@ -5,7 +5,7 @@
 //! (`registry.rs`) and checked against the integrity the index gives.
 //!
 //! The index is read from `--index` or `KITION_INDEX` (an address or a file), else from the npm
-//! package [`registry::INDEX_PACKAGE`] at its `latest`, which kition-sdk's `.github/workflows/kits-index.yml`
+//! package [`Scope::index_package`] (`@kition/kits-index`) at its `latest`, which kition-sdk's `.github/workflows/kits-index.yml`
 //! publishes from the kit packages' registry metadata (`tools/kits-index.mjs`); each read is kept
 //! in the home's `cache/`, so a person without a network still sees what was there last time.
 
@@ -18,13 +18,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::home::Home;
-use crate::registry::{self, Registries};
+use crate::registry::{self, Registries, Scope};
 
 /// The index format this program reads (`schemaVersion`).
 pub const SCHEMA_VERSION: u64 = 1;
 
-/// Where the index is when nothing else is named: the npm package `@kition/kits-index` at its
-/// `latest`, from the registries `registry.rs` lists.
+/// Where the index is when nothing else is named and `KITION_NPM_SCOPE` is not set: the npm
+/// package `@kition/kits-index` at its `latest`, from the registries `registry.rs` lists. In
+/// another scope, its [`Scope::index_package`] (`<scope>/kits`).
 pub const DEFAULT_INDEX: &str = "npm:@kition/kits-index";
 
 /// The variable that names another index: an address or a file.
@@ -68,10 +69,11 @@ pub struct IndexVersion {
     /// `kition-kit/1`.
     pub protocol: String,
     /// Its package for each platform (`darwin-arm64`, `linux-x64`, `win32-x64`, ...):
-    /// `@kition/kit-<kit>-<platform>`, `kit.json` and the executable at its top.
+    /// `@kition/kit-<kit>-<platform>` (in layout 1 `<scope>/<kit>-<platform>`), `kit.json` and the
+    /// executable at its top.
     pub platforms: BTreeMap<String, Archive>,
     /// Its editor package (the kit's UI, engine and fonts for a Kit UI protocol host),
-    /// `@kition/kit-<kit>-ui`: one folder `<kit>-ui/` with the editor's `index.html` and the
+    /// `@kition/kit-<kit>-ui` (in layout 1 `<scope>/<kit>`): one folder `<kit>-ui/` with the editor's `index.html` and the
     /// kit's `kit.json`. The same for every platform. Absent for a version published without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui: Option<Archive>,
@@ -82,7 +84,7 @@ pub struct IndexVersion {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Archive {
-    /// `@kition/kit-<kit>-<platform>` or `@kition/kit-<kit>-ui`.
+    /// `@kition/kit-<kit>-<platform>` or `@kition/kit-<kit>-ui` ([`Scope::kit_package`]).
     pub package: String,
     /// The tarball's bytes.
     pub size: u64,
@@ -102,8 +104,8 @@ pub fn protocol_number(protocol: &str) -> Option<u32> {
 
 impl Index {
     /// The index in `text`, checked: the format version this program reads, and every kit,
-    /// version and archive well formed.
-    pub fn parse(text: &str) -> Result<Self, String> {
+    /// version and archive well formed, each package named as `scope` names it.
+    pub fn parse(text: &str, scope: &Scope) -> Result<Self, String> {
         let value: serde_json::Value = serde_json::from_str(text).map_err(|error| format!("the kit index is not JSON: {error}"))?;
         match value.get("schemaVersion").and_then(serde_json::Value::as_u64) {
             Some(SCHEMA_VERSION) => {}
@@ -111,11 +113,11 @@ impl Index {
             None => return Err(format!("the kit index has no `schemaVersion` {SCHEMA_VERSION}")),
         }
         let index: Self = serde_json::from_value(value).map_err(|error| format!("the kit index is malformed: {error}"))?;
-        index.check()?;
+        index.check(scope)?;
         Ok(index)
     }
 
-    fn check(&self) -> Result<(), String> {
+    fn check(&self, scope: &Scope) -> Result<(), String> {
         for (name, kit) in &self.kits {
             let bad = |what: String| Err(format!("the kit index is malformed: kit `{name}`: {what}"));
             if !short_name(name) {
@@ -140,8 +142,11 @@ impl Index {
                 for (platform, archive) in
                     entry.platforms.iter().map(|(platform, archive)| (platform.as_str(), archive)).chain(entry.ui.iter().map(|ui| ("ui", ui)))
                 {
-                    if archive.package != format!("{}/kit-{name}-{platform}", registry::SCOPE) || !registry::package_name(&archive.package) {
-                        return bad(format!("{version} {platform}: its package is `{}`, not {}/kit-{name}-{platform}", archive.package, registry::SCOPE));
+                    let Some(expected) = scope.kit_package(name, platform) else {
+                        return bad(format!("{name} is another package's name in {}, not a kit's", scope.name()));
+                    };
+                    if archive.package != expected || !scope.owns(&archive.package) {
+                        return bad(format!("{version} {platform}: its package is `{}`, not {expected}", archive.package));
                     }
                     if archive.size == 0 || !registry::integrity_form(&archive.integrity) {
                         return bad(format!("{version} {platform}: a package has a size above 0 and an integrity sha512-<base64>"));
@@ -186,13 +191,15 @@ pub struct Source {
 }
 
 impl Source {
-    /// `given` (`--index`), else `KITION_INDEX`, else [`DEFAULT_INDEX`]: an address or a file, or
-    /// `npm:<package>` for the index package on the npm registries.
+    /// `given` (`--index`), else `KITION_INDEX`, else the index package of the scope
+    /// (`KITION_NPM_SCOPE`; [`DEFAULT_INDEX`] without it): an address or a file, or `npm:<package>`
+    /// for the index package on the npm registries. A malformed scope leaves [`DEFAULT_INDEX`]
+    /// here; [`load`] refuses it before reading anything.
     pub fn choose(given: Option<&str>) -> Self {
         let location = given
             .map(str::to_owned)
             .or_else(|| std::env::var(INDEX_VARIABLE).ok().filter(|value| !value.trim().is_empty()))
-            .unwrap_or_else(|| DEFAULT_INDEX.to_owned());
+            .unwrap_or_else(|| Scope::from_env().map_or_else(|_| DEFAULT_INDEX.to_owned(), |scope| format!("npm:{}", scope.index_package())));
         Self { location }
     }
 
@@ -229,10 +236,12 @@ pub enum Freshness {
     Within(Duration),
 }
 
-/// Reads the index from `source`, keeping each good read in the home's cache.
+/// Reads the index from `source`, keeping each good read in the home's cache. Its packages must be
+/// those of the scope `KITION_NPM_SCOPE` names; a malformed scope is refused before anything is read.
 pub fn load(home: &Home, source: &Source, freshness: Freshness) -> Result<Loaded, String> {
+    let scope = Scope::from_env()?;
     let cache = source.cache_file(home);
-    let cached = || -> Option<Index> { Index::parse(&std::fs::read_to_string(&cache).ok()?).ok() };
+    let cached = || -> Option<Index> { Index::parse(&std::fs::read_to_string(&cache).ok()?, &scope).ok() };
     if let Freshness::Within(age) = freshness {
         let young = std::fs::metadata(&cache)
             .and_then(|meta| meta.modified())
@@ -244,10 +253,10 @@ pub fn load(home: &Home, source: &Source, freshness: Freshness) -> Result<Loaded
         }
     }
     let read = match source.location.strip_prefix("npm:") {
-        Some(package) => read_package(home, package),
+        Some(package) => read_package(home, package, &scope),
         None => crate::fetch::read_text(&source.location, INDEX_LIMIT).map(|text| (text, source.location.clone())),
     }
-    .and_then(|(text, location)| Index::parse(&text).map(|index| (index, text, location)));
+    .and_then(|(text, location)| Index::parse(&text, &scope).map(|index| (index, text, location)));
     match read {
         Ok((index, text, location)) => {
             // A cache that cannot be written only costs the offline copy.
@@ -268,9 +277,9 @@ pub fn load(home: &Home, source: &Source, freshness: Freshness) -> Result<Loaded
 /// The index in the npm package `package` at its `latest`, from the first registry that has it:
 /// its `kits-index.json`, and where it came from. The tarball must have the integrity the
 /// registry's own metadata gives.
-fn read_package(home: &Home, package: &str) -> Result<(String, String), String> {
-    if !registry::package_name(package) {
-        return Err(format!("{package} is not a package of {}", registry::SCOPE));
+fn read_package(home: &Home, package: &str, scope: &Scope) -> Result<(String, String), String> {
+    if !scope.owns(package) {
+        return Err(format!("{package} is not a package of {}", scope.name()));
     }
     let registries = registry::configured();
     let (metadata, answered) = registry::read_json(&registries, &registry::metadata_path(package, "latest"), 4 * 1024 * 1024)?;
@@ -310,7 +319,7 @@ mod tests {
 
     #[test]
     fn reads_a_good_index_and_orders_versions_by_semver() {
-        let index = Index::parse(&sample().to_string()).unwrap();
+        let index = Index::parse(&sample().to_string(), &Scope::default()).unwrap();
         assert_eq!(index.kits["note"].versions["0.3.0"].ui.as_ref().map(|ui| ui.size), Some(20));
         assert!(index.kits["note"].versions["0.10.0"].ui.is_none(), "a version without an editor package");
         let (name, kit) = index.for_extension("markdown").unwrap();
@@ -323,29 +332,66 @@ mod tests {
     fn refuses_a_newer_format_and_malformed_entries() {
         let mut newer = sample();
         newer["schemaVersion"] = json!(2);
-        assert!(Index::parse(&newer.to_string()).unwrap_err().contains("the kit index is format 2, and this kition"));
+        assert!(Index::parse(&newer.to_string(), &Scope::default()).unwrap_err().contains("the kit index is format 2, and this kition"));
         let mut id = sample();
         id["kits"]["note"]["id"] = json!("kit.table");
-        assert!(Index::parse(&id.to_string()).unwrap_err().contains("not `kit.note`"));
+        assert!(Index::parse(&id.to_string(), &Scope::default()).unwrap_err().contains("not `kit.note`"));
         let mut hash = sample();
         hash["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["integrity"] = json!(format!("sha256-{}", "a".repeat(43)));
-        assert!(Index::parse(&hash.to_string()).is_err());
+        assert!(Index::parse(&hash.to_string(), &Scope::default()).is_err());
         // A package of another kit, or out of the scope: an index cannot point a kit at it.
         for other in ["@kition/kit-table-darwin-arm64", "left-pad", "@kition/kit-note-ui"] {
             let mut wrong = sample();
             wrong["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["package"] = json!(other);
-            assert!(Index::parse(&wrong.to_string()).unwrap_err().contains("its package is"), "{other}");
+            assert!(Index::parse(&wrong.to_string(), &Scope::default()).unwrap_err().contains("its package is"), "{other}");
         }
         let mut addresses = sample();
         addresses["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"] =
             json!({ "url": "https://github.com/x.tar.gz", "size": 1, "sha256": "a".repeat(64) });
-        assert!(Index::parse(&addresses.to_string()).is_err(), "an index of GitHub addresses is no longer read");
+        assert!(Index::parse(&addresses.to_string(), &Scope::default()).is_err(), "an index of GitHub addresses is no longer read");
         let mut ui = sample();
         ui["kits"]["note"]["versions"]["0.3.0"]["ui"]["size"] = json!(0);
-        assert!(Index::parse(&ui.to_string()).unwrap_err().contains("0.3.0 ui"));
+        assert!(Index::parse(&ui.to_string(), &Scope::default()).unwrap_err().contains("0.3.0 ui"));
         let mut version = sample();
         version["kits"]["note"]["versions"]["latest"] = json!({ "protocol": "kition-kit/1", "platforms": {} });
-        assert!(Index::parse(&version.to_string()).unwrap_err().contains("semver"));
+        assert!(Index::parse(&version.to_string(), &Scope::default()).unwrap_err().contains("semver"));
+    }
+
+    /// The sample with layout 1's names in `scope`.
+    fn sample_in(scope: &str) -> serde_json::Value {
+        let mut index = sample();
+        let version = &mut index["kits"]["note"]["versions"]["0.3.0"];
+        version["platforms"]["darwin-arm64"]["package"] = json!(format!("{scope}/note-darwin-arm64"));
+        version["ui"]["package"] = json!(format!("{scope}/note"));
+        index
+    }
+
+    #[test]
+    fn another_scope_reads_only_its_own_packages_by_layout_1() {
+        let stage = Scope::parse(Some("@kitionstage")).unwrap();
+        let index = Index::parse(&sample_in("@kitionstage").to_string(), &stage).unwrap();
+        assert_eq!(index.kits["note"].versions["0.3.0"].ui.as_ref().map(|ui| ui.package.as_str()), Some("@kitionstage/note"));
+        // @kition's index, or @kition's names, are not the stage scope's; nor the other way round.
+        assert!(Index::parse(&sample().to_string(), &stage).unwrap_err().contains("not @kitionstage/note-darwin-arm64"));
+        assert!(Index::parse(&sample_in("@kitionstage").to_string(), &Scope::default()).unwrap_err().contains("not @kition/kit-note-darwin-arm64"));
+        // A package of another scope, or of another kit, is refused.
+        for other in
+            ["@kition/note-darwin-arm64", "@other/note-darwin-arm64", "@kitionstage/table-darwin-arm64", "@kitionstage/note", "@kitionstage/cli-darwin-arm64"]
+        {
+            let mut wrong = sample_in("@kitionstage");
+            wrong["kits"]["note"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["package"] = json!(other);
+            assert!(Index::parse(&wrong.to_string(), &stage).unwrap_err().contains("its package is"), "{other}");
+        }
+        // A kit named like another package of the scope is no kit there.
+        let mut cli = json!({ "schemaVersion": 1, "kits": {} });
+        cli["kits"]["cli"] = sample_in("@kitionstage")["kits"]["note"].clone();
+        cli["kits"]["cli"]["id"] = json!("kit.cli");
+        cli["kits"]["cli"]["versions"]["0.3.0"]["platforms"]["darwin-arm64"]["package"] = json!("@kitionstage/cli-darwin-arm64");
+        cli["kits"]["cli"]["versions"]["0.3.0"]["ui"]["package"] = json!("@kitionstage/cli");
+        assert!(Index::parse(&cli.to_string(), &stage).unwrap_err().contains("cli is another package's name in @kitionstage"));
+        // The schema takes both layouts' names.
+        let schema: serde_json::Value = serde_json::from_str(include_str!("../../../schemas/kits-index.schema.json")).unwrap();
+        assert!(jsonschema::validator_for(&schema).unwrap().is_valid(&sample_in("@kitionstage")));
     }
 
     #[test]

@@ -92,7 +92,7 @@
         },
         "platforms": {
           "type": "object",
-          "description": "The kit's npm package for each platform, @kition/kit-<kit>-<platform>: darwin-arm64, darwin-x64, linux-arm64, linux-x64 (glibc), win32-x64.",
+          "description": "The kit's npm package for each platform, @kition/kit-<kit>-<platform> (<scope>/<kit>-<platform> in a scope of layout 1): darwin-arm64, darwin-x64, linux-arm64, linux-x64 (glibc), win32-x64.",
           "propertyNames": {
             "pattern": "^[a-z0-9]+-[a-z0-9]+$"
           },
@@ -102,7 +102,7 @@
         },
         "ui": {
           "$ref": "#/$defs/archive",
-          "description": "The version's editor package, the same for every platform: the npm package @kition/kit-<kit>-ui, holding one folder <kit>-ui/ with the editor's index.html, its engine and fonts, and the kit's kit.json. kition installs it beside the headless kit (kits/<kit>/ui/<version>/) and kition gateway serves it to its editor page. Absent for a version published without one."
+          "description": "The version's editor package, the same for every platform: the npm package @kition/kit-<kit>-ui (<scope>/<kit> in a scope of layout 1), holding one folder <kit>-ui/ with the editor's index.html, its engine and fonts, and the kit's kit.json. kition installs it beside the headless kit (kits/<kit>/ui/<version>/) and kition gateway serves it to its editor page. Absent for a version published without one."
         }
       }
     },
@@ -118,8 +118,8 @@
       "properties": {
         "package": {
           "type": "string",
-          "pattern": "^@kition/kit-[a-z][a-z0-9]*-[a-z0-9-]+$",
-          "description": "@kition/kit-<kit>-<platform> or @kition/kit-<kit>-ui."
+          "pattern": "^@[a-z0-9][a-z0-9-]*/[a-z][a-z0-9]*(-[a-z0-9-]+)?$",
+          "description": "@kition/kit-<kit>-<platform> or @kition/kit-<kit>-ui; in an npm scope of layout 1 (any but @kition, KITION_NPM_SCOPE), <scope>/<kit>-<platform> or <scope>/<kit>. kition accepts only the names of the scope it reads."
         },
         "size": {
           "type": "integer",

@@ -3,13 +3,19 @@
 // which writes them with tools/kit-npm-package.mjs), the kit index (tools/kits-index.mjs, which
 // reads their registry metadata) and `kition`, which installs them (crates/kition-cli).
 //
-// Per kit version `<version>` (the kit.json `version`):
+// Per kit version `<version>` (the kit.json `version`), in the npm scope `KITION_NPM_SCOPE` names
+// (default `@kition`; see `npmScope`), named by the scope's layout (see `LEGACY_LAYOUT_SCOPES`):
 //
-//   @kition/kit-<kit>-<platform>@<version>   its headless kit for one platform (npm `os`, `cpu`,
-//                                            and `libc` on Linux): kit.json and the executable
-//                                            `kition-<kit>` (.exe on Windows) at the package's top
-//   @kition/kit-<kit>-ui@<version>           its editor package: the folder `<kit>-ui/` (index.html,
-//                                            the engine, fonts, the kit's kit.json)
+//   legacy layout (@kition)        layout 1 (any other scope)
+//   <scope>/kit-<kit>-<platform>   <scope>/<kit>-<platform>   its headless kit for one platform (npm
+//                                                             `os`, `cpu`, and `libc` on Linux):
+//                                                             kit.json and the executable
+//                                                             `kition-<kit>` (.exe on Windows) at
+//                                                             the package's top
+//   <scope>/kit-<kit>-ui           <scope>/<kit>              its editor package: the folder
+//                                                             `<kit>-ui/` (index.html, the engine,
+//                                                             fonts, the kit's kit.json)
+//   <scope>/kits-index             <scope>/kits               the kit index (tools/kits-index.mjs)
 //
 // The files are those of the kit's archives before (the same names, the same bytes); only the
 // container is npm's, a .tgz with everything under `package/` and a `package.json` beside them.
@@ -31,23 +37,63 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const PLATFORM_TARGETS = Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(path.join(root, 'packages/kition/src/platforms.json'), 'utf8'))).filter(([key]) => !key.startsWith('$')))
 export const PLATFORMS = Object.keys(PLATFORM_TARGETS)
 
-export const SCOPE = '@kition'
-/** The package of the kit index (tools/kits-index.mjs writes it; `kition` reads its `latest`). */
-export const INDEX_PACKAGE = `${SCOPE}/kits-index`
+/** The variable naming the npm scope kit packages and the kit index are published to and read from. */
+export const SCOPE_VARIABLE = 'KITION_NPM_SCOPE'
+/** The scope when `KITION_NPM_SCOPE` is not set (or empty). */
+export const DEFAULT_SCOPE = '@kition'
+const SCOPE_FORM = /^@[a-z0-9][a-z0-9-]*$/
+
+// The scopes whose packages keep the legacy names (kit-<kit>-ui, kit-<kit>-<platform>,
+// kits-index); every other scope uses layout 1 (<kit>, <kit>-<platform>, kits). On cutover day,
+// when @kition moves to layout 1: empty this list, then delete the legacy branches of packageName
+// and indexPackage below. The same list is in crates/kition-cli/src/registry.rs
+// (LEGACY_LAYOUT_SCOPES) and in KitionAI/kition scripts/lib/kitNpm.mjs.
+export const LEGACY_LAYOUT_SCOPES = ['@kition']
+/** Whether `scope` names its packages by the legacy layout. */
+export const isLegacyLayout = (scope) => LEGACY_LAYOUT_SCOPES.includes(scope)
+
+/**
+ * Names that are no kit's in layout 1: there a kit's packages are `<scope>/<kit>` and
+ * `<scope>/<kit>-<platform>`, so a kit of one of these names would be taken for the scope's other
+ * packages (`<scope>/cli`, `<scope>/cli-<platform>`, `<scope>/kits`, `<scope>/kit-editor`, ...).
+ */
+export const NOT_KIT_NAMES = ['cli', 'convergence', 'embed', 'extensions', 'gateway', 'kdm', 'kit', 'kition', 'kits', 'script', 'sdk', 'sync', 'tessera']
+
+/** `scope`, when it is an npm scope (`@`, then lowercase letters, digits and dashes); else throws, naming `what`. */
+export function checkScope(scope, what = 'the scope') {
+  if (typeof scope !== 'string' || !SCOPE_FORM.test(scope)) throw new Error(`${what} is ${JSON.stringify(scope)}, not an npm scope (@ then lowercase letters, digits and dashes, such as @kition)`)
+  return scope
+}
+
+/** The npm scope of `env`: `KITION_NPM_SCOPE`, else (unset or empty) `@kition`; one of another form throws. */
+export function npmScope(env = process.env) {
+  const value = env[SCOPE_VARIABLE]
+  return value === undefined || value === '' ? DEFAULT_SCOPE : checkScope(value, SCOPE_VARIABLE)
+}
+
+/** The package of the kit index of `scope` (tools/kits-index.mjs writes it; `kition` reads its `latest`). */
+export function indexPackage(scope = npmScope()) {
+  checkScope(scope)
+  return isLegacyLayout(scope) ? `${scope}/kits-index` : `${scope}/kits`
+}
+
 /** The registries `kition` falls back to after the ones configured, in this order. */
 export const DEFAULT_REGISTRIES = ['https://registry.npmjs.org/', 'https://registry.npmmirror.com/']
 
 const KIT = /^[a-z][a-z0-9]*$/
 const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/
 
-/** The package of `kit`'s headless kit for `platform`, or of its editor (`ui`). */
-export function packageName(kit, part) {
+/** The package of `kit`'s headless kit for `platform`, or of its editor (`ui`), in `scope`. */
+export function packageName(kit, part, scope = npmScope()) {
   if (!KIT.test(kit)) throw new Error(`${JSON.stringify(kit)} is not a kit name`)
   if (part !== 'ui' && !PLATFORMS.includes(part)) throw new Error(`no platform ${part} (${PLATFORMS.join(', ')}), nor ui`)
-  return `${SCOPE}/kit-${kit}-${part}`
+  checkScope(scope)
+  if (isLegacyLayout(scope)) return `${scope}/kit-${kit}-${part}`
+  if (NOT_KIT_NAMES.includes(kit)) throw new Error(`${kit} is not a kit name in ${scope}: ${scope}/${kit} is another package there`)
+  return part === 'ui' ? `${scope}/${kit}` : `${scope}/${kit}-${part}`
 }
 
-/** A package's tarball, relative to a registry's address: `@kition/kit-note-ui/-/kit-note-ui-0.1.3.tgz`. */
+/** A package's tarball, relative to a registry's address: `@kition/kit-note-ui/-/kit-note-ui-0.1.3.tgz`, `@kitionstage/note/-/note-0.1.3.tgz`. */
 export function tarballPath(name, version) {
   const bare = name.includes('/') ? name.split('/')[1] : name
   return `${name}/-/${bare}-${version}.tgz`
@@ -112,11 +158,11 @@ export function kitionField(kitJson, role, { platform, build = {} } = {}) {
  * The package.json of a kit's package: its name and version, the platform it installs on (npm
  * `os`, `cpu`, `libc`), the files it ships, and the `kition` field.
  */
-export function packageManifest(kitJson, role, { platform, build, files, repository } = {}) {
+export function packageManifest(kitJson, role, { platform, build, files, repository, scope = npmScope() } = {}) {
   const kition = kitionField(kitJson, role, { platform, build })
   const target = role === 'headless' ? PLATFORM_TARGETS[platform] : null
   return {
-    name: packageName(kition.kit, role === 'ui' ? 'ui' : platform),
+    name: packageName(kition.kit, role === 'ui' ? 'ui' : platform, scope),
     version: kition.version,
     description:
       role === 'ui'
@@ -132,8 +178,9 @@ export function packageManifest(kitJson, role, { platform, build, files, reposit
 
 /**
  * The registries `kition` reads, in order: `KITION_NPM_REGISTRY` (one address, or several
- * separated by commas), else none; then npm's own setting for the @kition scope or its registry
- * (`npm_config_registry`, else `~/.npmrc`: `@kition:registry`, then `registry`); then
+ * separated by commas), else none; then npm's own setting for the scope (`npmScope(env)`, default
+ * @kition) or its registry (`npm_config_registry`, else `~/.npmrc`: `<scope>:registry`, then
+ * `registry`); then
  * npmjs.org and npmmirror.com. Each address ends with `/`; none twice. The same rules as
  * crates/kition-cli/src/registry.rs, for the tools and the tests.
  */
@@ -147,7 +194,7 @@ export function registries(env = process.env, npmrcText = null) {
   }
   for (const value of String(env.KITION_NPM_REGISTRY ?? '').split(',')) add(value)
   const npmrc = parseNpmrc(npmrcText ?? '', env)
-  add(npmrc[`${SCOPE}:registry`])
+  add(npmrc[`${npmScope(env)}:registry`])
   add(env.npm_config_registry ?? env.NPM_CONFIG_REGISTRY ?? npmrc.registry)
   for (const address of DEFAULT_REGISTRIES) add(address)
   return list

@@ -279,6 +279,7 @@ pub fn isolate(command: &mut std::process::Command, home: &Path) {
     command
         .env_remove("KITION_INDEX")
         .env_remove("KITION_NPM_REGISTRY")
+        .env_remove("KITION_NPM_SCOPE")
         .env("npm_config_userconfig", home.join("no-npmrc"))
         .env("HTTPS_PROXY", "http://127.0.0.1:9")
         .env("HTTP_PROXY", "http://127.0.0.1:9")

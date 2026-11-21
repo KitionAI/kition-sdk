@@ -503,7 +503,8 @@ The default index is the npm package `@kition/kits-index`: `kition` reads the me
 the integrity the metadata gives, and reads its `kits-index.json`. kition-sdk's `kits-index`
 workflow publishes it from the registry metadata of every kit's packages, which each kit
 repository publishes on npm: every kit and every version a kit repository has published is in
-it, whether or not an SDK release bundles that kit, and a new kit version is in it within the hour
+it, whether or not an SDK release bundles that kit, and a new kit version is in it once a
+maintainer runs that workflow
 ([distribution.md](distribution.md#kit-packages-and-the-kit-index)). `kition` 0.5.2 and earlier
 read an index on GitHub instead, which no longer changes; upgrade them
 ([distribution.md](distribution.md#the-kitions-before-npm)). `KITION_INDEX` or `--index` name
@@ -517,7 +518,7 @@ Kits, their editors, the kit index and the installers' `kition` all come from np
 this order, each once:
 
 1. `KITION_NPM_REGISTRY`: one address, or several separated by commas;
-2. npm's own setting, read without npm: `@kition:registry` from the `.npmrc` (the file
+2. npm's own setting, read without npm: `@kition:registry` (the scope's, with `KITION_NPM_SCOPE`) from the `.npmrc` (the file
    `npm_config_userconfig` names, else `~/.npmrc`), else `npm_config_registry`, else that file's
    `registry` (quotes taken off, `${VAR}` expanded);
 3. `https://registry.npmjs.org/`;
@@ -539,6 +540,7 @@ it uses. Proxies come from `HTTPS_PROXY` and the others below; no token is sent,
 | `KITION_HOME` | The Kition home, instead of `~/.kition` |
 | `KITION_INDEX` | The kit index: an `https` address or a file, instead of the npm package `@kition/kits-index` |
 | `KITION_NPM_REGISTRY` | npm registries to try first, separated by commas ([the registries](#the-registries)) |
+| `KITION_NPM_SCOPE` | The npm scope of the kits and the kit index, instead of `@kition`; another scope's packages are named `<scope>/<kit>-<platform>`, `<scope>/<kit>` and `<scope>/kits` (the index), and only its packages are accepted |
 | `npm_config_registry`, `npm_config_userconfig` | npm's own settings, read as npm reads them ([the registries](#the-registries)) |
 | `KITION_KIT_<KIT>_BINARY` | A kit executable to use instead of the store's (development builds), as for `kition-kits-mcp` |
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | Proxies for reading the index and downloading kits and editors (lowercase forms too) |

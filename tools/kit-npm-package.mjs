@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Writes, packs and checks a kit version's npm packages (tools/kit-npm.mjs) for the kit
 // repositories' Package workflow (KitionAI/kition .github/workflows/kit-package.yml). It never
-// publishes: the workflow runs `npm publish` on what `pack` wrote, when `state` says so.
+// publishes: the workflow runs `npm publish` on what `pack` wrote, when `state` says so. The
+// packages are named in the scope `--scope` names, else `KITION_NPM_SCOPE`, else @kition, by that
+// scope's layout (tools/kit-npm.mjs); below with @kition's names. `headless` and `ui` print the
+// folder they wrote, named as the package without its scope.
 //
 //   node tools/kit-npm-package.mjs headless --dir <folder> --platform <platform> --out <folder> [--commit <sha>] [--repository <owner/name>]
 //       <folder> holds kit.json and the executable kition-<kit> (.exe on Windows), checked by the
@@ -23,7 +26,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { integrityOf, packageManifest, packageName, PLATFORMS } from './kit-npm.mjs'
+import { checkScope, integrityOf, npmScope, packageManifest, packageName, PLATFORMS } from './kit-npm.mjs'
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 
@@ -40,13 +43,13 @@ function filesUnder(dir, prefix = '') {
 }
 
 /** Writes the headless package of the build in `dir` for `platform` into `out`; answers its folder. */
-export function writeHeadless({ dir, platform, out, commit, repository }) {
+export function writeHeadless({ dir, platform, out, commit, repository, scope = npmScope() }) {
   if (!PLATFORMS.includes(platform)) throw new Error(`no platform ${platform} (${PLATFORMS.join(', ')})`)
   const kitJson = readJson(path.join(dir, 'kit.json'))
   const executable = `${kitJson.headless?.executable ?? ''}${platform.startsWith('win32') ? '.exe' : ''}`
   if (!kitJson.headless?.executable || kitJson.headless.executable.includes('/')) throw new Error(`${dir}/kit.json names no executable (headless.executable)`)
   if (!fs.statSync(path.join(dir, executable), { throwIfNoEntry: false })?.isFile()) throw new Error(`${dir} has no ${executable}`)
-  const manifest = packageManifest(kitJson, 'headless', { platform, build: { commit }, files: ['kit.json', executable], repository })
+  const manifest = packageManifest(kitJson, 'headless', { platform, build: { commit }, files: ['kit.json', executable], repository, scope })
   const folder = path.join(out, manifest.name.split('/')[1])
   fs.rmSync(folder, { recursive: true, force: true })
   fs.mkdirSync(folder, { recursive: true })
@@ -58,7 +61,7 @@ export function writeHeadless({ dir, platform, out, commit, repository }) {
 }
 
 /** Writes the editor package of `from` (the kit's package archive or its `<kit>-ui` folder) into `out`; answers its folder. */
-export function writeUi({ from, out, commit, sdkCommit, tesseraCommit, fontsCommit, repository }) {
+export function writeUi({ from, out, commit, sdkCommit, tesseraCommit, fontsCommit, repository, scope = npmScope() }) {
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'kition-ui-'))
   try {
     let source = from
@@ -73,7 +76,7 @@ export function writeUi({ from, out, commit, sdkCommit, tesseraCommit, fontsComm
     const kit = String(kitJson.id).replace(/^kit\./, '')
     if (top !== `${kit}-ui`) throw new Error(`${source}: the folder of ${kitJson.id}'s editor is ${kit}-ui, not ${top}`)
     if (!fs.existsSync(path.join(source, 'index.html'))) throw new Error(`${source} has no index.html`)
-    const manifest = packageManifest(kitJson, 'ui', { build: { commit, sdkCommit, tesseraCommit, fontsCommit }, files: [top], repository })
+    const manifest = packageManifest(kitJson, 'ui', { build: { commit, sdkCommit, tesseraCommit, fontsCommit }, files: [top], repository, scope })
     const folder = path.join(out, manifest.name.split('/')[1])
     fs.rmSync(folder, { recursive: true, force: true })
     fs.mkdirSync(folder, { recursive: true })
@@ -142,10 +145,10 @@ export async function state({ tarball, registry }, fetchImpl) {
 }
 
 /** The packages of `kit` `version` the registry lacks: `{ platforms, ui }`. */
-export async function missing({ kit, version, registry }, fetchImpl) {
+export async function missing({ kit, version, registry, scope = npmScope() }, fetchImpl) {
   const platforms = []
-  for (const platform of PLATFORMS) if (!(await registryVersion(registry, packageName(kit, platform), version, fetchImpl))) platforms.push(platform)
-  const ui = !(await registryVersion(registry, packageName(kit, 'ui'), version, fetchImpl))
+  for (const platform of PLATFORMS) if (!(await registryVersion(registry, packageName(kit, platform, scope), version, fetchImpl))) platforms.push(platform)
+  const ui = !(await registryVersion(registry, packageName(kit, 'ui', scope), version, fetchImpl))
   return { platforms, ui }
 }
 
@@ -157,13 +160,14 @@ async function main(argv) {
     if (required && (value === undefined || value.startsWith('--'))) throw new Error(`${command} needs ${name}`)
     return value
   }
+  const scope = args.includes('--scope') ? checkScope(flag('--scope', false), '--scope') : npmScope()
   switch (command) {
     case 'headless':
-      process.stdout.write(`${writeHeadless({ dir: path.resolve(flag('--dir')), platform: flag('--platform'), out: path.resolve(flag('--out')), commit: flag('--commit', false), repository: flag('--repository', false) })}\n`)
+      process.stdout.write(`${writeHeadless({ dir: path.resolve(flag('--dir')), platform: flag('--platform'), out: path.resolve(flag('--out')), commit: flag('--commit', false), repository: flag('--repository', false), scope })}\n`)
       return
     case 'ui':
       process.stdout.write(
-        `${writeUi({ from: path.resolve(flag('--from')), out: path.resolve(flag('--out')), commit: flag('--commit', false), sdkCommit: flag('--sdk-commit', false), tesseraCommit: flag('--tessera-commit', false), fontsCommit: flag('--fonts-commit', false), repository: flag('--repository', false) })}\n`,
+        `${writeUi({ from: path.resolve(flag('--from')), out: path.resolve(flag('--out')), commit: flag('--commit', false), sdkCommit: flag('--sdk-commit', false), tesseraCommit: flag('--tessera-commit', false), fontsCommit: flag('--fonts-commit', false), repository: flag('--repository', false), scope })}\n`,
       )
       return
     case 'pack':
@@ -173,10 +177,10 @@ async function main(argv) {
       process.stdout.write(`${await state({ tarball: path.resolve(flag('--tarball')), registry: flag('--registry') })}\n`)
       return
     case 'missing':
-      process.stdout.write(`${JSON.stringify(await missing({ kit: flag('--kit'), version: flag('--version'), registry: flag('--registry') }))}\n`)
+      process.stdout.write(`${JSON.stringify(await missing({ kit: flag('--kit'), version: flag('--version'), registry: flag('--registry'), scope }))}\n`)
       return
     default:
-      throw new Error('usage: kit-npm-package.mjs headless|ui|pack|state|missing ... (see the header of tools/kit-npm-package.mjs)')
+      throw new Error('usage: kit-npm-package.mjs headless|ui|pack|state|missing ... [--scope <@scope>] (see the header of tools/kit-npm-package.mjs)')
   }
 }
 

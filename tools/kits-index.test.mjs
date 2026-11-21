@@ -37,15 +37,16 @@ const kitJson = (kit, version, { protocol = 'kition-kit/1', name = kit[0].toUppe
  * and npm's dist.integrity), null for a package never published, and each tarball's size to a
  * HEAD (null, as registryNet answers a 404, for a tarball npm does not serve yet); it records
  * every URL asked. `tamper(name, version, manifest)` changes a manifest; `fail` names URLs that
- * answer an error; `notReady` names tarballs whose metadata is listed but that answer 404.
+ * answer an error; `notReady` names tarballs whose metadata is listed but that answer 404; `scope`
+ * names the packages in another npm scope (layout 1).
  */
-function fakeRegistry(kits, { registry = REGISTRY, tamper = () => {}, fail = [], notReady = [] } = {}) {
+function fakeRegistry(kits, { registry = REGISTRY, tamper = () => {}, fail = [], notReady = [], scope } = {}) {
   const packuments = new Map()
   const sizes = new Map()
   for (const [kit, versions] of Object.entries(kits)) {
     for (const [version, { platforms = PLATFORMS, ui = true, ...options }] of Object.entries(versions)) {
       const manifestOf = (part) => {
-        const name = packageName(kit, part)
+        const name = packageName(kit, part, scope)
         const kition = kitionField(kitJson(kit, version, options), part === 'ui' ? 'ui' : 'headless', { platform: part === 'ui' ? undefined : part })
         const bytes = Buffer.from(`${name}@${version}`)
         const manifest = { name, version, kition, dist: { integrity: integrityOf(bytes), tarball: `${registry}${tarballPath(name, version)}` } }
@@ -524,5 +525,61 @@ describe('compareVersions and schemaProblems', () => {
     const archive = { schemaVersion: 1, kits: { note: { id: 'kit.note', name: 'Note', extensions: ['md'], versions: { '0.1.0': { protocol: 'kition-kit/1', platforms: { 'darwin-arm64': { url: 'x', size: 1, sha256: 'a'.repeat(64) } } } } } } }
     expect(schemaProblems(archive)).toEqual(expect.arrayContaining([expect.stringMatching(/url is not allowed/), expect.stringMatching(/has no package/), expect.stringMatching(/has no integrity/)]))
     expect(() => schemaProblems('x', { maxLength: 3 })).toThrow(/keyword maxLength is not checked/)
+  })
+})
+
+describe('kits-index: another npm scope (KITION_NPM_SCOPE), named by layout 1', () => {
+  const modulesFile = (kits) => {
+    const file = path.join(tempDir(), 'modules.json')
+    fs.writeFileSync(file, JSON.stringify(Object.fromEntries(kits.map((kit) => [kit, { repository: `KitionAI/kition-${kit}` }]))))
+    return file
+  }
+  const capture = () => {
+    const lines = { out: '', err: '' }
+    return { lines, out: (text) => (lines.out += text), err: (text) => (lines.err += text) }
+  }
+
+  it('gathers the scope’s packages <scope>/<kit>-<platform> and <scope>/<kit>, and asks for no other name', async () => {
+    const { net, seen } = fakeRegistry({ note: { '0.1.0': {} } }, { scope: '@kitionstage' })
+    const { index } = await gatherIndex({ kits: ['note'], net, scope: '@kitionstage' })
+    expect(index.kits.note.versions['0.1.0'].ui.package).toBe('@kitionstage/note')
+    expect(index.kits.note.versions['0.1.0'].platforms['linux-x64'].package).toBe('@kitionstage/note-linux-x64')
+    expect(schemaProblems(index)).toEqual([])
+    const names = seen.filter((line) => line.startsWith('json ')).map((line) => decodeURIComponent(line.slice(`json ${REGISTRY}`.length)))
+    expect(names).toEqual([...PLATFORMS.map((platform) => `@kitionstage/note-${platform}`), '@kitionstage/note'])
+    // @kition's packages are not the stage scope's: the same registry read under @kition has no kit.
+    expect(Object.keys((await gatherIndex({ kits: ['note'], net })).index.kits)).toEqual([])
+  })
+
+  it('never takes cli, sdk, kits, tessera or another package of the scope for a kit: the run stops before reading anything', async () => {
+    for (const other of ['cli', 'sdk', 'kits', 'tessera']) {
+      const { net, seen } = fakeRegistry({ note: { '0.1.0': {} } }, { scope: '@kitionstage' })
+      await expect(gatherIndex({ kits: ['note', other], net, scope: '@kitionstage' })).rejects.toThrow(`${other} is not a kit name in @kitionstage`)
+      expect(seen).toEqual([])
+    }
+  })
+
+  it('writes the index package <scope>/kits from KITION_NPM_SCOPE or --scope, and refuses a malformed scope', async () => {
+    const dir = tempDir()
+    const { net } = fakeRegistry({ note: { '0.1.0': {} } }, { scope: '@kitionstage' })
+    const modules = modulesFile(['note'])
+    const run = async (extra, env) => {
+      const io = capture()
+      const pkg = path.join(dir, `pkg-${Math.random().toString(36).slice(2)}`)
+      const status = await main(['--modules', modules, '--out', path.join(dir, 'kits-index.json'), '--package', pkg, '--version', '0.1.0', '--withdrawn', withdrawnFile(), ...extra], { net, env, ...io })
+      return { status, io, pkg }
+    }
+    for (const [extra, env] of [[[], { KITION_NPM_SCOPE: '@kitionstage' }], [['--scope', '@kitionstage'], {}]]) {
+      const { status, io, pkg } = await run(extra, env)
+      expect(status, io.lines.err).toBe(0)
+      expect(JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')).name).toBe('@kitionstage/kits')
+      expect(JSON.parse(fs.readFileSync(path.join(pkg, 'kits-index.json'), 'utf8')).kits.note.versions['0.1.0'].ui.package).toBe('@kitionstage/note')
+    }
+    const malformed = await run([], { KITION_NPM_SCOPE: 'kitionstage' })
+    expect(malformed.status).toBe(1)
+    expect(malformed.io.lines.err).toContain('KITION_NPM_SCOPE is "kitionstage", not an npm scope')
+    const flag = await run(['--scope', '@Stage'], {})
+    expect(flag.status).toBe(1)
+    expect(flag.io.lines.err).toContain('--scope is "@Stage", not an npm scope')
   })
 })

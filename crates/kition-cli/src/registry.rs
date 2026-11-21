@@ -1,12 +1,13 @@
 //! Where kits, their editors and the kit index are downloaded from: npm registries. Every kit
 //! version is published as npm packages (`@kition/kit-<kit>-<platform>`, `@kition/kit-<kit>-ui`,
 //! kition-sdk's `tools/kit-npm.mjs`), and the kit index as `@kition/kits-index`; npm has mirrors
-//! where GitHub is slow or out of reach.
+//! where GitHub is slow or out of reach. `KITION_NPM_SCOPE` names another scope ([`Scope`]),
+//! whose packages are named by layout 1: `<scope>/<kit>-<platform>`, `<scope>/<kit>`, `<scope>/kits`.
 //!
 //! The registries, in the order they are tried ([`Registries::from_env`]):
 //!
 //! 1. `KITION_NPM_REGISTRY`: one address, or several separated by commas;
-//! 2. npm's own setting, as npm reads it for the `@kition` scope: `@kition:registry` in
+//! 2. npm's own setting, as npm reads it for the scope (`@kition`): `@kition:registry` in
 //!    `~/.npmrc`, else `npm_config_registry` (or `NPM_CONFIG_REGISTRY`), else `registry` in
 //!    `~/.npmrc` (read here; npm is never started);
 //! 3. <https://registry.npmjs.org/>, then <https://registry.npmmirror.com/>.
@@ -22,10 +23,21 @@ use std::time::Duration;
 
 use sha2::{Digest, Sha512};
 
-/// The scope of every package kition installs.
-pub const SCOPE: &str = "@kition";
-/// The package holding the kit index, `kits-index.json` at its top.
-pub const INDEX_PACKAGE: &str = "@kition/kits-index";
+/// The variable naming the npm scope of the kit packages and the kit index.
+pub const SCOPE_VARIABLE: &str = "KITION_NPM_SCOPE";
+/// The scope when [`SCOPE_VARIABLE`] is not set (or empty).
+pub const DEFAULT_SCOPE: &str = "@kition";
+/// The scopes whose packages keep the legacy names (`kit-<kit>-ui`, `kit-<kit>-<platform>`,
+/// `kits-index`); every other scope uses layout 1 (`<kit>`, `<kit>-<platform>`, `kits`). On cutover
+/// day, when `@kition` moves to layout 1: empty this list, then delete [`Layout::Legacy`] and its
+/// arms. The same list is in kition-sdk's `tools/kit-npm.mjs` and KitionAI/kition's
+/// `scripts/lib/kitNpm.mjs`.
+pub const LEGACY_LAYOUT_SCOPES: &[&str] = &["@kition"];
+/// Names that are no kit's in layout 1, where a kit's packages are `<scope>/<kit>` and
+/// `<scope>/<kit>-<platform>`: a kit of one of these names would be the scope's other packages
+/// (`<scope>/cli`, `<scope>/cli-<platform>`, `<scope>/kits`, `<scope>/kit-editor`, ...).
+pub const NOT_KIT_NAMES: &[&str] =
+    &["cli", "convergence", "embed", "extensions", "gateway", "kdm", "kit", "kition", "kits", "script", "sdk", "sync", "tessera"];
 /// The registries tried after the ones configured.
 pub const DEFAULT_REGISTRIES: [&str; 2] = ["https://registry.npmjs.org/", "https://registry.npmmirror.com/"];
 /// The variable naming the registries to try first.
@@ -36,6 +48,87 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// The registries to try, in order; each address ends with `/`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Registries(pub Vec<String>);
+
+/// How a scope names its packages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    /// `<scope>/kit-<kit>-ui`, `<scope>/kit-<kit>-<platform>`, `<scope>/kits-index`.
+    Legacy,
+    /// `<scope>/<kit>`, `<scope>/<kit>-<platform>`, `<scope>/kits`.
+    One,
+}
+
+/// The npm scope kition installs kits and reads the kit index from: `@kition` unless
+/// `KITION_NPM_SCOPE` names another.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Scope(String);
+
+impl Default for Scope {
+    fn default() -> Self {
+        Self(DEFAULT_SCOPE.to_owned())
+    }
+}
+
+impl Scope {
+    /// The scope of this process: [`Scope::parse`] of `KITION_NPM_SCOPE`.
+    pub fn from_env() -> Result<Self, String> {
+        Self::parse(std::env::var(SCOPE_VARIABLE).ok().as_deref())
+    }
+
+    /// `value` (the variable's), checked: `@`, then lowercase letters, digits and dashes; unset or
+    /// empty is `@kition`.
+    pub fn parse(value: Option<&str>) -> Result<Self, String> {
+        let Some(value) = value.filter(|value| !value.is_empty()) else { return Ok(Self::default()) };
+        let well_formed = value.strip_prefix('@').is_some_and(|name| {
+            name.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+                && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        });
+        if well_formed {
+            Ok(Self(value.to_owned()))
+        } else {
+            Err(format!("{SCOPE_VARIABLE} is `{value}`, not an npm scope (@ then lowercase letters, digits and dashes, such as @kition)"))
+        }
+    }
+
+    /// `@kition`, `@kitionstage`.
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
+    /// How it names its packages.
+    pub fn layout(&self) -> Layout {
+        if LEGACY_LAYOUT_SCOPES.contains(&self.0.as_str()) { Layout::Legacy } else { Layout::One }
+    }
+
+    /// The package holding its kit index, `kits-index.json` at its top.
+    pub fn index_package(&self) -> String {
+        match self.layout() {
+            Layout::Legacy => format!("{}/kits-index", self.0),
+            Layout::One => format!("{}/kits", self.0),
+        }
+    }
+
+    /// The package of `kit`'s headless kit for `part` (a platform), or of its editor (`ui`); `None`
+    /// for a name that is no kit's in this scope ([`NOT_KIT_NAMES`] in layout 1).
+    pub fn kit_package(&self, kit: &str, part: &str) -> Option<String> {
+        match self.layout() {
+            Layout::Legacy => Some(format!("{}/kit-{kit}-{part}", self.0)),
+            Layout::One if NOT_KIT_NAMES.contains(&kit) => None,
+            Layout::One if part == "ui" => Some(format!("{}/{kit}", self.0)),
+            Layout::One => Some(format!("{}/{kit}-{part}", self.0)),
+        }
+    }
+
+    /// Whether `package` is a package kition may install: in this scope, lowercase letters,
+    /// digits and dashes.
+    pub fn owns(&self, package: &str) -> bool {
+        package.strip_prefix(&format!("{}/", self.0)).is_some_and(|bare| {
+            !bare.is_empty()
+                && bare.starts_with(|c: char| c.is_ascii_lowercase())
+                && bare.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        })
+    }
+}
 
 /// The registries of this process: [`Registries::from_env`] with the person's home folder.
 pub fn configured() -> Registries {
@@ -73,7 +166,10 @@ impl Registries {
             add(value);
         }
         let settings = parse_npmrc(npmrc, env);
-        if let Some(scoped) = settings.iter().find(|(key, _)| key == &format!("{SCOPE}:registry")) {
+        // A malformed scope reads no scoped setting; reading the index refuses it (index::load).
+        if let Ok(scope) = Scope::parse(env(SCOPE_VARIABLE).as_deref())
+            && let Some(scoped) = settings.iter().find(|(key, _)| key == &format!("{}:registry", scope.name()))
+        {
             add(&scoped.1);
         }
         let general = env("npm_config_registry")
@@ -142,14 +238,6 @@ pub fn tarball_path(package: &str, version: &str) -> String {
 /// A package's metadata at `tag` (a dist-tag or a version) relative to a registry.
 pub fn metadata_path(package: &str, tag: &str) -> String {
     format!("{}/{tag}", package.replacen('/', "%2f", 1))
-}
-
-/// Whether `package` is a package kition may install: in the `@kition` scope, lowercase letters,
-/// digits and dashes.
-pub fn package_name(package: &str) -> bool {
-    package.strip_prefix(&format!("{SCOPE}/")).is_some_and(|bare| {
-        !bare.is_empty() && bare.starts_with(|c: char| c.is_ascii_lowercase()) && bare.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-    })
 }
 
 /// npm's integrity of `bytes`: `sha512-<base64>`.
@@ -380,12 +468,48 @@ mod tests {
     }
 
     #[test]
+    fn the_scope_comes_from_kition_npm_scope_and_chooses_the_layout() {
+        // Unset or empty: @kition, by the legacy names, as kition always read them.
+        for unset in [None, Some("")] {
+            let scope = Scope::parse(unset).unwrap();
+            assert_eq!((scope.name(), scope.layout()), ("@kition", Layout::Legacy));
+            assert_eq!(scope.index_package(), "@kition/kits-index");
+            assert_eq!(format!("npm:{}", scope.index_package()), crate::index::DEFAULT_INDEX);
+            assert_eq!(scope.kit_package("note", "ui").as_deref(), Some("@kition/kit-note-ui"));
+            assert_eq!(scope.kit_package("note", "darwin-arm64").as_deref(), Some("@kition/kit-note-darwin-arm64"));
+            assert_eq!(scope.kit_package("cli", "ui").as_deref(), Some("@kition/kit-cli-ui"));
+        }
+        // Any other scope: layout 1, and no kit named like another package of the scope.
+        let stage = Scope::parse(Some("@kitionstage")).unwrap();
+        assert_eq!(stage.layout(), Layout::One);
+        assert_eq!(stage.index_package(), "@kitionstage/kits");
+        assert_eq!(stage.kit_package("note", "ui").as_deref(), Some("@kitionstage/note"));
+        assert_eq!(stage.kit_package("note", "linux-x64").as_deref(), Some("@kitionstage/note-linux-x64"));
+        for other in ["cli", "sdk", "kits", "tessera", "kit"] {
+            assert_eq!(stage.kit_package(other, "ui"), None, "{other}");
+            assert_eq!(stage.kit_package(other, "darwin-arm64"), None, "{other}");
+        }
+        assert!(stage.owns("@kitionstage/note") && !stage.owns("@kition/kit-note-ui") && !Scope::default().owns("@kitionstage/note"));
+        // Anything else is refused, naming the variable.
+        for bad in ["kition", "@Kition", "@-x", "@", "@kition/x", "@kit ion", " @kition"] {
+            assert!(Scope::parse(Some(bad)).unwrap_err().contains("KITION_NPM_SCOPE is"), "{bad}");
+        }
+    }
+
+    #[test]
+    fn npms_scoped_registry_setting_follows_the_scope() {
+        let npmrc = "@kition:registry=https://kition.example/\n@kitionstage:registry=https://stage.example/\n";
+        assert_eq!(Registries::from_settings(&env_of(&[]), npmrc).0[0], "https://kition.example/");
+        assert_eq!(Registries::from_settings(&env_of(&[("KITION_NPM_SCOPE", "@kitionstage")]), npmrc).0[0], "https://stage.example/");
+        assert_eq!(Registries::from_settings(&env_of(&[("KITION_NPM_SCOPE", "bad")]), npmrc).0, DEFAULT_REGISTRIES);
+    }
+
+    #[test]
     fn npm_names_its_tarballs_and_integrity_this_way() {
         assert_eq!(tarball_path("@kition/kit-note-ui", "0.1.3"), "@kition/kit-note-ui/-/kit-note-ui-0.1.3.tgz");
         assert_eq!(metadata_path("@kition/kits-index", "latest"), "@kition%2fkits-index/latest");
-        assert!(
-            package_name("@kition/kit-note-darwin-arm64") && !package_name("left-pad") && !package_name("@kition/../x") && !package_name("@other/kit-note-ui")
-        );
+        let kition = Scope::default();
+        assert!(kition.owns("@kition/kit-note-darwin-arm64") && !kition.owns("left-pad") && !kition.owns("@kition/../x") && !kition.owns("@other/kit-note-ui"));
         // As Node's crypto and npm write it.
         assert_eq!(integrity_of(&Sha512::digest(b"kition")), "sha512-NH9AZJ/IRc/KrFvhVQk6Ekg1t67rcnKAvcDdYHrHt0B6uYe/ar1bRpjOM3pG7/cDKIbJnoP6OiP77h92OaGx7g==");
         assert!(integrity_form(&integrity_of(&Sha512::digest(b"x"))) && !integrity_form("sha256-abc") && !integrity_form("sha512-short"));

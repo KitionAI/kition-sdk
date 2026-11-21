@@ -99,6 +99,12 @@ Each kit repository publishes its own packages on npm, with its Package workflow
 | `@kition/kit-<kit>-<platform>@<version>` | The headless kit for one platform (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`; npm `os`, `cpu`, and `libc` on Linux): `kit.json` and `kition-<kit>` (`.exe` on Windows) at the package's top |
 | `@kition/kit-<kit>-ui@<version>` | The editor: the folder `<kit>-ui/` (`index.html`, the engine, fonts, the kit's `kit.json`) |
 
+These are `@kition`'s names. The tools, the workflows and `kition` read another npm scope from
+`KITION_NPM_SCOPE` (for a rehearsal on `@kitionstage`); a scope other than `@kition` names its
+packages by layout 1: `<scope>/<kit>-<platform>`, `<scope>/<kit>` (the editor) and `<scope>/kits`
+(the index), and in it no kit may be named like another package of the scope (`cli`, `sdk`, `kits`,
+`tessera`, ...; `tools/kit-npm.mjs` `NOT_KIT_NAMES`).
+
 The files are those of the kit's archives before npm (the same names and bytes); only the container
 is npm's, a `.tgz` with everything under `package/` beside a `package.json`. Each `package.json`
 carries a `kition` field (`tools/kit-npm.mjs`): `kit`, `id`, `name`, `version`, `role` (`headless`
@@ -114,8 +120,10 @@ The sizes, as of the kit archives published before npm: the largest headless one
 refused in practice, so the kits are far below it.
 
 `kition` reads the kit index from the npm package `@kition/kits-index`, the file `kits-index.json`
-in its `latest` version. `.github/workflows/kits-index.yml` publishes it, by hand and every hour,
-with `tools/kits-index.mjs`:
+in its `latest` version. `.github/workflows/kits-index.yml` publishes it when a maintainer starts
+it (by hand; it has no schedule), with `tools/kits-index.mjs`. Its `scope` input (default
+`@kition`, passed on as `KITION_NPM_SCOPE`) gathers another npm scope's kits, named by layout 1
+(`<scope>/<kit>-<platform>`, `<scope>/<kit>`), into `<scope>/kits`:
 
 - For every kit Kition's `kits/modules.json` names, it reads the registry's metadata of the kit's
   packages: every version that has at least one headless package, each package's tarball size and

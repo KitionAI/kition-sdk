@@ -1,0 +1,28 @@
+format: 1
+id: sdk.distribution.npm-scope/layouts
+feature: sdk.distribution.npm-scope
+intent: >-
+  Without KITION_NPM_SCOPE (or with it empty) the tools name the kit packages and the index as
+  before: @kition/kit-<kit>-ui, @kition/kit-<kit>-<platform>, @kition/kits-index. With
+  KITION_NPM_SCOPE=@kitionstage (or --scope) they use layout 1: @kitionstage/<kit>,
+  @kitionstage/<kit>-<platform> and @kitionstage/kits, for the package folders, the missing check,
+  the gatherer and the index package; npm's registry setting of that scope is read. A scope that is
+  not @ and lowercase letters, digits and dashes is refused, naming the variable or the flag. In
+  layout 1 a kit named cli, sdk, kits, tessera or like another package of the scope is refused, and
+  the gatherer stops before it reads anything.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kit-npm.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kit-npm.test.mjs, tools/kits-index.test.mjs, -t, "scope"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

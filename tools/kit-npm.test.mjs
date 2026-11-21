@@ -1,11 +1,12 @@
 // The kit packages' npm contract (tools/kit-npm.mjs) and the Package workflow's tool that writes,
 // packs and checks them (tools/kit-npm-package.mjs), on local files and a fake registry.
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DEFAULT_REGISTRIES, integrityOf, kitionField, packageManifest, packageName, parseNpmrc, registries, tarballPath, viewExtensions } from './kit-npm.mjs'
+import { DEFAULT_REGISTRIES, LEGACY_LAYOUT_SCOPES, indexPackage, integrityOf, kitionField, npmScope, packageManifest, packageName, parseNpmrc, registries, tarballPath, viewExtensions } from './kit-npm.mjs'
 import { missing, pack, state, writeHeadless, writeUi } from './kit-npm-package.mjs'
 
 const scratch = []
@@ -65,6 +66,51 @@ describe('the kit packages’ names and kition field', () => {
     expect(packageManifest(kitJson, 'headless', { platform: 'linux-arm64', files: [] })).toMatchObject({ name: '@kition/kit-note-linux-arm64', version: '0.1.3', os: ['linux'], cpu: ['arm64'], libc: ['glibc'], license: 'Apache-2.0' })
     expect(packageManifest(kitJson, 'headless', { platform: 'win32-x64', files: [] })).not.toHaveProperty('libc')
     expect(packageManifest(kitJson, 'ui', { files: [] })).not.toHaveProperty('os')
+  })
+})
+
+describe('the npm scope (KITION_NPM_SCOPE) and its layout', () => {
+  it('is @kition with the legacy names when the variable is unset or empty', () => {
+    expect(LEGACY_LAYOUT_SCOPES).toEqual(['@kition'])
+    for (const env of [{}, { KITION_NPM_SCOPE: '' }]) {
+      const scope = npmScope(env)
+      expect(scope).toBe('@kition')
+      expect(packageName('note', 'ui', scope)).toBe('@kition/kit-note-ui')
+      expect(packageName('note', 'darwin-arm64', scope)).toBe('@kition/kit-note-darwin-arm64')
+      expect(indexPackage(scope)).toBe('@kition/kits-index')
+    }
+    // The legacy names never collide with the scope's other packages, so no kit name is refused there.
+    expect(packageName('cli', 'ui', '@kition')).toBe('@kition/kit-cli-ui')
+  })
+
+  it('names another scope’s packages by layout 1: <scope>/<kit>, <scope>/<kit>-<platform>, <scope>/kits', () => {
+    const scope = npmScope({ KITION_NPM_SCOPE: '@kitionstage' })
+    expect(scope).toBe('@kitionstage')
+    expect(packageName('note', 'ui', scope)).toBe('@kitionstage/note')
+    expect(packageName('note', 'linux-x64', scope)).toBe('@kitionstage/note-linux-x64')
+    expect(indexPackage(scope)).toBe('@kitionstage/kits')
+    expect(tarballPath('@kitionstage/note', '0.1.3')).toBe('@kitionstage/note/-/note-0.1.3.tgz')
+    expect(packageManifest(kitJson, 'headless', { platform: 'linux-arm64', files: [], scope }).name).toBe('@kitionstage/note-linux-arm64')
+    expect(packageManifest(kitJson, 'ui', { files: [], scope }).name).toBe('@kitionstage/note')
+    // A kit named like another package of the scope would be that package: no such kit.
+    for (const other of ['cli', 'sdk', 'kits', 'tessera', 'kit', 'embed']) {
+      expect(() => packageName(other, 'ui', scope)).toThrow(`${other} is not a kit name in @kitionstage`)
+      expect(() => packageName(other, 'darwin-arm64', scope)).toThrow(/is not a kit name in @kitionstage/)
+    }
+  })
+
+  it('refuses a scope that is not @ and lowercase letters, digits and dashes', () => {
+    for (const bad of ['kition', '@Kition', '@-x', '@', '@kition/x', '@kit ion', ' @kition']) {
+      expect(() => npmScope({ KITION_NPM_SCOPE: bad })).toThrow(/KITION_NPM_SCOPE is .*, not an npm scope/)
+      expect(() => packageName('note', 'ui', bad)).toThrow(/not an npm scope/)
+      expect(() => indexPackage(bad)).toThrow(/not an npm scope/)
+    }
+  })
+
+  it('reads npm’s registry setting of the scope', () => {
+    const npmrc = '@kition:registry=https://kition.example/\n@kitionstage:registry=https://stage.example/\n'
+    expect(registries({}, npmrc)[0]).toBe('https://kition.example/')
+    expect(registries({ KITION_NPM_SCOPE: '@kitionstage' }, npmrc)[0]).toBe('https://stage.example/')
   })
 })
 
@@ -151,5 +197,31 @@ describe('kit-npm-package: the Package workflow’s packages', () => {
       return have.has(name) ? new Response(JSON.stringify({ version: '0.1.3' }), { status: 200 }) : new Response('{}', { status: 404 })
     })
     expect(lacks).toEqual({ platforms: ['darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64'], ui: false })
+  })
+  it('writes and finds another scope’s packages by layout 1 (--scope, else KITION_NPM_SCOPE), and refuses a malformed scope', async () => {
+    const dir = tempDir()
+    const build = headlessBuild(path.join(dir, 'build'))
+    const folder = writeHeadless({ dir: build, platform: 'darwin-arm64', out: path.join(dir, 'folders'), scope: '@kitionstage' })
+    expect(path.basename(folder)).toBe('note-darwin-arm64')
+    expect(pack({ folder, out: path.join(dir, 'packed') })).toMatchObject({ name: '@kitionstage/note-darwin-arm64', version: '0.1.3' })
+    expect(path.basename(writeUi({ from: uiBuild(path.join(dir, 'src')), out: path.join(dir, 'ui'), scope: '@kitionstage' }))).toBe('note')
+    const registry = 'http://registry.test/'
+    const asked = []
+    const lacks = await missing({ kit: 'note', version: '0.1.3', registry, scope: '@kitionstage' }, async (url) => {
+      asked.push(url.slice(registry.length).split('/')[0])
+      return new Response('{}', { status: 404 })
+    })
+    expect(lacks.ui).toBe(true)
+    expect(asked).toEqual(['@kitionstage%2fnote-darwin-arm64', '@kitionstage%2fnote-darwin-x64', '@kitionstage%2fnote-linux-arm64', '@kitionstage%2fnote-linux-x64', '@kitionstage%2fnote-win32-x64', '@kitionstage%2fnote'])
+    const tool = path.join(path.dirname(fileURLToPath(import.meta.url)), 'kit-npm-package.mjs')
+    const run = (args, env = {}) => spawnSync(process.execPath, [tool, ...args], { encoding: 'utf8', env: { ...process.env, KITION_NPM_SCOPE: '', ...env } })
+    const headless = ['headless', '--dir', build, '--platform', 'linux-x64', '--out', path.join(dir, 'cli')]
+    expect(run(headless).stdout.trim()).toBe(path.join(dir, 'cli', 'kit-note-linux-x64'))
+    expect(run(headless, { KITION_NPM_SCOPE: '@kitionstage' }).stdout.trim()).toBe(path.join(dir, 'cli', 'note-linux-x64'))
+    expect(run([...headless, '--scope', '@kitionstage']).stdout.trim()).toBe(path.join(dir, 'cli', 'note-linux-x64'))
+    const malformed = run(headless, { KITION_NPM_SCOPE: 'kitionstage' })
+    expect(malformed.status).toBe(1)
+    expect(malformed.stderr).toContain('KITION_NPM_SCOPE is "kitionstage", not an npm scope')
+    expect(run([...headless, '--scope', '@Stage']).stderr).toContain('--scope is "@Stage", not an npm scope')
   })
 })

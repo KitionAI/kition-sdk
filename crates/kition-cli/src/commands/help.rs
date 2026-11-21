@@ -38,6 +38,8 @@ environment:
   KITION_NPM_REGISTRY  the npm registries kits and the index come from, tried first (one address,
                  or several with commas); then npm's own setting (@kition:registry or registry in
                  ~/.npmrc, npm_config_registry), then registry.npmjs.org, then registry.npmmirror.com
+  KITION_NPM_SCOPE  the npm scope of the kits and the index (default @kition); another scope's
+                 packages are <scope>/<kit>-<platform>, <scope>/<kit> and the index <scope>/kits
   HTTPS_PROXY, HTTP_PROXY, ALL_PROXY, NO_PROXY   proxies for downloads
 ";
 

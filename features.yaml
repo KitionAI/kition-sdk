@@ -583,6 +583,28 @@ features:
       - regressions/issue-kits-index-unfinished-version
       - regressions/issue-kits-index-tarball-not-ready
     since: "2026-11-18"
+  - id: sdk.distribution.npm-scope
+    title: "KITION_NPM_SCOPE (default @kition) names the npm scope the kit packages and the kit index are published to and read from, by the tools, the kits-index workflow and kition: @kition keeps the legacy names (kit-<kit>-<platform>, kit-<kit>-ui, kits-index), any other scope uses layout 1 (<kit>-<platform>, <kit>, kits), with one list of legacy scopes per language; a malformed scope is refused naming the variable, kition accepts only its scope's names, and in layout 1 no kit may be named like another package of the scope (cli, sdk, kits, tessera, ...), so the gatherer never takes one for a kit"
+    dimension: [platform, security]
+    priority: P1
+    status: has
+    paths:
+      - tools/kit-npm.mjs
+      - tools/kit-npm-package.mjs
+      - tools/kits-index.mjs
+      - tools/kit-npm.test.mjs
+      - tools/kits-index.test.mjs
+      - crates/kition-cli/src/registry.rs
+      - crates/kition-cli/src/index.rs
+      - crates/kition-cli/tests/cli.rs
+      - schemas/kits-index.schema.json
+      - .github/workflows/kits-index.yml
+      - docs/sdk/cli.md
+      - docs/sdk/distribution.md
+    cases:
+      - sdk.distribution.npm-scope/layouts
+      - sdk.distribution.npm-scope/cli
+    since: "2026-11-21"
   - id: sdk.distribution.npm-registries
     title: "Kits, their editors, the kit index and kition itself come from npm, never from GitHub: each kit version is published as @kition/kit-<kit>-<platform> and @kition/kit-<kit>-ui (the same files, a kition field in package.json, published once), and kition, its installers and the SDK bundle take them from KITION_NPM_REGISTRY, npm's own .npmrc setting, registry.npmjs.org, then registry.npmmirror.com: a registry that does not answer or serves other bytes passes to the next, a cut download resumes or passes on, the integrity is always checked, and an error names every registry tried"
     dimension: [platform, security]

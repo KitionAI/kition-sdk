@@ -1,0 +1,26 @@
+format: 1
+id: sdk.distribution.npm-scope/cli
+feature: sdk.distribution.npm-scope
+intent: >-
+  kition reads KITION_NPM_SCOPE at run time: unset or empty, it reads npm:@kition/kits-index and
+  accepts @kition/kit-<kit>-<platform> and @kition/kit-<kit>-ui as before; with @kitionstage it
+  reads @kitionstage/kits and accepts only @kitionstage/<kit>-<platform> and @kitionstage/<kit>,
+  so an index of @kition's packages, a package of another scope or kit, or a kit named like another
+  package of the scope is refused, and no cached index of other names is used. A malformed scope
+  is refused before anything is read, naming the variable. npm's registry setting of the scope is
+  the one read.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: crates/kition-cli/src/registry.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, filter: scope }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 300

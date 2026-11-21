@@ -99,6 +99,38 @@ fn list_works_offline_and_through_a_proxy() {
     assert!(proxy.seen.lock().unwrap().iter().any(|seen| seen.starts_with("kits.example.invalid")), "{:?}", proxy.seen.lock().unwrap());
 }
 
+/// `KITION_NPM_SCOPE`: another scope reads only its own packages, named by layout 1, so an index
+/// of @kition's packages is refused (and not taken from the cache either); a malformed scope is
+/// refused before anything is read, naming the variable.
+#[test]
+fn another_npm_scope_refuses_kitions_packages() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("home");
+    let served = dir.path().join("served");
+    std::fs::create_dir_all(&served).unwrap();
+    let index = IndexBuilder::new()
+        .kit(&served, "fake", "kfake", &[("0.1.0", "kition-kit/1", support::kit_archive("fake", "0.1.0", "kition-kit/1", "kfake", "kition-fake", b"x"))])
+        .write(&served)
+        .display()
+        .to_string();
+    let listed = |scope: Option<&str>| {
+        let mut command = kition(&home);
+        if let Some(scope) = scope {
+            command.env("KITION_NPM_SCOPE", scope);
+        }
+        let (ok, out, err) = run(command.args(["kit", "list", "--json", "--index", &index]));
+        assert!(ok, "{err}");
+        serde_json::from_str::<Value>(&out).unwrap()["index"].clone()
+    };
+    assert_eq!(listed(None)["read"], true);
+    assert_eq!(listed(Some(""))["read"], true, "an empty variable is @kition");
+    let stage = listed(Some("@kitionstage"));
+    assert_eq!(stage["read"], false, "{stage}");
+    assert!(stage["error"].as_str().unwrap().contains(&format!("not @kitionstage/fake-{}", kition_cli::home::platform())), "{stage}");
+    let bad = listed(Some("kitionstage"));
+    assert!(bad["error"].as_str().unwrap().contains("KITION_NPM_SCOPE is `kitionstage`, not an npm scope"), "{bad}");
+}
+
 /// A stdio MCP client of `kition mcp`.
 struct Client {
     child: std::process::Child,
