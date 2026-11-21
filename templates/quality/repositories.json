@@ -1,10 +1,24 @@
 {
-  "$comment": "Each repository's check command (sync-quality.mjs --command), by its directory name, where it is not the default `cargo xtask ci`. sync-quality.mjs takes it from here when --command is not given and refuses a --command that disagrees, so a sync never puts back an old command: change it here.",
+  "$comment": "Each repository's check command (sync-quality.mjs --command), by its directory name, where it is not the default `cargo xtask ci`. sync-quality.mjs takes it from here when --command is not given and refuses a --command that disagrees, so a sync never puts back an old command: change it here. The kits only run the fmt check here: their full checks and tests run on GitHub (Kition's kit CI, docs/kits.md section 4c).",
   "commands": {
     "khp": "! grep -rIlE '/(Users|home)/[a-z]' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist .",
     "kition": "pnpm -s typecheck && pnpm -s lint",
-    "kition-html": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace",
+    "kition-board": "cargo fmt --all -- --check",
+    "kition-cad": "cargo fmt --all -- --check",
+    "kition-design": "cargo fmt --all -- --check",
+    "kition-doc": "cargo fmt --all -- --check",
+    "kition-film": "cargo fmt --all -- --check",
+    "kition-html": "cargo fmt --all -- --check",
+    "kition-layout": "cargo fmt --all -- --check",
+    "kition-motion": "cargo fmt --all -- --check",
+    "kition-note": "cargo fmt --all -- --check",
+    "kition-pdf": "cargo fmt --all -- --check",
+    "kition-photo": "cargo fmt --all -- --check",
+    "kition-scene": "cargo fmt --all -- --check",
     "kition-sdk": "pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings",
-    "kition-table": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace"
+    "kition-sheet": "cargo fmt --all -- --check",
+    "kition-slide": "cargo fmt --all -- --check",
+    "kition-table": "cargo fmt --all -- --check",
+    "kition-vector": "cargo fmt --all -- --check"
   }
 }
