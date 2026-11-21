@@ -18,10 +18,12 @@ Your storage, your users; agents edit the same files with the same engine.
 
 </div>
 
-A **kit** is everything one kind of document needs: an engine that opens, edits, renders and saves
-it, the editor people work in, and the tools agents call. The Kition SDK puts kits in your product:
-embed a kit's editor in your app, let your agents work on the same files, or build a kit of your
-own. [Kition](https://kition.ai) is built on it. Kits follow the
+Kition is 16 professional editors, called kits. The same kit and the same engine serve a person
+(the editor), an AI agent (commands) and a program (code). A **kit** is everything one kind of
+document needs: an engine that opens, edits, renders and saves it, the editor people work in, and
+the commands agents and programs call. The Kition SDK puts kits in your product: embed a kit's
+editor in your app, let your agents work on the same files, run kits on your servers, or build a
+kit of your own. The [SDK guide](docs/sdk/README.md) lays out the ways in. [Kition](https://kition.ai) is built on it. Kits follow the
 [Kit Harness Protocol (KHP)](https://github.com/kitharness/kitharness), so any host that speaks it can run
 them.
 
@@ -72,42 +74,42 @@ Every kit embeds the same way. Each picture below is the kit's editor running em
 
 Motion graphics and video: compositions, layers, keyframes, effects, text animation presets and
 MP4 rendering, with checks that point out what makes a frame look flat. Kition's most used kit.
-Published: [Kition Motion](https://github.com/KitionAI/kition-motion), whose Releases carry the
-self-contained editor package (`kition-motion-<version>.tgz`, unpacks to `motion-ui/`).
+Published: [Kition Motion](https://github.com/KitionAI/kition-motion); its self-contained editor
+package is `@kition/kit-motion-ui` on npm (the folder `motion-ui/`).
 
 ### Note: available now
 
 <img src="assets/readme/kit-note.png" alt="The Note editor embedded in a page: a launch plan with properties, a callout and a task list." width="100%" />
 
 Markdown notes, Obsidian-flavoured, that keep the file byte for byte. Published:
-[Kition Note](https://github.com/KitionAI/kition-note), whose Releases carry the self-contained
-editor package (`kition-note-<version>.tgz`, unpacks to `note-ui/`).
+[Kition Note](https://github.com/KitionAI/kition-note); its self-contained editor package is
+`@kition/kit-note-ui` on npm (the folder `note-ui/`).
 
-The headless executables of the published kits, with `kition-kits` and `kition-kits-mcp`, are in
-each [SDK release](https://github.com/KitionAI/kition-sdk/releases) for macOS, Linux and Windows,
-with their SHA-256 sums ([distribution](docs/sdk/distribution.md)).
+Each kit's headless engine is on npm too, for macOS, Linux and Windows
+(`@kition/kit-<kit>-<platform>`); `kition kit install <kit>` installs it, checked against the size
+and integrity the kit index gives ([cli](docs/sdk/cli.md), [distribution](docs/sdk/distribution.md)).
 
 ### Table: available now
 
 <img src="assets/readme/kit-table.png" alt="The Table editor embedded in a page: a launch tracker with tasks, status labels, owners, due dates and a shipped checkbox." width="100%" />
 
 Tables with typed fields, views (grid, kanban, gallery, calendar), filters, sorts, groups and
-dashboards. Published: [Kition Table](https://github.com/KitionAI/kition-table), whose Releases
-carry the self-contained editor package (`kition-table-<version>.tgz`, unpacks to `table-ui/`).
+dashboards. Published: [Kition Table](https://github.com/KitionAI/kition-table); its
+self-contained editor package is `@kition/kit-table-ui` on npm (the folder `table-ui/`).
 
 ### HTML: available now
 
 HTML pages (`.html`, `.htm`) with their CSS rendered and bounded JavaScript run, edited as source
-with undo and redo. Published: [Kition HTML](https://github.com/KitionAI/kition-html), whose
-Releases carry the self-contained editor package (`kition-html-<version>.tgz`, unpacks to
-`html-ui/`).
+with undo and redo. Published: [Kition HTML](https://github.com/KitionAI/kition-html); its
+self-contained editor package is `@kition/kit-html-ui` on npm (the folder `html-ui/`).
 
 ### Every other kit: available now
 
-All 16 Kition kits are published, each from its own repository, whose Releases carry the
-self-contained editor package (`kition-<kit>-<version>.tgz`, unpacks to `<kit>-ui/`):
+All 16 Kition kits are published, each from its own repository, which publishes its
+self-contained editor package on npm as `@kition/kit-<kit>-ui` (the folder `<kit>-ui/`) and its
+headless engine as `@kition/kit-<kit>-<platform>`:
 [Board](https://github.com/KitionAI/kition-board) (whiteboards),
-[Doc](https://github.com/KitionAI/kition-doc) (Word documents),
+[Doc](https://github.com/KitionAI/kition-doc) (word-processing documents, `.docx`),
 [Sheet](https://github.com/KitionAI/kition-sheet) (spreadsheets),
 [Slide](https://github.com/KitionAI/kition-slide) (presentations),
 [PDF](https://github.com/KitionAI/kition-pdf),
@@ -141,7 +143,9 @@ merges. [`examples/agent-mcp`](examples/agent-mcp) is the agent's side, in a few
 Connecting Claude Code, Claude Desktop, Cursor or Codex: [docs/sdk/agent.md](docs/sdk/agent.md#connect-your-agent).
 
 `kition mcp` is a command of `kition`, the command line, which comes without the kits and downloads
-each kit the first time an agent opens a file of it. With Node.js 20 or later, from npm:
+each kit the first time an agent opens a file of it. It works like a container tool: a kit is an
+image, `kition kit install` is `docker pull`, and `kition mcp`, `kition serve` and
+`kition gateway` run the kits on a workspace folder. With Node.js 20 or later, from npm:
 
 ```sh
 npm install -g @kition/cli
@@ -181,7 +185,7 @@ date is refused, and its edit to the note's status is applied.
 
 ## Packages
 
-The packages are version 0.5.2, published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`@kition/cli`](https://www.npmjs.com/package/@kition/cli).
+The packages share one version, the SDK's (`sdk.json`), and are published under the [`@kition` scope on npm](https://www.npmjs.com/org/kition), and the command line as [`@kition/cli`](https://www.npmjs.com/package/@kition/cli).
 
 | Package | What |
 | --- | --- |
@@ -207,7 +211,7 @@ The Rust crates are used as git dependencies of this repository, pinned by commi
 | [`kition-kit`](crates/kition-kit) | The `KitDocument` contract, WebAssembly exports, and contract checks |
 | [`kition-kdm`](crates/kition-kdm) | The Kit Data Model |
 | [`kition-headless`](crates/kition-headless), [`kition-kit-server`](crates/kition-kit-server) | Serve a `KitDocument` headless over the Kit Process Protocol |
-| [`kition-kits`](crates/kition-kits) | `kition-kits-mcp` and `kition-kits serve`: kits as agent tools, drafts, guarded writes |
+| [`kition-kits`](crates/kition-kits) | The servers behind `kition mcp` and `kition serve`: kits as agent tools, drafts, guarded writes |
 | [`kition-kit-host`](crates/kition-kit-host), [`kition-kit-process-protocol`](crates/kition-kit-process-protocol) | Launch kit processes and speak their protocol |
 | [`kition-convergence`](crates/kition-convergence), [`kition-env`](crates/kition-env) | Convergence suite; kits as training and evaluation environments |
 
@@ -221,9 +225,23 @@ npm install @kition/embed-server    # or: the editor by signed iframe URL, serve
 npm install @kition/script          # read and edit documents from code
 ```
 
-The Note kit's package (editor, engine and fonts, self-contained) is
-`kition-note-<version>.tgz` on [kition-note's Releases](https://github.com/KitionAI/kition-note/releases);
-unpack it where your kit origin serves it (`note-ui/`).
+The Note kit's editor package (editor, engine and fonts, self-contained) is `@kition/kit-note-ui`
+on npm. Put its `note-ui/` folder where your kit origin serves it:
+
+```sh
+npm pack @kition/kit-note-ui                     # kition-kit-note-ui-<version>.tgz
+tar -xzf kition-kit-note-ui-<version>.tgz        # package/note-ui/
+mv package/note-ui <kits>/                       # <kits>/note-ui/
+```
+
+Run kits on a server, from any language (JSON lines on stdin and stdout,
+[hosts](docs/sdk/hosts.md)):
+
+```sh
+npm install -g @kition/cli
+kition kit install note
+kition serve --workspace <folder>
+```
 
 Run the examples from a clone. The workspace links Kition Tessera, so clone it beside this
 repository:
@@ -253,8 +271,9 @@ these examples, running; it is a tool, not a test.
 
 ## Documentation
 
-- **[SDK guide](docs/sdk/README.md)**: embed, script, headless and agent use, collaboration,
-  environments, and distribution.
+- **[SDK guide](docs/sdk/README.md)**: the Command API and the Script API; the ways in (embed,
+  URL, server, the `kition` command line, collaboration); agents beside people; environments and
+  distribution.
 - **[Platform contracts](docs/platform/index.md)**: the engine contract, the Kit UI and Kit
   Process protocols, the Kit Data Model, capability sets, and conformance levels. Start with the
   [engine contract](docs/platform/kits/engine.md) to write a kit.
