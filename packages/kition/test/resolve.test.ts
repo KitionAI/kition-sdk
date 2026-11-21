@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { BINARY_VARIABLE, KITION_NAME, LAUNCHER_VARIABLE, PACKAGE_NAME, PLATFORMS, launchedAs, resolveKition, supportedPlatforms, type Machine } from '../src/index'
+import { BINARY_VARIABLE, KITION_NAME, LAUNCHER_VARIABLE, PACKAGE_NAME, PLATFORMS, SCOPE_VARIABLE, launchedAs, launcherScope, resolveKition, supportedPlatforms, type Machine } from '../src/index'
 
 const root = new URL('../../../', import.meta.url)
 const sdk = JSON.parse(fs.readFileSync(new URL('sdk.json', root), 'utf8'))
@@ -87,6 +87,15 @@ describe('resolveKition', () => {
     expect(!result.ok && result.message).toContain('install.sh')
   })
 
+  it('starts the platform package of the scope it is published under (a rehearsal’s @kitionstage/cli)', () => {
+    const staged = { name: '@kitionstage/cli', packages: { ...bundled.packages, '@kitionstage/cli-darwin-arm64': '/nm/@kitionstage/cli-darwin-arm64' }, files: [...bundled.files, '/nm/@kitionstage/cli-darwin-arm64/bin/kition'] }
+    expect(resolveKition(machine(staged))).toEqual({ ok: true, command: '/nm/@kitionstage/cli-darwin-arm64/bin/kition', from: 'package' })
+    // Never the real package's kition, which is another version.
+    const result = resolveKition(machine({ ...bundled, name: '@kitionstage/cli' }))
+    expect(!result.ok && result.message).toContain('@kitionstage/cli-darwin-arm64 that carries it is not installed')
+    expect(!result.ok && result.message).toContain('Install @kitionstage/cli again')
+  })
+
   it('does not take the glibc package on musl Linux', () => {
     const musl = machine({
       platform: 'linux', arch: 'x64', glibc: false,
@@ -107,6 +116,15 @@ describe('launchedAs', () => {
     expect(launchedAs(npx, kition)).toEqual({ via: 'npx', command: ['npx', '-y', '@kition/cli'], executable: kition })
     const windows = machine({ platform: 'win32', self: 'C:\\Users\\me\\AppData\\Local\\npm-cache\\_npx\\1d6e\\node_modules\\@kition\\cli\\dist\\cli.js' })
     expect(launchedAs(windows, kition)?.via).toBe('npx')
+  })
+
+  it('is npx or npm’s command of the package it is published as', () => {
+    const npx = machine({ name: '@kitionstage/cli', self: '/home/me/.npm/_npx/0f94/node_modules/@kitionstage/cli/dist/cli.js' })
+    expect(launchedAs(npx, kition)).toEqual({ via: 'npx', command: ['npx', '-y', '@kitionstage/cli'], executable: kition })
+    const self = '/opt/npm/lib/node_modules/@kitionstage/cli/dist/cli.js'
+    const global = machine({ name: '@kitionstage/cli', self, files: ['/opt/npm/bin/kition'], links: { '/opt/npm/bin/kition': self } })
+    expect(launchedAs(global, kition)).toEqual({ via: 'npm', command: ['/opt/npm/bin/kition'], executable: kition })
+    expect(launchedAs({ ...global, name: undefined }, kition)).toBeNull()
   })
 
   it('is npm’s global kition command, the link in <prefix>/bin, not the path inside node_modules', () => {
@@ -143,5 +161,15 @@ describe('launchedAs', () => {
     // A package of another name, with a kition command linked to it, is not this launcher.
     const other = '/opt/npm/lib/node_modules/kition/dist/cli.js'
     expect(launchedAs(machine({ self: other, files: ['/opt/npm/bin/kition'], links: { '/opt/npm/bin/kition': other } }), kition)).toBeNull()
+  })
+})
+
+describe('launcherScope', () => {
+  it('is the scope of a launcher published elsewhere than @kition, when KITION_NPM_SCOPE is not set', () => {
+    expect(launcherScope('@kitionstage/cli', {})).toBe('@kitionstage')
+    expect(launcherScope(PACKAGE_NAME, {})).toBeNull()
+    expect(launcherScope('@kitionstage/cli', { [SCOPE_VARIABLE]: '@kition' })).toBeNull()
+    expect(launcherScope('@kitionstage/cli', { [SCOPE_VARIABLE]: '' })).toBeNull()
+    expect(launcherScope('kition-cli', {})).toBeNull()
   })
 })

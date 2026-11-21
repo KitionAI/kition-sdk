@@ -112,6 +112,15 @@ packages by layout 1: `<scope>/<kit>-<platform>`, `<scope>/<kit>` (the editor) a
 (the index), and in it no kit may be named like another package of the scope (`cli`, `sdk`, `kits`,
 `tessera`, ...; `tools/kit-npm.mjs` `NOT_KIT_NAMES`).
 
+The command line is rehearsed on such a scope by `.github/workflows/stage-cli.yml` (by hand; never
+`@kition`): it builds kition for the platforms asked (`darwin-arm64` by default) as `release.yml`
+does, and publishes copies of its packages renamed `<scope>/cli-<platform>` and `<scope>/cli` at a
+prerelease version (`<sdk.json version>-stage.<run number>`), the launcher depending on exactly the
+platforms built, then waits until npm serves them. The launcher starts the platform package of its
+own name (`<launcher>-<platform>`) and, published elsewhere than `@kition`, sets
+`KITION_NPM_SCOPE` to its scope when it is not set, so `npx -y @kitionstage/cli@<version> kit
+install note` installs the staged kit.
+
 The files are those of the kit's archives before npm (the same names and bytes); only the container
 is npm's, a `.tgz` with everything under `package/` beside a `package.json`. Each `package.json`
 carries a `kition` field (`tools/kit-npm.mjs`): `kit`, `id`, `name`, `version`, `role` (`headless`

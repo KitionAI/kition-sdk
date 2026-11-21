@@ -20,6 +20,10 @@ import platforms from './platforms.json'
 
 /** The npm package, and the command it installs (sdk.json `binaries.cli.npm` and `name`). */
 export const PACKAGE_NAME = '@kition/cli'
+/** The scope of the real packages, whose kits kition installs when `KITION_NPM_SCOPE` is not set. */
+export const REAL_SCOPE = '@kition'
+/** The npm scope kition installs kits from (kition's `registry.rs`). */
+export const SCOPE_VARIABLE = 'KITION_NPM_SCOPE'
 export const KITION_NAME = 'kition'
 /** The environment variable naming the executable to start instead (sdk.json `binaries.cli.binary`). */
 export const BINARY_VARIABLE = 'KITION_BINARY'
@@ -36,10 +40,26 @@ export interface Platform {
 /** The platforms a package carries kition for, by `${process.platform}-${process.arch}`. */
 export const PLATFORMS: Readonly<Record<string, Platform>> = Object.fromEntries(Object.entries(platforms).filter(([key]) => !key.startsWith('$'))) as Record<string, Platform>
 
-/** The optional package that carries kition for `platform`. */
-export const platformPackage = (platform: string) => `@kition/cli-${platform}`
+/**
+ * The optional package that carries kition for `platform`: `<launcher>-<platform>`, beside the
+ * launcher `name` (`@kition/cli-darwin-arm64`; a rehearsal's `@kitionstage/cli-darwin-arm64`).
+ */
+export const platformPackage = (platform: string, name: string = PACKAGE_NAME) => `${name}-${platform}`
+
+/**
+ * The scope kition is to install kits from when this launcher is published under another scope
+ * than the real one (a rehearsal, `@kitionstage/cli`) and `KITION_NPM_SCOPE` is not set: that
+ * scope, so the staged kition reads the staged kit index and kits. Null otherwise.
+ */
+export function launcherScope(name: string, env: Record<string, string | undefined>): string | null {
+  const scope = /^(@[a-z0-9][a-z0-9-]*)\//.exec(name)?.[1]
+  if (!scope || scope === REAL_SCOPE || env[SCOPE_VARIABLE] !== undefined) return null
+  return scope
+}
 
 export interface Machine {
+  /** The npm package this launcher is installed as (its package.json's name); `PACKAGE_NAME` when unknown. */
+  name?: string
   env: Record<string, string | undefined>
   /** `process.platform` */
   platform: string
@@ -79,12 +99,13 @@ export function resolveKition(machine: Machine): Resolved {
     return { ok: false, message: `${BINARY_VARIABLE} names ${named}, which is no file. Point it at a kition executable, or unset it.` }
   }
 
+  const name = machine.name ?? PACKAGE_NAME
   const key = `${machine.platform}-${machine.arch}`
   const platform = PLATFORMS[key]
   const notGlibc = platform?.libc === 'glibc' && machine.glibc === false
   const supported = platform && !notGlibc
   if (supported) {
-    const dir = machine.packageDir(platformPackage(key))
+    const dir = machine.packageDir(platformPackage(key, name))
     if (dir) {
       const kition = machine.join(dir, 'bin', `${KITION_NAME}${exe(machine.platform)}`)
       if (machine.isFile(kition)) return { ok: true, command: kition, from: 'package' }
@@ -93,15 +114,15 @@ export function resolveKition(machine: Machine): Resolved {
 
   const here = notGlibc ? `${key} (not glibc: musl, as on Alpine)` : key
   const why = supported
-    ? `The optional package ${platformPackage(key)} that carries it is not installed: npm leaves it out when optional dependencies are omitted (--omit=optional, --no-optional) or when the install ran on another platform. Install ${PACKAGE_NAME} again without omitting them.`
-    : `${PACKAGE_NAME} carries no kition for ${here}.`
+    ? `The optional package ${platformPackage(key, name)} that carries it is not installed: npm leaves it out when optional dependencies are omitted (--omit=optional, --no-optional) or when the install ran on another platform. Install ${name} again without omitting them.`
+    : `${name} carries no kition for ${here}.`
   const other = machine.platform === 'win32' ? INSTALL_PS1 : INSTALL_SH
   return {
     ok: false,
     message: [
       `no kition for this platform (${here}).`,
       why,
-      `${PACKAGE_NAME} carries kition for ${supportedPlatforms()}.`,
+      `${name} carries kition for ${supportedPlatforms()}.`,
       `Without npm, install kition with ${machine.platform === 'win32' ? 'install.ps1' : 'install.sh'}: ${other}`,
       `(https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/cli.md), or set ${BINARY_VARIABLE} to a kition executable.`,
     ].join('\n'),
@@ -123,19 +144,21 @@ export interface Launched {
  * command of its own is to be seen (kition then registers its own path).
  *
  * - npx runs packages from its cache, `<npm cache>/_npx/<hash>/node_modules/@kition/cli`.
+ * The package is `machine.name` (a rehearsal's `@kitionstage/cli`), `PACKAGE_NAME` by default.
  * - npm's `kition` command: global, `<prefix>/bin/kition` (a link to this file) on macOS and
  *   Linux, `<prefix>\kition.cmd` on Windows, beside `<prefix>\node_modules`; a project's,
  *   `node_modules/.bin/kition` (`kition.cmd` on Windows). This file is
  *   `<modules>/@kition/cli/dist/cli.js` in both.
  */
 export function launchedAs(machine: Machine, executable: string): Launched | null {
+  const name = machine.name ?? PACKAGE_NAME
   const self = machine.self
   const parts = self.split(/[\\/]/)
-  if (parts.includes('_npx')) return { via: 'npx', command: ['npx', '-y', PACKAGE_NAME], executable }
+  if (parts.includes('_npx')) return { via: 'npx', command: ['npx', '-y', name], executable }
   // <modules>/@kition/cli/dist/cli.js
   const pkg = machine.dirname(machine.dirname(self))
   const scope = machine.dirname(pkg)
-  if (`${machine.basename(scope)}/${machine.basename(pkg)}` !== PACKAGE_NAME) return null
+  if (`${machine.basename(scope)}/${machine.basename(pkg)}` !== name) return null
   const modules = machine.dirname(scope)
   if (machine.basename(modules) !== 'node_modules') return null
   const windows = machine.platform === 'win32'

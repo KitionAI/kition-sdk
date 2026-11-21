@@ -2,12 +2,14 @@
  * `kition [arguments]`: starts this platform's kition (`resolveKition`) with the same arguments,
  * standard input, output and error, and exits as it does. kition can be an MCP server on standard
  * output (`kition mcp`), so this launcher never writes there: what it has to say goes to standard
- * error. It tells kition how it was started in `KITION_LAUNCHER` (`launchedAs`).
+ * error. It tells kition how it was started in `KITION_LAUNCHER` (`launchedAs`). Published under
+ * another scope than @kition (a rehearsal, `@kitionstage/cli`), it starts that scope's platform
+ * package and, when `KITION_NPM_SCOPE` is not set, sets it to that scope (`launcherScope`).
  */
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { thisMachine } from './machine'
-import { LAUNCHER_VARIABLE, launchedAs, resolveKition } from './resolve'
+import { LAUNCHER_VARIABLE, PACKAGE_NAME, SCOPE_VARIABLE, launchedAs, launcherScope, resolveKition } from './resolve'
 
 const machine = thisMachine(fileURLToPath(import.meta.url))
 const resolved = resolveKition(machine)
@@ -19,6 +21,8 @@ const launched = launchedAs(machine, resolved.command)
 const env = { ...process.env }
 if (launched) env[LAUNCHER_VARIABLE] = JSON.stringify(launched)
 else delete env[LAUNCHER_VARIABLE]
+const scope = launcherScope(machine.name ?? PACKAGE_NAME, env)
+if (scope) env[SCOPE_VARIABLE] = scope
 
 // MCP clients stop a stdio server by signalling the process they started: this one.
 // Install handlers before spawning: the server can announce readiness before spawn returns.

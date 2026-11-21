@@ -1,0 +1,31 @@
+format: 1
+id: sdk.packages.stage-cli/rehearsal
+feature: sdk.packages.stage-cli
+intent: >-
+  The rehearsal copies of the command line: the packed launcher @kition/cli becomes <scope>/cli at
+  the version given, its optionalDependencies exactly <scope>/cli-<platform> at that version for the
+  platforms named (one the real release linked is replaced); a packed @kition/cli-<platform>
+  becomes <scope>/cli-<platform>, its executable kept executable; @kition, an unknown or repeated
+  platform and a version that is not semantic are refused. The launcher starts the platform package
+  of its own name (a rehearsal's @kitionstage/cli starts @kitionstage/cli-<platform>, never the
+  real one), registers npx and npm commands by that name, and, published elsewhere than @kition,
+  sets KITION_NPM_SCOPE to its scope unless the person set it. The Stage CLI workflow (by hand
+  only) refuses @kition, builds kition as release.yml does, checks each copy on its platform,
+  publishes the platform packages before the launcher with the stage token only, and waits until
+  npm serves them.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/stage-package.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/stage-package.test.mjs, packages/kition/test/resolve.test.ts, packages/kition/test/launcher.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

@@ -1,0 +1,325 @@
+name: Stage CLI
+
+# A publishing rehearsal of the command line, which is not on npm under its new layout yet: builds
+# kition for the platforms asked (darwin-arm64 by default), writes and packs @kition/cli-<platform>
+# and the launcher @kition/cli as release.yml does, renames copies to <scope>/cli-<platform> and
+# <scope>/cli at a prerelease version (tools/stage-package.mjs; the launcher's optionalDependencies
+# name exactly the platforms built, at that scope and version), checks each platform's copy on its
+# own runner, publishes the platform packages first and the launcher last, and waits until npm
+# serves them. The checkout's tracked files are not changed, and nothing release.yml publishes is
+# touched: the real @kition release is release.yml. The DeepSeek Harness plugin (@kition/dsh-kits)
+# is not rehearsed here.
+#
+# The renamed launcher starts the platform package of its own scope, and when KITION_NPM_SCOPE is
+# not set, sets it to that scope (packages/kition/src/resolve.ts launcherScope), so a staged kition
+# installs the staged kits:
+#   npx -y <scope>/cli@<version> --version
+#   KITION_HOME=<empty folder> npx -y <scope>/cli@<version> kit install note
+#
+# Inputs: scope (never @kition), version (default <sdk.json version>-stage.<run number>, a
+# prerelease, so no real version is used), platforms (comma-separated keys of
+# packages/kition/src/platforms.json; default darwin-arm64: the organization runs at most 5 macOS
+# jobs at once), and kit, a kit each platform's copy installs from <scope> before anything is
+# published (empty: none).
+#
+# Needs the organization secret NPM_TOKEN_STAGE, an npm token that can publish to the scope.
+# Start it with: gh workflow run stage-cli.yml -R KitionAI/kition-sdk [-f platforms=darwin-arm64,linux-x64]
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: npm scope to publish to (never @kition)
+        type: string
+        default: '@kitionstage'
+      version:
+        description: Version to publish (empty for <sdk.json version>-stage.<run number>)
+        type: string
+        default: ''
+      platforms:
+        description: Platforms to build and publish, comma-separated (darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64)
+        type: string
+        default: 'darwin-arm64'
+      kit:
+        description: A kit each platform's staged kition installs from the scope before publishing (empty for none)
+        type: string
+        default: 'note'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-cli
+  cancel-in-progress: false
+
+env:
+  SCOPE: ${{ inputs.scope }}
+  VERSION_INPUT: ${{ inputs.version }}
+  PLATFORMS_INPUT: ${{ inputs.platforms }}
+  KIT: ${{ inputs.kit }}
+  REGISTRY: https://registry.npmjs.org
+
+jobs:
+  # The inputs checked, the build matrix, and the launcher packed and renamed once.
+  launcher:
+    name: The staged launcher
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.target.outputs.version }}
+      platforms: ${{ steps.target.outputs.platforms }}
+      matrix: ${{ steps.target.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - name: Scope, version and platforms
+        id: target
+        run: |
+          set -euo pipefail
+          if [ "$SCOPE" = "@kition" ]; then
+            echo "::error::This workflow does not publish to @kition: the real release is release.yml. Pick a stage scope such as @kitionstage."
+            exit 1
+          fi
+          version="$VERSION_INPUT"
+          if [ -z "$version" ]; then
+            version="$(node -p 'require("./sdk.json").version')-stage.$GITHUB_RUN_NUMBER"
+          fi
+          node tools/stage-package.mjs --check --scope "$SCOPE" --version "$version" --platforms "$PLATFORMS_INPUT"
+          platforms=$(node -p 'process.argv[1].split(",").map((p) => p.trim()).filter(Boolean).join(",")' "$PLATFORMS_INPUT")
+          # The runners and glibc floors of release.yml's executables matrix (keep them alike); the
+          # Rust target is platforms.json's.
+          matrix=$(node -e '
+            const runners = {
+              "darwin-arm64": { runner: "macos-15" },
+              "darwin-x64": { runner: "macos-15-intel" },
+              "linux-arm64": { runner: "ubuntu-24.04-arm", glibc: "2.17" },
+              "linux-x64": { runner: "ubuntu-24.04", glibc: "2.17" },
+              "win32-x64": { runner: "windows-2025" },
+            }
+            const known = require("./packages/kition/src/platforms.json")
+            const include = process.argv[1].split(",").map((platform) => ({ platform, target: known[platform].rustTarget, glibc: "", ...runners[platform] }))
+            console.log(JSON.stringify({ include }))' "$platforms")
+          {
+            echo "version=$version"
+            echo "platforms=$platforms"
+            echo "matrix=$matrix"
+          } >> "$GITHUB_OUTPUT"
+      # As release.yml's launcher job: the workspace links Kition Tessera from a checkout beside it.
+      - name: Check out Kition Tessera beside the SDK
+        run: |
+          git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
+          cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: node tools/pack-public-packages.mjs kition
+      - name: The rehearsal copy of the launcher
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+          PLATFORMS: ${{ steps.target.outputs.platforms }}
+        run: |
+          set -euo pipefail
+          node tools/stage-package.mjs --from target/npm-pack/kition.tgz --scope "$SCOPE" --version "$VERSION" --platforms "$PLATFORMS" --out "$RUNNER_TEMP/stage"
+          mkdir -p target/stage-cli
+          cp "$RUNNER_TEMP"/stage/*.tgz target/stage-cli/launcher.tgz
+          tar -xzOf target/stage-cli/launcher.tgz package/package.json
+          if ! git diff --quiet; then
+            echo "::error::tracked files changed: $(git diff --name-only | head -n 5 | tr '\n' ' ')"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-cli-launcher
+          path: target/stage-cli/launcher.tgz
+          if-no-files-found: error
+
+  # kition for each platform, built on its own runner as release.yml's executables job builds it
+  # (the steps for kition only, copied; kition-kits and the kits' executables are not built), its
+  # platform package written and renamed, and checked there with the renamed launcher.
+  executables:
+    needs: launcher
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.launcher.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: ${{ matrix.target }}
+      PLATFORM: ${{ matrix.platform }}
+      GLIBC: ${{ matrix.glibc }}
+      BUILD_TARGET: ${{ matrix.glibc && format('{0}.{1}', matrix.target, matrix.glibc) || matrix.target }}
+      CARGO_BUILD: ${{ matrix.glibc && 'zigbuild' || 'build' }}
+      VERSION: ${{ needs.launcher.outputs.version }}
+      PLATFORMS: ${{ needs.launcher.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: matrix.glibc
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.1
+      - if: matrix.glibc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - run: cargo "$CARGO_BUILD" --locked --profile dist -p kition-cli --target "$BUILD_TARGET"
+      - name: Check kition and write @kition/cli-${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          exe=""; [ "$RUNNER_OS" = Windows ] && exe=".exe"
+          out="target/release-bin/$PLATFORM"
+          mkdir -p "$out"
+          cp "target/$TARGET/dist/kition$exe" "$out/"
+          if [ -n "$GLIBC" ]; then (cd "$out" && node "$GITHUB_WORKSPACE/tools/glibc-floor.mjs" --max "$GLIBC" kition); fi
+          "$out/kition$exe" --version | grep -F "kition $(node -p 'require("./sdk.json").version') "
+          node packages/kition/scripts/platform-package.mjs platform --platform "$PLATFORM" --kition "$out/kition$exe" --out target/kition/npm
+          mkdir -p target/kition/packed
+          npm pack "./target/kition/npm/$PLATFORM" --pack-destination target/kition/packed
+      - name: The rehearsal copy of the platform package
+        run: |
+          set -euo pipefail
+          node tools/stage-package.mjs --from target/kition/packed/kition-cli-"$PLATFORM"-*.tgz --scope "$SCOPE" --version "$VERSION" --platforms "$PLATFORMS" --out "$RUNNER_TEMP/stage-$PLATFORM"
+          mkdir -p target/stage-cli
+          cp "$RUNNER_TEMP/stage-$PLATFORM"/*.tgz "target/stage-cli/$PLATFORM.tgz"
+          if ! git diff --quiet; then
+            echo "::error::tracked files changed: $(git diff --name-only | head -n 5 | tr '\n' ' ')"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage-cli-launcher
+          path: target/stage-cli
+      # The two copies laid out as npm installs them (<scope>/cli and <scope>/cli-<platform> in one
+      # node_modules), the launcher run by Node: it must start this kition, by its own scope, and
+      # with no KITION_NPM_SCOPE set install the kit from the scope.
+      - name: Smoke test the staged launcher with its platform package
+        run: |
+          set -euo pipefail
+          smoke="target/stage-smoke"
+          modules="$smoke/node_modules/$SCOPE"
+          mkdir -p "$modules/cli" "$modules/cli-$PLATFORM" "$smoke/home"
+          # Relative paths: Git for Windows' GNU tar reads D:\... as a remote host.
+          tar -xzf target/stage-cli/launcher.tgz -C "$modules/cli" --strip-components=1
+          tar -xzf "target/stage-cli/$PLATFORM.tgz" -C "$modules/cli-$PLATFORM" --strip-components=1
+          cli="$modules/cli/dist/cli.js"
+          unset KITION_NPM_SCOPE KITION_BINARY
+          node "$cli" --version | tee "$smoke/version.txt"
+          grep -F "kition $(node -p 'require("./sdk.json").version') " "$smoke/version.txt"
+          if [ -n "$KIT" ]; then
+            export KITION_HOME="$(pwd)/$smoke/home"
+            node "$cli" kit install "$KIT"
+            node "$cli" kit list --json | node -e '
+              const kits = JSON.parse(require("fs").readFileSync(0, "utf8")).kits
+              const kit = process.argv[1]
+              if (!kits.some((found) => found.name === kit && found.inUse)) { console.error(`${kit} is not installed`, kits); process.exit(1) }
+              console.log(kits.map((found) => `${found.id} ${found.inUse} ${found.executable ?? ""}`).join("\n"))' "$KIT"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-cli-${{ matrix.platform }}
+          path: target/stage-cli/${{ matrix.platform }}.tgz
+          if-no-files-found: error
+
+  publish:
+    name: Publish to the stage scope
+    needs: [launcher, executables]
+    runs-on: ubuntu-24.04
+    # Publishing, then up to 40 minutes for npm to serve the new names.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # npm publish --provenance, as release.yml publishes.
+      id-token: write
+    env:
+      VERSION: ${{ needs.launcher.outputs.version }}
+      PLATFORMS: ${{ needs.launcher.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: stage-cli-*
+          path: target/stage-cli
+          merge-multiple: true
+      # Every archive is what its name says: the platform packages first, then the launcher, which
+      # depends on them; one line each, "<archive> <name> <version> <integrity>".
+      - name: The archives to publish, in order
+        run: |
+          set -euo pipefail
+          node -e '
+            const { execFileSync } = require("child_process")
+            const crypto = require("crypto"), fs = require("fs")
+            const [scope, version, platforms] = process.argv.slice(1)
+            const order = [...platforms.split(",").map((platform) => [`target/stage-cli/${platform}.tgz`, `${scope}/cli-${platform}`]), ["target/stage-cli/launcher.tgz", `${scope}/cli`]]
+            const lines = order.map(([archive, name]) => {
+              const manifest = JSON.parse(execFileSync("tar", ["-xzOf", archive, "package/package.json"], { encoding: "utf8" }))
+              if (manifest.name !== name || manifest.version !== version) throw new Error(`${archive} is ${manifest.name}@${manifest.version}, not ${name}@${version}`)
+              const integrity = `sha512-${crypto.createHash("sha512").update(fs.readFileSync(archive)).digest("base64")}`
+              return `${archive} ${name} ${version} ${integrity}`
+            })
+            const launcher = JSON.parse(execFileSync("tar", ["-xzOf", "target/stage-cli/launcher.tgz", "package/package.json"], { encoding: "utf8" }))
+            const expected = Object.fromEntries(platforms.split(",").map((platform) => [`${scope}/cli-${platform}`, version]))
+            if (JSON.stringify(launcher.optionalDependencies) !== JSON.stringify(expected)) throw new Error(`the launcher depends on ${JSON.stringify(launcher.optionalDependencies)}, not ${JSON.stringify(expected)}`)
+            fs.writeFileSync("target/stage-cli/order.txt", lines.join("\n") + "\n")
+            console.log(lines.join("\n"))' "$SCOPE" "$VERSION" "$PLATFORMS"
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_STAGE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::The secret NPM_TOKEN_STAGE is not available to this repository."
+            exit 1
+          fi
+          while read -r archive name version integrity; do
+            if npm view "$name@$version" version 2>/dev/null | grep -qx "$version"; then
+              echo "::error::$name@$version is already on npm. A re-run keeps the run number: start a new run, or pass another version."
+              exit 1
+            fi
+          done < target/stage-cli/order.txt
+          # A prerelease version needs an explicit tag; latest, so the rehearsal installs without one.
+          while read -r archive name version integrity; do
+            npm publish "$archive" --access public --tag latest --provenance --ignore-scripts
+          done < target/stage-cli/order.txt
+      - name: Wait until npm serves them
+        run: |
+          set -euo pipefail
+          # Each one's metadata, latest pointing at it (not npm's placeholder 0.0.0-stage of a first
+          # publish), and its tarball with the metadata's integrity; every 30 s for 40 minutes.
+          start=$(date +%s)
+          while read -r archive name version integrity; do
+            node tools/kit-npm-package.mjs visible --name "$name" --version "$version" --registry "$REGISTRY" --tag latest --minutes 40
+            listed=$(npm view "$name@$version" dist.integrity --registry "$REGISTRY")
+            if [ "$listed" != "$integrity" ]; then
+              echo "::error::npm lists $name@$version with integrity $listed, not the published $integrity"
+              exit 1
+            fi
+          done < target/stage-cli/order.txt
+          echo "npm served every package $(( $(date +%s) - start ))s after publishing"
+      - name: How to run it
+        run: |
+          set -euo pipefail
+          {
+            echo "### $SCOPE/cli@$VERSION is on npm"
+            echo
+            echo "With $(echo "$PLATFORMS" | sed "s|\([^,]*\)|\`$SCOPE/cli-\1\`|g; s|,|, |g") at the same version."
+            echo
+            echo '```sh'
+            echo "npx -y $SCOPE/cli@$VERSION --version"
+            echo "KITION_HOME=\$(mktemp -d) npx -y $SCOPE/cli@$VERSION kit install note"
+            echo '```'
+            echo
+            echo "The staged launcher sets KITION_NPM_SCOPE=$SCOPE for kition when it is not set."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -18,10 +18,21 @@ const realPath = (file: string) => {
   }
 }
 
+/** The name in `<package>/package.json` of the launcher `<package>/dist/cli.js`; undefined when unreadable. */
+function ownName(self: string): string | undefined {
+  try {
+    const name = JSON.parse(fs.readFileSync(path.join(path.dirname(path.dirname(self)), 'package.json'), 'utf8')).name
+    return typeof name === 'string' ? name : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** This machine, as `resolveKition` and `launchedAs` look at it; `self` is the launcher's own file. */
 export function thisMachine(self: string): Machine {
   const require = createRequire(self)
   return {
+    name: ownName(realPath(self)),
     env: process.env,
     platform: process.platform,
     arch: process.arch,

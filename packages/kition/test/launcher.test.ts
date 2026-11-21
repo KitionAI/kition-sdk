@@ -68,6 +68,34 @@ describe('the kition command', () => {
     }
   })
 
+  it('published under another scope, starts that scope’s platform package and tells kition the scope', () => {
+    // A rehearsal's layout: <modules>/@kitionstage/cli with its package.json, and
+    // @kitionstage/cli-<platform> beside it; the real @kition/cli-<platform> is not taken.
+    const staged = path.join(modules, '@kitionstage', 'cli')
+    fs.cpSync(path.dirname(path.dirname(cli)), staged, { recursive: true })
+    fs.writeFileSync(path.join(staged, 'package.json'), '{"name":"@kitionstage/cli","type":"module"}\n')
+    const stagedPlatform = path.join(modules, '@kitionstage', `cli-${platform}`)
+    script(path.join(stagedPlatform, 'bin', 'kition'), 'printf "scope=%s\\n" "$KITION_NPM_SCOPE"\nprintf "launcher=%s\\n" "$KITION_LAUNCHER"')
+    fs.writeFileSync(path.join(stagedPlatform, 'package.json'), `{"name":"@kitionstage/cli-${platform}"}\n`)
+    script(path.join(platformDir, 'bin', 'kition'), 'echo real')
+    fs.writeFileSync(path.join(platformDir, 'package.json'), `{"name":"@kition/cli-${platform}"}\n`)
+    try {
+      const stagedCli = path.join(staged, 'dist', 'cli.js')
+      expect(run(['--version'], {}, '', stagedCli).stdout).toBe('scope=@kitionstage\nlauncher=\n')
+      // KITION_NPM_SCOPE set by the person wins.
+      expect(run(['--version'], { KITION_NPM_SCOPE: '@other' }, '', stagedCli).stdout).toContain('scope=@other\n')
+      // The real launcher sets no scope.
+      expect(run(['--version'], {}).stdout).toBe('real\n')
+      fs.rmSync(stagedPlatform, { recursive: true, force: true })
+      const missing = run(['--version'], {}, '', stagedCli)
+      expect(missing.status).toBe(1)
+      expect(missing.stderr).toContain(`@kitionstage/cli-${platform} that carries it is not installed`)
+    } finally {
+      fs.rmSync(path.join(modules, '@kitionstage'), { recursive: true, force: true })
+      fs.rmSync(platformDir, { recursive: true, force: true })
+    }
+  })
+
   it('tells kition, in KITION_LAUNCHER, npm’s kition command it was started through', () => {
     fs.mkdirSync(path.dirname(shim), { recursive: true })
     fs.symlinkSync(path.relative(path.dirname(shim), cli), shim)
