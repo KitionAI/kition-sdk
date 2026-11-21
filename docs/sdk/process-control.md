@@ -1,6 +1,6 @@
 # Kit process controls
 
-`kition-kits-mcp` and `kition-kits serve` accept these options beside `--sandbox`:
+`kition mcp`, `kition gateway` and `kition serve` accept these options beside `--sandbox`:
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
@@ -14,10 +14,10 @@ before serving calls. The Kit Process Protocol's section 11 remains the wire-lev
 the host's configured deadline bounds document operations as an operator policy.
 
 ```sh
-kition-kits-mcp --workspace <folder> --kits-dir <bundle>/kits --sandbox \
+kition mcp --workspace <folder> --sandbox \
   --call-timeout-secs 120 --idle-timeout-secs 600 --memory-limit-mib 2048
 
-kition-kits serve --workspace <folder> --kits-dir <bundle>/kits --sandbox \
+kition serve --workspace <folder> --sandbox \
   --call-timeout-secs 120 --idle-timeout-secs 600 --memory-limit-mib 2048
 ```
 

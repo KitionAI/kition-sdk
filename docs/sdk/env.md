@@ -653,8 +653,8 @@ no server; it makes no claim of conformance to any framework's interface.
 | `trace --tasks <tasks.jsonl> --workspace <dir> [--find]` | the oracle's verified traces |
 | `stats --tasks <tasks.jsonl>` | the counts above |
 
-Kits are found as `kition-kits` finds them: `--executable <path>` (repeatable), `--kits-dir
-<folder>`, `KITION_KIT_<KIT>_BINARY`. Exit codes: 0 done, 1 failed (a kit, a file), 2 wrong usage
+Kits are found as `kition serve` finds them with `--kit` and `--kits-dir` ([headless.md](headless.md)):
+`--executable <path>` (repeatable), `--kits-dir <folder>`, `KITION_KIT_<KIT>_BINARY`. Exit codes: 0 done, 1 failed (a kit, a file), 2 wrong usage
 (with the usage on standard error).
 
 ## Limits, and what a kit can add

@@ -5,7 +5,7 @@ on npm). It gives any MCP client (Claude Code, Claude Desktop, Cursor, Codex, De
 your own agent) the kits' tools on one workspace folder. The agent creates, inspects, edits and
 checks files there through each kit's headless executable; `kition` downloads each kit into
 `~/.kition/kits` the first time the agent opens a file of it. No Kition app has to run, and the
-server is free on any machine with no licence key. All 16 Kition kits are published: Note, for Markdown notes; Table, for `.ktable` tables; Board, for whiteboards; Doc, for Word documents; Sheet, for spreadsheets; Slide, for presentations; PDF; HTML, for `.html` pages; Photo, for layered images; Vector, for vector drawings; Layout, for page layouts; Design, for interface designs; Film, for video projects; Motion, for motion graphics; CAD, for `.dxf` drawings; and Scene, for 3D scenes.
+server is free on any machine with no licence key. All 16 Kition kits are published: Note, for Markdown notes; Table, for `.ktable` tables; Board, for whiteboards; Doc, for word-processing documents (`.docx`); Sheet, for spreadsheets; Slide, for presentations; PDF; HTML, for `.html` pages; Photo, for layered images; Vector, for vector drawings; Layout, for page layouts; Design, for interface designs; Film, for video projects; Motion, for motion graphics; CAD, for `.dxf` drawings; and Scene, for 3D scenes.
 
 ## Connect your agent
 
@@ -100,12 +100,14 @@ Options for every form:
 Other clients:
 
 - **DeepSeek Harness**: the plugin `@kition/dsh-kits` in kition-sdk
-  (`plugins/deepseek-harness/kition-kits`, with its README), installed with
-  `dsh plugin --profile <profile> add @kition/dsh-kits` (or its packed archive), which brings its
-  own kition (`@kition/cli` at its version): each kit file in its kit's editor in the
+  (`plugins/deepseek-harness/kition-kits`, with its README). It is not on npm yet: pack it from a
+  kition-sdk checkout (`npm pack ./plugins/deepseek-harness/kition-kits`) and install the archive
+  with `dsh plugin --profile <profile> add ./kition-dsh-kits-<version>.tgz`; by name
+  (`add @kition/dsh-kits`) after the package is published. It runs its own kition (`@kition/cli`
+  at its version): each kit file in its kit's editor in the
   right sidebar, the tools, which act on each session's own folder through its `kition gateway`
   (live in an open editor), an editing skill per kit and the person's draft review.
-- **Kition running**: its loopback endpoint `POST /v1/mcp/kits` also edits files open in kit
+- **Kition Desktop running**: its loopback endpoint `POST /v1/mcp/kits` also edits files open in kit
   editors live.
 - **A `kition gateway` for the workspace**: `kition mcp` relays to it
   ([below](#editors-attached-to-a-gateway)).
@@ -132,8 +134,8 @@ refuses them, see [Drafts](#drafts)), `--guard premise|epoch|off` and `--require
 [What others changed](#what-others-changed)), `--sandbox`, `--help`.
 The server is free on any machine and takes no licence key: only collaboration is paid.
 `kition mcp --schemas` prints every tool's argument and result JSON Schema (`input`,
-`output`; the same as Kition's `contracts/kit/mcp-tools.schema.json`). A product shipping the SDK
-bundle runs the bundle's `kition-kits-mcp` instead ([In the SDK bundle](#in-the-sdk-bundle-kition-kits-mcp)).
+`output`; the same as Kition's `contracts/kit/mcp-tools.schema.json`). A product that ships its
+own kits names them instead of the store's ([Kits outside the store](#kits-outside-the-store)).
 
 Each kit whose executable is set adds its tools (prefix = the kit, such as `note`):
 
@@ -395,7 +397,7 @@ object and no write on an untouched shape refused. Only the change set is kept a
 
 #### What a kit must provide for outside changes to be compared precisely
 
-- Tool ids (`toolId`, OM9) on the objects agents address (slides, shapes, notes): they pair the
+- Tool ids (`toolId`) on the objects agents address (slides, shapes, notes): they pair the
   two reads by construction. The tool id's field may have any name, `id` included (loads answer
   every declared field in `fields`).
 - `owns` on the refs and maps that hold parts of an object (a shape's text body, a table's cells):
@@ -418,14 +420,14 @@ agent's, so an agent never takes back another's edit.
 
 Each MCP connection is its own agent: the client's `clientInfo.name` and a suffix drawn for the
 connection (`claude-code-x3k9`), the author of its writes in the journal and the label of the
-`origin` of its batches; the person stays the principal its edits are attributed to (A11). A
+`origin` of its batches; the person stays the principal its edits are attributed to. A
 server that does not tell connections apart (`mcp::handle_with`) is one agent, `agent-` and a
 suffix drawn per process.
 
 `--guard epoch` refuses any write with `basis` after anyone else's change; `--guard off` disables
 staleness refusals but still answers `others`; raw batch declaration and model validation
 still apply. `--require-basis` refuses `_run` and `_batch` without `basis`
-(`invalid-params`). A call without `basis` keeps the A56 notice: after the file changed outside,
+(`invalid-params`). A call without `basis` still gets the notice of an outside change: after the file changed outside,
 the next read says so once (`changedOutside`) and the next `_run` or `_batch` is refused once;
 reads do not clear the refusal. On the mock kit a debug build's run took 5.8 ms without `basis`
 and 7.0 ms with it (median of 20, another agent writing between runs); a `revision` is about 4
@@ -508,8 +510,8 @@ kition mcp: workspace /Users/me/notes: relaying to the Kition gateway (pid 32783
 
 Every message then goes to the gateway's `POST /api/v1/mcp/kits` with its token (read from its
 lockfile), and the answers come back on stdout. A call on a file open in an editor attached to
-the gateway runs in that editor, as a step in the editor's history (the agent's undo scope,
-KitModel M12a: `edit.undo {scope: "agent"}` takes it back there, the person's own undo leaves it),
+the gateway runs in that editor, as a step in the editor's history (the agent's undo scope:
+`edit.undo {scope: "agent"}` takes it back there, the person's own undo leaves it),
 and answers `live: true`; a call on any other file runs in the gateway's headless kit. Claude
 Code, Codex, Cursor and DeepSeek Harness need nothing else: their `kition mcp` relays on its own.
 
@@ -549,8 +551,8 @@ person's document, shows a banner while a draft exists, and opens the person's r
 the editor's page would go with its tab). Every bridge window hears `kit/draftsChanged {path}` when
 a draft is forked, edited, made ready or taken back, merged or discarded.
 
-Only a kit whose `kit.json` declares `agent.drafts` keeps drafts (KHP A12) and offers
-`<prefix>_draft_ready` and `<prefix>_draft_reopen` (A35). A call that asks another kit for a
+Only a kit whose `kit.json` declares `agent.drafts` keeps drafts and offers
+`<prefix>_draft_ready` and `<prefix>_draft_reopen`. A call that asks another kit for a
 draft (`draft: true`) is refused with `unsupported`. Under `--drafts`, the server's choice not to
 edit files directly holds for every kit: an edit (`<prefix>_run`, `<prefix>_batch`) of a kit
 without `agent.drafts` is refused with `unsupported` and changes nothing, unless the call says
@@ -568,7 +570,7 @@ The person, or your page's server for them, reviews and merges with `kition mcp 
 import { workspaceDrafts } from '@kition/script/node'
 
 const drafts = workspaceDrafts({ server: 'kition', serverArgs: ['mcp'], workspace })
-// with the SDK bundle: { server: 'bin/<platform>/kition-kits-mcp', workspace, kitsDir: 'kits' }
+// with kits outside the store: { server: 'kition', serverArgs: ['mcp'], workspace, kitsDir: '<folder>' }
 const [draft] = await drafts.list() // { path, state: 'ready', stale, mode, … }
 const comparison = await drafts.compare(draft.path, { previews: true }) // { diff, summary, previews }
 await drafts.merge(draft.path) // the person approved: the draft becomes the file
@@ -606,28 +608,25 @@ Without a relay, the agent works headless on the file as above, and the page rel
 file's version changes. [examples/agent-mcp/live.mjs](../../examples/agent-mcp/live.mjs) drafts in
 an open note through the example page.
 
-## In the SDK bundle: `kition-kits-mcp`
+## Kits outside the store
 
-This section is for a product that ships the SDK bundle ([distribution.md](distribution.md)) and
-starts the server itself, on the kits the bundle carries rather than on a kit store. An agent
-user does not need it: `kition mcp` is the same server ([Connect your agent](#connect-your-agent)).
-
-The bundle's `bin/<platform>/` holds `kition-kits-mcp`, the same server without the kit store:
+A product that ships its own kits, or pins them, names them instead of the kit store's:
 
 ```sh
-# from the unpacked SDK bundle
-bin/<platform>/kition-kits-mcp --workspace <folder> --kits-dir kits
-# or one kit: --kit bin/<platform>/kition-note (repeatable)
+kition mcp --workspace <folder> --kits-dir <folder>   # one folder per kit, holding its kit.json
+kition mcp --workspace <folder> --kit <path>          # one kit executable (repeatable)
 ```
 
-`--kits-dir` names the bundle's `kits/`, where each kit's `kit.json` is; the server finds each
-kit's executable in the bundle's `bin/<platform>/`, beside itself, through
+With `--kits-dir` or `--kit`, the store is not used and no kit is installed
+([cli.md](cli.md#your-agent)). `--kits-dir` names a folder with one folder per kit holding its
+`kit.json`; the server finds each kit's executable beside it, through
 `KITION_KIT_<KIT>_BINARY`, or on the PATH, and says on standard error which kit it found no
-executable for (`--list-kits` gives the same reason). It takes `kition mcp`'s options and its
-`drafts` commands (`kition-kits-mcp drafts list --workspace <folder> --kits-dir kits`), with these
-differences: `--workspace` is required, there is no store, and it installs no kit (no
-`--no-install`, no `--index`). In an `mcpServers` file, the command is its path and the
-arguments are `["--workspace", "<folder>", "--kits-dir", "<bundle>/kits"]`.
+executable for (`--list-kits` gives the same reason). The `drafts` commands take the same options
+(`kition mcp drafts list --workspace <folder> --kits-dir <folder>`). When a `kition gateway` serves
+the workspace, `kition mcp` relays to it and the kits are the gateway's
+([above](#editors-attached-to-a-gateway)); `--no-relay` keeps them in its own process. In an
+`mcpServers` file, the command is `kition` and the arguments are
+`["mcp", "--workspace", "<folder>", "--kits-dir", "<folder>"]`.
 
-Kition kit platform: [`KitAgent 1.4`](../platform/sets/agent.md): tools (A1–A6), object-model tools (A16), error
-codes (A18), resources (A19), Verify (A21–A23), DeepSeek Harness (D1).
+Kition kit platform: [agent tools](../platform/sets/agent.md): tools, object-model tools, error
+codes, resources, verification, and DeepSeek Harness.

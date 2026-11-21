@@ -8,6 +8,23 @@ running the kits in the store.
 
 It is free on any machine, servers included, and needs no licence key.
 
+If you know Docker, `kition` plays the same roles for kits:
+
+| Docker | `kition` |
+| --- | --- |
+| an image | a kit: its engine executable, its `kit.json` and its editor package |
+| a registry | the [kit index](#the-kit-index), whose packages come from [the npm registries](#the-registries) |
+| `docker pull` | `kition kit install <kit>` (or nothing: `kition mcp` and the gateway install a kit the first time a file of it is opened) |
+| the local image store | [the kit store](#the-store), `~/.kition/kits` |
+| `docker run` | `kition mcp`, `kition serve`, `kition gateway`: the kits in use, running for one workspace |
+| a mounted volume | the workspace folder (`--workspace`), the only folder the kits read and write |
+| the daemon | [`kition gateway`](#the-gateway): the one process that holds one workspace's kits and editors |
+| Docker Desktop | Kition Desktop, which adds kits to the same store ([below](#the-store)) |
+
+The likeness ends there: a kit runs as a process of your system, not in a container (`--sandbox`
+puts it in the operating system's sandbox), and a gateway serves one workspace, not the whole
+machine.
+
 ## Installing it
 
 Nothing has to be compiled, and Rust is not needed. Pick one:
@@ -108,8 +125,8 @@ run `kition --help` for the commands
 ```text
 $ kition kit list
 KIT    NAME   INSTALLED  LATEST  FILES
-note   Note   0.3.0      0.3.0   .md .markdown
-table  Table  -          0.5.2   .ktable
+note   Note   0.1.4      0.1.4   .md .markdown
+table  Table  -          0.1.2   .ktable
 html   HTML   -          0.1.0   .html .htm
 ```
 
@@ -138,11 +155,11 @@ several kits, as `install` does. `<kit>` is the short name (`note`) or the kit i
 $ kition kit info note
 note (kit.note): Note
 files:       .md .markdown
-installed:   0.3.0 (in use)
-in index:    0.3.0, 0.2.0
-newest here: 0.3.0
-folder:      /Users/me/.kition/kits/note/0.3.0
-executable:  /Users/me/.kition/kits/note/0.3.0/kition-note
+installed:   0.1.4 (in use)
+in index:    0.1.4, 0.1.3
+newest here: 0.1.4
+folder:      /Users/me/.kition/kits/note/0.1.4
+executable:  /Users/me/.kition/kits/note/0.1.4/kition-note
 protocol:    kition-kit/1
 agent:       prefix note
 tools:       note_inspect note_commands note_run note_query note_batch ...
@@ -239,9 +256,8 @@ names another)`). `kition-kits-mcp` still needs `--workspace`.
 
 With no `--kit` and no `--kits-dir`, the server's kits are the store's: the version in use of each
 installed kit. A kit the environment names (`KITION_KIT_<KIT>_BINARY`, a development build) is used
-instead of the store's. `--kit` and `--kits-dir` mean what they mean for `kition-kits-mcp`, and
-with either, the store is not used. Every other option is `kition-kits-mcp`'s
-([agent.md](agent.md#the-server)).
+instead of the store's. `--kit <path>` and `--kits-dir <folder>` name the kits instead, and with
+either, the store is not used. Every other option is in [agent.md](agent.md#the-server).
 
 ### Kits installed on first use
 
@@ -404,7 +420,7 @@ fail  PATH          /Users/me/.kition/bin (this kition's folder) is not on the P
                     fix: export PATH="/Users/me/.kition/bin:$PATH"   (add the line to your shell's profile, ~/.zshrc or ~/.bashrc)
 info  registries    kits and the index come from https://registry.npmjs.org/, https://registry.npmmirror.com/
 ok    index         npm:@kition/kits-index: read now, 16 kits
-ok    kit note      0.3.0 answers kit.initialize (/Users/me/.kition/kits/note/0.3.0/kition-note)
+ok    kit note      0.1.4 answers kit.initialize (/Users/me/.kition/kits/note/0.1.4/kition-note)
 ok    agent claude  Claude Code: kition registered: ...
 info  agent codex   Codex: not here (no `codex` on the PATH)
 info  agent cursor  Cursor: kition is not registered (kition agent add cursor)
@@ -447,7 +463,7 @@ The Kition home is `~/.kition` on every system (`%USERPROFILE%\.kition` on Windo
   close it; `kit upgrade` leaves the old version and removes it next time.
 - There are no links, so the store works the same on every system.
 
-**Another program adding a kit** (Kition's desktop app) does what `kition` does: it builds the
+**Another program adding a kit** (Kition Desktop) does what `kition` does: it builds the
 complete version folder somewhere on the same volume (the home's `tmp/` is meant for it) and renames
 it to `kits/<kit>/<version>/`. `kition` sees it at once: `kit list`, and the next `kition mcp`.
 
@@ -464,7 +480,7 @@ The index is one JSON file, [`schemas/kits-index.schema.json`](../../schemas/kit
       "name": "Note",
       "extensions": ["md", "markdown"],
       "versions": {
-        "0.3.0": {
+        "0.1.4": {
           "protocol": "kition-kit/1",
           "platforms": {
             "darwin-arm64": { "package": "@kition/kit-note-darwin-arm64", "size": 11534336, "integrity": "sha512-<88 base64 characters>" },
@@ -542,7 +558,7 @@ it uses. Proxies come from `HTTPS_PROXY` and the others below; no token is sent,
 | `KITION_NPM_REGISTRY` | npm registries to try first, separated by commas ([the registries](#the-registries)) |
 | `KITION_NPM_SCOPE` | The npm scope of the kits and the kit index, instead of `@kition`; another scope's packages are named `<scope>/<kit>-<platform>`, `<scope>/<kit>` and `<scope>/kits` (the index), and only its packages are accepted |
 | `npm_config_registry`, `npm_config_userconfig` | npm's own settings, read as npm reads them ([the registries](#the-registries)) |
-| `KITION_KIT_<KIT>_BINARY` | A kit executable to use instead of the store's (development builds), as for `kition-kits-mcp` |
+| `KITION_KIT_<KIT>_BINARY` | A kit executable to use instead of the store's (development builds) |
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | Proxies for reading the index and downloading kits and editors (lowercase forms too) |
 
 Downloads use HTTPS with the Mozilla root certificates built into `kition` (rustls); nothing

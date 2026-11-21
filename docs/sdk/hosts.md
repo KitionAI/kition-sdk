@@ -2,11 +2,11 @@
 
 A host is a program that opens a person's files in Kition's kits: a desktop app, a server, a
 script. It does not matter what language it is written in. Every host uses the kits the same way:
-it starts one program from the SDK, `kition-kits serve`, and talks to it in JSON, one line at a
+it starts one program, `kition serve`, and talks to it in JSON, one line at a
 time, on that program's standard input and output. Files are named by their path in a workspace
 folder.
 
-`kition-kits serve` does the rest of what the [Kit Process Protocol](../platform/reference/kit-process-protocol.md)
+`kition serve` does the rest of what the [Kit Process Protocol](../platform/reference/kit-process-protocol.md)
 asks of a host, so no host has to implement it:
 
 - it starts each kit's headless executable when a file of its kind is first opened, and stops it
@@ -24,16 +24,20 @@ Go, each in one file with nothing but its standard library. The SDK's tests run 
 ## Start it
 
 ```sh
-kition-kits serve --workspace <folder> --kits-dir <bundle>/kits
+npm install -g @kition/cli          # or install.sh / install.ps1 (cli.md)
+kition kit install note table       # the kits your host opens; --all for every kit
+kition serve --workspace <folder>
 ```
 
-In the SDK bundle, `kition-kits` is in `bin/<platform>/`, beside the kits' executables, which it
-finds there; `--kits-dir` names the bundle's `kits/` folder, which holds each kit's `kit.json`.
-`--kit <executable>` adds a kit built elsewhere (its `kit.json` is the nearest one above it).
+With neither `--kit` nor `--kits-dir`, `kition serve` runs the version in use of each kit
+installed in the kit store, `~/.kition/kits` ([cli.md](cli.md#the-store)); it installs no kit
+itself, so install the kits your host needs first. `--kit <executable>` names a kit built
+elsewhere (its `kit.json` is the nearest one above it) and `--kits-dir <folder>` a folder with one
+folder per kit holding its `kit.json`; with either, the store is not used.
 
 The process ends when its standard input closes, after shutting its kits down.
 
-Both this program and `kition-kits-mcp` offer `--sandbox`, `--call-timeout-secs` (120),
+Both this program and `kition mcp` offer `--sandbox`, `--call-timeout-secs` (120),
 `--idle-timeout-secs` (600), and optional `--memory-limit-mib`. Calls to one document are FIFO;
 different documents have independent workers. Idle reclaim saves dirty state first. See
 [process controls](process-control.md) for platform enforcement, recovery and MCP control gaps.
@@ -106,6 +110,6 @@ An error has a `code` and a stable `data.reason`; `data.detail` is a message for
 A host that keeps files somewhere other than a local folder (a cloud store, a database, a page's
 storage) can speak the Kit Process Protocol to each kit directly instead, and serve `files.*` from its
 storage: the [protocol](../platform/reference/kit-process-protocol.md), its
-[schema](../../schemas/kit-process-protocol.schema.json), and [`KitFiles 1.1`](../platform/sets/files.md)
-say everything it must do. The kits in the bundle are its test: the `regressions/issue-2` case in
+[schema](../../schemas/kit-process-protocol.schema.json), and [files beyond the open document](../platform/sets/files.md)
+say everything it must do. The published kits are its test: the `regressions/issue-2` case in
 the SDK drives a kit that way, with nothing but a socket and JSON.

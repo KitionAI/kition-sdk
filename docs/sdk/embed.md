@@ -15,8 +15,10 @@ const editor = await KitionEmbed.mount(element, {
 })
 ```
 
-- **Kit packages** (`kits/kition-<kit>-<version>.tgz` in the bundle) are static folders: host
-  them on their own origin with the policy in [the embed reference](../platform/reference/embed.md) section 3 (UI-H3).
+- **Kit packages** (each kit's editor, the npm package `@kition/kit-<kit>-ui`, which holds the
+  folder `<kit>-ui/`; [distribution.md](distribution.md#kit-packages-and-the-kit-index)) are static
+  folders: host them on their own origin with the policy in
+  [the embed reference](../platform/reference/embed.md) section 3.
 - **Storage** is yours. A write carries the version it read; refuse a stale one with
   `EmbedConflictError`, and answer `stamp` with the current version, so an edit made elsewhere (an
   agent's save) is never written over. The editor writes one save at a time, each over the
@@ -29,7 +31,7 @@ const editor = await KitionEmbed.mount(element, {
   severity, target, message, fix? }`, errors first); `editor.check({ draft: true })` checks the
   agent's draft.
 
-## Links, web addresses, and your shortcuts (`KitEmbed 1.5`, `1.6`)
+## Links, web addresses, and your shortcuts
 
 A kit opens no window itself. Give the storage provider the callbacks and the kit offers what they
 serve; leave them out and it shows links as plain text:
@@ -51,7 +53,7 @@ editor.on('shortcut', (key) => app.runShortcut(key))
 - `shortcuts` are keys the kit forwards instead of handling (`shortcut` event). List `Cmd+S` only
   if the page saves itself with `editor.save()`.
 
-## The agent's draft, reviewed in your page (`KitEmbed 1.3`)
+## The agent's draft, reviewed in your page
 
 An agent edits a **draft** of the document; the person sees what it changes and merges or discards
 it. The `draft` event says when the draft opens, changes, is ready for review, or closes:
@@ -67,7 +69,7 @@ discardButton.onclick = () => editor.draft.discard() // the document stays as it
 ```
 
 - Call `merge()` and `discard()` only from the person's click, never from an agent's or a model's
-  output (Kit UI protocol UI-D1). A person who may not edit cannot (`EmbedError` `read-only`).
+  output (the Kit UI protocol requires it). A person who may not edit cannot (`EmbedError` `read-only`).
 - `state()` answers `none`, `open`, or `ready`; a kit without drafts answers `none` and refuses
   `compare`, `merge`, `discard` (`unsupported`); there is nothing to merge without a draft
   (`no-draft`).
@@ -75,7 +77,7 @@ discardButton.onclick = () => editor.draft.discard() // the document stays as it
   (`model/schema.json`; serve it with the package, readable by the page), else loads it from
   `@kition/script`'s generated kits, or pass `kit.schema` yourself.
 
-## Your agent in the open editor (`editor.agentPort`, `KitEmbed 1.3`)
+## Your agent in the open editor (`editor.agentPort`)
 
 Your agent (on your server) can work in the document the person has open, with the same MCP tools
 `kition mcp` offers on files (`<prefix>_inspect`, `_commands`, `_run`, `_query`, `_batch`,
@@ -115,5 +117,5 @@ agent example shares them; its server also relays an agent to the open editors
 (`agent-relay.mjs`, `/api/agent/<name>/mcp`), and the page shows a review bar for the agent's
 draft. [examples/agent-mcp/live.mjs](../../examples/agent-mcp/live.mjs) is such an agent.
 
-Kition kit platform: [`KitEmbed 1.8`](../platform/sets/embed.md), the Kit UI protocol
+Kition kit platform: [embed](../platform/sets/embed.md), the Kit UI protocol
 ([reference](../platform/reference/ui-protocol.md)), [kit editors](../platform/kits/ui.md).

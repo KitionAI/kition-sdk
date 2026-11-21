@@ -9,7 +9,7 @@ The same script runs in three places:
 | --- | --- |
 | A page with an embedded editor | `editor.document()` on an editor mounted with `model: true` (`@kition/embed`; the editor's own engine and undo history) |
 | Node, in process | `@kition/script/node`: the kit's WebAssembly engine loaded in Node |
-| Node, headless executable | `openHeadless(binary, file)`: the kit's native engine, through `kition-kits serve` ([headless.md](headless.md), [hosts.md](hosts.md)) |
+| Node, headless executable | `openHeadless(binary, file)`: the kit's native engine, through the Kits Service ([headless.md](headless.md), [hosts.md](hosts.md)); it starts the `kition-kits` program (`KITION_KITS`, else `kition-kits` on the `PATH`), or the one its `executable` option names |
 | A co-edited room | `openRoom(...)`: a replica on a `kition-sync/1` server |
 
 ```ts
@@ -26,10 +26,10 @@ await file.shutdown()
 Typings per published kit: `@kition/script/kits/<kit>` (generated from each kit's schema).
 
 Objects are named as the kit's own tools name them where its schema declares tool ids
-([`KitObjectModel 1.0`](../platform/sets/object-model.md) OM9): a proxy's `id`, a ref field's
+([object model](../platform/sets/object-model.md)): a proxy's `id`, a ref field's
 value, and a batch's `refs` read `item:10` rather than a KDM object id, so a script, an agent's
 inspect, and the kit's diagnostics share one id space. Other objects keep their KDM object ids.
 Examples: [examples/sdk-scripts](../../examples/sdk-scripts).
 
-Kition kit platform: [`KitObjectModel 1.0`](../platform/sets/object-model.md); exchange and transactions (origins,
-undo) in [`KitModel 1.1`](../platform/sets/model.md).
+Kition kit platform: the [object model](../platform/sets/object-model.md); exchange and transactions (origins,
+undo) in the [Kit Data Model](../platform/sets/model.md).
