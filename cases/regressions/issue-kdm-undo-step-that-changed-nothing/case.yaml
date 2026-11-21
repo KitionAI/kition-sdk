@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-kdm-undo-step-that-changed-nothing
+feature: sdk.model.register-undo
+intent: >-
+  An undo group whose changes come to nothing (Enter then Backspace in a text, a value written and
+  written back) changes nothing when undone, so undo and redo pass over it: one Undo after typing
+  and such a group takes back the typing, and one Redo puts it back. Since the replica kept its own
+  undo steps per scope (4b81569), it undid such a group as a step of its own, an Undo that changed
+  nothing while the typing before it stayed (kition-note's an_undo_step_that_changed_nothing_undoes_nothing
+  passed on kition-sdk f5ea478 and failed on 6b4d471). A group whose changes another replica took
+  back is passed over as before; a step whose values others' later changes keep is still a step.
+layer: gate
+source: { kind: issue, from: kition-note kit test against kition-sdk 6b4d471 (Enter then Backspace, then Undo), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_nothing }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-20"

@@ -94,7 +94,20 @@ three replicas with register steps and with engine steps and requires the
 same states and undo answers (every step the replica keeps is in the engine's
 history too), and that replicas converge with partial delivery. A step with nothing left to replay (another replica deleted
 everything it wrote) is dropped, and the same undo or redo replays the step
-before it, as Loro does with its own items.
+before it, as Loro does with its own items. So is a group whose own changes
+come to nothing (Enter then Backspace, a value written and written back,
+M12): its parts replay, and when the group's registers (register parts) or
+what its footprint holds (engine parts, read before and after) end as they
+were, the same undo or redo replays the step before it too, and the two
+redo or undo as one step (the engine's items stay in the order the replica
+refers to them). Only a group's replay reads its footprint; a single
+transaction's never does. A step whose values later changes of other
+replicas or scopes keep is still a step (its replay wrote them back first).
+When the engine's own undo of one of its items changes nothing, Loro undoes
+the item below in the same call; the replica then drops its step that
+referred to that item. `crates/kition-kdm/tests/undo_nothing.rs` holds these
+to the behaviour Loro's undo manager had for groups before
+(regressions/issue-kdm-undo-step-that-changed-nothing).
 
 A scope keeps its last 100 steps (Loro's default before). `@kition/kdm` keeps
 the chain design above.

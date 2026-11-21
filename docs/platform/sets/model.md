@@ -206,7 +206,13 @@ A kit on the KDM ships `model/schema.json`:
   operation on the current state; changes from other replicas, including
   later changes to the same object, MUST survive. Undo and redo report the
   objects they change like any other change. Undo groups make several
-  transactions one undo step. Transactions with origin `system` (repairs,
+  transactions one undo step. A step whose changes come to nothing (Enter,
+  then Backspace, in one group; a value written and written back) is no
+  step to undo: undo and redo pass over it and take back the step before it
+  in the same call, as they pass over a step whose changes other replicas
+  took back. Until an undo passes over it, `can_undo` still counts it; an
+  undo that finds nothing to take back changes nothing and answers false.
+  Transactions with origin `system` (repairs,
   migrations) or `import` (changes merged from a file edited elsewhere) are
   not undo steps: undo skips them like changes from other
   replicas, and they survive the undo of earlier transactions.

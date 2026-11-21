@@ -4,6 +4,13 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Undo passes over a group whose changes came to nothing** (`kition-kdm`): an undo group whose
+  edits cancel out (Enter then Backspace, a value written and written back) was, since the replica
+  keeps its own undo steps, a step whose undo changed nothing, and the typing before it stayed for
+  the next Undo. Undo and redo now pass over it and take back the step before it in the same call,
+  as Loro's undo did before (and `@kition/kdm` does); a single transaction whose engine undo comes
+  to nothing no longer leaves `can_undo` true with nothing to undo
+  (regressions/issue-kdm-undo-step-that-changed-nothing).
 - **The kit index is format 1 and `@kition/kits-index` is versioned `0.1.<n>`**: every format and
   protocol is version 1, and nothing is released as 1.0 yet. `kition` refuses an index of any other format, naming both.
 - **The kit index is gathered past npm's placeholder of a first publish**: npm keeps a version

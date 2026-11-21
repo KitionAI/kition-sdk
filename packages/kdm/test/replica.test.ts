@@ -1155,6 +1155,30 @@ describe('KDM additions for hosts', () => {
     doc.endUndoGroup()
   })
 
+  it('undo and redo pass over a group whose changes came to nothing, as kition-kdm does', () => {
+    // Enter then Backspace, and a value written and written back, in one group each: undo of
+    // either changes nothing, so the same undo takes back the typing before it (case
+    // regressions/issue-kdm-undo-step-that-changed-nothing).
+    for (const nothing of ['text', 'register'] as const) {
+      const doc = replica()
+      const { shape } = pageWithShape(doc)
+      doc.transact(me, (tx) => tx.textInsert(shape, 'label', 0, 'x'))
+      doc.beginUndoGroup()
+      if (nothing === 'text') {
+        doc.transact(me, (tx) => tx.textInsert(shape, 'label', 1, '\n'))
+        doc.transact(me, (tx) => tx.textDelete(shape, 'label', 1, 1))
+      } else {
+        doc.transact(me, (tx) => tx.set(shape, 'x', 1))
+        doc.transact(me, (tx) => tx.set(shape, 'x', 10))
+      }
+      doc.endUndoGroup()
+      expect(doc.undo()).toBe(true)
+      expect([doc.text(shape, 'label'), doc.get(shape, 'x'), doc.canRedo()]).toEqual(['', 10, true])
+      expect(doc.redo()).toBe(true)
+      expect([doc.text(shape, 'label'), doc.canRedo()]).toEqual(['x', false])
+    }
+  })
+
   it('undo while grouping ends the group and reverts it as one step', () => {
     const doc = replica()
     const { shape } = pageWithShape(doc)
