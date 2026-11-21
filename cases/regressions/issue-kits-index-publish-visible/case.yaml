@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-kits-index-publish-visible
+feature: sdk.distribution.kits-index
+intent: >-
+  The kits-index workflow ended right after npm publish, while npm still showed a first publish
+  only as its placeholder 0.0.0-stage (12 to 24 minutes for a 30 MB package, 2026-11-21), so a
+  kition started then failed to read the index. After publishing, the workflow waits until npm shows
+  the version with its bytes: its metadata, latest pointing at it, and its tarball downloadable
+  with the integrity the metadata gives, asking every 30 seconds for at most 40 minutes, and fails
+  after that naming what npm still lacks; a run whose published index's latest is still the
+  placeholder stops before publishing. The gatherer leaves the placeholder out under both package
+  layouts.
+layer: gate
+source:
+  kind: probe
+  from: tools/kit-npm.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kit-npm.test.mjs, tools/kits-index.test.mjs, -t, "placeholder"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 300

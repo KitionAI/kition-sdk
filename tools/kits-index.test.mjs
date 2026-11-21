@@ -79,8 +79,8 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     // What registry.npmjs.org shows of a package first published on 2026-11-20: the version
     // published and, beside it, npm's own "Temporary package placeholder for staged publishing".
     const placeholder = (name) => ({ name, version: '0.0.0-stage', description: 'Temporary package placeholder for staged publishing', dist: { integrity: integrityOf(Buffer.from('placeholder')) } })
-    const staged = (kits) => {
-      const registry = fakeRegistry(kits)
+    const staged = (kits, scope) => {
+      const registry = fakeRegistry(kits, { scope })
       return { ...registry, net: async (url, options) => {
         const answer = await registry.net(url, options)
         if (answer && typeof answer === 'object' && answer.versions) answer.versions['0.0.0-stage'] = placeholder(answer.name)
@@ -91,6 +91,11 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     const { index, report } = await gatherIndex({ kits: ["board"], registry: REGISTRY, net })
     expect(Object.keys(index.kits.board.versions)).toEqual(['0.1.4'])
     expect(report).toEqual([{ kit: 'board', versions: ['0.1.4'], editors: ['0.1.4'], uiOnly: [] }])
+    // The same under layout 1 (a rehearsal on @kitionstage: @kitionstage/board, @kitionstage/board-<platform>).
+    const stage = staged({ board: { '0.1.4': {} } }, '@kitionstage')
+    const { index: staging } = await gatherIndex({ kits: ['board'], registry: REGISTRY, net: stage.net, scope: '@kitionstage' })
+    expect(Object.keys(staging.kits.board.versions)).toEqual(['0.1.4'])
+    expect(staging.kits.board.versions['0.1.4'].ui.package).toBe('@kitionstage/board')
     const bare = fakeRegistry({ board: { '0.1.4': {} } }, { tamper: (name, version, manifest) => { if (name === '@kition/kit-board-ui') delete manifest.kition } })
     await expect(gatherIndex({ kits: ["board"], registry: REGISTRY, net: bare.net })).rejects.toThrow('@kition/kit-board-ui@0.1.4 has no kition field')
   })

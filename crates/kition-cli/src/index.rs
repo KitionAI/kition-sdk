@@ -112,7 +112,11 @@ impl Index {
             Some(other) => return Err(format!("the kit index is format {other}, and this kition {} reads format {SCHEMA_VERSION}", crate::VERSION)),
             None => return Err(format!("the kit index has no `schemaVersion` {SCHEMA_VERSION}")),
         }
-        let index: Self = serde_json::from_value(value).map_err(|error| format!("the kit index is malformed: {error}"))?;
+        let mut index: Self = serde_json::from_value(value).map_err(|error| format!("the kit index is malformed: {error}"))?;
+        // npm's placeholder of a first publish is no kit version: never chosen, never downloaded.
+        for kit in index.kits.values_mut() {
+            kit.versions.remove(registry::NPM_PLACEHOLDER);
+        }
         index.check(scope)?;
         Ok(index)
     }
@@ -285,6 +289,10 @@ fn read_package(home: &Home, package: &str, scope: &Scope) -> Result<(String, St
     let (metadata, answered) = registry::read_json(&registries, &registry::metadata_path(package, "latest"), 4 * 1024 * 1024)?;
     let version =
         metadata.get("version").and_then(serde_json::Value::as_str).ok_or_else(|| format!("{answered}: {package}'s latest names no version"))?.to_owned();
+    // A first publish: npm points latest at its placeholder until the version published shows.
+    if registry::is_placeholder(&version) {
+        return Err(registry::being_published(package));
+    }
     let integrity = metadata.pointer("/dist/integrity").and_then(serde_json::Value::as_str).filter(|integrity| registry::integrity_form(integrity));
     let integrity = integrity.ok_or_else(|| format!("{answered}: {package}@{version} gives no sha512 integrity"))?.to_owned();
     // The registry that answered first, then the others.
@@ -392,6 +400,15 @@ mod tests {
         // The schema takes both layouts' names.
         let schema: serde_json::Value = serde_json::from_str(include_str!("../../../schemas/kits-index.schema.json")).unwrap();
         assert!(jsonschema::validator_for(&schema).unwrap().is_valid(&sample_in("@kitionstage")));
+    }
+
+    #[test]
+    fn npms_placeholder_of_a_first_publish_is_no_kit_version() {
+        let mut staged = sample();
+        staged["kits"]["note"]["versions"][registry::NPM_PLACEHOLDER] = staged["kits"]["note"]["versions"]["0.3.0"].clone();
+        let index = Index::parse(&staged.to_string(), &Scope::default()).unwrap();
+        assert!(!index.kits["note"].versions.contains_key(registry::NPM_PLACEHOLDER));
+        assert_eq!(index.kits["note"].versions().iter().map(|(version, _)| version.to_string()).collect::<Vec<_>>(), ["0.10.0", "0.3.0"]);
     }
 
     #[test]

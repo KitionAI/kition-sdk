@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-kits-index-being-published
+feature: sdk.distribution.kits-index
+intent: >-
+  For several minutes after a package name's first publish (12 to 24 for a 30 MB package, measured
+  on 2026-11-21), npm lists only its placeholder version 0.0.0-stage and points latest at it. During
+  the @kitionstage rehearsal kition read @kitionstage/kits at that latest and failed with
+  "@kitionstage/kits@0.0.0-stage: not a .tar.gz archive: numeric field was not a number". kition
+  never reads the placeholder as an index: it says in one line that the index package is being
+  published on npm and to try again in a few minutes, shows the installed kits (kit list) or the
+  index read before (marked as last read), and an index never lists the placeholder as a kit version.
+layer: gate
+dimension: platform
+source:
+  kind: probe
+  from: crates/kition-cli/tests/registry.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-cli, test: registry, filter: "an_index_package_npm_still_shows_as_its_placeholder_is_being_published" }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 300

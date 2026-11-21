@@ -23,7 +23,13 @@ name: kits-index
 #   replaces a good one;
 # - publishes a new version of @kition/kits-index only when the index's bytes differ from those of
 #   the one published: version 0.1.<n>, n one more than the published one's,
-#   tagged latest. A version published is never replaced.
+#   tagged latest. A version published is never replaced. After publishing, the run waits until npm
+#   shows that version with its bytes (its metadata, latest pointing at it, its tarball with the
+#   integrity the metadata gives): a name's first publish shows only npm's placeholder 0.0.0-stage
+#   for several minutes (12 to 24 for a 30 MB package). It asks every 30 seconds for at most 40
+#   minutes (tools/kit-npm-package.mjs visible) and fails after that, naming what npm still lacks.
+# - stops, publishing nothing, when the published index's latest is still npm's placeholder
+#   0.0.0-stage (a first publish not visible yet): run it again in a few minutes.
 # Started by hand only (Actions tab, or gh workflow run kits-index.yml): it has no schedule, so a
 # new kit version reaches the index when a maintainer runs it.
 #
@@ -80,6 +86,10 @@ jobs:
           case "$status" in
             200)
               version=$(node -p 'require("./target/published/latest.json").version')
+              if [ "$version" = 0.0.0-stage ]; then
+                echo "::error::$PACKAGE is being published on npm (its latest is npm's placeholder 0.0.0-stage); run this workflow again in a few minutes" >&2
+                exit 1
+              fi
               # npm pack's file name: the name without @, / as - (kition-kits-index-<version>.tgz).
               tarball="$(printf '%s' "${PACKAGE#@}" | tr / -)-$version.tgz"
               (cd target/published && npm pack "$PACKAGE@$version" --silent > /dev/null && tar -xzf "$tarball" package/kits-index.json && mv package/kits-index.json kits-index.json)
@@ -107,6 +117,7 @@ jobs:
             *) exit "$status" ;;
           esac
       - name: Publish it when it changed
+        id: publish
         if: steps.gather.outputs.publish == 'true'
         env:
           # @kition publishes with NPM_TOKEN; any other scope (a rehearsal) with NPM_TOKEN_STAGE.
@@ -122,6 +133,17 @@ jobs:
           fi
           npm publish target/kits-index/package --access public --provenance --tag latest
           echo "published $PACKAGE@$NEXT" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+      # Until npm shows it, kition reads the previous index (or, for a first publish, npm's
+      # placeholder, which it reports as being published); the run ends only when it is visible.
+      - name: Wait until npm shows it with its bytes
+        if: steps.publish.outputs.version != ''
+        timeout-minutes: 45
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          node tools/kit-npm-package.mjs visible --name "$PACKAGE" --version "$VERSION" --registry "$REGISTRY" --tag latest --minutes 40 | tee -a "$GITHUB_STEP_SUMMARY"
           # npmmirror copies npmjs.org on its own schedule; ask it now, so kition there sees the
           # new index sooner. A refusal is only a warning: kition falls back to npmjs.org. Not for
           # another scope than @kition (a rehearsal).

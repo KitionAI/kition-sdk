@@ -561,7 +561,7 @@ features:
       - sdk.distribution.kition/install
     since: "2026-11-17"
   - id: sdk.distribution.kits-index
-    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, except a withdrawn one (the repository's kits-withdrawn.json names versions published by mistake that npm keeps: skipped unread, named in the report; a malformed list, or one naming a kit modules.json does not have, stops the run) and one still being published (it lacks a platform or editor package the kit's highest listed lower version has: held back and named in the report; a package whose tarball npm does not serve yet, a 404, counts as not published in that run), every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (0.1.<n>, latest) only when the index changed"
+    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, except a withdrawn one (the repository's kits-withdrawn.json names versions published by mistake that npm keeps: skipped unread, named in the report; a malformed list, or one naming a kit modules.json does not have, stops the run) and one still being published (it lacks a platform or editor package the kit's highest listed lower version has: held back and named in the report; a package whose tarball npm does not serve yet, a 404, counts as not published in that run), every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (0.1.<n>, latest) only when the index changed and waits (at most 40 minutes) until npm shows it with its bytes; npm's placeholder 0.0.0-stage of a first publish is never read: kition says the index package is being published and to try again in a few minutes"
     dimension: [platform, security]
     priority: P1
     status: has
@@ -570,8 +570,10 @@ features:
       - tools/kits-index.test.mjs
       - kits-withdrawn.json
       - tools/kit-npm.mjs
+      - tools/kit-npm-package.mjs
       - .github/workflows/kits-index.yml
       - crates/kition-cli/src/index.rs
+      - crates/kition-cli/src/registry.rs
       - schemas/kits-index.schema.json
       - sdk.json
       - docs/sdk/distribution.md
@@ -582,6 +584,8 @@ features:
       - regressions/issue-kits-index-npm-placeholder
       - regressions/issue-kits-index-unfinished-version
       - regressions/issue-kits-index-tarball-not-ready
+      - regressions/issue-kits-index-being-published
+      - regressions/issue-kits-index-publish-visible
     since: "2026-11-18"
   - id: sdk.distribution.npm-scope
     title: "KITION_NPM_SCOPE (default @kition) names the npm scope the kit packages and the kit index are published to and read from, by the tools, the kits-index workflow and kition: @kition keeps the legacy names (kit-<kit>-<platform>, kit-<kit>-ui, kits-index), any other scope uses layout 1 (<kit>-<platform>, <kit>, kits), with one list of legacy scopes per language; a malformed scope is refused naming the variable, kition accepts only its scope's names, and in layout 1 no kit may be named like another package of the scope (cli, sdk, kits, tessera, ...), so the gatherer never takes one for a kit"

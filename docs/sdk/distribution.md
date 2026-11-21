@@ -183,7 +183,17 @@ it (by hand; it has no schedule), with `tools/kits-index.mjs`. Its `scope` input
 - An index with no kit is never published: the one published stays.
 - The workflow publishes a new version of `@kition/kits-index` (`0.1.<n>`, one more than the
   last) only when the index's bytes changed, and tags it `latest`. The versions
-  of `@kition/kits-index` are the index's history.
+  of `@kition/kits-index` are the index's history. It then waits until npm shows that version
+  with its bytes (its metadata, `latest` pointing at it, its tarball with the integrity the
+  metadata gives), asking every 30 seconds for at most 40 minutes
+  (`node tools/kit-npm-package.mjs visible`), and fails after that, naming what npm still lacks.
+- npm's placeholder of a first publish is never read. For several minutes after a package name is
+  first published (12 to 24 minutes for a 30 MB package), npm lists only the version
+  `0.0.0-stage` and points `latest` at it. The gatherer leaves that version out of every kit
+  package, in both layouts; a workflow run whose published index's `latest` is still the
+  placeholder stops before publishing; and `kition` says `<index package> is being published on
+  npm (it shows only npm's placeholder 0.0.0-stage yet); try again in a few minutes`, showing the
+  installed kits or the index it read before.
 
 **This is the one thing the repository publishes that moves.** Every package version, release and
 asset never changes once published (below); the index's `latest` moves whenever a kit repository

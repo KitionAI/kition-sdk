@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFAULT_REGISTRIES, LEGACY_LAYOUT_SCOPES, indexPackage, integrityOf, kitionField, npmScope, packageManifest, packageName, parseNpmrc, registries, tarballPath, viewExtensions } from './kit-npm.mjs'
-import { headlessReadme, missing, pack, state, uiReadme, writeHeadless, writeUi } from './kit-npm-package.mjs'
+import { headlessReadme, missing, notVisible, pack, state, uiReadme, waitVisible, writeHeadless, writeUi } from './kit-npm-package.mjs'
 
 const scratch = []
 const tempDir = () => {
@@ -260,6 +260,57 @@ describe('kit-npm-package: the Package workflow’s packages', () => {
     })
     expect(lacks).toEqual({ platforms: ['darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64'], ui: false })
   })
+  it('waits until a first publish is visible with its bytes, past npm\'s placeholder 0.0.0-stage, and gives up after the time allowed', async () => {
+    const registry = 'http://registry.test/'
+    const name = '@kitionstage/kits'
+    const bytes = Buffer.from('the index package')
+    const integrity = integrityOf(bytes)
+    // What npm shows, minute by minute, of a name's first publish: nothing, then its placeholder
+    // as latest, then the version listed while latest is still the placeholder, then all of it.
+    const stages = [
+      { versions: {}, latest: null },
+      { versions: { '0.0.0-stage': {} }, latest: '0.0.0-stage' },
+      { versions: { '0.0.0-stage': {}, '0.1.0': { integrity } }, latest: '0.0.0-stage', tarball: false },
+      { versions: { '0.0.0-stage': {}, '0.1.0': { integrity } }, latest: '0.1.0', tarball: false },
+      { versions: { '0.0.0-stage': {}, '0.1.0': { integrity } }, latest: '0.1.0', tarball: true },
+    ]
+    let minute = 0
+    const fetchImpl = async (url) => {
+      const stage = stages[Math.min(minute, stages.length - 1)]
+      const rest = url.slice(registry.length)
+      if (rest === `${name}/-/kits-0.1.0.tgz`) return stage.tarball ? new Response(bytes, { status: 200 }) : new Response('', { status: 404 })
+      expect(rest.startsWith('@kitionstage%2fkits/')).toBe(true)
+      const asked = decodeURIComponent(rest.slice('@kitionstage%2fkits/'.length))
+      const version = asked === 'latest' ? stage.latest : asked
+      const found = version && stage.versions[version]
+      return found ? new Response(JSON.stringify({ name, version, dist: found.integrity ? { integrity: found.integrity } : {} }), { status: 200 }) : new Response('{}', { status: 404 })
+    }
+    const said = []
+    const clock = { at: 0 }
+    const waited = await waitVisible({ registry, name, version: '0.1.0', tag: 'latest', timeoutMs: 40 * 60_000, intervalMs: 60_000 }, {
+      fetchImpl,
+      now: () => clock.at,
+      sleep: async (ms) => { clock.at += ms; minute += 1 },
+      log: (line) => said.push(line),
+    })
+    expect(waited).toBe(4 * 60_000)
+    expect(said).toEqual([
+      '0s: @kitionstage/kits@0.1.0 is not listed yet',
+      "120s: @kitionstage/kits's latest is 0.0.0-stage, not 0.1.0 yet",
+      "180s: @kitionstage/kits@0.1.0's tarball answers HTTP 404",
+    ])
+    // Other bytes than the metadata gives are not it.
+    minute = 4
+    expect(await notVisible({ registry, name, version: '0.1.0', tag: 'latest' }, async (url) => (url.endsWith('.tgz') ? new Response('other', { status: 200 }) : fetchImpl(url)))).toMatch(/does not have the integrity/)
+    expect(await notVisible({ registry, name, version: '0.1.0', tag: 'latest' }, fetchImpl)).toBeNull()
+    // Never visible: it stops after the time allowed, naming what is missing.
+    minute = 1
+    const stuck = { at: 0 }
+    await expect(waitVisible({ registry, name, version: '0.1.0', tag: 'latest', timeoutMs: 40 * 60_000, intervalMs: 30_000 }, { fetchImpl, now: () => stuck.at, sleep: async (ms) => { stuck.at += ms } }))
+      .rejects.toThrow('@kitionstage/kits@0.1.0 is not visible on http://registry.test/ after 40 minutes: @kitionstage/kits@0.1.0 is not listed yet')
+    expect(stuck.at).toBeLessThanOrEqual(40 * 60_000)
+  })
+
   it('writes and finds another scope’s packages by layout 1 (--scope, else KITION_NPM_SCOPE), and refuses a malformed scope', async () => {
     const dir = tempDir()
     const build = headlessBuild(path.join(dir, 'build'))

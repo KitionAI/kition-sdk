@@ -44,6 +44,20 @@ pub const DEFAULT_REGISTRIES: [&str; 2] = ["https://registry.npmjs.org/", "https
 pub const REGISTRY_VARIABLE: &str = "KITION_NPM_REGISTRY";
 /// How long a registry has to accept the connection before the next is tried.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// npm's placeholder of a package's first publish ("staged publishing"): for several minutes after
+/// a name is first published (12 to 24 for a 30 MB package), npm lists this version and points
+/// `latest` at it, before the version published is visible. Its tarball is no package of ours.
+pub const NPM_PLACEHOLDER: &str = "0.0.0-stage";
+
+/// Whether `version` is [`NPM_PLACEHOLDER`].
+pub fn is_placeholder(version: &str) -> bool {
+    version == NPM_PLACEHOLDER
+}
+
+/// The one line said when `package`'s version on npm is still [`NPM_PLACEHOLDER`].
+pub fn being_published(package: &str) -> String {
+    format!("{package} is being published on npm (it shows only npm's placeholder {NPM_PLACEHOLDER} yet); try again in a few minutes")
+}
 
 /// The registries to try, in order; each address ends with `/`.
 #[derive(Clone, Debug, PartialEq, Eq)]

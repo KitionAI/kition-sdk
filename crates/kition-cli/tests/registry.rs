@@ -222,3 +222,53 @@ fn a_registry_or_mirror_named_by_npms_settings_is_tried_before_the_public_ones()
     assert!(ok || !out.is_empty(), "{out}");
     assert_eq!(line["detail"].as_str().map(|detail| detail.starts_with(&format!("kits and the index come from {}", server.url("")))), Some(true), "{line}");
 }
+
+/// What npm shows of a package's first publish for several minutes: `latest` is its placeholder
+/// `0.0.0-stage`, whose tarball is no package of ours.
+fn stage_index(dir: &Path, package: &str) {
+    let placeholder = b"not a package of ours";
+    support::publish(dir, package, "0.0.0-stage", placeholder);
+    let latest = json!({ "name": package, "version": "0.0.0-stage", "description": "Temporary package placeholder for staged publishing", "dist": { "integrity": integrity(placeholder) } });
+    std::fs::create_dir_all(dir.join(package)).unwrap();
+    std::fs::write(dir.join(package).join("latest"), latest.to_string()).unwrap();
+}
+
+#[test]
+fn an_index_package_npm_still_shows_as_its_placeholder_is_being_published() {
+    let dir = tempfile::tempdir().unwrap();
+    let staged = dir.path().join("staged");
+    stage_index(&staged, "@kition/kits-index");
+    stage_index(&staged, "@kitionstage/kits");
+    let server = Server::start(&staged);
+    let message = |package: &str| format!("{package} is being published on npm (it shows only npm's placeholder 0.0.0-stage yet); try again in a few minutes");
+
+    // Nothing read before: one line saying so, and the installed kits (none) are shown.
+    let home = dir.path().join("home");
+    let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", server.url("")).args(["kit", "list"]));
+    assert!(ok, "{out}{err}");
+    assert_eq!(err.trim(), format!("kition: {}; showing the installed kits only", message("@kition/kits-index")), "{err}");
+    let (ok, out, _) = run(kition(&home).env("KITION_NPM_REGISTRY", server.url("")).args(["kit", "list", "--json"]));
+    let listed: Value = serde_json::from_str(&out).unwrap();
+    assert!(ok && listed["index"]["read"] == false && listed["index"]["error"] == message("@kition/kits-index"), "{listed}");
+    let (ok, _, err) = run(kition(&home).env("KITION_NPM_REGISTRY", server.url("")).args(["kit", "install", "fake"]));
+    assert!(!ok && err.lines().next() == Some(format!("kition: {}", message("@kition/kits-index")).as_str()), "{err}");
+    assert!(!err.contains("tar.gz"), "the placeholder is never read as an index: {err}");
+    // The same in another scope (a rehearsal on @kitionstage).
+    let (ok, out, _) = run(kition(&home).env("KITION_NPM_SCOPE", "@kitionstage").env("KITION_NPM_REGISTRY", server.url("")).args(["kit", "list", "--json"]));
+    let listed: Value = serde_json::from_str(&out).unwrap();
+    assert!(ok && listed["index"]["error"] == message("@kitionstage/kits"), "{listed}");
+    assert!(!server.seen.lock().unwrap().iter().any(|path| path.contains(".tgz")), "no placeholder tarball is downloaded: {:?}", server.seen.lock().unwrap());
+
+    // An index read before serves, and the line says why it is the kept one.
+    let served = dir.path().join("served");
+    std::fs::create_dir_all(&served).unwrap();
+    let file = index_with_fake(&served);
+    let index: Value = serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
+    publish_index(&served, &index, "0.1.7", None);
+    let good = Server::start(&served);
+    let (ok, _, err) = run(kition(&home).env("KITION_NPM_REGISTRY", good.url("")).args(["kit", "list", "--json"]));
+    assert!(ok, "{err}");
+    let (ok, out, err) = run(kition(&home).env("KITION_NPM_REGISTRY", server.url("")).args(["kit", "list", "--json"]));
+    let listed: Value = serde_json::from_str(&out).unwrap();
+    assert!(ok && listed["index"]["stale"] == message("@kition/kits-index") && listed["kits"][0]["name"] == "fake", "{listed}{err}");
+}

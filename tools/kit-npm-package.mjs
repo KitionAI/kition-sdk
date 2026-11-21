@@ -26,13 +26,19 @@
 //   node tools/kit-npm-package.mjs missing --kit <kit> --version <version> --registry <address>
 //       Prints JSON { platforms, ui }: the platforms whose package of that version the registry
 //       lacks, and whether it lacks the editor package.
+//   node tools/kit-npm-package.mjs visible --name <package> --version <version> --registry <address> [--tag <dist-tag>] [--minutes <n>]
+//       Waits until the registry shows <package>@<version> with its bytes (its metadata, the tag
+//       pointing at it, and its tarball downloadable with the integrity the metadata gives), asking
+//       every 30 seconds for at most <n> minutes (40): a first publish of a name shows only npm's
+//       placeholder 0.0.0-stage for several minutes (12 to 24 for a 30 MB package). Exits 1 after
+//       that, naming what is still missing.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { kitFormats, kitOf, readFamily, renderFamily } from './kition-family.mjs'
-import { checkScope, integrityOf, kitRepository, kitionField, npmScope, packageManifest, packageName, PLATFORMS } from './kit-npm.mjs'
+import { checkScope, integrityOf, kitRepository, kitionField, npmScope, packageManifest, packageName, PLATFORMS, tarballPath } from './kit-npm.mjs'
 
 const DEVELOPER = 'https://developer.kition.ai'
 const SDK_DOCS = 'https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk'
@@ -223,6 +229,51 @@ export async function missing({ kit, version, registry, scope = npmScope() }, fe
   return { platforms, ui }
 }
 
+/**
+ * What the registry does not show yet of `name`@`version` with its bytes: its metadata at that
+ * version, `tag` (when given) pointing at it, and its tarball downloadable with the integrity the
+ * metadata gives. Answers null when it shows all of it. An answer of the registry other than 200
+ * or 404 is "not yet" too: the caller asks again.
+ */
+export async function notVisible({ registry, name, version, tag }, fetchImpl = globalThis.fetch) {
+  const base = registry.endsWith('/') ? registry : `${registry}/`
+  try {
+    const found = await registryVersion(base, name, version, fetchImpl)
+    if (!found) return `${name}@${version} is not listed yet`
+    if (tag) {
+      const response = await fetchImpl(`${base}${name.replace('/', '%2f')}/${encodeURIComponent(tag)}`, { headers: { accept: 'application/json' } })
+      const tagged = response.ok ? (await response.json())?.version : null
+      if (tagged !== version) return `${name}'s ${tag} is ${tagged ?? `not answered (HTTP ${response.status})`}, not ${version} yet`
+    }
+    const integrity = found.dist?.integrity
+    if (typeof integrity !== 'string' || !integrity.startsWith('sha512-')) return `${name}@${version} gives no sha512 integrity yet`
+    const tarball = await fetchImpl(`${base}${tarballPath(name, version)}`)
+    if (!tarball.ok) return `${name}@${version}'s tarball answers HTTP ${tarball.status}`
+    const bytes = Buffer.from(await tarball.arrayBuffer())
+    if (integrityOf(bytes) !== integrity) return `${name}@${version}'s tarball does not have the integrity ${integrity} yet`
+    return null
+  } catch (error) {
+    return `${base} cannot be asked: ${error.message}`
+  }
+}
+
+/**
+ * Waits until `notVisible` answers null, asking every `intervalMs` for at most `timeoutMs`; says
+ * each new reason through `log`. Throws after `timeoutMs`, naming the last reason.
+ */
+export async function waitVisible({ registry, name, version, tag, timeoutMs = 40 * 60_000, intervalMs = 30_000 }, { fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((done) => setTimeout(done, ms)), now = Date.now, log = () => {} } = {}) {
+  const start = now()
+  let said = null
+  for (;;) {
+    const why = await notVisible({ registry, name, version, tag }, fetchImpl)
+    if (why === null) return now() - start
+    if (why !== said) log(`${Math.round((now() - start) / 1000)}s: ${why}`)
+    said = why
+    if (now() - start + intervalMs > timeoutMs) throw new Error(`${name}@${version} is not visible on ${registry} after ${Math.round(timeoutMs / 60_000)} minutes: ${why}`)
+    await sleep(intervalMs)
+  }
+}
+
 async function main(argv) {
   const [command, ...args] = argv
   const flag = (name, required = true) => {
@@ -250,8 +301,17 @@ async function main(argv) {
     case 'missing':
       process.stdout.write(`${JSON.stringify(await missing({ kit: flag('--kit'), version: flag('--version'), registry: flag('--registry'), scope }))}\n`)
       return
+    case 'visible': {
+      const minutes = Number(flag('--minutes', false) ?? 40)
+      if (!(minutes > 0)) throw new Error('visible: --minutes is a number of minutes above 0')
+      const name = flag('--name')
+      const version = flag('--version')
+      const waited = await waitVisible({ registry: flag('--registry'), name, version, tag: flag('--tag', false), timeoutMs: minutes * 60_000 }, { log: (line) => process.stderr.write(`${line}\n`) })
+      process.stdout.write(`${name}@${version} is visible with its bytes after ${Math.round(waited / 1000)}s\n`)
+      return
+    }
     default:
-      throw new Error('usage: kit-npm-package.mjs headless|ui|pack|state|missing ... [--scope <@scope>] (see the header of tools/kit-npm-package.mjs)')
+      throw new Error('usage: kit-npm-package.mjs headless|ui|pack|state|missing|visible ... [--scope <@scope>] (see the header of tools/kit-npm-package.mjs)')
   }
 }
 
