@@ -8,11 +8,13 @@
 // .github/workflows/kits-index.yml publishes when it changed.
 //
 //   node tools/kits-index.mjs --modules <file> --out <file> [--registry <address>] [--previous <kits-index.json>]
-//        [--package <folder> --version <version>]
+//        [--withdrawn <file>] [--package <folder> --version <version>]
 //   node tools/kits-index.mjs --modules <file> --dry-run [--registry <address>] [--previous <kits-index.json>]
+//        [--withdrawn <file>]
 //
 // --modules   KitionAI/kition's kits/modules.json (a file: the workflow checks Kition out), which
 //             names each kit
+// --withdrawn the kit versions never listed (default: this repository's kits-withdrawn.json)
 // --registry  the npm registry read (default https://registry.npmjs.org/)
 // --out       where the index goes
 // --previous  the index published now: the report names the archives that enter or leave (a
@@ -29,6 +31,14 @@
 //   carried from an earlier index but a size known for the same integrity, and every kit
 //   modules.json names (published-kits.json, the kits the SDK documents and bundles, does not
 //   filter it).
+// - A withdrawn version is never listed: kits-withdrawn.json names, per kit, versions published by
+//   mistake that npm keeps (`{ "table": ["0.5.8"] }`; npm lets no version be replaced, and
+//   unpublishing is not practical), which kition would otherwise install as the highest. Such a
+//   version is skipped before anything else: its metadata is not checked, its size not asked, the
+//   holding rule below does not compare with it, and the report names it under its kit
+//   (`withdrawn, left out: 0.5.8`); a withdrawn version npm does not list is not named. A list
+//   that is not an object of kit names (each a kit modules.json names) to non-empty lists of
+//   distinct semver versions stops the run.
 // - A version is listed when it has a headless package for at least one platform; its editor
 //   package (`ui`) when it has one. An editor package of a version without a headless one is named
 //   in the report and left out.
@@ -64,6 +74,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const INDEX = 'kits-index.json'
 export { PLATFORMS }
 export const REGISTRY = 'https://registry.npmjs.org/'
+/** The kit versions never listed, by default. */
+export const WITHDRAWN = path.join(root, 'kits-withdrawn.json')
 const SCHEMA = JSON.parse(fs.readFileSync(path.join(root, 'schemas', 'kits-index.schema.json'), 'utf8'))
 /** The exit status when the index would hold no kit. */
 export const EMPTY = 3
@@ -241,6 +253,30 @@ export function kitsOfModules(modules) {
 }
 
 /**
+ * The withdrawn versions of `file` (its text `text`), checked against the kits of modules.json:
+ * `{ <kit>: [<version>, ...] }`. Anything else throws, naming the file.
+ */
+export function withdrawnVersions(text, kits, file = 'kits-withdrawn.json') {
+  const where = path.basename(file)
+  let value
+  try {
+    value = JSON.parse(text)
+  } catch (error) {
+    throw new Error(`${where}: not JSON (${error.message})`)
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${where}: is not an object of kits ({ "<kit>": ["<version>", ...] })`)
+  for (const [kit, versions] of Object.entries(value)) {
+    if (!/^[a-z][a-z0-9]*$/.test(kit)) throw new Error(`${where}: ${JSON.stringify(kit)} is not a kit name`)
+    if (!kits.includes(kit)) throw new Error(`${where}: ${kit} is not a kit of modules.json`)
+    if (!Array.isArray(versions) || !versions.length) throw new Error(`${where}: ${kit}: is not a list of versions`)
+    for (const version of versions) if (typeof version !== 'string' || !VERSION.test(version)) throw new Error(`${where}: ${kit}: ${JSON.stringify(version)} is not a version (semver)`)
+    const twice = versions.find((version, i) => versions.indexOf(version) !== i)
+    if (twice) throw new Error(`${where}: ${kit}: ${twice} is listed twice`)
+  }
+  return value
+}
+
+/**
  * npm's own placeholder of a package's first publish ("staged publishing"): the version
  * `0.0.0-stage`, with no `kition` field, which npm adds beside the version published and keeps.
  * It is no version of a kit.
@@ -302,21 +338,25 @@ const partsOf = ({ platforms, ui }) => [...Object.keys(platforms).sort(), ...(ui
 /**
  * The kit index gathered from the registry's metadata of each kit's packages, and a report:
  * `{ index, report: [{ kit, versions, editors, uiOnly }], held: [{ kit, version, preceding, missing }],
- * notReady: [{ kit, version, part }] }`. `held` names the versions still being published, left out
+ * notReady: [{ kit, version, part }], withdrawn: [{ kit, version }] }`. `withdrawn` (given as
+ * `{ <kit>: [<version>, ...] }`) are the versions left out unread; the result names those the
+ * registry lists. `held` names the versions still being published, left out
  * of the index: each lacks the packages `missing` (platforms, `ui`) that `preceding`, the kit's
  * highest listed lower version, has. `notReady` names the packages whose metadata npm lists but
  * whose tarball it does not serve yet (a 404): they count as not published in this run.
  */
-export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null }) {
+export async function gatherIndex({ kits, net, registry = REGISTRY, previous = null, withdrawn = {} }) {
   const base = registry.endsWith('/') ? registry : `${registry}/`
   const previousSizes = sizesOf(previous)
   const index = { schemaVersion: SCHEMA_VERSION, kits: {} }
   const report = []
   const held = []
   const notReady = []
+  const left = []
   for (const kit of kits) {
     /** version → { kition, platforms, ui } */
     const versions = new Map()
+    const withdrawnOfKit = new Set()
     for (const part of [...PLATFORMS, 'ui']) {
       const name = packageName(kit, part)
       let packument
@@ -328,6 +368,10 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
       if (packument === null) continue
       for (const [version, manifest] of Object.entries(packument?.versions ?? {})) {
         if (isNpmPlaceholder(version, manifest)) continue
+        if (withdrawn[kit]?.includes(version)) {
+          withdrawnOfKit.add(version)
+          continue
+        }
         if (!VERSION.test(version)) throw new Error(`${name} lists the version ${JSON.stringify(version)}, which is not semver`)
         const { kition, entry } = readPackage(name, kit, part, version, manifest)
         let found = versions.get(version)
@@ -355,6 +399,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
       else listed.push(version)
     }
     report.push({ kit, versions: listed, editors: listed.filter((version) => versions.get(version).ui), uiOnly })
+    for (const version of [...withdrawnOfKit].sort(compareVersions)) left.push({ kit, version })
     if (!listed.length) continue
     const newest = versions.get(listed[listed.length - 1]).kition
     index.kits[kit] = {
@@ -372,7 +417,7 @@ export async function gatherIndex({ kits, net, registry = REGISTRY, previous = n
   }
   const problems = schemaProblems(ordered(index))
   if (problems.length) throw new Error(`the gathered index is not a kit index:\n  ${problems.join('\n  ')}`)
-  return { index: ordered(index), report, held, notReady }
+  return { index: ordered(index), report, held, notReady, withdrawn: left }
 }
 
 /** `<kit> <version> <platform>` lines of every package in `index`. */
@@ -389,10 +434,12 @@ export function compareIndexes(previous, index) {
 }
 
 /** The report as text lines. */
-export function reportLines({ index, report, held, notReady }, previous) {
+export function reportLines({ index, report, held, notReady, withdrawn = [] }, previous) {
   const lines = []
   for (const { kit, versions, editors, uiOnly } of report) {
     lines.push(`${kit}: ${versions.length ? versions.join(', ') : 'no version'}`)
+    const withdrawnOfKit = withdrawn.filter((entry) => entry.kit === kit).map(({ version }) => version)
+    if (withdrawnOfKit.length) lines.push(`  withdrawn, left out: ${withdrawnOfKit.join(', ')}`)
     const without = versions.filter((version) => !editors.includes(version))
     if (versions.length && without.length) lines.push(`  no editor package: ${without.join(', ')}`)
     if (uiOnly.length) lines.push(`  an editor package without a headless one, left out: ${uiOnly.join(', ')}`)
@@ -442,7 +489,7 @@ export function writeIndexPackage(folder, index, version) {
 
 /** The command line; answers its exit status. */
 export async function main(args, { net = registryNet(), out: write = (text) => process.stdout.write(text), err = (text) => process.stderr.write(text) } = {}) {
-  const valued = ['--out', '--modules', '--previous', '--registry', '--package', '--version']
+  const valued = ['--out', '--modules', '--previous', '--registry', '--package', '--version', '--withdrawn']
   const flag = (name) => {
     const at = args.indexOf(name)
     return at >= 0 ? args[at + 1] : undefined
@@ -451,14 +498,17 @@ export async function main(args, { net = registryNet(), out: write = (text) => p
   const dryRun = args.includes('--dry-run')
   const unknown = args.filter((arg, i) => arg.startsWith('--') && arg !== '--dry-run' && !valued.includes(arg) && !(i > 0 && valued.includes(args[i - 1])))
   if ((!out && !dryRun) || (out && dryRun) || !flag('--modules') || unknown.length || Boolean(flag('--package')) !== Boolean(flag('--version'))) {
-    err('usage: kits-index.mjs --modules <file> (--out <file> [--package <folder> --version <version>] | --dry-run) [--registry <address>] [--previous <kits-index.json>]\n')
+    err('usage: kits-index.mjs --modules <file> (--out <file> [--package <folder> --version <version>] | --dry-run) [--registry <address>] [--previous <kits-index.json>] [--withdrawn <file>]\n')
     return 2
   }
   try {
     const modules = JSON.parse(fs.readFileSync(flag('--modules'), 'utf8'))
+    const kits = kitsOfModules(modules)
+    const withdrawnFile = flag('--withdrawn') ?? WITHDRAWN
+    const withdrawn = withdrawnVersions(fs.readFileSync(withdrawnFile, 'utf8'), kits, withdrawnFile)
     const previousFile = flag('--previous')
     const previous = previousFile && fs.existsSync(previousFile) ? JSON.parse(fs.readFileSync(previousFile, 'utf8')) : null
-    const gathered = await gatherIndex({ kits: kitsOfModules(modules), net, registry: flag('--registry') ?? REGISTRY, previous })
+    const gathered = await gatherIndex({ kits, net, registry: flag('--registry') ?? REGISTRY, previous, withdrawn })
     write(`${reportLines(gathered, previous).join('\n')}\n`)
     if (!Object.keys(gathered.index.kits).length) return EMPTY
     if (out) {

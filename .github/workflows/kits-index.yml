@@ -9,6 +9,9 @@ name: kits-index
 # @kition/kit-<kit>-ui, whose package.json carries a `kition` field (tools/kit-npm.mjs);
 # tools/kits-index.mjs reads the registry's metadata of the packages of every kit KitionAI/kition's
 # kits/modules.json names (no tarball is downloaded) and writes the index (docs/sdk/distribution.md).
+# A version this repository's kits-withdrawn.json names (one published by mistake, which npm keeps)
+# is never listed: the tool reads that file by default, so a change to it reaches the index at the
+# next run.
 # A version still being published (lacking a package, a platform or the editor, that the kit's
 # highest listed lower version has) is held back, not listed, and named in the report; a package
 # whose tarball npm does not serve yet (a 404, for a minute or two after a publish) counts as

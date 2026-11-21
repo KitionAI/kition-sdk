@@ -4,6 +4,13 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The kit index leaves out withdrawn kit versions**: Kition Table was published by mistake as
+  0.5.8 before its first version, 0.1.0; npm keeps it, so `kition kit install table` took 0.5.8 as
+  the highest version. `kits-withdrawn.json` names such versions per kit (`{ "table": ["0.5.8"] }`),
+  and `tools/kits-index.mjs` reads it by default (`--withdrawn <file>` for another): a withdrawn
+  version is skipped unread (no size asked, not compared with by the holding rule) and the report
+  names it (`withdrawn, left out: 0.5.8`); a malformed list, or one naming a kit `modules.json` does
+  not have, stops the run (sdk.distribution.kits-index/withdrawn).
 - **The kit index is gathered while a tarball is not downloadable yet**: for a minute or two after
   a publish npm lists a version whose tarball still answers 404, and the kits-index run stopped on
   it ("the size of @kition/kit-doc-darwin-arm64@0.1.4 cannot be read"), during every kit publish.

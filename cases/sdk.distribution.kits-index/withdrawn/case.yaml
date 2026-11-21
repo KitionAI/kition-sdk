@@ -1,0 +1,30 @@
+format: 1
+id: sdk.distribution.kits-index/withdrawn
+feature: sdk.distribution.kits-index
+intent: >-
+  Kition Table was published by mistake as 0.5.8 (six packages); its first version is 0.1.0, npm
+  keeps 0.5.8, and kition kit install took it as the highest version in the index. The repository's
+  kits-withdrawn.json lists such versions per kit ({ "table": ["0.5.8"] }), and the gatherer reads it
+  by default (--withdrawn names another file). A withdrawn version is skipped before anything else:
+  its metadata is not checked, no size is asked for it, the holding rule does not compare a later
+  version with it, it is not named as an editor without a headless package, and the report names it
+  under its kit ("withdrawn, left out: 0.5.8"); with --previous, the packages of a previous index
+  listing it leave. A withdrawn version the registry does not list is not named. A list that is not
+  JSON, not an object of kit names to non-empty lists of distinct semver versions, or names a kit
+  modules.json does not have, stops the run with exit status 1 and writes nothing.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kits-index.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kits-index.test.mjs, -t, "withdrawn"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 300

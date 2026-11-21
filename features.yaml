@@ -561,13 +561,14 @@ features:
       - sdk.distribution.kition/install
     since: "2026-11-17"
   - id: sdk.distribution.kits-index
-    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, except one still being published (it lacks a platform or editor package the kit's highest listed lower version has: held back and named in the report; a package whose tarball npm does not serve yet, a 404, counts as not published in that run), every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (0.1.<n>, latest) only when the index changed"
+    title: "The kit index kition reads by default is the npm package @kition/kits-index, gathered from the npm registry's metadata of every kit's packages (@kition/kit-<kit>-<platform>, @kition/kit-<kit>-ui, each with a kition field): each version with a headless package, except a withdrawn one (the repository's kits-withdrawn.json names versions published by mistake that npm keeps: skipped unread, named in the report; a malformed list, or one naming a kit modules.json does not have, stops the run) and one still being published (it lacks a platform or editor package the kit's highest listed lower version has: held back and named in the report; a package whose tarball npm does not serve yet, a 404, counts as not published in that run), every package's size and integrity, a kit's name, extensions and views from its newest version; a package whose kition field disagrees, or a registry that cannot be read, stops the run, and an empty index is never published; the workflow publishes a new version (0.1.<n>, latest) only when the index changed"
     dimension: [platform, security]
     priority: P1
     status: has
     paths:
       - tools/kits-index.mjs
       - tools/kits-index.test.mjs
+      - kits-withdrawn.json
       - tools/kit-npm.mjs
       - .github/workflows/kits-index.yml
       - crates/kition-cli/src/index.rs
@@ -577,6 +578,7 @@ features:
       - docs/sdk/cli.md
     cases:
       - sdk.distribution.kits-index/gather
+      - sdk.distribution.kits-index/withdrawn
       - regressions/issue-kits-index-npm-placeholder
       - regressions/issue-kits-index-unfinished-version
       - regressions/issue-kits-index-tarball-not-ready

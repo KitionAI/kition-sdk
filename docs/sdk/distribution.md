@@ -122,6 +122,16 @@ with `tools/kits-index.mjs`:
   npm integrity, and the `kition` field. No tarball is downloaded. The registry is the only source:
   nothing is carried from an earlier index but the sizes of the same bytes, and every kit is in it,
   not only those in `published-kits.json` (the kits this SDK documents and bundles).
+- A withdrawn version is never listed. npm lets no version be replaced, and unpublishing is not
+  practical, so a version published by mistake stays on npm: Table was published as 0.5.8 before
+  its first version, 0.1.0, and `kition kit install table` took 0.5.8 as the highest. This
+  repository's `kits-withdrawn.json` names such versions per kit (`{ "table": ["0.5.8"] }`), and the
+  tool reads it by default (`--withdrawn <file>` names another). A withdrawn version is skipped
+  before anything else: its metadata is not checked, no size is asked for it, the rule below does
+  not compare a later version with it, and the report names it under its kit (`withdrawn, left
+  out: 0.5.8`); with `--previous` its packages leave. A withdrawn version npm does not list is not
+  named. A list that is not an object of kit names to non-empty lists of distinct versions, or
+  that names a kit `kits/modules.json` does not have, stops the run.
 - A version still being published is held back. A kit's Package workflow publishes a version's
   packages one after another over several minutes, and npm shows each a little later; an index
   gathered in between listed Layout 0.1.4 without its editor, and `kition kit install layout` took
@@ -165,8 +175,9 @@ node tools/kits-index.mjs --modules <kition>/kits/modules.json --out kits-index.
   --previous <published kits-index.json>                  # write it; name what enters and leaves
 ```
 
-`--registry <address>` reads another registry (a mirror, or a test's); `--package <folder>
---version <version>` also writes the npm package the workflow publishes.
+`--registry <address>` reads another registry (a mirror, or a test's); `--withdrawn <file>` reads
+another list of withdrawn versions than `kits-withdrawn.json`; `--package <folder> --version
+<version>` also writes the npm package the workflow publishes.
 
 ### The kitions before npm
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { EMPTY, PLATFORMS, REGISTRY, compareVersions, gatherIndex, kitsOfModules, main, registryNet, reportLines, schemaProblems, serialize } from './kits-index.mjs'
 import { integrityOf, kitionField, packageName, tarballPath } from './kit-npm.mjs'
@@ -14,6 +15,12 @@ const tempDir = () => {
 afterEach(() => {
   for (const dir of scratch.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
+/** A list of withdrawn kit versions (`--withdrawn`), by default one that withdraws nothing. */
+const withdrawnFile = (content = {}) => {
+  const file = path.join(tempDir(), 'kits-withdrawn.json')
+  fs.writeFileSync(file, typeof content === 'string' ? content : JSON.stringify(content))
+  return file
+}
 
 /** A kit.json of `kit` at `version`. */
 const kitJson = (kit, version, { protocol = 'kition-kit/1', name = kit[0].toUpperCase() + kit.slice(1), extensions = [kit === 'note' ? 'md' : `k${kit}`], views = [] } = {}) => ({
@@ -210,7 +217,7 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     const { net } = fakeRegistry({ layout: { '0.1.3': {}, '0.1.4': { ui: false } } })
     const out = path.join(dir, 'kits-index.json')
     const lines = { out: '', err: '' }
-    expect(await main(['--modules', modules, '--out', out, '--previous', previous], { net, out: (text) => (lines.out += text), err: (text) => (lines.err += text) })).toBe(0)
+    expect(await main(['--modules', modules, '--out', out, '--previous', previous, '--withdrawn', withdrawnFile()], { net, out: (text) => (lines.out += text), err: (text) => (lines.err += text) })).toBe(0)
     expect(lines.err).toBe('')
     expect(lines.out).toContain('  held layout 0.1.4: still being published (no ui package; 0.1.3 has one)')
     expect(lines.out).toContain(`compared with the previous index: 0 packages enter, ${PLATFORMS.length} leave`)
@@ -260,9 +267,45 @@ describe('kits-index: the kit index gathered from the npm registry', () => {
     const modules = path.join(dir, 'modules.json')
     fs.writeFileSync(modules, JSON.stringify({ doc: { repository: 'KitionAI/kition-doc' } }))
     const io = { out: '', err: '' }
-    expect(await main(['--modules', modules, '--out', path.join(dir, 'kits-index.json')], { net, out: (text) => (io.out += text), err: (text) => (io.err += text) })).toBe(0)
+    expect(await main(['--modules', modules, '--out', path.join(dir, 'kits-index.json'), '--withdrawn', withdrawnFile()], { net, out: (text) => (io.out += text), err: (text) => (io.err += text) })).toBe(0)
     expect(io.err).toBe('')
     expect(io.out).toContain('held doc 0.1.4: still being published (no darwin-arm64 package; 0.1.3 has one; the darwin-arm64 tarball is not downloadable yet)')
+  })
+
+  it('leaves a withdrawn version out entirely: no size asked, not the version the holding rule compares with, not an editor without a headless one, named in the report', async () => {
+    // Table was published by mistake as 0.5.8; its first version is 0.1.0, and npm keeps 0.5.8,
+    // the highest, so kition kit install took it.
+    const { net, seen } = fakeRegistry(
+      {
+        table: { '0.1.0': {}, '0.5.8': {} },
+        note: { '0.1.0': {}, '0.1.1': { ui: false, platforms: ['linux-x64'] }, '0.1.2': { platforms: [] } },
+      },
+      // A withdrawn version's metadata is not read: a broken one does not stop the run.
+      { tamper: (name, version, manifest) => { if (name === '@kition/kit-table-ui' && version === '0.5.8') delete manifest.kition } },
+    )
+    const withdrawn = { table: ['0.5.8'], note: ['0.1.0', '0.1.2', '9.9.9'] }
+    const gathered = await gatherIndex({ kits: ['note', 'table'], net, withdrawn })
+    expect(schemaProblems(gathered.index)).toEqual([])
+    expect(Object.keys(gathered.index.kits.table.versions)).toEqual(['0.1.0'])
+    // 0.1.0 is withdrawn, so 0.1.1 is note's first version, listed although it has fewer packages.
+    expect(Object.keys(gathered.index.kits.note.versions)).toEqual(['0.1.1'])
+    expect(gathered.held).toEqual([])
+    expect(gathered.report).toEqual([
+      { kit: 'note', versions: ['0.1.1'], editors: [], uiOnly: [] },
+      { kit: 'table', versions: ['0.1.0'], editors: ['0.1.0'], uiOnly: [] },
+    ])
+    // Only the versions npm lists: 9.9.9, which npm does not have, is not named.
+    expect(gathered.withdrawn).toEqual([
+      { kit: 'note', version: '0.1.0' },
+      { kit: 'note', version: '0.1.2' },
+      { kit: 'table', version: '0.5.8' },
+    ])
+    expect(seen.filter((line) => line.startsWith('size ') && (line.includes('-0.5.8.tgz') || line.includes('-0.1.2.tgz') || (line.includes('kit-note') && line.includes('-0.1.0.tgz'))))).toEqual([])
+    const lines = reportLines(gathered)
+    expect(lines).toContain('table: 0.1.0')
+    expect(lines).toContain('  withdrawn, left out: 0.5.8')
+    expect(lines).toContain('  withdrawn, left out: 0.1.0, 0.1.2')
+    expect(lines.some((line) => line.includes('9.9.9') || line.includes('an editor package without a headless one'))).toBe(false)
   })
 
   it('stops on a package whose kition field disagrees with its name or with the other packages of its version, or has no sha512 integrity', async () => {
@@ -372,22 +415,79 @@ describe('kits-index: the command line', () => {
     fs.writeFileSync(previous, serialize((await gatherIndex({ kits: ['note'], net: fakeRegistry({ note: { '0.1.0': {} } }).net })).index))
     const out = path.join(dir, 'kits-index.json')
     const io = capture()
-    expect(await main(['--modules', modules, '--out', out, '--previous', previous, '--package', path.join(dir, 'pkg'), '--version', '0.1.4'], { net, ...io })).toBe(0)
+    expect(await main(['--modules', modules, '--out', out, '--previous', previous, '--package', path.join(dir, 'pkg'), '--version', '0.1.4', '--withdrawn', withdrawnFile()], { net, ...io })).toBe(0)
     expect(io.lines.out).toContain(`compared with the previous index: ${PLATFORMS.length + 1} packages enter, 0 leave`)
     expect(io.lines.out).toContain('  + note 0.2.0 ui')
     expect(JSON.parse(fs.readFileSync(out, 'utf8')).kits.note.versions['0.2.0']).toBeDefined()
     expect(JSON.parse(fs.readFileSync(path.join(dir, 'pkg/package.json'), 'utf8'))).toMatchObject({ name: '@kition/kits-index', version: '0.1.4', files: ['kits-index.json'] })
     expect(fs.readFileSync(path.join(dir, 'pkg/kits-index.json'), 'utf8')).toBe(fs.readFileSync(out, 'utf8'))
     const dry = capture()
-    expect(await main(['--modules', modules, '--dry-run'], { net, ...dry })).toBe(0)
+    expect(await main(['--modules', modules, '--dry-run', '--withdrawn', withdrawnFile()], { net, ...dry })).toBe(0)
     expect(dry.lines.out).toContain('kits-index.json: 1 of 1 kits (note 0.1.0 0.2.0)')
+  })
+
+  it('leaves out the versions kits-withdrawn.json lists (the committed one by default, another with --withdrawn), and a previous index listing them shows them leaving', async () => {
+    const dir = tempDir()
+    const modules = modulesFile(['note', 'table'])
+    const both = fakeRegistry({ note: { '0.1.0': {} }, table: { '0.1.0': {}, '0.5.8': {} } })
+    // The index published before the withdrawal listed Table 0.5.8.
+    const previous = path.join(dir, 'previous.json')
+    fs.writeFileSync(previous, serialize((await gatherIndex({ kits: ['note', 'table'], net: both.net })).index))
+    const table058 = [...PLATFORMS, 'ui'].sort().map((part) => `table 0.5.8 ${part}`)
+    for (const args of [[], ['--withdrawn', fileURLToPath(new URL('../kits-withdrawn.json', import.meta.url))]]) {
+      const out = path.join(dir, 'kits-index.json')
+      const { net, seen } = fakeRegistry({ note: { '0.1.0': {} }, table: { '0.1.0': {}, '0.5.8': {} } })
+      const io = capture()
+      expect(await main(['--modules', modules, '--out', out, '--previous', previous, ...args], { net, ...io }), JSON.stringify(args)).toBe(0)
+      expect(io.lines.err).toBe('')
+      expect(io.lines.out).toContain('table: 0.1.0\n  withdrawn, left out: 0.5.8\n')
+      expect(io.lines.out).toContain(`compared with the previous index: 0 packages enter, ${table058.length} leave`)
+      for (const line of table058) expect(io.lines.out).toContain(`  - ${line}`)
+      expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).kits.table.versions)).toEqual(['0.1.0'])
+      expect(seen.filter((line) => line.includes('-0.5.8.tgz'))).toEqual([])
+    }
+    // Another list: what it names is left out instead.
+    const io = capture()
+    expect(await main(['--modules', modules, '--dry-run', '--withdrawn', withdrawnFile({ note: ['0.1.0'] })], { net: both.net, ...io })).toBe(0)
+    expect(io.lines.out).toContain('note: no version\n  withdrawn, left out: 0.1.0\n')
+    expect(io.lines.out).toContain('kits-index.json: 1 of 2 kits (table 0.1.0 0.5.8)')
+  })
+
+  it('stops, writing nothing, on a withdrawn list that is malformed or names a kit modules.json does not have', async () => {
+    const dir = tempDir()
+    const out = path.join(dir, 'kits-index.json')
+    const { net } = fakeRegistry({ note: { '0.1.0': {} } })
+    const cases = [
+      [{ table: ['0.5.8'] }, 'kits-withdrawn.json: table is not a kit of modules.json'],
+      ['{ "note": ["0.1.0"', 'kits-withdrawn.json: not JSON'],
+      [['note'], 'kits-withdrawn.json: is not an object of kits'],
+      [{ note: '0.1.0' }, 'kits-withdrawn.json: note: is not a list of versions'],
+      [{ note: [] }, 'kits-withdrawn.json: note: is not a list of versions'],
+      [{ note: ['v1'] }, 'kits-withdrawn.json: note: "v1" is not a version (semver)'],
+      [{ note: ['0.1.0', '0.1.0'] }, 'kits-withdrawn.json: note: 0.1.0 is listed twice'],
+      [{ Note: ['0.1.0'] }, 'kits-withdrawn.json: "Note" is not a kit name'],
+    ]
+    for (const [content, message] of cases) {
+      const io = capture()
+      expect(await main(['--modules', modulesFile(['note']), '--out', out, '--withdrawn', withdrawnFile(content)], { net, ...io }), message).toBe(1)
+      expect(io.lines.err, message).toContain(message)
+      expect(io.lines.out, message).toBe('')
+      expect(fs.existsSync(out), message).toBe(false)
+    }
+    const io = capture()
+    expect(await main(['--modules', modulesFile(['note']), '--out', out, '--withdrawn', path.join(dir, 'none.json')], { net, ...io })).toBe(1)
+    expect(io.lines.err).toContain('none.json')
+    // The committed list names table, which modules.json without table does not have.
+    const committed = capture()
+    expect(await main(['--modules', modulesFile(['note']), '--out', out], { net, ...committed })).toBe(1)
+    expect(committed.lines.err).toContain('kits-withdrawn.json: table is not a kit of modules.json')
   })
 
   it('writes no index that would be empty, and says so with its own exit status', async () => {
     const dir = tempDir()
     const out = path.join(dir, 'kits-index.json')
     const io = capture()
-    expect(await main(['--modules', modulesFile(['note']), '--out', out], { net: fakeRegistry({}).net, ...io })).toBe(EMPTY)
+    expect(await main(['--modules', modulesFile(['note']), '--out', out, '--withdrawn', withdrawnFile()], { net: fakeRegistry({}).net, ...io })).toBe(EMPTY)
     expect(fs.existsSync(out)).toBe(false)
     expect(io.lines.out).toContain('would be empty')
   })
@@ -397,7 +497,7 @@ describe('kits-index: the command line', () => {
     const out = path.join(dir, 'kits-index.json')
     const io = capture()
     const metadata = `${REGISTRY}${packageName('note', 'ui').replace('/', '%2f')}`
-    expect(await main(['--modules', modulesFile(['note']), '--out', out], { net: fakeRegistry({ note: { '0.1.0': {} } }, { fail: [metadata] }).net, ...io })).toBe(1)
+    expect(await main(['--modules', modulesFile(['note']), '--out', out, '--withdrawn', withdrawnFile()], { net: fakeRegistry({ note: { '0.1.0': {} } }, { fail: [metadata] }).net, ...io })).toBe(1)
     expect(fs.existsSync(out)).toBe(false)
     expect(io.lines.err).toContain('cannot be read')
     for (const args of [[], ['--out', out], ['--modules', 'm.json'], ['--modules', 'm.json', '--out', out, '--dry-run'], ['--modules', 'm.json', '--out', out, '--package', dir], ['--modules', 'm.json', '--dry-run', '--frobnicate']]) {
