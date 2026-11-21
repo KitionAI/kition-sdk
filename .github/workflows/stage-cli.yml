@@ -283,8 +283,11 @@ jobs:
             echo "::error::The secret NPM_TOKEN_STAGE is not available to this repository."
             exit 1
           fi
+          # Asked at the version's own address (tools/kit-npm-package.mjs state), never at the
+          # package's metadata, which npm install reads: npm's CDN keeps a 404 of a new name's
+          # metadata for minutes, so asking there before publishing delays the install after it.
           while read -r archive name version integrity; do
-            if npm view "$name@$version" version 2>/dev/null | grep -qx "$version"; then
+            if [ "$(node tools/kit-npm-package.mjs state --tarball "$archive" --registry "$REGISTRY")" != publish ]; then
               echo "::error::$name@$version is already on npm. A re-run keeps the run number: start a new run, or pass another version."
               exit 1
             fi
@@ -293,21 +296,33 @@ jobs:
           while read -r archive name version integrity; do
             npm publish "$archive" --access public --tag latest --provenance --ignore-scripts
           done < target/stage-cli/order.txt
+          echo "PUBLISHED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - name: Wait until npm serves them
         run: |
           set -euo pipefail
           # Each one's metadata, latest pointing at it (not npm's placeholder 0.0.0-stage of a first
-          # publish), and its tarball with the metadata's integrity; every 30 s for 40 minutes.
-          start=$(date +%s)
+          # publish), and its tarball with the metadata's integrity; then the package's metadata as
+          # npm reads it to install (npm view, which a new name's CDN copy lags behind) listing the
+          # version with the published archive's integrity. Every 30 s, 40 minutes in all.
+          deadline=$(( PUBLISHED_AT + 40 * 60 ))
           while read -r archive name version integrity; do
-            node tools/kit-npm-package.mjs visible --name "$name" --version "$version" --registry "$REGISTRY" --tag latest --minutes 40
-            listed=$(npm view "$name@$version" dist.integrity --registry "$REGISTRY")
+            left=$(( (deadline - $(date +%s) + 59) / 60 ))
+            [ "$left" -gt 0 ] || left=1
+            node tools/kit-npm-package.mjs visible --name "$name" --version "$version" --registry "$REGISTRY" --tag latest --minutes "$left"
+            until listed=$(npm view "$name@$version" dist.integrity --registry "$REGISTRY" --prefer-online 2>/dev/null) && [ -n "$listed" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "::error::npm's install metadata of $name does not list $version 40 minutes after publishing"
+                exit 1
+              fi
+              echo "$(( $(date +%s) - PUBLISHED_AT ))s: npm's install metadata of $name does not list $version yet"
+              sleep 30
+            done
             if [ "$listed" != "$integrity" ]; then
               echo "::error::npm lists $name@$version with integrity $listed, not the published $integrity"
               exit 1
             fi
+            echo "$name@$version: npm installs it, $(( $(date +%s) - PUBLISHED_AT ))s after publishing"
           done < target/stage-cli/order.txt
-          echo "npm served every package $(( $(date +%s) - start ))s after publishing"
       - name: How to run it
         run: |
           set -euo pipefail

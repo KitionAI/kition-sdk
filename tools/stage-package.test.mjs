@@ -280,9 +280,15 @@ describe('stage-package: the rehearsal copy of the command line', () => {
     ])
     ordered(runs(publish), [
       '`target/stage-cli/${platform}.tgz`, `${scope}/cli-${platform}`]), ["target/stage-cli/launcher.tgz", `${scope}/cli`]]',
+      'node tools/kit-npm-package.mjs state --tarball "$archive" --registry "$REGISTRY"',
       'npm publish "$archive" --access public --tag latest --provenance --ignore-scripts',
-      'node tools/kit-npm-package.mjs visible --name "$name" --version "$version" --registry "$REGISTRY" --tag latest --minutes 40',
+      'node tools/kit-npm-package.mjs visible --name "$name" --version "$version" --registry "$REGISTRY" --tag latest --minutes "$left"',
+      'npm view "$name@$version" dist.integrity --registry "$REGISTRY" --prefer-online',
     ])
+    // Never npm view before publishing: npm's CDN would keep that 404 of a new name's metadata.
+    const publishStep = publish.steps.find((step) => step.name === 'Publish').run
+    expect(publishStep).toContain('node tools/kit-npm-package.mjs state --tarball "$archive" --registry "$REGISTRY"')
+    expect(publishStep).not.toContain('npm view')
     for (const job of Object.values(workflow.jobs)) expect(runs(job)).not.toContain('${{')
   })
 })
