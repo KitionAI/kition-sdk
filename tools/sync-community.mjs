@@ -10,7 +10,7 @@
 //   --check         write nothing; list each generated file that is missing or differs and each
 //                   README finding, and exit 1 when there is any
 //   --print-readme  write nothing; print the README skeleton for the repository, filled from its
-//                   data (a starting point: the tool never writes README.md)
+//                   data (a starting point: of README.md the tool writes only the family section)
 //
 // Exit codes: 0 done (or nothing found), 1 findings with --check or a file at an old location,
 // 2 usage errors, a repository without an entry, or invalid data.
@@ -29,15 +29,24 @@
 // The tool never moves a file: with one present it writes nothing, names the `git mv` to run, and
 // exits 1 (with or without --check).
 //
+// README.md: the tool writes one part of it, the "## The Kition family" section (rendered by
+// tools/kition-family.mjs from the family in templates/community/repositories.json, the entry's own
+// kit in bold), between kition-family markers right before "## License": a write run puts it there
+// when it is missing and replaces it when it differs; the rest of README.md is the repository's
+// own. An entry with family false has no such section (kiv, and the neutral kitharness.org).
+//
 // README.md rules (--check and the write run report them; translated README.<lang>.md files are
 // not checked). A kit's README is a product page with pictures, in a fixed order of parts;
 // --print-readme prints its skeleton.
 //   every profile  no "Licence" spelling; "## License" exists and is the last H2; a link to
-//                  https://developer.kition.ai unless the entry sets developerLink false; no
-//                  dev.kition.ai and no kition.one
+//                  https://developer.kition.ai, outside the family section, unless the entry sets
+//                  developerLink false; no dev.kition.ai and no kition.one; unless the entry sets
+//                  family false, one kition-family block, as the data gives it, right before
+//                  "## License"
 //   kit            H1 is the entry's title; links to https://kition.ai and
-//                  https://github.com/kitharness/kitharness; exactly the H2 sections "What it does",
-//                  "Quick start", "Maturity", "Build and contribute", "License", in this order
+//                  https://github.com/kitharness/kitharness outside the family section; exactly the
+//                  H2 sections "What it does", "Quick start", "Maturity", "Build and contribute",
+//                  "The Kition family", "License", in this order
 //                  ("Repository layout" and "Build and test" belong in docs/development.md, any
 //                  other part is an H3 under "What it does"); the hero picture
 //                  <img src="assets/readme/hero.png" …>; at least 3 pictures from
@@ -54,6 +63,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { FAMILY_TITLE, familyBlock, findBlocks, kitFormats, readFamily, withoutFamily } from './kition-family.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const templates = path.join(root, 'templates', 'community')
@@ -73,7 +83,7 @@ const FILES = [
 /** Files that moved out of the repository root (the layout standard): old path, new path. */
 const MOVED = [['CONTRIBUTING.md', '.github/CONTRIBUTING.md']]
 /** A kit README's H2 sections, in order, and those that belong in docs/development.md. */
-const KIT_SECTIONS = ['What it does', 'Quick start', 'Maturity', 'Build and contribute', 'License']
+const KIT_SECTIONS = ['What it does', 'Quick start', 'Maturity', 'Build and contribute', FAMILY_TITLE, 'License']
 const DEVELOPMENT_SECTIONS = ['Repository layout', 'Build and test']
 /** The README's pictures: where they live, the hero, how many, how big, how long an alt. */
 const PICTURES = 'assets/readme/'
@@ -83,7 +93,7 @@ export const MAX_PICTURE_BYTES = 400 * 1024
 const MIN_ALT = 20
 const FIELDS = new Set([
   'profile', 'title', 'github', 'docs', 'docsName', 'developerLink', 'description', 'uses', 'scope', 'build', 'notes',
-  'check', 'quality', 'changelog', 'hasWeb', 'linksTessera', 'fonts', 'rules', 'licenseNote', 'keep',
+  'check', 'quality', 'changelog', 'hasWeb', 'linksTessera', 'fonts', 'rules', 'licenseNote', 'keep', 'family',
 ])
 const TOOLS = new Set(['rust', 'wasm32', 'wasm-pack', 'node', 'pnpm', 'npm'])
 
@@ -172,6 +182,7 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
     keep: [],
     hasWeb: kit,
     linksTessera: kit,
+    family: true,
     fonts: false,
     rules: [],
     ...(kit ? { uses: ['rust', 'wasm32', 'wasm-pack', 'node', 'pnpm'], ...data.kitDefaults } : {}),
@@ -179,6 +190,7 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
   }
   if (!/^https:\/\/[^\s)]+$/.test(entry.docs)) fail(name, 'docs must be an https URL')
   if (!kit && (entry.linksTessera || entry.fonts)) fail(name, 'linksTessera and fonts are kit fields')
+  if (typeof entry.family !== 'boolean') fail(name, 'family must be true or false')
   if (!Array.isArray(entry.uses) || entry.uses.length === 0) fail(name, 'uses is required')
   for (const tool of entry.uses) if (!TOOLS.has(tool)) fail(name, `unknown tool ${tool} in uses`)
   if (entry.quality && entry.check !== undefined) {
@@ -216,6 +228,8 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
     linksTessera: entry.linksTessera,
     issueForms: !kept.has('.github/ISSUE_TEMPLATE/bug_report.yml'),
     licenseNote: entry.licenseNote ?? '',
+    // The README's "## The Kition family" section with its markers ('' for an entry without one).
+    family: entry.family ? familyBlock(readFamily(data), familySelf(name, kit, data)) : '',
   }
   const lines = (list) => (list ?? []).map((line) => fill(line, values, where))
   values.build = lines(entry.build).join('\n')
@@ -235,6 +249,13 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
   if (entry.notes) notes.push(fill(entry.notes, values, where))
   values.setupNotes = notes.join('\n\n')
   return { name, entry, kit, kept, values }
+}
+
+/** Whose README the family section is in: the entry's kit, or the product that lives in the entry's repository. */
+function familySelf(name, kit, data) {
+  if (kit) return { kit: name.replace(/^kition-/, '') }
+  const product = (data.family?.products ?? []).find((candidate) => candidate.repo === name)
+  return product ? { product: product.id } : {}
 }
 
 function toolchain(uses, versions) {
@@ -280,12 +301,6 @@ export function generate(info) {
   })
 }
 
-/** A kit.json list of extensions as the Formats table writes it: `.md`, `.markdown`; a dash for none. */
-function extensions(list) {
-  const unique = [...new Set(list.filter((extension) => typeof extension === 'string' && extension))]
-  return unique.length > 0 ? unique.map((extension) => `\`.${extension}\``).join(', ') : '—'
-}
-
 /** The README skeleton for the entry; `manifest` is the kit's kit.json (kits only). */
 export function readmeSkeleton(info, manifest) {
   const values = { ...info.values }
@@ -296,9 +311,7 @@ export function readmeSkeleton(info, manifest) {
       // A shields.io badge writes a dash as two and a space as an underscore.
       khpBadge: String(manifest.khp).replaceAll('-', '--').replaceAll('_', '__').replaceAll(' ', '_'),
       level: manifest.level,
-      opens: extensions((manifest.formats ?? []).flatMap((format) => format.extensions ?? [])),
-      creates: extensions((manifest.creates ?? []).map((create) => create.extension)),
-      exports: extensions((manifest.exports ?? []).map((exported) => exported.extension)),
+      ...kitFormats(manifest),
     })
   }
   return fill(template(info.kit ? 'README.kit.md' : 'README.project.md'), values, 'README skeleton')
@@ -390,11 +403,14 @@ export function checkReadme(info, readme, manifest, repo = { size: () => null })
   const titles = sections.map((section) => section.title)
   if (!titles.includes('License')) say('no "## License" section')
   else if (titles.at(-1) !== 'License') say(`"## License" is not the last H2 (the last is "## ${titles.at(-1)}")`)
-  if (info.values.developerLink && !readme.includes(DEVELOPER)) say(`no link to ${DEVELOPER}`)
+  // The links a README must have count in its own text, not in the generated family section.
+  const own = withoutFamily(readme)
+  if (info.values.developerLink && !own.includes(DEVELOPER)) say(`no link to ${DEVELOPER}`)
   const dev = onLines(readme, /(?<![\w-])dev\.kition\.ai/i)
   if (dev) say(`dev.kition.ai on ${dev}; the developer site is ${DEVELOPER}`)
   const one = onLines(readme, /\bkition\.one\b/i)
   if (one) say(`kition.one on ${one}; Kition's site is https://kition.ai`)
+  findings.push(...checkFamily(info, readme, titles))
 
   if (!info.kit) {
     if (h1 === null) say('no H1')
@@ -404,9 +420,10 @@ export function checkReadme(info, readme, manifest, repo = { size: () => null })
 
   if (h1 !== info.values.title) say(`the H1 is ${h1 === null ? 'missing' : `"${h1}"`}; it should be "${info.values.title}"`)
   for (const link of ['https://kition.ai', 'https://github.com/kitharness/kitharness']) {
-    if (!readme.includes(link)) say(`no link to ${link}`)
+    if (!own.includes(link)) say(`no link to ${link}`)
   }
-  for (const title of KIT_SECTIONS.slice(0, -1)) if (!titles.includes(title)) say(`no "## ${title}" section`)
+  // A missing family section is checkFamily's finding.
+  for (const title of KIT_SECTIONS.slice(0, -1)) if (title !== FAMILY_TITLE && !titles.includes(title)) say(`no "## ${title}" section`)
   const present = titles.filter((title) => KIT_SECTIONS.includes(title))
   const expected = KIT_SECTIONS.filter((title) => present.includes(title))
   if (present.join('\n') !== expected.join('\n')) {
@@ -471,6 +488,48 @@ export function checkReadme(info, readme, manifest, repo = { size: () => null })
     if (value !== String(manifest.khp)) say(`a KHP badge says ${value}; kit.json's khp is ${manifest.khp}`)
   }
   return findings
+}
+
+/**
+ * README findings about the family section: an entry with family true has exactly one
+ * kition-family block, the one the data gives, right before "## License" (a kit's section order
+ * is checkReadme's). `titles` are the README's H2 titles in order.
+ */
+function checkFamily(info, readme, titles) {
+  if (!info.values.family) return []
+  const run = 'run node tools/sync-community.mjs <repo> (without --check) to write it'
+  const { blocks, broken } = findBlocks(readme)
+  if (broken) return ['README.md: a kition-family marker without its partner; remove the broken block, then run node tools/sync-community.mjs <repo> (without --check)']
+  if (blocks.length === 0) return [`README.md: no "## ${FAMILY_TITLE}" section (the kition-family block before "## License"); ${run}`]
+  if (blocks.length > 1) return [`README.md: ${blocks.length} kition-family blocks; keep one, before "## License"`]
+  const findings = []
+  if (readme.slice(blocks[0].start, blocks[0].end) !== info.values.family) {
+    findings.push(`README.md: the "## ${FAMILY_TITLE}" section is not the one templates/community/repositories.json gives; ${run}`)
+  }
+  const at = titles.indexOf(FAMILY_TITLE)
+  if (!info.kit && at >= 0 && titles[at + 1] !== 'License') findings.push(`README.md: the "## ${FAMILY_TITLE}" section is not right before "## License"`)
+  return findings
+}
+
+/**
+ * `readme` with the entry's family section written: replaced when its one block differs, put right
+ * before "## License" when there is none. Null when nothing changes or it cannot be placed (no
+ * "## License", a broken or doubled block: checkReadme reports those).
+ */
+export function writeFamily(info, readme) {
+  if (!info.values.family || readme === null) return null
+  const { blocks, broken } = findBlocks(readme)
+  if (broken || blocks.length > 1) return null
+  if (blocks.length === 1) {
+    const [{ start, end }] = blocks
+    const next = readme.slice(0, start) + info.values.family + readme.slice(end)
+    return next === readme ? null : next
+  }
+  const license = outline(readme).sections.filter((section) => section.title === 'License').at(-1)
+  if (!license) return null
+  const lines = readme.split('\n')
+  const before = lines.slice(0, license.line - 1).join('\n').replace(/\s+$/, '')
+  return `${before}\n\n${info.values.family}\n${lines.slice(license.line - 1).join('\n')}`
 }
 
 /** docs/development.md findings for the entry: a kit with web/ describes the KITION_LINK=1 opt-in there. */
@@ -549,6 +608,14 @@ function main() {
     fs.mkdirSync(path.dirname(full), { recursive: true })
     fs.writeFileSync(full, file.text)
     console.log(`${old === null ? 'create' : 'update'}: ${file.path}`)
+  }
+  const readmeFile = path.join(options.repo, 'README.md')
+  // --check reports the family section through checkReadme; a write run writes it first.
+  const family = options.check ? null : writeFamily(info, read(readmeFile))
+  if (family !== null) {
+    changed++
+    fs.writeFileSync(readmeFile, family)
+    console.log('update: README.md (the Kition family section)')
   }
   const size = (file) => {
     try {

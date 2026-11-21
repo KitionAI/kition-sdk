@@ -1,0 +1,30 @@
+format: 1
+id: sdk.community.family/render-and-check
+feature: sdk.community.family
+intent: >-
+  tools/kition-family.mjs renders the Kition family from templates/community/repositories.json: the
+  products in their order, the 16 kits by product line (Office, Design, Media, Engineering) in their
+  fixed order with "(Preview)" after HTML, Design and Scene, no private or frozen product, absolute
+  links only, the README's own kit bold and not a link (or its own product's row bold). sync-community
+  --check reports a README without the section, with a section that differs from the data, with a
+  doubled or broken block, or (a project) with the section not right before "## License"; a write run
+  puts it before "## License" or replaces it and leaves the rest of the README alone, and a second run
+  changes nothing; an entry with family false (kiv, kitharness.org) has none. The org profile
+  (templates/community/org-profile.md) is as the tool renders it: the tagline, where to start, the
+  products, and the kits by product line with their short lines.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/kition-family.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/kition-family.test.mjs, tools/sync-community.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

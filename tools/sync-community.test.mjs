@@ -5,7 +5,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import YAML from 'yaml'
-import { checkDevelopment, checkReadme, entryValues, fill, generate, readmeSkeleton, relink } from './sync-community.mjs'
+import { FAMILY_BEGIN, FAMILY_END } from './kition-family.mjs'
+import { checkDevelopment, checkReadme, entryValues, fill, generate, readmeSkeleton, relink, writeFamily } from './sync-community.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tool = path.join(here, 'sync-community.mjs')
@@ -166,7 +167,7 @@ describe('sync-community', () => {
     expect(sync(dir, 'kition-film', '--print-readme').code).toBe(2)
   })
 
-  it('prints the product-page skeleton filled from kit.json and the entry: the hero, the five H2 sections, the formats', () => {
+  it('prints the product-page skeleton filled from kit.json and the entry: the hero, the six H2 sections, the formats', () => {
     const manifest = JSON.stringify({ ...MANIFEST, version: '0.4.0', level: 'agent-ready' })
     const dir = tempRepo({ 'kit.json': manifest })
     const result = sync(dir, 'kition-design', '--print-readme')
@@ -175,7 +176,10 @@ describe('sync-community', () => {
     expect(out.startsWith('<div align="center">\n\n# Kition Design\n')).toBe(true)
     expect(out).toContain(`**${data.repositories['kition-design'].description}**`)
     expect(out).toMatch(/<img src="assets\/readme\/hero\.png" alt="[^"]{20,}" width="100%" \/>/)
-    expect(out.match(/^## .*$/gm)).toEqual(['## What it does', '## Quick start', '## Maturity', '## Build and contribute', '## License'])
+    expect(out.match(/^## .*$/gm)).toEqual(['## What it does', '## Quick start', '## Maturity', '## Build and contribute', '## The Kition family', '## License'])
+    expect(out).toContain(`${FAMILY_BEGIN}\n## The Kition family\n`)
+    expect(out).toContain('| Design | [Photo](https://github.com/KitionAI/kition-photo) · [Vector](https://github.com/KitionAI/kition-vector) · [Layout](https://github.com/KitionAI/kition-layout) · **Design** (Preview) |')
+    expect(out).toContain(`${FAMILY_END}\n\n## License\n`)
     expect(out).not.toContain('Repository layout')
     expect(out).toContain('### Why Design\n')
     expect(out).toContain('| Opens | Creates | Exports |\n| --- | --- | --- |\n| `.kfilm`, `.srt` | `.kfilm` | `.mp4`, `.webm` |\n')
@@ -280,7 +284,7 @@ describe('README rules', () => {
     ])
     const extra = skeleton.replace('## Maturity', '## Formats\n\nText.\n\n## Maturity')
     expect(kitFindings(extra)).toEqual([
-      'README.md: "## Formats" is not one of the README\'s sections (What it does, Quick start, Maturity, Build and contribute, License); make it an H3 inside one of them',
+      'README.md: "## Formats" is not one of the README\'s sections (What it does, Quick start, Maturity, Build and contribute, The Kition family, License); make it an H3 inside one of them',
     ])
   })
 
@@ -296,7 +300,7 @@ describe('README rules', () => {
       .replace('## Quick start', '## What it does')
       .replace('## TEMP', '## Quick start')
     expect(kitFindings(swapped)).toEqual([
-      "README.md: the H2 sections are out of order: Quick start, What it does, Maturity, Build and contribute, License (expected What it does, Quick start, Maturity, Build and contribute, License)",
+      "README.md: the H2 sections are out of order: Quick start, What it does, Maturity, Build and contribute, The Kition family, License (expected What it does, Quick start, Maturity, Build and contribute, The Kition family, License)",
     ])
     const trailing = kitFindings(`${skeleton}\n## Native hosts\n\nText.\n`)
     expect(trailing).toContain('README.md: "## License" is not the last H2 (the last is "## Native hosts")')
@@ -310,12 +314,15 @@ describe('README rules', () => {
   it('reports a missing link to kition.ai or developer.kition.ai, and dev.kition.ai or kition.one anywhere', () => {
     const without = skeleton.replace('[Developer docs](https://developer.kition.ai) · ', '')
     expect(kitFindings(without)).toEqual(['README.md: no link to https://developer.kition.ai'])
-    expect(kitFindings(skeleton.replaceAll('(https://kition.ai)', '(https://example.com)'))).toEqual(['README.md: no link to https://kition.ai'])
+    // The links count in the README's own text: the family section's links to kition.ai do not.
+    const at = skeleton.indexOf(FAMILY_BEGIN)
+    expect(skeleton.slice(at)).toContain('(https://kition.ai)')
+    expect(kitFindings(skeleton.slice(0, at).replaceAll('(https://kition.ai)', '(https://example.com)') + skeleton.slice(at))).toEqual(['README.md: no link to https://kition.ai'])
     const old = skeleton.replace('## Quick start\n', '## Quick start\n\nSee https://dev.kition.ai/docs and kition.one.\nOr www.kition.one.\n')
-    const at = old.split('\n').findIndex((line) => line.includes('dev.kition.ai')) + 1
+    const line = old.split('\n').findIndex((line) => line.includes('dev.kition.ai')) + 1
     expect(kitFindings(old)).toEqual([
-      `README.md: dev.kition.ai on line ${at}; the developer site is https://developer.kition.ai`,
-      `README.md: kition.one on lines ${at}, ${at + 1}; Kition's site is https://kition.ai`,
+      `README.md: dev.kition.ai on line ${line}; the developer site is https://developer.kition.ai`,
+      `README.md: kition.one on lines ${line}, ${line + 1}; Kition's site is https://kition.ai`,
     ])
     const site = entryValues('kitharness.org')
     expect(checkReadme(site, '# kitharness.org\n\nThe site.\n\n## Build and test\n\nText.\n\n## License\n\nApache-2.0.\n', null)).toEqual([])
@@ -388,8 +395,11 @@ describe('repositories.json', () => {
 
   it('refuses unknown fields, unknown keep paths, and a check command that belongs to the quality table', () => {
     const table = (entry) => ({ ...data, repositories: { 'kition-x': entry } })
-    const kit = { profile: 'kit', title: 'Kition X', github: 'KitionAI/kition-x', description: 'X.' }
+    // Without the family: this table has none of the family's kits.
+    const kit = { profile: 'kit', title: 'Kition X', github: 'KitionAI/kition-x', description: 'X.', family: false }
     expect(() => entryValues('kition-x', table(kit))).not.toThrow()
+    expect(() => entryValues('kition-x', table({ ...kit, family: 'yes' }))).toThrow('family must be true or false')
+    expect(() => entryValues('kition-x', table({ ...kit, family: true }))).toThrow('is not a kit of templates/community/repositories.json')
     expect(() => entryValues('kition-x', table({ ...kit, colour: 'red' }))).toThrow('unknown field colour')
     expect(() => entryValues('kition-x', table({ ...kit, keep: ['NOTICE'] }))).toThrow('matches no generated file')
     expect(() => entryValues('kition-x', table({ ...kit, check: 'cargo test' }))).toThrow('templates/quality/repositories.json')
@@ -411,5 +421,69 @@ describe('fill', () => {
     expect(fill('a\n{{#on}}\nb\n{{/on}}\n{{^on}}\nc\n{{/on}}\nd {{x}}\n', { on: true, x: 1 }, 't')).toBe('a\nb\nd 1\n')
     expect(fill('a\n{{#on}}\nb\n{{/on}}\n{{^on}}\nc\n{{/on}}\nd\n', { on: false }, 't')).toBe('a\nc\nd\n')
     expect(() => fill('{{missing}}', {}, 't')).toThrow('unknown placeholder missing')
+  })
+})
+
+describe('the Kition family section', () => {
+  const block = (entry) => entryValues(entry).values.family
+  /** A README without the family section: the skeleton with its block taken out. */
+  const without = (readme) => readme.slice(0, readme.indexOf(FAMILY_BEGIN)) + readme.slice(readme.indexOf(FAMILY_END) + FAMILY_END.length + 1)
+  const RUN = 'run node tools/sync-community.mjs <repo> (without --check) to write it'
+
+  it('--check reports a README without it; a write run puts it right before "## License", and a second run changes nothing', () => {
+    const dir = kitRepo()
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    const readme = path.join(dir, 'README.md')
+    const full = fs.readFileSync(readme, 'utf8')
+    fs.writeFileSync(readme, without(full))
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({
+      code: 1,
+      out: `README.md: no "## The Kition family" section (the kition-family block before "## License"); ${RUN}\n`,
+    })
+    expect(fs.readFileSync(readme, 'utf8')).toBe(without(full))
+    expect(sync(dir, 'kition-film')).toMatchObject({ code: 0, out: 'update: README.md (the Kition family section)\n' })
+    expect(fs.readFileSync(readme, 'utf8')).toBe(full)
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({ code: 0, out: 'sync-community: up to date\n' })
+    expect(sync(dir, 'kition-film').out).not.toContain('update:')
+    expect(fs.readFileSync(readme, 'utf8')).toBe(full)
+  })
+
+  it('replaces a section that is not the data\'s, and leaves the rest of the README alone', () => {
+    const dir = kitRepo()
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    const readme = path.join(dir, 'README.md')
+    const full = fs.readFileSync(readme, 'utf8')
+    fs.writeFileSync(readme, full.replace('**Film**', '[Film](https://example.com)').replace('## Quick start\n', '## Quick start\n\nOwn words.\n'))
+    expect(sync(dir, 'kition-film', '--check')).toMatchObject({
+      code: 1,
+      out: `README.md: the "## The Kition family" section is not the one templates/community/repositories.json gives; ${RUN}\n`,
+    })
+    expect(sync(dir, 'kition-film').code).toBe(0)
+    expect(fs.readFileSync(readme, 'utf8')).toBe(full.replace('## Quick start\n', '## Quick start\n\nOwn words.\n'))
+  })
+
+  it('bolds the README\'s own kit or product, and is left out where the entry sets family false', () => {
+    expect(block('kition-film')).toContain('| Media | **Film** · [Motion](https://github.com/KitionAI/kition-motion) |')
+    expect(block('kition-sdk')).toContain('| **Kition SDK** |')
+    expect(block('kition-fonts')).toContain('| **Kition Fonts** |')
+    for (const entry of ['kiv', 'kitharness.org']) {
+      expect(block(entry), entry).toBe('')
+      expect(readmeSkeleton(entryValues(entry), null), entry).not.toContain('kition-family')
+      expect(writeFamily(entryValues(entry), '# x\n\n## License\n'), entry).toBeNull()
+    }
+  })
+
+  it('reports a doubled or broken block, or a project\'s section that is not right before "## License"', () => {
+    const info = entryValues('kition-universe')
+    const skeleton = readmeSkeleton(info, null)
+    expect(checkReadme(info, skeleton, null)).toEqual([])
+    const section = block('kition-universe')
+    expect(checkReadme(info, skeleton.replace('## License', `${section}\n## License`), null)).toEqual(['README.md: 2 kition-family blocks; keep one, before "## License"'])
+    expect(checkReadme(info, skeleton.replace(FAMILY_END, ''), null)[0]).toMatch(/^README\.md: a kition-family marker without its partner/)
+    expect(skeleton).toContain('## Build and test\n')
+    const moved = without(skeleton).replace('## Build and test\n', `${section}\n## Build and test\n`)
+    expect(checkReadme(info, moved, null)).toContain('README.md: the "## The Kition family" section is not right before "## License"')
+    // A README without "## License" gets no section: that is its own finding.
+    expect(writeFamily(info, '# Kition Universe\n\nText.\n')).toBeNull()
   })
 })

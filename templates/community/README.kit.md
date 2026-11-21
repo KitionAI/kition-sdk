@@ -117,6 +117,7 @@ Build and test instructions are in [docs/development.md](docs/development.md). R
 [CONTRIBUTING.md](.github/CONTRIBUTING.md) before opening a pull request, and ask questions in
 [Discussions](https://github.com/KitionAI/kition/discussions) or on [Discord](https://discord.gg/bFSjRDjVY).
 
+{{family}}
 ## License
 
 <!-- When the kit derives from an upstream project, credit it here in one sentence. -->

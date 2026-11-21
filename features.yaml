@@ -1574,6 +1574,20 @@ features:
     cases:
       - sdk.community.sync/generate-and-check
     since: "2026-11-16"
+  - id: sdk.community.family
+    title: "The Kition family (every public product, and the 16 kits by product line with their Preview labels) has one source, the family of templates/community/repositories.json, and is rendered from it everywhere a visitor lands: the \"## The Kition family\" section of each repository's README (written and checked by sync-community between kition-family markers before \"## License\", the README's own kit or product in bold), the npm READMEs of the kit packages and of the SDK's packages (with absolute links), and the organization profile; each kit package carries its kit's description, GitHub repository, homepage, bugs and keywords, from that data, and a kit not in it is refused"
+    dimension: [platform]
+    priority: P2
+    status: has
+    paths:
+      - tools/kition-family.mjs
+      - tools/kition-family.test.mjs
+      - tools/sync-community.mjs
+      - tools/sync-community.test.mjs
+      - templates/community/**
+    cases:
+      - sdk.community.family/render-and-check
+    since: "2026-11-21"
   - id: sdk.readme.shots
     title: Kits take their README pictures with one shared runner that opens a sample in the kit's development host, writes assets/readme/<name>.png at device scale 2, retakes only the named shots, and flags pictures over 400 KB
     dimension: [platform]

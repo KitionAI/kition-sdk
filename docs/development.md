@@ -25,7 +25,7 @@ contributing guide, the code of conduct, the security and
 support policies, the issue forms, and the pull request template) from the repository's entry in
 `templates/community/repositories.json`, and lists where its `README.md` departs from the README
 rules. A kit's README is a product page: the H2 sections What it does, Quick start, Maturity,
-Build and contribute and License, a hero picture (`assets/readme/hero.png`) and at least two more
+Build and contribute, The Kition family and License, a hero picture (`assets/readme/hero.png`) and at least two more
 from `assets/readme/` (each with a full-sentence alt, at most 400 KB), and the version, KHP version
 and level of its `kit.json`; the repository layout and the build commands go in the kit's
 `docs/development.md`, which also describes the `KITION_LINK=1` opt-in of `web/`. A kit takes its
@@ -36,3 +36,15 @@ data and `kit.json`. The generated files are not edited in the target repository
 template or the data here and run the tool again. A `CLAUDE.md`, `QUALITY.md`, `CONTRIBUTING.md`
 or `kit-waivers.yaml` left at a repository's root is a finding of both tools, which name the
 `git mv` to run and write nothing until it is moved.
+
+The Kition family (every public product, and the kits by product line) has one source, `family` in
+`templates/community/repositories.json`, and `tools/kition-family.mjs` renders it. Each
+repository's README carries it as the "## The Kition family" section between `kition-family`
+markers right before "## License", which `sync-community.mjs` writes and checks like the community
+files (an entry with `"family": false` has none). `node tools/kition-family.mjs` writes the
+organization profile (`templates/community/org-profile.md`, for a `KitionAI/.github` repository's
+`profile/README.md`) and the generated end of each `packages/*/README.md` ("Part of the Kition SDK",
+the family, the license) after the package's own text; `--check` compares without writing, and
+`tools/public-packages.test.mjs` fails when they are out of date. npm shows these READMEs away from
+GitHub, so their links are absolute. The kit packages' READMEs are written by
+`tools/kit-npm-package.mjs` from the same data ([distribution](sdk/distribution.md#kit-packages-and-the-kit-index)).

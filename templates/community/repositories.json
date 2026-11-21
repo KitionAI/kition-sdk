@@ -1,5 +1,29 @@
 {
   "$comment": "Data for tools/sync-community.mjs, by repository directory name. Defaults: docs https://developer.kition.ai (docsName \"Kition for Developers\"), developerLink true, quality true (the repository has AGENTS.md and docs/quality.md, and its check command comes from templates/quality/repositories.json, else cargo xtask ci; with quality false, give check here), changelog true, keep []. Kits also default to hasWeb true, linksTessera true (KITION_LINK=1 links kition-sdk and kition-tessera; false: kition-sdk only), fonts false (pnpm engine copies fonts from a kition-fonts checkout), uses [rust, wasm32, wasm-pack, node, pnpm], the scope rows and the build commands below under kitDefaults. keep lists generated paths the repository owns itself (a trailing /* keeps a directory). Markdown links in the data are relative to the repository root; the tool rewrites them for the files in .github/.",
+  "family": {
+    "$comment": "The Kition family, the one source of the family section tools/kition-family.mjs renders: the \"## The Kition family\" section of every repository's README (written by tools/sync-community.mjs between kition-family markers, before \"## License\"; an entry with family false has none), the npm READMEs of the kit packages (tools/kit-npm-package.mjs) and of the SDK's packages, and the organization profile (templates/community/org-profile.md). Products in order: id, name, line (one line), links ([label, URL], absolute), repo (the repositories entry it lives in, if one). Kits by product line in order, each the entry kition-<kit> (its title, github and description; its short line is the description without \"Kition <Name>: \" and \", for people and AI agents\"); preview names the Preview kits. Public products only, no social links.",
+    "tagline": "Kition: the open pro suite for AI.",
+    "org": "https://github.com/KitionAI",
+    "products": [
+      { "id": "desktop", "name": "Kition Desktop", "repo": "kition", "line": "The open pro suite for AI: 16 editors and an agent in one desktop app", "links": [["GitHub", "https://github.com/KitionAI/kition"], ["kition.ai", "https://kition.ai"]] },
+      { "id": "sdk", "name": "Kition SDK", "repo": "kition-sdk", "line": "Put Kition's editors in your product, and give the same files to your AI agent", "links": [["GitHub", "https://github.com/KitionAI/kition-sdk"], ["developer.kition.ai", "https://developer.kition.ai"]] },
+      { "id": "cli", "name": "`kition` command line", "line": "Install kits on demand and run them for your agent: `npx @kition/cli`", "links": [["developer.kition.ai", "https://developer.kition.ai"], ["Guide", "https://github.com/KitionAI/kition-sdk/blob/main/docs/sdk/cli.md"]] },
+      { "id": "one", "name": "Kition One", "line": "A self-hosted team workspace built on Kition's kits", "links": [["one.kition.ai", "https://one.kition.ai"]] },
+      { "id": "server", "name": "Kition Server", "line": "Real-time co-editing for kits, self-hosted", "links": [["developer.kition.ai", "https://developer.kition.ai"]] },
+      { "id": "khp", "name": "Kit Harness Protocol (KHP)", "line": "The open protocol between a kit and its host", "links": [["GitHub", "https://github.com/kitharness/kitharness"], ["kitharness.org", "https://kitharness.org"]] },
+      { "id": "tessera", "name": "Kition Tessera", "repo": "kition-tessera", "line": "The design system for kits", "links": [["GitHub", "https://github.com/KitionAI/kition-tessera"], ["tessera.kition.ai", "https://tessera.kition.ai"]] },
+      { "id": "showcase", "name": "Kition Showcase", "repo": "kition-showcase", "line": "Sample files for every kit", "links": [["GitHub", "https://github.com/KitionAI/kition-showcase"]] },
+      { "id": "universe", "name": "Kition Universe", "repo": "kition-universe", "line": "A 3D map of the kits and what they make", "links": [["GitHub", "https://github.com/KitionAI/kition-universe"], ["universe.kition.ai", "https://universe.kition.ai"]] },
+      { "id": "fonts", "name": "Kition Fonts", "repo": "kition-fonts", "line": "The open fonts the editors use", "links": [["GitHub", "https://github.com/KitionAI/kition-fonts"]] }
+    ],
+    "lines": [
+      { "name": "Office", "kits": ["note", "table", "board", "doc", "sheet", "slide", "pdf", "html"] },
+      { "name": "Design", "kits": ["photo", "vector", "layout", "design"] },
+      { "name": "Media", "kits": ["film", "motion"] },
+      { "name": "Engineering", "kits": ["cad", "scene"] }
+    ],
+    "preview": ["html", "design", "scene"]
+  },
   "toolchain": {
     "node": "22.23.4",
     "pnpm": "10.34.9",
@@ -222,6 +246,7 @@
       "title": "kiv",
       "github": "KitionAI/kiv",
       "description": "kiv (KIt Version) is Git for kit files.",
+      "family": false,
       "quality": false,
       "changelog": false,
       "uses": ["rust"],
@@ -262,6 +287,7 @@
       "docsName": "kitharness.org",
       "developerLink": false,
       "description": "The site of the Kit Harness Protocol (KHP): a neutral protocol site, not a product site.",
+      "family": false,
       "quality": false,
       "changelog": false,
       "hasWeb": true,
