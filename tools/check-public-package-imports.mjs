@@ -7,6 +7,19 @@ import ts from 'typescript'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 
+/**
+ * The packages a module imports by a bare specifier (imports, re-exports, dynamic imports and
+ * declaration imports; not relative, `#` imports, `node:`-style schemes or Node builtins), sorted.
+ */
+export function importedPackages(source) {
+  const names = new Set()
+  for (const { fileName: specifier } of ts.preProcessFile(source, true, true).importedFiles) {
+    if (/^(?:[./#]|[a-z]+:)/i.test(specifier) || isBuiltin(specifier)) continue
+    names.add(specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0])
+  }
+  return [...names].sort()
+}
+
 /** Check imports, re-exports, dynamic imports and declaration imports against a manifest. */
 export function undeclaredImports(manifest, source, includeDevDependencies = false) {
   const declared = {
@@ -15,13 +28,27 @@ export function undeclaredImports(manifest, source, includeDevDependencies = fal
     ...manifest.optionalDependencies,
     ...(includeDevDependencies ? manifest.devDependencies : {}),
   }
-  const missing = new Set()
-  for (const { fileName: specifier } of ts.preProcessFile(source, true, true).importedFiles) {
-    if (/^(?:[./#]|[a-z]+:)/i.test(specifier) || isBuiltin(specifier)) continue
-    const name = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0]
-    if (name !== manifest.name && !Object.hasOwn(declared, name)) missing.add(name)
+  return importedPackages(source).filter((name) => name !== manifest.name && !Object.hasOwn(declared, name))
+}
+
+/**
+ * An installed or unpacked package's own modules (`.js`, `.mjs`, `.cjs`, `.d.ts`, `.d.mts` under
+ * `dir`, its node_modules aside) against its package.json: { imported, undeclared }, every package
+ * they import and each one neither a dependency, a peer, an optional dependency nor a Node builtin,
+ * as `<file>: <package>`.
+ */
+export function packageFolderImports(dir) {
+  const manifest = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  const imported = new Set()
+  const undeclared = []
+  for (const file of readdirSync(dir, { recursive: true })) {
+    const relative = String(file).split(path.sep).join('/')
+    if (relative.split('/').includes('node_modules') || !/\.(?:[cm]?js|d\.[cm]?ts)$/.test(relative)) continue
+    const source = readFileSync(path.join(dir, file), 'utf8')
+    for (const name of importedPackages(source)) if (name !== manifest.name) imported.add(name)
+    for (const name of undeclaredImports(manifest, source)) undeclared.push(`${relative}: ${name}`)
   }
-  return [...missing].sort()
+  return { imported: [...imported].sort(), undeclared: undeclared.sort() }
 }
 
 /** Source builds may bundle dev dependencies; emitted imports must be installed by consumers. */

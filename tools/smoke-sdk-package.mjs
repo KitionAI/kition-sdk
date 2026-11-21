@@ -11,7 +11,9 @@
 //   1. Node: every subpath Node runs imports (all but the editor's, which needs a page); the
 //      embed server's command carries its #!; `@kition/sdk` alone is refused (no root module);
 //      every Tessera specifier in the package (code, declarations, styles) is one @kition/tessera
-//      exports.
+//      exports; every package its code and declarations import is a dependency, a peer, an
+//      optional dependency or a Node builtin (a package only a dependency of a peer brings, such
+//      as use-sync-external-store, which Tessera's radix-ui imports, is not @kition/sdk's to name).
 //   2. Types: a project importing every subpath compiles under `moduleResolution: bundler` and
 //      under `node16`, with skipLibCheck off for @kition/sdk's own declarations; `@kition/sdk`
 //      alone has no types.
@@ -33,6 +35,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { build } from 'vite'
+import { packageFolderImports } from './check-public-package-imports.mjs'
 import { consumerInputs, installSdk, kitViteConfig } from './sdk-consumer.mjs'
 import { EDITOR_WORKER, editorWorkerProblems, LORO_WASM, PARTS, SDK, subpaths, TESSERA } from './sdk-package.mjs'
 
@@ -98,6 +101,9 @@ console.log(JSON.stringify(missing))
   assert.equal(resolved.status, 0, resolved.stderr)
   assert.deepEqual(JSON.parse(resolved.stdout.trim().split('\n').pop()), [], `every Tessera specifier of ${SDK} is exported by ${TESSERA} (${ownTessera.name}@${ownTessera.version})`)
   pass(`the ${tesseraSpecifiers.size} Tessera specifiers ${SDK} names resolve in ${TESSERA} (${ownTessera.name}@${ownTessera.version}): ${[...tesseraSpecifiers].sort().join(', ')}`)
+  const declared = packageFolderImports(installed)
+  assert.deepEqual(declared.undeclared, [], `every package ${SDK}'s modules import is declared in its package.json (dependencies, peerDependencies, optionalDependencies) or a Node builtin`)
+  pass(`the packages ${SDK}'s code and declarations import are all declared: ${declared.imported.join(', ')}`)
   pass(`Node imports ${nodeSafe.length} subpaths; ${SDK} alone is refused (${imported[SDK].error.trim().split(' ')[0]}); not imported in Node (a page's): ${[...browserOnly].join(', ')}`)
   // The embed server, installed from @kition/sdk, finds the embed module in its own package and
   // serves it with its chunks (it found @kition/embed's before).

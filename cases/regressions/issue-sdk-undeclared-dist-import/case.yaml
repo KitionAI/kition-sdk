@@ -1,0 +1,29 @@
+format: 1
+id: regressions/issue-sdk-undeclared-dist-import
+feature: sdk.packages.one-package
+intent: >-
+  Kits moved to @kition/sdk write '@kition/sdk > use-sync-external-store/shim' in Vite's
+  optimizeDeps.include, which raised the question whether @kition/sdk imports
+  use-sync-external-store without declaring it. It does not: its built code imports only
+  loro-crdt, react and @kition/tessera; use-sync-external-store is a CommonJS dependency of
+  radix-ui, which Tessera imports. So that nothing of the kind slips in later, the package smoke
+  check (tools/smoke-sdk-package.mjs, case sdk.packages.one-package/consumer) now fails when any
+  module of the installed package (code or declarations, minified as a bundler leaves it) imports
+  a package that is neither its dependency, peer, optional dependency nor a Node builtin; a dev
+  dependency does not count, since a consumer does not install it.
+layer: gate
+dimension: platform
+source:
+  kind: synthetic
+  from: tools/package-imports.test.mjs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/package-imports.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120
