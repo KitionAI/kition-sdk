@@ -226,6 +226,14 @@ Requirements:
   bytes. A manifest without `agent.describe` still works: the host words the
   tools from the kit's name and formats.
 
+  `agent.describe.use` says what an agent makes one of the kit's files for
+  (`structured, spreadsheet-like results`): a host's model instructions then
+  say, for every kit of the build that names one and creates files, ``Use a
+  `.<extension>` file through the <name> kit for <use>.`` with the first
+  extension the kit creates (`KitDefinition::guidance` in `kition-kits`), so a
+  host's instructions name no kit of their own. A kit an agent has no reason
+  to pick over plain files omits it.
+
   `agent.parts` lists the kit's part nouns: the members a `<prefix>_run`'s
   `target` and a step's `at.part` take (`["sequence"]` for a video kit,
   `["comp"]` for motion graphics, `["sheet"]` for a spreadsheet). Each names

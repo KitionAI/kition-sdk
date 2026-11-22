@@ -2268,3 +2268,16 @@ features:
       - sdk.kits.outline/live
       - sdk.kits.outline/refusals
     since: "2026-11-22"
+  - id: sdk.kits.guidance
+    title: A kit says in its manifest what an agent makes its files for, and a host's model instructions say it from the manifest instead of naming kits themselves
+    dimension: [ai, platform]
+    priority: P2
+    status: has
+    paths:
+      - crates/kition-kits/src/definitions.rs
+      - schemas/kit.schema.json
+      - docs/platform/kits/manifest.md
+    gap: No kit's manifest names a use yet, and no host's instructions are tested with a real model here.
+    cases:
+      - sdk.kits.guidance/use
+    since: "2026-11-22"

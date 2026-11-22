@@ -1,0 +1,24 @@
+format: 1
+id: sdk.kits.guidance/use
+feature: sdk.kits.guidance
+intent: >-
+  A kit says in its manifest what an agent makes one of its files for (`agent.describe.use`,
+  platform K21), and a host's instructions say it from the manifest: `Use a .<extension> file
+  through the <name> kit for <use>.`, with the first extension the kit creates. A kit that names
+  no use, and a kit that creates nothing, give no guidance, so a host's instructions name no kit
+  of their own.
+layer: gate
+source:
+  kind: synthetic
+  from: crates/kition-kits/src/definitions.rs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, a_kit_says_what_an_agent_makes_its_files_for]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 600
