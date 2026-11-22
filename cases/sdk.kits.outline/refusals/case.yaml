@@ -1,0 +1,29 @@
+format: 1
+id: sdk.kits.outline/refusals
+feature: sdk.kits.outline
+intent: >-
+  An outline command's answer of another shape (no `items` list, an item without an `id`, a
+  `title` or a `view` object) is an error that names the command and the shape it answers, never a
+  shorter outline; the document opened for it is closed again. A file that is not there, and a
+  file no kit opens, are refused as invalid paths.
+layer: gate
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/outline.rs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, outline, an_answer_of_another_shape_and_a_missing_file_are_errors]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, refuses_an_answer_of_another_shape]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --lib, reads_the_items_of_an_answer]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 600

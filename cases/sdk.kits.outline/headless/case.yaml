@@ -1,0 +1,33 @@
+format: 1
+id: sdk.kits.outline/headless
+feature: sdk.kits.outline
+intent: >-
+  A kit that names an outline command in its manifest (`outline.command`, platform K24) answers a
+  file's parts, each `{ id, title, kind?, view }`, in the document's order, from the headless kit.
+  Reading the outline leaves no document open; a document that was open stays open. The answer is
+  kept until the file changes: the same file again is answered without the kit, and a changed file
+  is read anew. A kit without an outline command has no outline, which is not an empty one, and
+  nothing is opened to find that out.
+layer: gate
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/outline.rs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, outline, the_headless_kit_answers_a_files_parts_and_leaves_nothing_open]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, outline, a_document_that_was_open_stays_open]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, outline, the_answer_is_kept_until_the_file_changes]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, outline, a_kit_without_an_outline_command_has_no_outline]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 600

@@ -2249,3 +2249,22 @@ features:
     cases:
       - sdk.dev-host.watch-page/close-and-crash
     since: "2026-11-22"
+  - id: sdk.kits.outline
+    title: A kit names the engine command that answers a document's outline (the parts of a file a host lists under it and opens the file at) in its manifest; a host reads it from the open editor or the headless kit without knowing the kit
+    dimension: [platform, function]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kits/src/outline.rs
+      - crates/kition-kits/src/definitions.rs
+      - crates/kition-kits/tests/outline.rs
+      - crates/kition-kits-http/src/lib.rs
+      - crates/kition-kit-mock/src/kit.rs
+      - schemas/kit.schema.json
+      - docs/platform/kits/manifest.md
+    gap: The route GET /kits/outline has no test of its own (the function it calls has); no kit's real engine is tested here, each kit tests its own outline command.
+    cases:
+      - sdk.kits.outline/headless
+      - sdk.kits.outline/live
+      - sdk.kits.outline/refusals
+    since: "2026-11-22"

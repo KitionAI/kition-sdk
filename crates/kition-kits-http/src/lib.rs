@@ -68,6 +68,7 @@ impl KitsState {
 pub fn router(state: KitsState) -> Router {
     Router::new()
         .route("/kits", get(list))
+        .route("/kits/outline", get(outline))
         .route("/kits/files", axum::routing::put(write_file).layer(axum::extract::DefaultBodyLimit::max(MAX_FILE_BYTES)))
         .route("/kits/grants", post(grant_file))
         .route("/kits/grants/choices", post(grant_choices))
@@ -216,6 +217,20 @@ fn known_kits(kits: &KitManager) -> Vec<Value> {
 /// included; `extensions` they edit, `views` they open read-only.
 async fn list(State(state): State<KitsState>, _caller: RequireToken) -> Response {
     ok(json!({ "kits": known_kits(&state.kits) }))
+}
+
+#[derive(Deserialize)]
+struct OutlineQuery {
+    path: String,
+}
+
+/// `GET /kits/outline?path=`: the parts of the workspace file `path` a host lists under it, as
+/// its kit's outline command answers them (`kit.json` `outline`, platform K24): `items`, each
+/// `{ id, title, kind?, view }`, from the file's open editor when it has one, else from the
+/// headless kit. `items` is `null` for a kit that declares no outline.
+async fn outline(State(state): State<KitsState>, _caller: RequireToken, Query(query): Query<OutlineQuery>) -> ApiResult<Response> {
+    let items = kition_kits::outline::outline(&state.kits, &query.path).await.map_err(app_error)?;
+    Ok(ok(json!({ "path": query.path, "items": items })))
 }
 
 /// The largest file an in-page editor may save in one request.

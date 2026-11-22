@@ -36,6 +36,7 @@ static MOCK: KitDefinition = KitDefinition {
     protocol: Some("kition-kit/1"),
     version: "0.0.0",
     manifest: "{}",
+    outline: None,
     agent: KitAgent {
         prefix: "mock",
         drafts: true,

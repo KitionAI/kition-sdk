@@ -1,0 +1,24 @@
+format: 1
+id: sdk.kits.outline/live
+feature: sdk.kits.outline
+intent: >-
+  A file open in an editor is answered by the editor: the outline command runs through the Kit AI
+  bridge's `run`, with no parameters and `save: false`, so the outline shows edits that are not
+  saved yet and reading it never saves the person's document.
+layer: gate
+source:
+  kind: synthetic
+  from: crates/kition-kits/tests/outline.rs
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, build, -q, -p, kition-kit-mock]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kits, --test, outline, an_open_editor_answers_its_own_outline_and_is_not_saved]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 600

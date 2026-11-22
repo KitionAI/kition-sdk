@@ -24,6 +24,7 @@ static GENERIC: KitDefinition = KitDefinition {
     protocol: None,
     version: "<version>",
     manifest: "{}",
+    outline: None,
     agent: KitAgent {
         prefix: "<prefix>",
         drafts: true,

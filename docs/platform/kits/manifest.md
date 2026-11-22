@@ -72,6 +72,7 @@ optional native executables. The manifest is validated by
     { "extensions": ["mp4", "mov", "webm", "wav", "mp3"], "action": "project-from-clip" }
   ],
   "capabilities": ["lent-files", "audio", "stepped-export"],
+  "outline": { "command": "file.outline" },
   "extras": {
     "audio": { "params": ["startSeconds: f64", "frames: u32"], "returns": "Float32Array" },
     "exportStep": { "params": ["job: f64", "budgetMs: u32"], "returns": "string" }
@@ -331,6 +332,24 @@ Requirements:
   shape and warns when an engine declares none, which leaves a host reading
   every key as the document. It is a platform field: KHP's manifest has no
   `engine`.
+- **K24** *(Kition platform)* A kit whose documents have parts a host can
+  list under the file and open the file at (a table file's tables and
+  dashboards, a deck's slides, a workbook's sheets) names the engine command
+  that answers them in `outline.command`. The command takes no parameters,
+  changes nothing (it is never an edit and never saved), and answers
+  `{ "items": [{ "id", "title", "kind"?, "view" }] }`, in the document's
+  order: `id` is the part's id in the document (a string, or a number),
+  `title` what people call it, `kind` what it is in the kit's own words
+  (`table`, `dashboard`), and `view` the place as the Kit UI protocol's
+  `document.view` and `document/reveal` take it
+  ([Kit UI protocol](../reference/ui-protocol.md); [KitLinks OP3](../sets/links.md)),
+  so a host opens the file at a part without knowing what the part is. A
+  host asks the file's open editor when it has one (the Kit AI bridge's
+  `ai/run`, not saved), so the outline shows edits not saved yet, and the
+  headless executable otherwise; an answer of another shape is an error, not
+  a shorter outline. `kition-kits` reads it in `outline.rs`, and
+  `kition-kits-http` serves it as `GET /kits/outline?path=`. A kit without
+  parts omits `outline`. It is a platform field: KHP's manifest has none.
 
 ## Manifest for engine contract 2
 
