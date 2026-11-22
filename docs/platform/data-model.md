@@ -282,7 +282,7 @@ idempotent and must not write files itself.
 | Change | An immutable, causally ordered unit made by one actor, identified by `(actorId, counter)` |
 | Transaction | The atomic operations one command makes; one undo step; carries an `origin` |
 | Origin | `{ kind: person / agent / extension / import / system, principal, label, group? }` |
-| Object | An addressable entity in the KDM with a stable `ObjectId` (UUID v7) and a schema type |
+| Object | An addressable entity in the KDM with an `ObjectId` (UUID v7) and a schema type; the id is stable within an opening of the file, and across a reopen only where the file stores it ("Ids within an opening and across a reopen" below) |
 | Blob | Immutable binary data, addressed by SHA-256 |
 | Version | A version vector or frontier that says exactly which changes a state holds |
 
@@ -306,20 +306,29 @@ object without a value of its own (not numbered yet, or colliding after two
 replicas numbered concurrently) answers its `ObjectId` until the kit's
 repair numbers it.
 
-**Ids of a file opened again.** A kit that stores its replica in its file
-keeps every `ObjectId` across opens. One
-that builds the replica from the file on every open (for example, a kit
-importing a format such as PSD or IDML)
-mints a new `docId` and new `ObjectId`s each time, so an `ObjectId` does not
-survive a reopen; tool ids read from the file do. The platform
+**Ids within an opening and across a reopen.** Within one opening of a
+file, from open to close and across every save, a kit keeps every
+`ObjectId` and every tool id of an existing object; only objects created
+since get new ids. Across a reopen, ids are stable only where the kit's file
+stores them. A kit that stores its replica in its file keeps every
+`ObjectId`, and a tool id the file stores (a kit's own id in a read-only
+field, above) survives in every kit. A kit that builds its replica from the
+file on every open (for example, a kit importing a format such as PSD or
+IDML) mints a new `docId` and new `ObjectId`s each time, so an `ObjectId`
+does not survive a reopen; nor does a tool id the kit numbers on open
+instead of reading it from the file. A kit says which of its ids survive a
+reopen in its guide for models (`agent/guide.md`, [manifest](kits/manifest.md)
+K17). An agent observes the document again after a reopen and takes ids
+from that observation: an id read before the reopen names nothing it can
+rely on unless the kit's guide says that id survives. The platform
 does not derive `ObjectId`s from the file: two replicas that each built the
 same file and later synced would hold every object twice, created by two
 actors under one id, and the CRDT keeps one side's containers for such an
 id and drops the other's edits (as for a container field added to an
 existing object, section 4), while lists holding the object would hold it
 twice. A document is shared by every replica starting from one replica (a
-room's seed, a draft's fork), never by building it twice; tool ids are the
-stable names across opens.
+room's seed, a draft's fork), never by building it twice; tool ids the file
+stores are the stable names across opens.
 
 **A copy is a new document.** A template instantiated twice, a copied file,
 or the same bytes uploaded twice must become independent documents, each with

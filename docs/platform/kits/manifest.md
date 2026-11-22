@@ -165,7 +165,10 @@ Requirements:
 - **K17** *(proposed; Agent-ready)* The package of an Agent-ready kit MUST
   contain `agent/checks.json`, its check catalogue (A38), and SHOULD contain
   `agent/guide.md`: a short guide for models, saying what the kit's
-  commands are for and how to write its content, with two worked examples.
+  commands are for and how to write its content, with two worked examples,
+  and which of its ids survive a reopen (none, its tool ids, or every
+  `ObjectId`: [the data model](../data-model.md), "Ids within an opening and
+  across a reopen").
   The guide is required at stage Agent-ready complete.
 
   The package ships the kit's `agent/` folder beside `kit.json` (KHP K20: the

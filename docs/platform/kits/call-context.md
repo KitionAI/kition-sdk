@@ -596,7 +596,7 @@ workaround only if the kit does not itself use session APIs.
 | --- | --- |
 | 1. Ordered premises | Update the SDK pin. Keep declaring the destination in `places` and returning `[i,i)` for the gap in the pre-removal list, including a move addressed by object id. For tree children use the parent node's object id and the tree field; top-level children use the tree owner. Declare the source object's actual position dependencies separately. No suffix-window workaround, schema property, or new hook is needed. |
 | 2. Creation-only registers | Update the Rust SDK and `@kition/kdm` together. A register's `readOnly: true` means immutable after creation: provide it in `create.fields`, where required fields and enum/value limits are validated normally. Keep a writable same-type example in environment input files so sampling can copy its required creation values. Receipt replay supplies those values from `created[].values`. Remove workarounds that mark a creation-only `kind` writable; type-level `readOnly` and `readOnlyWhen` still prohibit creating kit-owned objects. |
-| 3. Allocated ids | Update the SDK pin; no kit hook or deterministic-id allocator is needed. Keep existing ids stable over save/reopen and report all newly created objects in the receipt. Fresh ids allocated by that receipt may differ on replay; references to them must still point consistently to the corresponding new objects. |
+| 3. Allocated ids | Update the SDK pin; no kit hook or deterministic-id allocator is needed. Keep existing ids stable within an opening, saves included; across a reopen they are stable only where the kit's file stores them, as the kit's `agent/guide.md` says, and an agent observes again after a reopen ([the data model](../data-model.md), "Ids within an opening and across a reopen"). Report all newly created objects in the receipt. Fresh ids allocated by that receipt may differ on replay; references to them must still point consistently to the corresponding new objects. |
 
 The journal retains unnamed objects' old/new positions even when public rereads count
 them in `unnamed`. Empty gaps hold the identities and positions of their left/right
@@ -614,7 +614,8 @@ implicit shifts caused by another item being inserted or removed.
 Replay compares allocated ids by one consistent renaming, including references in
 other objects. This exception is limited to ids first appearing in the task's creation
 receipt; pre-existing ids, content, list order and reference targets must still agree.
-It does not permit a kit to remint its persistent object ids on every reopen.
+It does not permit a kit to remint an existing object's id within an opening, nor, on a reopen,
+an id its file stores.
 
 Compatibility: the wire schema and existing premise declarations are unchanged.
 `create.fields` now accepts field-level read-only registers, so callers that expected
