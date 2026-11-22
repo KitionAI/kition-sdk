@@ -1,6 +1,6 @@
 //! The same changes encode the same bytes: a JSON object value is written in one key order, not
 //! in a hash map's per-process order, so a document built twice by the same commands (a showcase
-//! sample, a gate case) saves the same file.
+//! sample, a gating test) saves the same file.
 
 mod common;
 

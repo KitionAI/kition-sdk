@@ -81,7 +81,7 @@ The reference is generated from the committed command catalogues.
 pnpm exec vitest run tools/docs-gen/docs-gen.test.mjs
 ```
 
-The gate case `sdk.docs.integration/catalogues` points at this suite. It checks nested
+The gating test `sdk.docs.integration/catalogues` points at this suite. It checks nested
 types and descriptions, honest missing metadata, all sixteen committed catalogues against
 the vocabulary reader, stable bytes and links, stale output deletion, read-only check mode,
 and CLI exit codes. It does not require generated outputs to be committed first.
