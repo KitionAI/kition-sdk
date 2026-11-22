@@ -4,6 +4,15 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The editor's canvas no longer loses a repaint when React takes several refreshes in one
+  render**: `useKitDocument`'s refresh replaced the area of its change (`KitChange.damage`) with the
+  last refresh's, so a click whose press changed the document and whose release changed nothing,
+  or an edit followed by an agent's read with `agentSkipsUnchangedPaint`, left the canvas
+  unpainted (kition-sheet d89be60 worked around it in `web/src/repaint.ts`). The areas owed are
+  merged until a change holding them is committed: the whole canvas wins, the empty area adds
+  nothing, two areas give the rectangle covering both. `KitCanvas` paints nothing for the empty
+  area, and `RasterViewport.patch` no longer stretches the area waiting for it toward 0, 0
+  (regressions/issue-kit-editor-merged-damage).
 - **check-expected warns about expected files nothing protects**: a tracked file whose name says it
   is an expected result (`expected_*`, `*_expected.*`, `*.expected.*`, `*fingerprints*`, `*.snap`)
   outside every `expected/` folder and `protected` glob is printed as a warning (and listed under

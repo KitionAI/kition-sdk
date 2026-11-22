@@ -84,6 +84,20 @@ type Frame = { bitmap: HTMLCanvasElement; x: number; y: number; width: number; h
 /** An image area in image pixels. */
 export type RasterRect = { x0: number; y0: number; x1: number; y1: number }
 
+/** Whether `area` holds no pixel (x1 ≤ x0 or y1 ≤ y0), as the empty area `{0, 0, 0, 0}` does. */
+export const isEmptyArea = (area: RasterRect): boolean => area.x1 <= area.x0 || area.y1 <= area.y0
+
+/**
+ * Two repaints taken together: the whole canvas (`null`) wins over anything, the empty area adds
+ * nothing, and two areas give the rectangle covering both.
+ */
+export function mergeDamage(a: RasterRect | null, b: RasterRect | null): RasterRect | null {
+  if (a === null || b === null) return null
+  if (isEmptyArea(b)) return a
+  if (isEmptyArea(a)) return b
+  return { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) }
+}
+
 export type RasterViewportStats = { renderMs: number; frameWidth: number; frameHeight: number }
 
 function imageData(rgba: Uint8Array, width: number, height: number) {
@@ -414,8 +428,8 @@ export class RasterViewport {
   async patch(area: RasterRect): Promise<boolean> {
     if (this.disposed) return false
     if (this.rendering) {
-      const p = this.pendingDamage
-      this.pendingDamage = p ? { x0: Math.min(p.x0, area.x0), y0: Math.min(p.y0, area.y0), x1: Math.max(p.x1, area.x1), y1: Math.max(p.y1, area.y1) } : area
+      // The empty area adds nothing (it does not stretch the area waiting toward 0, 0).
+      if (!isEmptyArea(area)) this.pendingDamage = this.pendingDamage ? mergeDamage(this.pendingDamage, area) : area
       return false
     }
     return this.renderArea(area)

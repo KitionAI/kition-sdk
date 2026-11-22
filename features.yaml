@@ -802,6 +802,19 @@ features:
       - regressions/issue-held-delete-after-marquee
       - regressions/issue-table-cell-backspace
     since: "2026-11-16"
+  - id: sdk.editor.merged-repaints
+    title: The canvas repaints what every refresh React takes in one render owes together, never only the last refresh's area
+    dimension: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - packages/kit-editor/src/engine/rasterViewport.ts
+      - packages/kit-editor/src/engine/useKitDocument.damage.test.tsx
+    cases:
+      - regressions/issue-kit-editor-merged-damage
+    since: "2026-11-22"
   - id: sdk.editor.file-follow
     title: An editor follows its file changed on disk without losing edits still being sent to the engine
     dimension: [function, data-safety]

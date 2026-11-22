@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { KitEngine, type KitAgentStep, type KitEngineInfo, type KitToolMethod } from './kitEngine'
 import type { KitModuleManifest } from './kitModule'
 import type { KitHost } from './kitHost'
-import type { RasterRect } from './rasterViewport'
+import { mergeDamage, type RasterRect } from './rasterViewport'
 import { replicaToOpen, writeWithReplica } from './replica'
 import { ReadOnlyError } from './readOnly'
 import type { Origin } from '@kition/kdm'
 
-/** One edit: the canvas repaints `damage`, or everything when it is null. */
+/**
+ * One or more edits the canvas has not been handed yet: `revision` moves by one with each refresh,
+ * and `damage` is what they owe together (`mergeDamage`): the canvas repaints that area, everything
+ * when it is null, nothing when it is the empty area. React may take several refreshes in one
+ * render; their areas are merged, never replaced by the last one's.
+ */
 export type KitChange = { revision: number; damage: RasterRect | null }
 
 /**
@@ -181,14 +186,36 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
   repaintsRef.current ??= repaintStore()
   const repaints = repaintsRef.current
 
+  // The repaints owed: each refresh's area, in order, until a change that holds it is committed.
+  // A change holds every area owed when React computed it (`covered`, by the last one's number), so
+  // two refreshes taken in one render repaint what both owe: a press that changed the document
+  // (everything) then a release that changed nothing (the empty area) still repaints everything.
+  const owedRef = useRef<Array<{ seq: number; damage: RasterRect | null }>>([])
+  const seqRef = useRef(0)
+  const coveredRef = useRef(new WeakMap<KitChange, number>())
+
   const refresh = useCallback((damage: RasterRect | null = null) => {
     const current = docRef.current
     if (!current) return
     setInfo(current.info)
     setState(describeRef.current(current.info))
     setDirty(current.info.dirty)
-    setChange((previous) => ({ revision: previous.revision + 1, damage }))
+    seqRef.current += 1
+    owedRef.current.push({ seq: seqRef.current, damage })
+    setChange((previous) => {
+      const owed = owedRef.current
+      // An area a change committed earlier already took: nothing is left to repaint for it.
+      const next: KitChange = { revision: previous.revision + 1, damage: owed.reduce<RasterRect | null>((sum, entry) => mergeDamage(sum, entry.damage), NOTHING) }
+      coveredRef.current.set(next, owed.length ? owed[owed.length - 1].seq : 0)
+      return next
+    })
   }, [])
+
+  // A committed change was handed to the canvas: the areas it holds are no longer owed.
+  useLayoutEffect(() => {
+    const covered = coveredRef.current.get(change)
+    if (covered) owedRef.current = owedRef.current.filter((entry) => entry.seq > covered)
+  }, [change])
 
   /** Reads the file into a new document and swaps it in; the old one stays on screen until then. */
   const load = useCallback(async (isCurrent: () => boolean) => {

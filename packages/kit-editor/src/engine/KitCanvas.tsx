@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react'
 import type { KitEngine } from './kitEngine'
 import { HAND_TOOL, type KitGesture, type KitOverlay, type KitPointer, type KitTool, type KitToolContext } from './kitTools'
-import { RasterViewport, type RasterDecoration, type RasterRect, type RasterView, type RasterViewportStats } from './rasterViewport'
+import { RasterViewport, isEmptyArea, type RasterDecoration, type RasterRect, type RasterView, type RasterViewportStats } from './rasterViewport'
 import type { KitChange, KitRepaint } from './useKitDocument'
 
 const FALLBACK_BACKDROP = '#f3f3f6'
@@ -189,6 +189,8 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     if (!viewport) return
     // A tool's preview stays until the engine's pixels replace it. An edit that names the area it
     // changed patches that area, keeping a render in flight (its other pixels are still right).
+    // The empty area (refreshes that changed no pixel, such as an agent's reads) paints nothing.
+    if (change.damage && isEmptyArea(change.damage)) return
     if (!change.damage) viewport.invalidate()
     void (change.damage ? viewport.patch(change.damage) : viewport.render()).then((painted) => { if (painted) overlay.clear() })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- repaint once per change

@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-kit-editor-merged-damage
+feature: sdk.editor.merged-repaints
+intent: >-
+  useKitDocument's refresh replaced the area the canvas repaints with the last refresh's when React
+  took several in one render, so a click whose press changed the document (repaint everything) and
+  whose release changed nothing (the empty area) left the canvas unpainted (kition-sheet d89be60:
+  the check box stayed undrawn while the formula bar showed TRUE), as did an edit followed by an
+  agent's read that skips the unchanged paint. The areas owed are merged until a change holding
+  them is committed: the whole canvas wins, the empty area adds nothing, two areas give the
+  rectangle covering both, and the empty area alone still paints nothing.
+layer: gate
+source:
+  kind: issue
+  from: kition-sheet d89be60 (web/src/repaint.ts repaintFor; INSC-C53/C60 on a WebKit CI runner)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/useKitDocument.damage.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 120
