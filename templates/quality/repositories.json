@@ -1,25 +1,25 @@
 {
-  "$comment": "Each repository that tools/sync-quality.mjs writes the quality rules into, by its directory name (read by tools/quality-repositories.mjs for sync-quality and sync-community). owner: the CODEOWNERS owner of every repository (--owner overrides it). Per repository: check, the local pre-finish check the Stop hook runs (default `cargo xtask ci`; sync-quality refuses a --command that disagrees, so a sync never puts back an old command: change it here); fullChecks, where the full checks and tests run: kit-ci (on GitHub, in the kit's CI run, Kition's kit-ci.yml, its docs/kits.md section 4c; a kit runs only the fmt check locally), ci (on GitHub, in the repository's .github/workflows/ci.yml, on every push to main and every pull request) or check (the default: the check is the full check, run locally); name, the title of docs/quality.md, only for a repository that templates/community/repositories.json does not name (otherwise its entry's title, or the name of the family product whose repo it is; --name overrides it).",
+  "$comment": "Each repository that tools/sync-quality.mjs writes the quality rules into, by its directory name (read by tools/quality-repositories.mjs for sync-quality and sync-community). owner: the CODEOWNERS owner of every repository (--owner overrides it). Per repository: check, the local pre-finish check the Stop hook runs (default `cargo xtask ci`; sync-quality refuses a --command that disagrees, so a sync never puts back an old command: change it here); fullChecks, where the full checks and tests run: kit-ci (on GitHub, in the kit's CI run, Kition's kit-ci.yml, its docs/kits.md section 4c; a kit runs only the fmt check locally), ci (on GitHub, in the repository's .github/workflows/ci.yml, on every push to main and every pull request) or check (the default: the check is the full check, run locally); xtask, false for a repository without `tools/xtask` (no `cargo xtask` command; default true), so its text names what runs instead of `cargo xtask ci`, `gate`, `features` and `eval`; name, the title of docs/quality.md, only for a repository that templates/community/repositories.json does not name (otherwise its entry's title, or the name of the family product whose repo it is; --name overrides it).",
   "owner": "@KitionAI/owners",
   "repositories": {
-    "khp": { "name": "Kit Harness Protocol", "check": "! grep -rIlE '/(Users|home)/[a-z]' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist ." },
-    "kition": { "check": "pnpm -s typecheck && pnpm -s lint", "fullChecks": "ci" },
+    "khp": { "name": "Kit Harness Protocol", "check": "! grep -rIlE '/(Users|home)/[a-z]' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist .", "xtask": false },
+    "kition": { "check": "pnpm -s typecheck && pnpm -s lint", "fullChecks": "ci", "xtask": false },
     "kition-board": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-cad": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-design": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-doc": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-film": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
-    "kition-html": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
+    "kition-html": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci", "xtask": false },
     "kition-layout": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-motion": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-note": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-pdf": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-photo": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-scene": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
-    "kition-sdk": { "check": "pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings", "fullChecks": "ci" },
+    "kition-sdk": { "check": "pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings", "fullChecks": "ci", "xtask": false },
     "kition-sheet": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
     "kition-slide": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
-    "kition-table": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" },
+    "kition-table": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci", "xtask": false },
     "kition-vector": { "check": "cargo fmt --all -- --check", "fullChecks": "kit-ci" }
   }
 }

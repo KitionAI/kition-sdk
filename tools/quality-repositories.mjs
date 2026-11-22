@@ -10,6 +10,12 @@
 //                 "ci"      on GitHub, in the repository's CI run (.github/workflows/ci.yml) on every
 //                           push to main and every pull request
 //                 "check"   on the developer's machine: the check is the full check (the default)
+//   xtask       whether the repository has `tools/xtask` (a `cargo xtask` command; default true).
+//               Without it the templates name what runs instead: the kit CI's fmt, clippy and
+//               `cargo test --workspace` without the `cargo xtask ci` step (Kition's kit-ci.yml skips
+//               it), the tests a case's steps name instead of `cargo xtask gate`, a hand-kept
+//               `cases` list instead of `cargo xtask features`, kition-sdk's tools/eval-cases.mjs
+//               instead of `cargo xtask eval`.
 //
 // The title of a repository's docs/quality.md is its product name from one source: the entry's
 // title in templates/community/repositories.json, else the family product that lives in the
@@ -24,7 +30,7 @@ const TABLE = path.join(root, 'templates', 'quality', 'repositories.json')
 const COMMUNITY = path.join(root, 'templates', 'community', 'repositories.json')
 export const DEFAULT_CHECK = 'cargo xtask ci'
 const FULL_CHECKS = new Set(['kit-ci', 'ci', 'check'])
-const FIELDS = new Set(['name', 'check', 'fullChecks'])
+const FIELDS = new Set(['name', 'check', 'fullChecks', 'xtask'])
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 
@@ -46,7 +52,7 @@ function communityName(dir, community) {
 
 /**
  * The quality data of the repository in directory `dir`:
- * { listed, name, check, fullChecks, owner }. `name` is null when no data names the repository.
+ * { listed, name, check, fullChecks, xtask, owner }. `name` is null when no data names the repository.
  * Throws for invalid data.
  */
 export function qualityRepository(dir, { table = readJson(TABLE), community = readJson(COMMUNITY) } = {}) {
@@ -63,7 +69,10 @@ export function qualityRepository(dir, { table = readJson(TABLE), community = re
   if (!validCommand(check)) fail(`${dir}: check must be one line without backticks`)
   const fullChecks = entry.fullChecks ?? 'check'
   if (!FULL_CHECKS.has(fullChecks)) fail(`${dir}: fullChecks must be one of ${[...FULL_CHECKS].join(', ')}`)
-  return { listed, name: fromCommunity ?? entry.name ?? null, check, fullChecks, owner: table.owner }
+  const xtask = entry.xtask ?? true
+  if (typeof xtask !== 'boolean') fail(`${dir}: xtask must be true or false`)
+  if (!xtask && /\bcargo xtask\b/.test(check)) fail(`${dir}: check runs cargo xtask, but xtask is false`)
+  return { listed, name: fromCommunity ?? entry.name ?? null, check, fullChecks, xtask, owner: table.owner }
 }
 
 /**

@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-quality-contradiction-narrow
+feature: sdk.quality.sync
+intent: >-
+  The warning about a kit's own text that asks for the full checks on this machine fired on any
+  line with "quality gates" and `cargo xtask ci`, even one saying they run in the kit's CI run, and
+  three kits renamed a heading to silence it. It fires only where a sentence requires the full
+  command before a commit, a push or the end of a task, or must pass locally (or a heading above
+  requires it and the line does not say CI); tested with the kits' real lines before and after
+  (kition-doc 08858885, kition-cad 6197c137, kition-layout 049a18de).
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (kition-doc, kition-cad, kition-layout AGENTS.md)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, -t, warns about a requirement to run the full checks locally]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 120

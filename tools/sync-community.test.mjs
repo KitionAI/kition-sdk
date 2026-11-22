@@ -412,6 +412,16 @@ describe('repositories.json', () => {
     expect(fonts['.github/pull_request_template.md']).toContain('- [ ] `cargo test` exits 0\n')
   })
 
+  // A kit without tools/xtask: Kition's kit-ci.yml skips the `cargo xtask ci` step.
+  it("lists `cargo xtask ci` in the kit's CI run only for a kit that has tools/xtask", () => {
+    const contributing = (name) => generate(entryValues(name)).find((file) => file.path === '.github/CONTRIBUTING.md').text
+    expect(contributing('kition-design')).toContain("(`.github/workflows/ci.yml`: fmt, clippy, `cargo test --workspace`, `cargo xtask ci` and the\neditor's tests)")
+    for (const name of ['kition-table', 'kition-html']) {
+      expect(contributing(name)).toContain("(`.github/workflows/ci.yml`: fmt, clippy, `cargo test --workspace` and the\neditor's tests)")
+      expect(contributing(name)).not.toContain('xtask')
+    }
+  })
+
   it('gives each kit the one-sentence description of the descriptions standard: "Kition <Name>: …, for people and AI agents"', () => {
     for (const [name, entry] of Object.entries(data.repositories).filter(([, entry]) => entry.profile === 'kit')) {
       expect(entry.description.startsWith(`${entry.title}: `), name).toBe(true)

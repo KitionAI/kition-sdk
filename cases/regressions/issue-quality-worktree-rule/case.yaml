@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-quality-worktree-rule
+feature: sdk.quality.sync
+intent: >-
+  The generated AGENTS block of every repository carried a rule about one kit ("Work on
+  `kition-slide` only in its main checkout; never ... its worktrees"). It says the workspace rule
+  once instead: commit on `main` in the repository's main checkout, no git worktrees, one agent per
+  repository at a time; and sync-quality warns, in every repository, about a line of its own text
+  that advises git worktrees to parallel agents.
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (kition-pdf AGENTS.md, kition-motion .claude/CLAUDE.md)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, -t, says the workspace rule on checkouts once]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, -t, separate git worktrees]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 120

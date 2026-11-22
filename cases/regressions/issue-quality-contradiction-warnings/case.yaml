@@ -6,7 +6,8 @@ intent: >-
   it: a kit whose full checks run in its CI run still said "Quality gates (before every commit):
   `cargo xtask ci`" and "Never add or run CI in this repository". sync-quality prints each such line
   as "warning: <file>:<line>" on every run, --verify included, from one list of rules
-  (CONTRADICTIONS), and never fails for it; a repository whose full checks are local gets no warning.
+  (CONTRADICTIONS), and never fails for it; a repository whose full checks are local gets none of
+  the CI warnings.
 layer: gate
 source:
   kind: issue

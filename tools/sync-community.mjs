@@ -198,7 +198,7 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
     fail(name, 'the check command of a repository with docs/quality.md lives in templates/quality/repositories.json')
   }
   // A repository with docs/quality.md takes its check, and where its full checks run, from the quality table.
-  const quality = entry.quality ? qualityRepository(name, { community: data }) : { check: entry.check, fullChecks: 'check' }
+  const quality = entry.quality ? qualityRepository(name, { community: data }) : { check: entry.check, fullChecks: 'check', xtask: true }
   const check = quality.check
   if (!validCommand(check)) fail(name, 'check must be one line without backticks')
   const keep = entry.keep.map((pattern) => {
@@ -225,6 +225,7 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
     docsName: entry.docsName,
     developerLink: entry.developerLink,
     check,
+    xtask: quality.xtask,
     ...fullCheckValues(quality.fullChecks, check),
     quality: entry.quality,
     changelog: entry.changelog,

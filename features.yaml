@@ -1600,6 +1600,9 @@ features:
       - regressions/issue-quality-full-checks
       - regressions/issue-quality-sync-defaults
       - regressions/issue-quality-contradiction-warnings
+      - regressions/issue-quality-no-xtask
+      - regressions/issue-quality-worktree-rule
+      - regressions/issue-quality-contradiction-narrow
     since: "2026-11-16"
   - id: sdk.quality.kit-matrix
     title: The kit matrix settles every kit against the kit requirements table, reading each kit's files where the layout standard puts them

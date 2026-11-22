@@ -19,13 +19,15 @@
 //              cargo xtask ci); a --command that disagrees with the table's check is refused
 //
 // The table also says where the repository's full checks run (fullChecks: the kit's CI run on
-// GitHub, the repository's CI run, or the check itself, locally); the templates say so in their own
-// sentences, so no sentence about the full checks names the pre-finish check.
+// GitHub, the repository's CI run, or the check itself, locally), and whether it has a
+// `cargo xtask` (xtask); the templates say so in their own sentences, so no sentence about the full
+// checks names the pre-finish check, and none names a `cargo xtask` command the repository lacks.
 //
 // Warnings (never a failure, on every run): a line of AGENTS.md or .claude/CLAUDE.md outside the
-// generated block that contradicts it (CONTRADICTIONS: a kit's own text that still asks for the
-// old local full check before a commit, or forbids CI where the full checks run on GitHub) is
-// printed as "warning: <file>:<line>: ...", for a person or the next agent to fix by hand.
+// generated block that contradicts it (CONTRADICTIONS: a kit's own text that still requires the
+// full checks on this machine before a commit or the end of a task, forbids CI where the full
+// checks run on GitHub, or advises git worktrees to parallel agents) is printed as
+// "warning: <file>:<line>: ...", for a person or the next agent to fix by hand.
 //
 // What it writes, relative to <repo>:
 //   docs/quality.md               the quality reference (a generated block)
@@ -66,23 +68,47 @@ function usage(message) {
   process.exit(2)
 }
 
+/** A command that runs the full checks of a kit, which its CI run runs. */
+const FULL_COMMAND = /cargo xtask ci\b|cargo test --workspace\b/
+/**
+ * Words that require running a command on this machine, before a commit or before a task ends.
+ * "Quality gates" alone is not one: a line may name its checks so and say they run in CI.
+ */
+const REQUIRES_LOCAL =
+  /\bbefore (every|each|a|any|you|your) (commit|push)|\bbefore (committing|pushing|you (change|finish|end|stop|push|commit))\b|\bbefore (finishing|ending) (a|the|any) task\b|\bmust (pass|be run|run) (locally|on (this|your) machine)\b|\b(run|rerun) (it |them )?(locally|on (this|your) machine) before\b/i
+/** Words that say the command runs in CI, not here. */
+const IN_CI = /\bCI\b|\bon GitHub\b|\bGitHub Actions\b/
+/** The sentences of a line: split after `.`, `;`, `!` or `?` followed by a space. */
+const sentences = (line) => line.split(/(?<=[.;!?])\s+/)
+/** A line that advises git worktrees (a separate one per agent, for parallel work), not one that forbids them. */
+const WORKTREE_ADVICE = /\bworktrees?\b/i
+const WORKTREE_FOR_AGENTS = /\b(parallel|separate|each|per|own|one)\b/i
+const WORKTREE_FORBIDDEN = /\b(no|never|not|don't|do not|without|avoid)\b[^.;]*\bworktrees?\b/i
+
 /**
  * Lines outside the generated blocks that contradict them, in one place. Each rule applies where
- * the repository's full checks run as `fullChecks` lists; `line` must match the line, and
- * `context`, when given, the line itself or the heading right above it (such as
- * "### Quality gates (before every commit)" over a paragraph).
+ * the repository's full checks run as `fullChecks` lists; `test(line, heading)` decides, where
+ * `heading` is the heading right above the line's paragraph ("" when none).
  */
 export const CONTRADICTIONS = [
   {
+    // The full command in a sentence that requires it before a commit or task end (a line under
+    // a heading that requires it counts too, unless the line says the command runs in CI).
     fullChecks: ['kit-ci'],
-    line: /cargo xtask ci\b|cargo test --workspace\b/,
-    context: /\bbefore (every|each|a|you) commit|\bbefore you (change|finish|end)\b|\bquality gates?\b/i,
+    test: (line, heading) =>
+      sentences(line).some((sentence) => FULL_COMMAND.test(sentence) && REQUIRES_LOCAL.test(sentence)) ||
+      (FULL_COMMAND.test(line) && REQUIRES_LOCAL.test(heading) && !IN_CI.test(line)),
     say: "asks for the full checks on this machine before a commit or a task; they run in the kit's CI run",
   },
   {
     fullChecks: ['kit-ci', 'ci'],
-    line: /\b(no|never|do not|don't)\b[^.]*?\b(CI|GitHub Actions)\b/i,
+    test: (line) => /\b(no|never|do not|don't)\b[^.]*?\b(CI|GitHub Actions)\b/i.test(line),
     say: 'forbids CI; the full checks run on GitHub',
+  },
+  {
+    fullChecks: ['kit-ci', 'ci', 'check'],
+    test: (line) => WORKTREE_ADVICE.test(line) && WORKTREE_FOR_AGENTS.test(line) && !WORKTREE_FORBIDDEN.test(line),
+    say: "advises git worktrees; agents commit on `main` in the repository's main checkout, one agent per repository at a time",
   },
 ]
 
@@ -102,7 +128,7 @@ export function contradictions(repo, fullChecks) {
     let heading = ''
     lines.forEach((line, index) => {
       for (const rule of rules) {
-        if (rule.line.test(line) && (!rule.context || rule.context.test(line) || rule.context.test(heading))) {
+        if (rule.test(line, heading)) {
           found.push(`warning: ${file}:${index + 1}: ${rule.say}: ${line.trim()}`)
         }
       }
@@ -144,6 +170,7 @@ function parseArgs(argv) {
   if (!validCommand(options.command)) usage('--command must be one line without backticks')
   options.name ??= data.name ?? dir
   options.fullChecks = data.fullChecks
+  options.xtask = data.xtask
   return options
 }
 
@@ -237,6 +264,7 @@ function plan(options) {
     check: options.command,
     check_shell: shellQuote(options.command),
     owner: options.owner,
+    xtask: options.xtask,
     ...fullCheckValues(options.fullChecks, options.command),
   }
   const at = (relative) => path.join(options.repo, relative)

@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-quality-no-xtask
+feature: sdk.quality.sync
+intent: >-
+  A kit without tools/xtask (kition-table, kition-html) has no `cargo xtask ci`, `gate`, `features`
+  or `eval`, and Kition's kit-ci.yml skips its `cargo xtask ci` step, but the generated
+  docs/quality.md, AGENTS.md and CONTRIBUTING named them. templates/quality/repositories.json says
+  `xtask: false` for such a repository, and every sentence says what runs instead: the kit CI's
+  fmt, clippy, `cargo test --workspace` and test scripts, the tests a case's steps name, a hand-kept
+  `cases` list, kition-sdk's tools/eval-cases.mjs. A kit with xtask keeps its sentences.
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (kition-table docs/quality.md, .github/CONTRIBUTING.md)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, -t, a kit without xtask]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-community.test.mjs, -t, only for a kit that has tools/xtask]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 120

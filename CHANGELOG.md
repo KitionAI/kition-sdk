@@ -4,6 +4,18 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The quality rules fit a kit without `cargo xtask`, and state the checkout rule once**:
+  `templates/quality/repositories.json` says `xtask: false` for a repository without
+  `tools/xtask` (kition-table, kition-html, kition-sdk, Kition, KHP), and its generated text names
+  what runs instead of `cargo xtask ci`, `gate`, `features` and `eval` (the kit CI's fmt, clippy,
+  `cargo test --workspace` and test scripts; the tests a case's steps name; a hand-kept `cases`
+  list; kition-sdk's `tools/eval-cases.mjs`) (regressions/issue-quality-no-xtask). The generated
+  AGENTS block's rule about kition-slide's worktrees is the workspace rule: commit on `main` in the
+  main checkout, no git worktrees, one agent per repository at a time
+  (regressions/issue-quality-worktree-rule). sync-quality's warning about the full checks on this
+  machine fires only where a sentence requires them before a commit, a push or a task's end, not on
+  any line with "quality gates" (regressions/issue-quality-contradiction-narrow), and it warns about
+  advice to give parallel agents separate git worktrees.
 - **The quality rules say where the full checks run**: since the kits' full checks moved to their
   CI run on GitHub, the template put a kit's pre-finish check (`cargo fmt --all -- --check`) into
   sentences written for `cargo xtask ci` ("an existing test that `cargo fmt --all -- --check`
