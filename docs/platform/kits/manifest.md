@@ -350,6 +350,19 @@ Requirements:
   a shorter outline. `kition-kits` reads it in `outline.rs`, and
   `kition-kits-http` serves it as `GET /kits/outline?path=`. A kit without
   parts omits `outline`. It is a platform field: KHP's manifest has none.
+- **K25** *(Kition platform)* `imports` lists the files of other kinds a kit
+  starts a document from: `extensions` (without the dot) and the `action` a
+  host offers on such a file. A host reads it to offer the action on any file
+  with one of the extensions, for every kit that declares it, without knowing
+  the kit. `project-from-clip`: the kit starts a project from a media file.
+  The host makes a new, empty document of the kit (its first `creates` entry)
+  beside the file, named after it, and runs two commands in it: `file.import`
+  with `{ "paths": [<the file's name>] }`, which answers `{ "items": [...] }`,
+  then `file.newSequenceFromClip` with `{ "items" }`, which puts the clip on a
+  sequence of the clip's own size and frame rate; a kit that declares the
+  action has both commands. The file itself is never changed. No `items` is a
+  failure the host reports, and it makes no sequence. `open-as-document` and
+  `place` are reserved: no host procedure is defined for them yet.
 
 ## Manifest for engine contract 2
 
