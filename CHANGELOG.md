@@ -4,6 +4,23 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The quality rules say where the full checks run**: since the kits' full checks moved to their
+  CI run on GitHub, the template put a kit's pre-finish check (`cargo fmt --all -- --check`) into
+  sentences written for `cargo xtask ci` ("an existing test that `cargo fmt --all -- --check`
+  already runs", "the commit is refused by" it). `templates/quality/repositories.json` now holds,
+  per repository, the pre-finish check (`check`) and where the full checks run (`fullChecks`: the
+  kit's CI run, the repository's own CI run, or the check itself, locally), and `docs/quality.md`,
+  `AGENTS.md` and the contributing guide and pull request template say each in its own sentences
+  (regressions/issue-quality-full-checks). The cases of the `gate` layer are "gating tests" in the
+  quality reference's prose.
+- **`node ../kition-sdk/tools/sync-quality.mjs .` needs no flag**: the title of `docs/quality.md` is
+  the repository's product name (from `templates/community/repositories.json`, or the quality
+  table's `name` where that file does not name it), not the folder name, and the owner is the
+  table's `@KitionAI/owners`; `--name` and `--owner` override them
+  (regressions/issue-quality-sync-defaults). Each run prints a `warning: <file>:<line>` for a line
+  of a repository's own `AGENTS.md` or `.claude/CLAUDE.md` text that contradicts the generated block
+  (asks for `cargo xtask ci` before a commit where the kit's CI run runs it, or forbids CI), without
+  failing (regressions/issue-quality-contradiction-warnings).
 - **A kit's expected previews are `conformance/expected/`**: the folder of the expected previews
   of `basic` and their `tolerance.json` was `conformance/golden/`; KHP renamed it before its first
   release, and the quality rules no longer use that word (a case's `source.kind` `golden-sample`

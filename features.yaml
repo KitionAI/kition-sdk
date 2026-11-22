@@ -1583,7 +1583,7 @@ features:
       - regressions/issue-expected-folder-rename
     since: "2026-11-16"
   - id: sdk.quality.sync
-    title: The quality rules, gate and Stop hook are generated into every repository from templates, with each repository's check command kept in one table
+    title: The quality rules, gate and Stop hook are generated into every repository from templates, with each repository's pre-finish check, where its full checks run, its owner and (where the community data does not give it) its name kept in one table, so the sync needs no flag and warns about the repository's own text that contradicts the rules
     dimension: [platform]
     priority: P1
     status: has
@@ -1591,6 +1591,7 @@ features:
     paths:
       - tools/sync-quality.mjs
       - tools/sync-quality.test.mjs
+      - tools/quality-repositories.mjs
       - tools/check-expected.mjs
       - tools/check-expected.test.mjs
       - templates/quality/**
@@ -1598,6 +1599,9 @@ features:
       - regressions/issue-quality-gate-command
       - sdk.quality.sync/old-locations
       - regressions/issue-expected-folder-rename-guard
+      - regressions/issue-quality-full-checks
+      - regressions/issue-quality-sync-defaults
+      - regressions/issue-quality-contradiction-warnings
     since: "2026-11-16"
   - id: sdk.quality.kit-matrix
     title: The kit matrix settles every kit against the kit requirements table, reading each kit's files where the layout standard puts them
@@ -1618,6 +1622,7 @@ features:
     paths:
       - tools/sync-community.mjs
       - tools/sync-community.test.mjs
+      - tools/quality-repositories.mjs
       - templates/community/**
     cases:
       - sdk.community.sync/generate-and-check

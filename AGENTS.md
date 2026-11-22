@@ -9,6 +9,9 @@
 - Before you finish any task, run `pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings`. If it fails, the task is not done. Claude Code
   runs it for you through the Stop hook; agents without hooks (Codex) run it by hand and
   report the real exit code.
+- The full checks and tests run on GitHub, in the repository's CI run (`.github/workflows/ci.yml`)
+  on every push to `main` and every pull request: watch the run of your push; a task whose commit
+  fails it is not done.
 - Never edit expected results to make a test pass: files under `cases/**/expected/`, paths
   listed under `protected` in `features.yaml`, and the `expected`, `tolerance`, `reference`,
   `input` and `steps` of an existing `case.yaml`. If you believe an expected result is wrong,

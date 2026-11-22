@@ -12,7 +12,7 @@
 
 set -uo pipefail
 
-CHECK_COMMAND={{command_shell}}
+CHECK_COMMAND={{check_shell}}
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG_FILE="${TMPDIR:-/tmp}/kition-quality-gate-$(basename "$REPO_DIR").log"
 

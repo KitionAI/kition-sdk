@@ -18,9 +18,20 @@ in a package directory and inspect its file list and packed `package.json`.
 ## Repository templates
 
 `templates/quality/` and `templates/community/` hold the files that Kition repositories share.
-`node tools/sync-quality.mjs <repo> --owner <owner> --name <title>` writes the quality rules
-(`docs/quality.md`, the section at the top of `AGENTS.md`, `.claude/CLAUDE.md`, the Claude Code
-Stop hook). `node tools/sync-community.mjs <repo>` writes the community files (in `.github/` the
+`node tools/sync-quality.mjs <repo>` writes the quality rules (`docs/quality.md`, the section at
+the top of `AGENTS.md`, `.claude/CLAUDE.md`, the Claude Code Stop hook, the `CODEOWNERS` block); a
+repository runs `node ../kition-sdk/tools/sync-quality.mjs .` from its root, with no flags. Its
+values come from `templates/quality/repositories.json`, by the repository's directory name: the
+owner, the local pre-finish check (`check`, what the Stop hook runs), and where the full checks run
+(`fullChecks`: `kit-ci`, the kit's CI run on GitHub; `ci`, the repository's own CI run; `check`, the
+check itself, locally), so that no sentence about the full checks names the pre-finish check. The
+title of `docs/quality.md` is the product name from `templates/community/repositories.json` (the
+entry's title, or the family product whose `repo` it is), or the table's `name` for a repository
+that file does not name. `--name` and `--owner` override them; `--command` gives the check of a
+repository not in the table. On every run it prints a `warning: <file>:<line>` for each line of
+the repository's own `AGENTS.md` and `.claude/CLAUDE.md` text that contradicts the generated block
+(a kit's text that still asks for `cargo xtask ci` before a commit, or forbids CI), without failing.
+`node tools/sync-community.mjs <repo>` writes the community files (in `.github/` the
 contributing guide, the code of conduct, the security and
 support policies, the issue forms, and the pull request template) from the repository's entry in
 `templates/community/repositories.json`, and lists where its `README.md` departs from the README

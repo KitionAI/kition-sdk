@@ -2,16 +2,30 @@
 // Writes the quality rules from templates/quality/ into one repository. Running it again
 // changes nothing; when a template changes, running it again updates every generated part.
 //
-//   node tools/sync-quality.mjs <repo> --owner <@user-or-@org/team> [--name <title>]
-//        [--command <check command>] [--verify]
+//   node tools/sync-quality.mjs <repo> [--verify] [--owner <@user-or-@org/team>] [--name <title>]
+//        [--command <check command>]
 //
-//   --owner    the CODEOWNERS owner of expected results and the rule files (required)
-//   --name     the title used in docs/quality.md (default: the repository's directory name)
-//   --command  the check an agent runs before it ends a task (default: the repository's entry in
-//              templates/quality/repositories.json, by its directory name, else cargo xtask ci;
-//              a --command that disagrees with that entry is refused)
+// Every value comes from the data, by the repository's directory name (tools/quality-repositories.mjs
+// reads it), so a repository in templates/quality/repositories.json needs no flag:
+//   node ../kition-sdk/tools/sync-quality.mjs .
+//
 //   --verify   write nothing; exit 1 when a file is missing or differs from the templates, or a
 //              file is left at an old location
+//   --owner    overrides the CODEOWNERS owner of expected results and the rule files (default: the
+//              table's owner)
+//   --name     overrides the title of docs/quality.md (default: the product name, from
+//              templates/community/repositories.json or the table; else the directory name)
+//   --command  the local pre-finish check, for a repository not in the table (default
+//              cargo xtask ci); a --command that disagrees with the table's check is refused
+//
+// The table also says where the repository's full checks run (fullChecks: the kit's CI run on
+// GitHub, the repository's CI run, or the check itself, locally); the templates say so in their own
+// sentences, so no sentence about the full checks names the pre-finish check.
+//
+// Warnings (never a failure, on every run): a line of AGENTS.md or .claude/CLAUDE.md outside the
+// generated block that contradicts it (CONTRADICTIONS: a kit's own text that still asks for the
+// old local full check before a commit, or forbids CI where the full checks run on GitHub) is
+// printed as "warning: <file>:<line>: ...", for a person or the next agent to fix by hand.
 //
 // What it writes, relative to <repo>:
 //   docs/quality.md               the quality reference (a generated block)
@@ -32,6 +46,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { fullCheckValues, qualityRepository, validCommand } from './quality-repositories.mjs'
+import { fill } from './sync-community.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const templates = path.join(root, 'templates', 'quality')
@@ -46,14 +62,54 @@ const MOVED = [
 
 function usage(message) {
   if (message) console.error(`sync-quality: ${message}`)
-  console.error('usage: sync-quality.mjs <repo> --owner <@owner> [--name <title>] [--command <cmd>] [--verify]')
+  console.error('usage: sync-quality.mjs <repo> [--verify] [--owner <@owner>] [--name <title>] [--command <cmd>]')
   process.exit(2)
 }
 
-/** The check command templates/quality/repositories.json gives the repository named `name`, if any. */
-function listedCommand(name) {
-  const table = JSON.parse(fs.readFileSync(path.join(templates, 'repositories.json'), 'utf8'))
-  return Object.hasOwn(table.commands, name) ? table.commands[name] : null
+/**
+ * Lines outside the generated blocks that contradict them, in one place. Each rule applies where
+ * the repository's full checks run as `fullChecks` lists; `line` must match the line, and
+ * `context`, when given, the line itself or the heading right above it (such as
+ * "### Quality gates (before every commit)" over a paragraph).
+ */
+export const CONTRADICTIONS = [
+  {
+    fullChecks: ['kit-ci'],
+    line: /cargo xtask ci\b|cargo test --workspace\b/,
+    context: /\bbefore (every|each|a|you) commit|\bbefore you (change|finish|end)\b|\bquality gates?\b/i,
+    say: "asks for the full checks on this machine before a commit or a task; they run in the kit's CI run",
+  },
+  {
+    fullChecks: ['kit-ci', 'ci'],
+    line: /\b(no|never|do not|don't)\b[^.]*?\b(CI|GitHub Actions)\b/i,
+    say: 'forbids CI; the full checks run on GitHub',
+  },
+]
+
+/** Generated blocks blanked out (their lines kept, so line numbers stay true). */
+const outsideBlocks = (text) => text.replace(new RegExp(BLOCK.source, 'gm'), (block) => block.replace(/[^\n]/g, ''))
+
+/** "warning: <file>:<line>: ..." for each CONTRADICTIONS line of AGENTS.md and .claude/CLAUDE.md. */
+export function contradictions(repo, fullChecks) {
+  const rules = CONTRADICTIONS.filter((rule) => rule.fullChecks.includes(fullChecks))
+  const found = []
+  for (const file of ['AGENTS.md', '.claude/CLAUDE.md']) {
+    const full = path.join(repo, file)
+    if (file !== 'AGENTS.md' && linksTo(full, path.join(repo, 'AGENTS.md'))) continue
+    const text = read(full)
+    if (text === null) continue
+    const lines = outsideBlocks(text).split('\n')
+    let heading = ''
+    lines.forEach((line, index) => {
+      for (const rule of rules) {
+        if (rule.line.test(line) && (!rule.context || rule.context.test(line) || rule.context.test(heading))) {
+          found.push(`warning: ${file}:${index + 1}: ${rule.say}: ${line.trim()}`)
+        }
+      }
+      if (line.trim()) heading = /^#{1,6} /.test(line) ? line : ''
+    })
+  }
+  return found
 }
 
 function parseArgs(argv) {
@@ -72,28 +128,30 @@ function parseArgs(argv) {
   if (rest.length !== 1) usage('give exactly one repository directory')
   options.repo = path.resolve(rest[0])
   if (!fs.existsSync(options.repo) || !fs.statSync(options.repo).isDirectory()) usage(`${rest[0]} is not a directory`)
-  if (!options.owner) usage('--owner is required')
-  if (!/^@[A-Za-z0-9-]+(\/[A-Za-z0-9._-]+)?$/.test(options.owner)) usage('--owner must look like @user or @org/team')
-  const listed = listedCommand(path.basename(options.repo))
-  if (listed !== null && options.command !== undefined && options.command !== listed) {
-    usage(`templates/quality/repositories.json gives ${path.basename(options.repo)} the command ${listed}; change it there, not with --command`)
+  const dir = path.basename(options.repo)
+  let data
+  try {
+    data = qualityRepository(dir)
+  } catch (error) {
+    usage(error.message)
   }
-  options.command ??= listed ?? 'cargo xtask ci'
-  if (!options.command.trim() || /[\r\n`]/.test(options.command)) usage('--command must be one line without backticks')
-  options.name ??= path.basename(options.repo)
+  if (data.listed && options.command !== undefined && options.command !== data.check) {
+    usage(`templates/quality/repositories.json gives ${dir} the check ${data.check}; change it there, not with --command`)
+  }
+  options.owner ??= data.owner
+  if (!/^@[A-Za-z0-9-]+(\/[A-Za-z0-9._-]+)?$/.test(options.owner)) usage('--owner must look like @user or @org/team')
+  options.command ??= data.check
+  if (!validCommand(options.command)) usage('--command must be one line without backticks')
+  options.name ??= data.name ?? dir
+  options.fullChecks = data.fullChecks
   return options
 }
 
 /** Quotes a string for bash, single quotes and all. */
 const shellQuote = (value) => `'${value.replaceAll("'", `'\\''`)}'`
 
-function render(file, values) {
-  const text = fs.readFileSync(path.join(templates, file), 'utf8')
-  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    if (!(key in values)) throw new Error(`${file}: unknown placeholder ${match}`)
-    return values[key]
-  })
-}
+/** Fills a template: {{name}} values, {{#flag}}…{{/flag}} and {{^flag}}…{{/flag}} sections (sync-community's syntax). */
+const render = (file, values) => fill(fs.readFileSync(path.join(templates, file), 'utf8'), values, `templates/quality/${file}`)
 
 /** Wraps generated text in markers; `comment` turns a marker line into a comment. */
 function block(body, comment) {
@@ -174,7 +232,13 @@ function linksTo(link, target) {
 }
 
 function plan(options) {
-  const values = { name: options.name, command: options.command, command_shell: shellQuote(options.command), owner: options.owner }
+  const values = {
+    name: options.name,
+    check: options.command,
+    check_shell: shellQuote(options.command),
+    owner: options.owner,
+    ...fullCheckValues(options.fullChecks, options.command),
+  }
   const at = (relative) => path.join(options.repo, relative)
   const files = [
     {
@@ -240,8 +304,10 @@ function main() {
     if (file.mode !== undefined) fs.chmodSync(file.full, file.mode)
     console.log(`${verb}: ${file.path}`)
   }
+  // After the writes, so that the line numbers are those of the files as they are now.
+  for (const line of contradictions(options.repo, options.fullChecks)) console.log(line)
   if (changed.length === 0 && moved.length === 0) console.log('sync-quality: up to date')
   process.exit(options.verify && changed.length + moved.length > 0 ? 1 : 0)
 }
 
-main()
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) main()

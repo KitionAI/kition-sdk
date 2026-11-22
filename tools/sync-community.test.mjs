@@ -399,6 +399,19 @@ describe('repositories.json', () => {
     }
   })
 
+  it("says where the full checks run: a kit's CI run, the repository's CI run, or nowhere but the check", () => {
+    const files = (name) => Object.fromEntries(generate(entryValues(name)).map((file) => [file.path, file.text]))
+    const kit = files('kition-design')
+    expect(kit['.github/CONTRIBUTING.md']).toContain("```sh\ncargo fmt --all -- --check\n```\n\nThe full checks and tests run on GitHub, in the kit's CI run, for your pull request too\n")
+    expect(kit['.github/pull_request_template.md']).toContain("- [ ] `cargo fmt --all -- --check` exits 0\n- [ ] The kit's CI run passes on this pull request\n")
+    const sdk = files('kition-sdk')
+    expect(sdk['.github/CONTRIBUTING.md']).toContain("The full checks and tests run on GitHub, in the repository's CI run (`.github/workflows/ci.yml`),\nfor your pull request too")
+    expect(sdk['.github/pull_request_template.md']).toContain("- [ ] The repository's CI run passes on this pull request\n")
+    const fonts = files('kition-fonts')
+    for (const text of [fonts['.github/CONTRIBUTING.md'], fonts['.github/pull_request_template.md']]) expect(text).not.toMatch(/CI run/)
+    expect(fonts['.github/pull_request_template.md']).toContain('- [ ] `cargo test` exits 0\n')
+  })
+
   it('gives each kit the one-sentence description of the descriptions standard: "Kition <Name>: …, for people and AI agents"', () => {
     for (const [name, entry] of Object.entries(data.repositories).filter(([, entry]) => entry.profile === 'kit')) {
       expect(entry.description.startsWith(`${entry.title}: `), name).toBe(true)

@@ -12,6 +12,12 @@ Describe the change and why it is useful.
 ## Verification
 
 - [ ] `{{check}}` exits 0
+{{#kitCi}}
+- [ ] The kit's CI run passes on this pull request
+{{/kitCi}}
+{{#repoCi}}
+- [ ] The repository's CI run passes on this pull request
+{{/repoCi}}
 {{#quality}}
 - [ ] Added or updated a case (`cases/`) or a test, or explained why one was not needed; a bug fix
       starts with a failing case under `cases/regressions/`

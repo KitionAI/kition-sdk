@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-quality-sync-defaults
+feature: sdk.quality.sync
+intent: >-
+  tools/sync-quality.mjs titles docs/quality.md with the repository's product name (its title in
+  templates/community/repositories.json, the family product that lives in it, or the quality table's
+  name) and takes the CODEOWNERS owner from the quality table, so `node ../kition-sdk/tools/sync-quality.mjs .`
+  needs no flag and --verify passes without one; --name and --owner still override. Before, the
+  title defaulted to the folder name, so kits disagreed ("Kition Cad" in some, "kition-cad" in others)
+  and --owner was required.
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (docs/quality.md titles of kition-cad, -doc, -html, -photo, -vector)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, -t, takes the title and the owner from the data]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

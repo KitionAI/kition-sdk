@@ -64,6 +64,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { FAMILY_TITLE, familyBlock, findBlocks, kitFormats, readFamily, withoutFamily } from './kition-family.mjs'
+import { fullCheckValues, qualityRepository, validCommand } from './quality-repositories.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const templates = path.join(root, 'templates', 'community')
@@ -135,12 +136,6 @@ function parseArgs(argv) {
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 
-/** The check command templates/quality/repositories.json gives `name`, else the default. */
-function qualityCommand(name) {
-  const table = readJson(path.join(root, 'templates', 'quality', 'repositories.json'))
-  return Object.hasOwn(table.commands, name) ? table.commands[name] : 'cargo xtask ci'
-}
-
 /** Fills a template: sections first (innermost last), then values. Throws on unknown names. */
 export function fill(text, values, where) {
   const lookup = (name) => {
@@ -202,8 +197,10 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
   if (entry.quality && entry.check !== undefined) {
     fail(name, 'the check command of a repository with docs/quality.md lives in templates/quality/repositories.json')
   }
-  const check = entry.quality ? qualityCommand(name) : entry.check
-  if (typeof check !== 'string' || !check.trim() || /[\r\n`]/.test(check)) fail(name, 'check must be one line without backticks')
+  // A repository with docs/quality.md takes its check, and where its full checks run, from the quality table.
+  const quality = entry.quality ? qualityRepository(name, { community: data }) : { check: entry.check, fullChecks: 'check' }
+  const check = quality.check
+  if (!validCommand(check)) fail(name, 'check must be one line without backticks')
   const keep = entry.keep.map((pattern) => {
     const matches = FILES.filter((file) =>
       pattern.endsWith('/*') ? path.posix.dirname(file.path) === pattern.slice(0, -2) : file.path === pattern,
@@ -228,6 +225,7 @@ export function entryValues(name, data = readJson(path.join(templates, 'reposito
     docsName: entry.docsName,
     developerLink: entry.developerLink,
     check,
+    ...fullCheckValues(quality.fullChecks, check),
     quality: entry.quality,
     changelog: entry.changelog,
     hasWeb: entry.hasWeb,

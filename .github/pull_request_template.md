@@ -11,6 +11,7 @@ Describe the change and why it is useful.
 ## Verification
 
 - [ ] `pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` exits 0
+- [ ] The repository's CI run passes on this pull request
 - [ ] Added or updated a case (`cases/`) or a test, or explained why one was not needed; a bug fix
       starts with a failing case under `cases/regressions/`
 - [ ] A new feature has an entry in `features.yaml`

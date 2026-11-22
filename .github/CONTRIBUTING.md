@@ -38,6 +38,9 @@ Before you open a pull request, run the check; it must exit 0:
 pnpm -s typecheck && pnpm -s test && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
 ```
 
+The full checks and tests run on GitHub, in the repository's CI run (`.github/workflows/ci.yml`),
+for your pull request too; it must pass before the pull request merges.
+
 ## Rules
 
 The full rules are in [AGENTS.md](../AGENTS.md), and [docs/quality.md](../docs/quality.md) is the

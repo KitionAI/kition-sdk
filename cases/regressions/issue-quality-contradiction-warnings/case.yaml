@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-quality-contradiction-warnings
+feature: sdk.quality.sync
+intent: >-
+  A repository's own AGENTS.md or .claude/CLAUDE.md text outside the generated block can contradict
+  it: a kit whose full checks run in its CI run still said "Quality gates (before every commit):
+  `cargo xtask ci`" and "Never add or run CI in this repository". sync-quality prints each such line
+  as "warning: <file>:<line>" on every run, --verify included, from one list of rules
+  (CONTRADICTIONS), and never fails for it; a repository whose full checks are local gets no warning.
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (kition-design AGENTS.md and .claude/CLAUDE.md)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, -t, contradict the generated block]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

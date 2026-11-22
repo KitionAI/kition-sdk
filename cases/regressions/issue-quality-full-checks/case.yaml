@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-quality-full-checks
+feature: sdk.quality.sync
+intent: >-
+  A repository's local pre-finish check (what the Stop hook runs) and where its full checks run (the
+  kit's CI run on GitHub, the repository's own CI run, or the check itself, locally) are two values
+  in templates/quality/repositories.json, and docs/quality.md, AGENTS.md and the community files say
+  each in its own sentences. Before, the template put the check command into sentences written for
+  cargo xtask ci, so after the kit-CI change a kit's docs/quality.md said a unit test is one "that
+  `cargo fmt --all -- --check` already runs" and that a commit "is refused by" the fmt check.
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (kition-design, kition-layout docs/quality.md)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/sync-quality.test.mjs, tools/sync-community.test.mjs, -t, "where the full checks run|a kit-CI repository|a local-checks repository|full checks run in its own CI|reads the quality table"]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120
