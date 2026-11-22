@@ -2,14 +2,15 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { KitEngine, type KitAgentStep, type KitEngineInfo, type KitToolMethod } from './kitEngine'
 import type { KitModuleManifest } from './kitModule'
 import type { KitHost } from './kitHost'
-import { mergeDamage, type RasterRect } from './rasterViewport'
+import { NOTHING, owedDamage } from './owedDamage'
+import type { RasterRect } from './rasterViewport'
 import { replicaToOpen, writeWithReplica } from './replica'
 import { ReadOnlyError } from './readOnly'
 import type { Origin } from '@kition/kdm'
 
 /**
  * One or more edits the canvas has not been handed yet: `revision` moves by one with each refresh,
- * and `damage` is what they owe together (`mergeDamage`): the canvas repaints that area, everything
+ * and `damage` is what they owe together (`owedDamage`): the canvas repaints that area, everything
  * when it is null, nothing when it is the empty area. React may take several refreshes in one
  * render; their areas are merged, never replaced by the last one's.
  */
@@ -57,13 +58,22 @@ export function toolDamage(answer: unknown): RasterRect | null {
   return finite && (x1 as number) > (x0 as number) && (y1 as number) > (y0 as number) ? { x0: x0 as number, y0: y0 as number, x1: x1 as number, y1: y1 as number } : null
 }
 
-/** A canvas repaint asked for without a document change: `tick` moves with each, `damage` limits it. */
+/**
+ * One or more canvas repaints asked for without a document change, that the canvas has not
+ * committed yet: `tick` moves by one with each, and `damage` is what they owe together
+ * (`owedDamage`, as `KitChange`'s): the canvas repaints that area, everything when it is null,
+ * nothing when it is the empty area.
+ */
 export type KitRepaint = { tick: number; damage: RasterRect | null }
 
 /** A store of `KitRepaint`s the canvas subscribes to, so a repaint renders nothing else. */
 export type KitRepaints = { get: () => KitRepaint; subscribe: (listener: () => void) => () => void }
 
+/** Each session's `repaints`, to the store behind it: `repaintTaken` reaches it. */
+const REPAINT_STORES = new WeakMap<KitRepaints, ReturnType<typeof repaintStore>>()
+
 function repaintStore() {
+  const owed = owedDamage()
   let current: KitRepaint = { tick: 0, damage: null }
   const listeners = new Set<() => void>()
   return {
@@ -73,10 +83,22 @@ function repaintStore() {
       return () => void listeners.delete(listener)
     },
     bump(damage: RasterRect | null) {
-      current = { tick: current.tick + 1, damage }
+      const tick = owed.add(damage)
+      current = { tick, damage: owed.total() }
       for (const listener of listeners) listener()
     },
+    taken(tick: number) {
+      owed.paid(tick)
+    },
   }
+}
+
+/**
+ * The canvas committed `repaints`' repaint numbered `tick` (`KitDocumentCanvas`, a layout effect):
+ * the areas it holds are no longer owed. A store that is not a session's is left alone.
+ */
+export function repaintTaken(repaints: KitRepaints, tick: number) {
+  REPAINT_STORES.get(repaints)?.taken(tick)
 }
 
 /**
@@ -138,9 +160,6 @@ export function isFileChangedError(error: unknown): error is FileChangedError {
   return error instanceof Error && error.name === 'FileChangedError'
 }
 
-/** A repaint of nothing: the state is refreshed, the pixels are known to be unchanged. */
-const NOTHING: RasterRect = { x0: 0, y0: 0, x1: 0, y1: 0 }
-
 /** How often an active tab checks whether something else (the agent) replaced the file. */
 const FILE_CHECK_MS = 2000
 
@@ -186,12 +205,13 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
   repaintsRef.current ??= repaintStore()
   const repaints = repaintsRef.current
 
-  // The repaints owed: each refresh's area, in order, until a change that holds it is committed.
+  // The repaints owed (`owedDamage`): each refresh's area, until a change that holds it is committed.
   // A change holds every area owed when React computed it (`covered`, by the last one's number), so
   // two refreshes taken in one render repaint what both owe: a press that changed the document
   // (everything) then a release that changed nothing (the empty area) still repaints everything.
-  const owedRef = useRef<Array<{ seq: number; damage: RasterRect | null }>>([])
-  const seqRef = useRef(0)
+  const owedRef = useRef<ReturnType<typeof owedDamage> | null>(null)
+  owedRef.current ??= owedDamage()
+  const owed = owedRef.current
   const coveredRef = useRef(new WeakMap<KitChange, number>())
 
   const refresh = useCallback((damage: RasterRect | null = null) => {
@@ -200,22 +220,20 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     setInfo(current.info)
     setState(describeRef.current(current.info))
     setDirty(current.info.dirty)
-    seqRef.current += 1
-    owedRef.current.push({ seq: seqRef.current, damage })
+    owed.add(damage)
     setChange((previous) => {
-      const owed = owedRef.current
       // An area a change committed earlier already took: nothing is left to repaint for it.
-      const next: KitChange = { revision: previous.revision + 1, damage: owed.reduce<RasterRect | null>((sum, entry) => mergeDamage(sum, entry.damage), NOTHING) }
-      coveredRef.current.set(next, owed.length ? owed[owed.length - 1].seq : 0)
+      const next: KitChange = { revision: previous.revision + 1, damage: owed.total() }
+      coveredRef.current.set(next, owed.last())
       return next
     })
-  }, [])
+  }, [owed])
 
   // A committed change was handed to the canvas: the areas it holds are no longer owed.
   useLayoutEffect(() => {
     const covered = coveredRef.current.get(change)
-    if (covered) owedRef.current = owedRef.current.filter((entry) => entry.seq > covered)
-  }, [change])
+    if (covered) owed.paid(covered)
+  }, [change, owed])
 
   /** Reads the file into a new document and swaps it in; the old one stays on screen until then. */
   const load = useCallback(async (isCurrent: () => boolean) => {
@@ -538,7 +556,11 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     if (stamp) stampRef.current = stamp
   }, [host, path])
 
-  const repaintView: KitRepaints = useMemo(() => ({ get: repaints.get, subscribe: repaints.subscribe }), [repaints])
+  const repaintView: KitRepaints = useMemo(() => {
+    const view = { get: repaints.get, subscribe: repaints.subscribe }
+    REPAINT_STORES.set(view, repaints)
+    return view
+  }, [repaints])
 
   return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, save, replica, model, draft, reopen, keepMine, checkFile, holdFile }
 }

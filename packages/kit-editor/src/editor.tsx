@@ -18,6 +18,7 @@ import type { useKitSession } from './useKitSession'
 import type { KitCommand } from './engine/kitModule'
 import { commandForShortcut } from './engine/kitShortcuts'
 import { KitCanvas, type KitCanvasHandle, type KitCanvasView } from './engine/KitCanvas'
+import { repaintTaken } from './engine/useKitDocument'
 import type { RasterDecoration, RasterRect, RasterView, RasterViewportStats } from './engine/rasterViewport'
 import { HAND_TOOL, type KitTool } from './engine/kitTools'
 import { stackDecorations } from './engine/decorations'
@@ -1140,6 +1141,9 @@ export function KitDocumentCanvas({
   const [renderFailure, setRenderFailure] = useState<{ doc: typeof doc; message: string } | null>(null)
   // Repaints without a document change render this canvas only, not the editor around it.
   const repaint = useSyncExternalStore(repaints.subscribe, repaints.get)
+  // Once committed, the areas this repaint holds are no longer owed (several ticks taken in one
+  // render hold what all of them owe).
+  useLayoutEffect(() => repaintTaken(repaints, repaint.tick), [repaints, repaint])
   const { t } = editor
   // The engine's overlays first, the kit's decoration over them.
   const engineOverlays = tools?.decorate ?? null

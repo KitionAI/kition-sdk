@@ -196,12 +196,14 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     // eslint-disable-next-line react-hooks/exhaustive-deps -- repaint once per change
   }, [change])
 
-  // A repaint without a document change: the pixels only, once per tick.
+  // A repaint without a document change: the pixels only, once per tick. Its damage is what the
+  // ticks since the last one committed owe together; the empty area paints nothing.
   const repainted = useRef(repaint?.tick ?? 0)
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport || !repaint || repaint.tick === repainted.current) return
     repainted.current = repaint.tick
+    if (repaint.damage && isEmptyArea(repaint.damage)) return
     viewport.invalidate()
     void (repaint.damage ? viewport.renderArea(repaint.damage) : viewport.render())
   }, [repaint])

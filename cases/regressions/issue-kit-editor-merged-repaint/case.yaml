@@ -1,0 +1,27 @@
+format: 1
+id: regressions/issue-kit-editor-merged-repaint
+feature: sdk.editor.merged-repaints
+intent: >-
+  The repaint store (`refresh: 'repaint'`, KitRepaint: kition-film's playhead, kition-html's click,
+  kition-scene's presence and progressive render) replaced the area of its tick with the last
+  tick's, so when React took several ticks in one render the canvas repainted only the last one's
+  area: everything then the empty area painted nothing, two areas painted only the second. The
+  ticks' areas are now owed as the document refresh's are (owedDamage): merged until the canvas
+  commits a tick holding them; the whole canvas wins, the empty area adds nothing, two areas give
+  the rectangle covering both, the empty area alone paints nothing and an area already painted is
+  not owed again.
+layer: gate
+source:
+  kind: issue
+  from: kition-sdk b8fcc7d (the document refresh's rule; the repaint store left with the last tick's area)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/useKitDocument.repaint.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 120

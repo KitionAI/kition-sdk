@@ -12,7 +12,11 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   merged until a change holding them is committed: the whole canvas wins, the empty area adds
   nothing, two areas give the rectangle covering both. `KitCanvas` paints nothing for the empty
   area, and `RasterViewport.patch` no longer stretches the area waiting for it toward 0, 0
-  (regressions/issue-kit-editor-merged-damage).
+  (regressions/issue-kit-editor-merged-damage). The repaint store (`refresh: 'repaint'`,
+  `KitRepaint`) follows the same rule (one implementation, `owedDamage`): a tick's `damage` is what
+  the ticks since the last one the canvas committed owe together, so a playhead, a click or a
+  progressive render step is no longer lost behind the tick after it; `KitCanvas` paints nothing
+  for a repaint of the empty area (regressions/issue-kit-editor-merged-repaint).
 - **check-expected warns about expected files nothing protects**: a tracked file whose name says it
   is an expected result (`expected_*`, `*_expected.*`, `*.expected.*`, `*fingerprints*`, `*.snap`)
   outside every `expected/` folder and `protected` glob is printed as a warning (and listed under
