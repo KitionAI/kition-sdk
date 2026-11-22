@@ -106,6 +106,36 @@ describe('check-expected', () => {
     expect(report.findings['expected-deleted']).toEqual([{ path: 'conformance/expected/tolerance.json', reason: 'expected result deleted' }])
   })
 
+  // regressions/issue-unprotected-expected-names: a single expected file outside an expected/
+  // folder (kition-film's transitions/expected_fingerprints.txt) was protected only if the kit
+  // listed it under `protected`. Files whose name says they are expected results are listed as
+  // warnings, which are not findings and do not change the exit code.
+  it('warns about files whose name says they are expected results that nothing protects', () => {
+    const { dir } = repo({
+      'features.yaml': 'format: 1\nkit: film\nprotected:\n  - data/run.expected.json\nfeatures: []\n',
+      'crates/render/src/transitions/expected_fingerprints.txt': 'fade 1a2b\n',
+      'crates/effects/tests/sim_expected.rs': 'const HASH: u64 = 1;\n',
+      'web/tests/grid.expected.png': 'png\n',
+      'data/run.expected.json': '{}\n',
+      'conformance/expected/expected_basic.png': 'png\n',
+      'tests/__snapshots__/a.snap': 'snap\n',
+      'crates/render/src/fingerprints.rs': 'pub fn fingerprint() {}\n',
+      'docs/unexpected.md': 'text\n',
+    })
+    const { code, report } = run(dir)
+    expect(code).toBe(0)
+    expect(report.total).toBe(0)
+    expect(report.warnings.map((warning) => warning.path)).toEqual([
+      'crates/effects/tests/sim_expected.rs',
+      'crates/render/src/transitions/expected_fingerprints.txt',
+      'web/tests/grid.expected.png',
+    ])
+    expect(report.warnings[0].reason).toBe('its name says it is an expected result, but no expected/ folder or `protected` glob of features.yaml protects it')
+    const text = spawnSync(process.execPath, [tool, '--repo', dir, 'base..HEAD'], { encoding: 'utf8' })
+    expect(text.status).toBe(0)
+    expect(text.stdout).toContain('warning: crates/render/src/transitions/expected_fingerprints.txt: its name says it is an expected result')
+  })
+
   it('reports a deleted assertion', () => {
     const { dir, commit } = repo({ 'crates/doc/tests/comments.rs': RUST_TEST })
     commit({ 'crates/doc/tests/comments.rs': RUST_TEST.replace('    assert!(doc.is_valid());\n', '') })

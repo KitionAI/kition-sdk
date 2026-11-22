@@ -287,4 +287,8 @@ kition-sdk's `tools/check-expected.mjs` lists, for a range of commits, every add
 deleted expected result and every weakened test (deleted assertions or tests, added
 `#[ignore]`, `.skip`, `.only` or `.todo`). Reviewers run it on every candidate;
 anything it lists goes to the maintainers and is never merged automatically.
+It also warns about every tracked file whose name says it is an expected result
+(`expected_*`, `*_expected.*`, `*.expected.*`, `*fingerprints*`, `*.snap`) that is neither in an
+`expected/` folder nor matched by `protected`, such as a single expected file next to its test:
+list such a file under `protected` in `features.yaml`.
 <!-- kition-quality:end -->

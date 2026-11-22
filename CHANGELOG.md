@@ -4,6 +4,11 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **check-expected warns about expected files nothing protects**: a tracked file whose name says it
+  is an expected result (`expected_*`, `*_expected.*`, `*.expected.*`, `*fingerprints*`, `*.snap`)
+  outside every `expected/` folder and `protected` glob is printed as a warning (and listed under
+  `warnings` with `--json`); it is not a finding and does not change the exit code
+  (regressions/issue-unprotected-expected-names).
 - **A parameter note the notation cannot read is a test failure, not a missing parameter**:
   kition-design's `id?/ids?` (meant as `id?, ids?`) was read as no key, so its commands had no
   `ids` and refused what the editor sent. `kition_kit::schema::Conversion::unreadable` lists every

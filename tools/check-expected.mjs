@@ -21,6 +21,11 @@
 //
 // Expected-results paths: the globs below (EXPECTED_GLOBS) and the `protected` globs of
 // features.yaml (both sides of the range). Exit 0: nothing found; 1: findings; 2: usage or git error.
+//
+// Warnings (never a finding, never the exit code): every file tracked at <head> whose name says it
+// is an expected result (EXPECTED_NAMES: expected_*, *_expected.*, *.expected.*, *fingerprints*,
+// *.snap) and that no expected-results path protects, such as a single expected file next to a
+// test; list it under `protected` in features.yaml (or move it into an expected/ folder).
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -31,6 +36,10 @@ const EXPECTED_GLOBS = [
   '**/*-snapshots/**',
   '**/*.baseline.json',
 ]
+// Names that say a file holds expected results, wherever it is (matched on the file name).
+// `fingerprints` in a source file's name is code that computes them, not a result.
+const EXPECTED_NAMES = [/^expected[_-]/i, /[_-]expected\./i, /\.expected\./i, /fingerprints/i, /\.snap$/i]
+const SOURCE = /\.(rs|[cm]?[jt]sx?|py|go|swift|kt|java|c|cc|cpp|h|hpp)$/i
 const GUARDED_CASE_FIELDS = ['expected', 'tolerance', 'reference', 'input', 'steps']
 const KINDS = ['expected-added', 'expected-changed', 'expected-deleted', 'tests-weakened']
 
@@ -309,7 +318,20 @@ function check(repo, base, head) {
     if (status === 'D' && TEST_FILE.test(from)) reasons.unshift('test file deleted')
     if (reasons.length > 0) add('tests-weakened', file, reasons.join('; '))
   }
-  return { base, head, mergeBase, files: entries.length, findings }
+  const protectedNow = [...EXPECTED_GLOBS, ...protectedGlobs(featuresAfter)].map(globToRegExp)
+  const warnings = git(repo, ['ls-tree', '-r', '--name-only', head])
+    .split('\n')
+    .filter((file) => {
+      const name = path.posix.basename(file)
+      if (!file || !EXPECTED_NAMES.some((pattern) => pattern.test(name))) return false
+      if (/fingerprints/i.test(name) && !EXPECTED_NAMES.some((pattern) => !/fingerprints/.test(pattern.source) && pattern.test(name)) && SOURCE.test(name)) return false
+      return !protectedNow.some((matcher) => matcher.test(file))
+    })
+    .map((file) => ({
+      path: file,
+      reason: 'its name says it is an expected result, but no expected/ folder or `protected` glob of features.yaml protects it',
+    }))
+  return { base, head, mergeBase, files: entries.length, findings, warnings }
 }
 
 function main() {
@@ -331,6 +353,7 @@ function main() {
       console.log(`${kind}:`)
       for (const finding of report.findings[kind]) console.log(`  ${finding.path}: ${finding.reason}`)
     }
+    for (const warning of report.warnings) console.log(`warning: ${warning.path}: ${warning.reason}`)
     console.log(
       total === 0
         ? 'check-expected: no expected-result changes and no weakened tests'

@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-unprotected-expected-names
+feature: sdk.quality.sync
+intent: >-
+  tools/check-expected.mjs protects files under an expected/ folder and the `protected` globs of
+  features.yaml, so a single expected file elsewhere (kition-film's
+  transitions/expected_fingerprints.txt) could change unseen. It warns about every tracked file
+  whose name says it is an expected result (expected_*, *_expected.*, *.expected.*,
+  *fingerprints*, *.snap) that nothing protects, without a finding and without changing the exit
+  code.
+layer: gate
+source:
+  kind: issue
+  from: kit syncs of 2026-11-21 (kition-film crates/render/render/src/transitions/expected_fingerprints.txt)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/check-expected.test.mjs, -t, warns about files whose name says they are expected results]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 120
