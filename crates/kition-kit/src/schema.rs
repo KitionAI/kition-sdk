@@ -115,7 +115,8 @@ fn convert_object(body: &str, one_of_several_forms: bool, schema: &mut Map<Strin
     let mut precise = 0;
     for entry in split_top(body, ',') {
         let entry = entry.trim();
-        if entry.is_empty() || entry == "…" || entry == "..." {
+        // `…` (or `...`, or `…the options of document.export`): more keys, said for people, not one.
+        if entry.is_empty() || entry.starts_with('…') || entry.starts_with("...") {
             continue;
         }
         // `"time":ticks|"frame":i64|"seconds":f64`: alternative keys, one property each.
@@ -1243,6 +1244,7 @@ mod tests {
             "{name?|title?: text}",
             "{to?: [x,y] | delta: [dx,dy]}",
             "{a, …}",
+            "{a, …the options of document.export}",
             "{}",
             "",
         ] {
