@@ -1,6 +1,6 @@
 format: 1
 kit: sdk
-updated: "2026-11-21"
+updated: "2026-11-22"
 gate_budget_s: 600
 features:
   - id: sdk.agent.close-completion
@@ -2237,3 +2237,15 @@ features:
     cases:
       - sdk.editor.lazy-fonts/loader
     since: "2026-11-18"
+  - id: sdk.dev-host.watch-page
+    title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens
+    dimension: [robustness]
+    priority: P2
+    status: has
+    paths:
+      - packages/kit-dev-host/src/watchPage.mjs
+      - packages/kit-dev-host/src/watchPage.test.mjs
+      - packages/kit-dev-host/src/modeSmoke.mjs
+    cases:
+      - sdk.dev-host.watch-page/close-and-crash
+    since: "2026-11-22"

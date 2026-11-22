@@ -25,7 +25,7 @@ import { Replica } from '@kition/sdk/kdm'
 | `@kition/sdk/editor` | The kit editor shell, with `/editor/styles.css` and `/editor/workspaceTree`; needs React and Kition Tessera |
 | `@kition/sdk/engine` | The kit engine harness for TypeScript kit engines |
 | `@kition/sdk/host` | The Kit UI protocol host |
-| `@kition/sdk/dev-host` | The development host, with `/dev-host/check-ui-ids`, `/dev-host/mode-smoke` and `/dev-host/line-row` |
+| `@kition/sdk/dev-host` | The development host, with `/dev-host/check-ui-ids`, `/dev-host/mode-smoke`, `/dev-host/line-row` and `/dev-host/watch-page` |
 | `@kition/sdk/protocol` | The Kit UI protocol's types and messages |
 | `@kition/sdk/convergence` | Convergence checks of a kit engine, with `/convergence/node` |
 

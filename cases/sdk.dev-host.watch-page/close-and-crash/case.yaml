@@ -1,0 +1,25 @@
+format: 1
+id: sdk.dev-host.watch-page/close-and-crash
+feature: sdk.dev-host.watch-page
+intent: >-
+  A kit's browser test that fails with "Target page, context or browser has been closed" says
+  which step was running and who closed what: watchPage always prints a page's crash with the
+  step set last, prints a close of the page, its context or its browser only when the test did
+  not call close() on one of them (or closing()), and stop() removes its listeners. runModeSmoke
+  watches each page it opens, so a page crashing while the editor opens prints that step.
+layer: gate
+dimension: robustness
+source:
+  kind: synthetic
+  from: SDK dev-host tests
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-dev-host/src/watchPage.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-22"

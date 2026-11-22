@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./check-ui-ids": "./src/checkUiIds.mjs",
     "./mode-smoke": "./src/modeSmoke.mjs",
-    "./line-row": "./src/lineRow.mjs"
+    "./line-row": "./src/lineRow.mjs",
+    "./watch-page": "./src/watchPage.mjs"
   },
   "files": [
     "dist"
@@ -43,7 +44,8 @@
       },
       "./check-ui-ids": { "types": "./dist/types/src/checkUiIds.d.mts", "import": "./dist/checkUiIds.mjs" },
       "./mode-smoke": { "types": "./dist/types/src/modeSmoke.d.mts", "import": "./dist/modeSmoke.mjs" },
-      "./line-row": { "types": "./dist/types/src/lineRow.d.mts", "import": "./dist/lineRow.mjs" }
+      "./line-row": { "types": "./dist/types/src/lineRow.d.mts", "import": "./dist/lineRow.mjs" },
+      "./watch-page": { "types": "./dist/types/src/watchPage.d.mts", "import": "./dist/watchPage.mjs" }
     }
   },
   "main": "./dist/index.js",

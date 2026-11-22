@@ -20,11 +20,34 @@ startDevHost({ sample: './sample/Sample.md', entry: './index.html', presence: tr
 const state = await page.evaluate(() => window.devHost.connection()?.state())
 ```
 
-Three subpaths run in Node with Playwright:
+Four subpaths run in Node with Playwright:
 
 - `@kition/kit-dev-host/check-ui-ids`: `checkUiIds`, which checks that every control of the editor carries an element id the editor lists.
-- `@kition/kit-dev-host/mode-smoke`: `runModeSmoke`, a smoke test of the editor in each display mode.
+- `@kition/kit-dev-host/mode-smoke`: `runModeSmoke`, a smoke test of the editor in each display mode. It watches each page it opens with `watchPage`.
 - `@kition/kit-dev-host/line-row`: `lineRowReport` and `focusBarReport`, what the Single line row and the Focus bar show.
+- `@kition/kit-dev-host/watch-page`: `watchPage`, which says which step a test was running when its page crashed or was closed under it.
+
+`watchPage(page, { name?, log?, now? })` returns `{ step(label), current, closing(), stop() }`.
+Call `step(label)` before each step. A crash of the page is always printed (to `console.error`,
+or `log`) with the step running then and how long it had run. A close of the page, its context or
+its browser is printed only when the test did not close it itself: watchPage wraps `close()` of
+those three objects, so a `close()` the test calls on any of them is not printed, while the
+page's own `window.close()`, a browser process that exits, or a close through another handle is.
+The page's line says whether its context and browser were still open. Call `closing()` before a
+close that does not go through those objects, and `stop()` to remove the listeners. Playwright
+reports a crash as "Target crashed" and a close as "Target page, context or browser has been
+closed"; these lines tell which step and which object.
+
+```js
+import { watchPage } from '@kition/kit-dev-host/watch-page'
+
+const watch = watchPage(page, { name: 'kit.sheet' })
+watch.step('open the comments panel')
+await frame.getByTestId('comments').click()
+// watchPage: kit.sheet: the page was closed, not by the test, during "open the comments panel" (2310 ms into the step; http://127.0.0.1:5173/dev.html); its context is open, the browser is connected
+await context.close() // not printed
+watch.stop()
+```
 
 Documentation: https://developer.kition.ai/docs
 

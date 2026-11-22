@@ -29,10 +29,13 @@
 // shows Menus whatever mode is chosen, and its mode button enters Focus itself; the smoke expects
 // that of it.
 //
-// Prints PASS or FAIL per step; sets a failing exit code when a step failed.
+// Prints PASS or FAIL per step; sets a failing exit code when a step failed. Each page is watched
+// with watchPage (./watchPage.mjs): a crash, or a close the smoke did not make, prints the step
+// running then.
 
 import { mkdir } from 'node:fs/promises'
 import { focusBarReport, lineRowReport } from './lineRow.mjs'
+import { watchPage } from './watchPage.mjs'
 
 /** Whether the kit's frame draws tabs (or menus), waiting up to 5 s for tabs built from the engine's commands. */
 async function hasTabs(frame) {
@@ -71,8 +74,10 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
     for (const mode of ['menus', 'line', 'classic']) {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
       const page = await context.newPage()
+      const watch = watchPage(page, { name: kit })
       const errors = []
       page.on('pageerror', (error) => errors.push(error.message))
+      watch.step(`${mode}: open the editor`)
       await page.goto(`${origin}/dev.html?modes=${mode},focus&locale=${locale}`)
       await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes(' open in '), null, { timeout: 90000 })
       const frame = page.frameLocator('#kit')
@@ -82,13 +87,16 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
       const expected = tabs ? mode : 'menus'
       const shown = await modeOnce(page, expected)
       step(`${mode}: shows ${expected}${tabs ? '' : ' (no tabs)'}`, shown === expected, shown ?? 'no frame')
+      watch.step(`${mode}: Cmd+\\ enters Focus`)
       await app.focus()
       await page.keyboard.press(`${await primaryModifier(page)}+Backslash`)
       step(`${mode}: Cmd+\\ enters Focus`, (await app.getAttribute('data-mode')) === 'focus' && (await frame.locator('.kui-focus-bar').count()) === 1)
+      watch.step(`${mode}: Escape leaves Focus`)
       await page.keyboard.press('Escape')
       step(`${mode}: Escape leaves Focus`, (await app.getAttribute('data-mode')) === expected)
       const modeButton = frame.locator('.kui-mode-button')
       if (await modeButton.count()) {
+        watch.step(`${mode}: the mode ${tabs ? 'menu' : 'button'} enters Focus`)
         await modeButton.click()
         if (tabs) await frame.locator('[data-testid$="-mode-focus"]').click()
         step(`${mode}: the mode ${tabs ? 'menu' : 'button'} enters Focus`, (await app.getAttribute('data-mode')) === 'focus')
@@ -96,6 +104,7 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
         step(`${mode}: Escape leaves Focus entered from the ${tabs ? 'menu' : 'button'}`, (await app.getAttribute('data-mode')) === expected)
       }
       if (mode === 'line') {
+        watch.step('line: no test id twice in the row')
         const kitFrame = await (await page.$('#kit')).contentFrame()
         const repeated = () =>
           kitFrame.evaluate(() => {
@@ -106,6 +115,7 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
         step('line: no test id twice in the row', closed.length === 0, closed.join(', '))
         const opener = frame.locator('.kui-line-more, .kui-line-collapsed').first()
         if (await opener.count()) {
+          watch.step('line: no test id twice with a popover open')
           await opener.click()
           const open = await repeated()
           step('line: no test id twice with a popover open', open.length === 0, open.join(', '))
@@ -113,15 +123,19 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
         }
       }
       step(`${mode}: no page errors`, errors.length === 0, errors.join('; '))
+      watch.step(`${mode}: close the context`)
       await context.close()
+      watch.stop()
     }
     const shots = process.env.KUI_SHOTS
     if (shots) await mkdir(shots, { recursive: true })
     for (const width of [1165, 749]) {
       const context = await browser.newContext({ viewport: { width, height: 900 } })
       const page = await context.newPage()
+      const watch = watchPage(page, { name: kit })
       const errors = []
       page.on('pageerror', (error) => errors.push(error.message))
+      watch.step(`classic ${width}: open the editor`)
       await page.goto(`${origin}/dev.html?modes=classic,line,menus,focus&locale=${locale}`)
       await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes(' open in '), null, { timeout: 90000 })
       const frame = page.frameLocator('#kit')
@@ -133,6 +147,7 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
       if (tabs) step(`classic ${width}: Classic fits (the ribbon gives way, the frame does not step down)`, shown === 'classic', shown ?? 'no frame')
       else step(`classic ${width}: an editor without tabs shows Menus`, shown === 'menus', shown ?? 'no frame')
       if (shots) await page.screenshot({ path: `${shots}/${kit}-classic-${width}.png` })
+      watch.step(`focus ${width}: enter Focus and read the Focus bar`)
       await app.focus()
       await page.keyboard.press(`${await primaryModifier(page)}+Backslash`)
       await page.waitForTimeout(300)
@@ -141,18 +156,23 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
       step(`focus ${width}: the Focus bar covers none of the kit's controls`, covered.length === 0, covered.join(', '))
       if (shots) await page.screenshot({ path: `${shots}/${kit}-focus-${width}.png` })
       step(`classic and focus ${width}: no page errors`, errors.length === 0, errors.join('; '))
+      watch.step(`classic and focus ${width}: close the context`)
       await context.close()
+      watch.stop()
     }
     if (line) {
       for (const width of [1440, 1024]) {
         const context = await browser.newContext({ viewport: { width, height: 900 } })
         const page = await context.newPage()
+        const watch = watchPage(page, { name: kit })
         const errors = []
         page.on('pageerror', (error) => errors.push(error.message))
+        watch.step(`line ${width}: open the editor`)
         await page.goto(`${origin}/dev.html?modes=line,menus,classic,focus&locale=${locale}`)
         await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes(' open in '), null, { timeout: 90000 })
         const frame = page.frameLocator('#kit')
         const app = frame.locator('.kui-app')
+        watch.step(`line ${width}: select ${line.tab ?? 'the first tab'} and read the row`)
         await page.waitForTimeout(300)
         if (line.tab && (await app.getAttribute('data-mode')) === 'line') await frame.getByTestId(`ribbon-tab-${line.tab}`).click()
         // The frame measures the row after drawing it, and steps down after that.
@@ -167,7 +187,9 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
         step(`line ${width}: no button is cut off outside the row`, report.clipped.length === 0, report.clipped.join(', '))
         if (shots) await page.screenshot({ path: `${shots}/${kit}-line-${width}.png` })
         step(`line ${width}: no page errors`, errors.length === 0, errors.join('; '))
+        watch.step(`line ${width}: close the context`)
         await context.close()
+        watch.stop()
       }
     }
   } finally {
