@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-unreadable-param-notes
+feature: sdk.testing.unknown-params
+intent: >-
+  A command's parameter notation entry with no key the parser reads (kition-design's `id?/ids?`,
+  meant as `id?, ids?`) was dropped silently, so the command had no such parameter and strict
+  refusal rejected what the editor sent. from_kit_params lists such entries as written
+  (Conversion::unreadable) and still converts the keys around them, and check_commands names the
+  command and each entry as a problem when the schema is the notation's.
+layer: gate
+source:
+  kind: issue
+  from: kition-design 63db689 (Copy fill, OpenType features, prototype interactions did nothing)
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: schema::tests::entries_with_no_key_the_notation_reads_are_listed_as_written }
+  - cargo-test: { package: kition-kit, filter: command_tests::a_notation_entry_with_no_key_it_reads_fails_naming_the_command_and_the_entry }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-22"
+timeout_s: 60

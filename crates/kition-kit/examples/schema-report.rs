@@ -3,7 +3,8 @@
 //! `cargo run -p kition-kit --example schema-report -- commands.json` reads a JSON list of
 //! `{ "id", "params" }` (a kit's `commands()`), converts every `params` with
 //! `kition_kit::schema::from_kit_params`, validates the result, and prints the coverage and the
-//! commands that need attention.
+//! commands that need attention, among them every note with no key it can read (an error of
+//! `kition_kit::testing::check_commands`).
 use kition_kit::schema::{from_kit_params, validate};
 use serde_json::Value;
 
@@ -13,6 +14,7 @@ fn main() -> Result<(), String> {
     let commands: Vec<Value> = serde_json::from_str(&text).map_err(|error| format!("{path}: {error}"))?;
     let (mut converted, mut failed, mut properties, mut precise, mut invalid) = (0usize, Vec::new(), 0usize, 0usize, Vec::new());
     let mut loose = Vec::new();
+    let mut unreadable = Vec::new();
     for command in &commands {
         let id = command["id"].as_str().unwrap_or("?");
         let params = command["params"].as_str().unwrap_or("");
@@ -22,6 +24,7 @@ fn main() -> Result<(), String> {
                     invalid.push(format!("{id}: {error}"));
                     continue;
                 }
+                unreadable.extend(result.unreadable.iter().map(|note| format!("{id}: `{note}`")));
                 converted += 1;
                 properties += result.properties;
                 precise += result.precise;
@@ -46,9 +49,15 @@ fn main() -> Result<(), String> {
     for line in invalid.iter().take(8) {
         println!("  INVALID: {line}");
     }
+    for line in &unreadable {
+        println!("  UNREADABLE: {line}");
+    }
     loose.sort_by_key(|entry| std::cmp::Reverse(entry.clone()));
     for (count, id) in loose.iter().take(6) {
         println!("  loosest: {id} ({count} untyped)");
     }
-    if invalid.is_empty() { Ok(()) } else { Err(format!("{} invalid schemas", invalid.len())) }
+    if !invalid.is_empty() {
+        return Err(format!("{} invalid schemas", invalid.len()));
+    }
+    if unreadable.is_empty() { Ok(()) } else { Err(format!("{} notes with no key the notation reads", unreadable.len())) }
 }

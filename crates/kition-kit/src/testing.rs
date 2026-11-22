@@ -277,7 +277,11 @@ const MIN_DESCRIPTION_WORDS: usize = 4;
 /// - every `no_output` entry names an offered read command that has no output schema, and gives a
 ///   reason, so the list cannot go stale;
 /// - a command's `targets` names one of its parameters that is an id or a list of ids
-///   ([`crate::schema::check_targets`]).
+///   ([`crate::schema::check_targets`]);
+/// - a command whose schema comes from its `params` notation ([`crate::KitCommand::with_kit_schema`])
+///   has no entry there without a key the notation reads ([`crate::schema::Conversion::unreadable`]):
+///   such an entry (`id?/ids?` for `id?, ids?`, `deviceFrame? bool` for `deviceFrame?: bool`) gives
+///   the schema no parameter, so [`crate::schema::refuse_unknown`] refuses the call that passes it.
 ///
 /// Returns every problem, one line each. A kit runs it from its own tests:
 ///
@@ -301,6 +305,9 @@ pub fn check_commands(commands: &[crate::KitCommand], no_output: &[(&str, &str)]
             problems.push(format!("{}: the description only repeats the title", command.id));
         } else if description.split_whitespace().count() < MIN_DESCRIPTION_WORDS {
             problems.push(format!("{}: the description `{description}` is too short to say what the command does", command.id));
+        }
+        if let Some(problem) = unreadable_notes(command) {
+            problems.push(problem);
         }
         if let Some(name) = command.targets {
             match &command.schema {
@@ -332,6 +339,23 @@ pub fn check_commands(commands: &[crate::KitCommand], no_output: &[(&str, &str)]
         }
     }
     if problems.is_empty() { Ok(()) } else { Err(problems) }
+}
+
+/// The problem of a command whose schema comes from its `params` notation and whose notation has
+/// entries with no key the parser reads ([`check_commands`]), naming the command and each entry.
+fn unreadable_notes(command: &crate::KitCommand) -> Option<String> {
+    let converted = crate::schema::from_kit_params(command.params.as_deref()?).ok()?;
+    let schema = command.schema.as_ref()?;
+    if converted.unreadable.is_empty() || (*schema != converted.schema && *schema != converted.required_schema()) {
+        return None;
+    }
+    let notes = converted.unreadable.iter().map(|note| format!("`{note}`")).collect::<Vec<_>>().join(", ");
+    Some(format!(
+        "{}: the parameter notation has entries with no key it reads: {notes}; the schema has no parameter for them, so a call that \
+         passes one is refused as unknown. Write each key as its own entry, separated by commas, with `:` before its type \
+         (`id?, ids?`, not `id?/ids?`; `deviceFrame?: bool`, not `deviceFrame? bool`)",
+        command.id
+    ))
 }
 
 /// Checks the editor-state hooks ([`KitDocument::editor_state`], [`KitDocument::set_context`],
@@ -810,6 +834,47 @@ mod command_tests {
         assert_eq!(check_commands(std::slice::from_ref(&zoom), &[("view.zoomIn", "moves the view only")]), Ok(()));
         let unoffered = KitCommand { schema: None, ..zoom.clone() };
         assert_eq!(check_commands(&[unoffered], &[]), Ok(()), "a command no agent is offered needs no output schema");
+    }
+
+    // regressions/issue-unreadable-param-notes: kition-design's `id?/ids?` was read as no key at
+    // all, so the commands had no `ids` and refused what the editor sent. An entry the notation
+    // cannot read is a problem that names the command and the entry; a hand-written schema is the
+    // kit's own and is not compared with the notation.
+    #[test]
+    fn a_notation_entry_with_no_key_it_reads_fails_naming_the_command_and_the_entry() {
+        let mut copy = KitCommand {
+            id: "fill.copy".into(),
+            title: "Copy fill".into(),
+            description: "Copies the fill of a layer so it can be pasted on others.".into(),
+            params: Some("{features: {tag: bool}, id?/ids?, deviceFrame? bool, index?}".into()),
+            mutates: true,
+            enabled: true,
+            ..Default::default()
+        }
+        .with_kit_schema();
+        let schema = copy.schema.clone().unwrap();
+        assert!(schema.get("features").is_some() && schema.get("index").is_some(), "{schema}");
+        assert!(schema.get("ids").is_none() && schema.get("deviceFrame").is_none(), "{schema}");
+        let problems = check_commands(std::slice::from_ref(&copy), &[]).unwrap_err();
+        assert_eq!(
+            problems,
+            vec![
+                "fill.copy: the parameter notation has entries with no key it reads: `id?/ids?`, `deviceFrame? bool`; the schema has no \
+                 parameter for them, so a call that passes one is refused as unknown. Write each key as its own entry, separated by commas, \
+                 with `:` before its type (`id?, ids?`, not `id?/ids?`; `deviceFrame?: bool`, not `deviceFrame? bool`)"
+                    .to_owned()
+            ]
+        );
+        // Opted in to required parameters, the schema still comes from the notation.
+        let mut required = KitCommand { schema: None, notation_required: true, ..copy.clone() }.with_kit_schema();
+        assert_eq!(check_commands(std::slice::from_ref(&required), &[]).unwrap_err().len(), 1);
+        // The notation fixed: no problem.
+        copy = KitCommand { schema: None, params: Some("{features: {tag: bool}, id?, ids?, deviceFrame?: bool, index?}".into()), ..copy }.with_kit_schema();
+        assert_eq!(check_commands(std::slice::from_ref(&copy), &[]), Ok(()));
+        assert!(copy.schema.as_ref().unwrap().get("ids").is_some());
+        // A schema the kit writes itself is not the notation's: not compared.
+        required.schema = Some(json!({ "id": { "type": "string" }, "ids": { "type": "array", "items": { "type": "string" } } }));
+        assert_eq!(check_commands(std::slice::from_ref(&required), &[]), Ok(()));
     }
 
     #[test]

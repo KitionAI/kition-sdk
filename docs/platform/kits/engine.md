@@ -311,3 +311,11 @@ These rules bound the work performed by kit engines.
   (an id the kit's inspect lists, or that the command has no default; A48).
   `cargo run -p kition-kit --example schema-report -- commands.json` reports a
   kit's coverage.
+
+  An entry with no key the notation reads (`id?/ids?` where `id?, ids?` was
+  meant; `deviceFrame? bool` for `deviceFrame?: bool`; `"frame"? | "dx"?`)
+  gives the converted schema no parameter, so a host refuses a call that
+  passes it as unknown. The converter lists such entries, as written, in
+  `Conversion::unreadable`; `kition_kit::testing::check_commands` names each
+  as a problem of its command (for a command whose schema is the notation's),
+  and `schema-report` lists them and exits non-zero.

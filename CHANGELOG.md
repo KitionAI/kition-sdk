@@ -4,6 +4,12 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A parameter note the notation cannot read is a test failure, not a missing parameter**:
+  kition-design's `id?/ids?` (meant as `id?, ids?`) was read as no key, so its commands had no
+  `ids` and refused what the editor sent. `kition_kit::schema::Conversion::unreadable` lists every
+  such entry as written, `kition_kit::testing::check_commands` names each with its command (for a
+  command whose schema is the notation's), and the `schema-report` example lists them and exits
+  non-zero (regressions/issue-unreadable-param-notes).
 - **The quality rules fit a kit without `cargo xtask`, and state the checkout rule once**:
   `templates/quality/repositories.json` says `xtask: false` for a repository without
   `tools/xtask` (kition-table, kition-html, kition-sdk, Kition, KHP), and its generated text names

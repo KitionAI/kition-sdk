@@ -34,6 +34,11 @@ pub struct Conversion {
     /// notes, and not one of several alternative keys or forms: what [`Conversion::required_schema`]
     /// marks required. In the notation's order.
     pub required: Vec<String>,
+    /// The top-level entries the notation gives no key the parser can read (`id?/ids?`, where
+    /// `id?, ids?` was meant), each as written: the schema has no parameter for them, so
+    /// [`refuse_unknown`] refuses a call that passes one. [`crate::testing::check_commands`] names
+    /// each as a problem of its command.
+    pub unreadable: Vec<String>,
 }
 
 impl Conversion {
@@ -60,11 +65,12 @@ pub fn from_kit_params(text: &str) -> Result<Conversion, String> {
     let mut schema = Map::new();
     let mut precise = 0;
     let mut required = Vec::new();
+    let mut unreadable = Vec::new();
     for body in &forms {
-        precise += convert_object(body, forms.len() > 1, &mut schema, &mut required);
+        precise += convert_object(body, forms.len() > 1, &mut schema, &mut required, &mut unreadable);
     }
     let properties = schema.len();
-    Ok(Conversion { schema: Value::Object(schema), properties, precise: precise.min(properties), required })
+    Ok(Conversion { schema: Value::Object(schema), properties, precise: precise.min(properties), required, unreadable })
 }
 
 /// `{"hidden":[label]}|{"color":label}`: a command that takes one of several whole forms. Every
@@ -103,8 +109,9 @@ fn object_end(text: &str) -> Option<usize> {
 
 /// Adds one object form's properties to `schema` (a key another form already gave keeps that
 /// definition), and to `required` those the notation marks neither optional nor defaulted
-/// ([`Conversion::required`]), and answers how many were typed precisely.
-fn convert_object(body: &str, one_of_several_forms: bool, schema: &mut Map<String, Value>, required: &mut Vec<String>) -> usize {
+/// ([`Conversion::required`]), and to `unreadable` the entries with no key it can read
+/// ([`Conversion::unreadable`]), and answers how many were typed precisely.
+fn convert_object(body: &str, one_of_several_forms: bool, schema: &mut Map<String, Value>, required: &mut Vec<String>, unreadable: &mut Vec<String>) -> usize {
     let mut precise = 0;
     for entry in split_top(body, ',') {
         let entry = entry.trim();
@@ -116,6 +123,7 @@ fn convert_object(body: &str, one_of_several_forms: bool, schema: &mut Map<Strin
         let alternative = alternatives.len() > 1;
         for part in &alternatives {
             let Some((key, expression)) = key_and_expression(part) else {
+                unreadable.push(part.trim().to_owned());
                 continue;
             };
             let (mut node, typed) = if expression.is_empty() {
@@ -1218,6 +1226,28 @@ mod tests {
         assert_eq!(check_targets(&schema, "objects"), Ok(TargetArity::Many));
         let refused = check_targets(&schema, "mixed").err().unwrap_or_default();
         assert!(refused.contains("`mixed`"), "{refused}");
+    }
+
+    // regressions/issue-unreadable-param-notes: an entry with no key the notation reads is not
+    // dropped silently: the conversion lists it, as written, and the keys around it still convert.
+    #[test]
+    fn entries_with_no_key_the_notation_reads_are_listed_as_written() {
+        let converted = from_kit_params("{replace? (clear others first), id?/ids?, \"frame\"? | \"dx\"?, spacing? [x, y], name?: str}").unwrap();
+        assert_eq!(converted.unreadable, vec!["id?/ids?", "\"frame\"? | \"dx\"?", "spacing? [x, y]"]);
+        let keys: Vec<&String> = converted.schema.as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec!["name", "replace"], "the readable keys still convert");
+        for readable in [
+            "{id?, ids?}",
+            "{\"layer\":id?,\"mode\":\"normal|multiply\"=\"normal\"}",
+            "{x, y, width, radius?: pt, ids?}",
+            "{name?|title?: text}",
+            "{to?: [x,y] | delta: [dx,dy]}",
+            "{a, …}",
+            "{}",
+            "",
+        ] {
+            assert_eq!(from_kit_params(readable).unwrap().unreadable, Vec::<String>::new(), "{readable}");
+        }
     }
 
     /// the notation marks a parameter optional with `?` (after the key or the type) or gives

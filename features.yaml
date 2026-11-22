@@ -1551,8 +1551,10 @@ features:
     status: has
     paths:
       - crates/kition-kit/src/testing.rs
+      - crates/kition-kit/src/schema.rs
     cases:
       - regressions/issue-unknown-params
+      - regressions/issue-unreadable-param-notes
     since: "2026-11-16"
   - id: sdk.testing.ai-cases
     title: Kits check their eval cases with a dry run that calls no model; only a maintainer starts a real run (F-QA-16)
