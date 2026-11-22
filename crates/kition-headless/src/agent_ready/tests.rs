@@ -161,34 +161,16 @@ fn a_two_colour_preview_and_an_info_on_a_new_document_pass() {
     let _ = std::fs::remove_dir_all(repo);
 }
 
-// regressions/issue-expected-folder-rename: the expected previews are conformance/expected/. While
-// the kits move from the old name one by one, a kit with only the old folder still passes; both
-// folders at once fail, naming them; with neither, the tolerance is missing under the new name.
+// regressions/issue-expected-folder-rename: the expected previews and their tolerance are
+// conformance/expected/; without it, the tolerance is missing there.
 #[test]
-fn the_expected_previews_are_read_from_expected_and_the_old_folder_only_alone() {
+fn the_expected_previews_are_read_from_expected() {
     BLANK.set(Severity::Info);
     let repo = repo("expected-folder");
-    let (expected, old) = (repo.join("conformance/expected"), repo.join(format!("conformance/{}", super::EXPECTED_BEFORE_RENAME)));
-    assert_eq!(check(&repo), Ok(()), "expected/ alone");
-
-    std::fs::rename(&expected, &old).unwrap();
-    assert_eq!(check(&repo), Ok(()), "the old folder alone, until every kit has moved");
-    std::fs::remove_file(old.join("tolerance.json")).unwrap();
+    assert_eq!(check(&repo), Ok(()), "expected/");
+    std::fs::remove_dir_all(repo.join("conformance/expected")).unwrap();
     let failures = check(&repo).unwrap_err();
-    assert!(has(&failures, &format!("package: conformance/{}/tolerance.json is missing", super::EXPECTED_BEFORE_RENAME)), "{failures:#?}");
-    std::fs::write(old.join("tolerance.json"), b"{}").unwrap();
-
-    std::fs::create_dir_all(&expected).unwrap();
-    std::fs::write(expected.join("tolerance.json"), b"{}").unwrap();
-    let failures = check(&repo).unwrap_err();
-    let both = format!("package: conformance/expected/ and conformance/{}/ are both there", super::EXPECTED_BEFORE_RENAME);
-    assert!(has(&failures, &both), "{failures:#?}");
-    assert!(!failures.iter().any(|failure| failure.contains("tolerance.json is missing")), "{failures:#?}");
-
-    std::fs::remove_dir_all(&old).unwrap();
-    std::fs::remove_dir_all(&expected).unwrap();
-    let failures = check(&repo).unwrap_err();
-    assert!(has(&failures, "package: conformance/expected/tolerance.json is missing"), "neither: {failures:#?}");
+    assert!(has(&failures, "package: conformance/expected/tolerance.json is missing"), "{failures:#?}");
     let _ = std::fs::remove_dir_all(repo);
 }
 

@@ -25,11 +25,9 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   of `basic` and their `tolerance.json` was `conformance/golden/`; KHP renamed it before its first
   release, and the quality rules no longer use that word (a case's `source.kind` `golden-sample`
   is `reference-sample`; the conformance suite's `--golden` is `--expected`).
-  `kition_headless::agent_ready::check` reads `expected/`, and, while the kits move one at a time,
-  the old folder when it is the only one; both at once fail. `tools/check-expected.mjs` protects
-  `conformance/expected/` through its `**/expected/**` glob and keeps the old folder name protected
-  until every kit has moved; both transition branches are removed then (features.yaml gaps of
-  sdk.testing.agent-ready and sdk.quality.sync) (regressions/issue-expected-folder-rename,
+  `kition_headless::agent_ready::check` reads `expected/` only, and `tools/check-expected.mjs`
+  protects `conformance/expected/` through its `**/expected/**` glob; neither reads the old folder
+  name, since all 16 kits have moved (regressions/issue-expected-folder-rename,
   regressions/issue-expected-folder-rename-guard).
 - **A list window holds which objects are in it, not their order**: a kit's ordinal `within`
   window refused any move of a member by another writer, so the motion kit's all-mask assignment

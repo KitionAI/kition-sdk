@@ -1571,7 +1571,6 @@ features:
     dimension: [ai, function]
     priority: P1
     status: has
-    gap: "Transition: a kit's expected previews are conformance/expected/ (renamed from conformance/golden/ before the first release); agent_ready::check still reads the old folder when it is the only one (EXPECTED_BEFORE_RENAME), so a kit can move to this SDK before it renames its folder. Remove that branch once every kit has conformance/expected/"
     paths:
       - crates/kition-headless/src/agent_ready.rs
       - crates/kition-headless/src/agent_ready/tests.rs
@@ -1587,7 +1586,6 @@ features:
     dimension: [platform]
     priority: P1
     status: has
-    gap: "Transition: tools/check-expected.mjs still protects folders of the old name of expected results (BEFORE_RENAME_GLOBS: golden/, goldens/), which the kits rename to expected/ one at a time. Remove that list once no kit has such a folder"
     paths:
       - tools/sync-quality.mjs
       - tools/sync-quality.test.mjs

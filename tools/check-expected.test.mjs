@@ -94,32 +94,16 @@ describe('check-expected', () => {
     expect(report.findings['tests-weakened']).toEqual([])
   })
 
-  // regressions/issue-expected-folder-rename: a kit's expected previews are conformance/expected/;
-  // the old folder name stays protected until every kit has moved, and the move itself is listed.
-  it('protects conformance/expected/, the old folder name until the kits have moved, and lists the rename', () => {
-    // The old name, read only during the rename (check-expected.mjs BEFORE_RENAME_GLOBS).
-    const old = 'conformance/golden/'
-    {
-      const { dir, commit } = repo({ 'conformance/expected/basic.png': 'png 1\n', 'conformance/expected/tolerance.json': '{}\n' })
-      commit({ 'conformance/expected/basic.png': 'png 2\n', 'conformance/expected/basic-scale-2.png': 'png 3\n', 'conformance/expected/tolerance.json': null })
-      const { code, report } = run(dir)
-      expect(code).toBe(1)
-      expect(report.findings['expected-changed']).toEqual([{ path: 'conformance/expected/basic.png', reason: 'expected result changed' }])
-      expect(report.findings['expected-added']).toEqual([{ path: 'conformance/expected/basic-scale-2.png', reason: 'new expected result' }])
-      expect(report.findings['expected-deleted']).toEqual([{ path: 'conformance/expected/tolerance.json', reason: 'expected result deleted' }])
-    }
-    {
-      const { dir, commit } = repo({ [`${old}basic.png`]: 'png 1\n' })
-      commit({ [`${old}basic.png`]: 'png 2\n' })
-      expect(run(dir).report.findings['expected-changed']).toEqual([{ path: `${old}basic.png`, reason: 'expected result changed' }])
-    }
-    {
-      const { dir, commit } = repo({ [`${old}basic.png`]: 'png 1\n' })
-      commit({ [`${old}basic.png`]: null, 'conformance/expected/basic.png': 'png 1\n' })
-      const { code, report } = run(dir)
-      expect(code).toBe(1)
-      expect(report.findings['expected-changed']).toEqual([{ path: 'conformance/expected/basic.png', reason: `renamed from ${old}basic.png` }])
-    }
+  // regressions/issue-expected-folder-rename-guard: a kit's expected previews are
+  // conformance/expected/, protected like every expected/ folder.
+  it('protects conformance/expected/', () => {
+    const { dir, commit } = repo({ 'conformance/expected/basic.png': 'png 1\n', 'conformance/expected/tolerance.json': '{}\n' })
+    commit({ 'conformance/expected/basic.png': 'png 2\n', 'conformance/expected/basic-scale-2.png': 'png 3\n', 'conformance/expected/tolerance.json': null })
+    const { code, report } = run(dir)
+    expect(code).toBe(1)
+    expect(report.findings['expected-changed']).toEqual([{ path: 'conformance/expected/basic.png', reason: 'expected result changed' }])
+    expect(report.findings['expected-added']).toEqual([{ path: 'conformance/expected/basic-scale-2.png', reason: 'new expected result' }])
+    expect(report.findings['expected-deleted']).toEqual([{ path: 'conformance/expected/tolerance.json', reason: 'expected result deleted' }])
   })
 
   it('reports a deleted assertion', () => {

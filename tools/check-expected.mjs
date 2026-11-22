@@ -19,9 +19,8 @@
 //   tests-weakened    deleted assertions or tests, deleted test files, and added skip, ignore,
 //                     only or todo markers (Rust, JavaScript and TypeScript, Python)
 //
-// Expected-results paths: the globs below (EXPECTED_GLOBS and, while the kits move, the old
-// names of expected-results folders) and the `protected` globs of features.yaml (both sides of
-// the range). Exit 0: nothing found; 1: findings; 2: usage or git error.
+// Expected-results paths: the globs below (EXPECTED_GLOBS) and the `protected` globs of
+// features.yaml (both sides of the range). Exit 0: nothing found; 1: findings; 2: usage or git error.
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -32,12 +31,6 @@ const EXPECTED_GLOBS = [
   '**/*-snapshots/**',
   '**/*.baseline.json',
 ]
-// The old name of expected-results folders: a kit's expected previews were conformance/golden/
-// before they became conformance/expected/, and a few kits keep reference images in folders of
-// that name. The kits rename them one at a time; until every kit has, those folders stay
-// protected like expected/ (so a kit's rename itself is listed, as a renamed expected result).
-// Remove this list once no kit has such a folder (features.yaml, sdk.quality.sync, gap).
-const BEFORE_RENAME_GLOBS = ['**/golden/**', '**/goldens/**']
 const GUARDED_CASE_FIELDS = ['expected', 'tolerance', 'reference', 'input', 'steps']
 const KINDS = ['expected-added', 'expected-changed', 'expected-deleted', 'tests-weakened']
 
@@ -245,7 +238,7 @@ function check(repo, base, head) {
   const mergeBase = git(repo, ['merge-base', base, head]).trim()
   const featuresBefore = show(repo, mergeBase, 'features.yaml')
   const featuresAfter = show(repo, head, 'features.yaml')
-  const globs = [...new Set([...EXPECTED_GLOBS, ...BEFORE_RENAME_GLOBS, ...protectedGlobs(featuresBefore), ...protectedGlobs(featuresAfter)])]
+  const globs = [...new Set([...EXPECTED_GLOBS, ...protectedGlobs(featuresBefore), ...protectedGlobs(featuresAfter)])]
   const matchers = globs.map(globToRegExp)
   const isExpected = (file) => matchers.some((matcher) => matcher.test(file))
   const isCase = (file) => /^cases\/.+\/case\.yaml$/.test(file)
