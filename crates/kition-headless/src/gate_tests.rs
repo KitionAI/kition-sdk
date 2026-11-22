@@ -12,6 +12,7 @@ use kition_kit::session::model::ReplicaPort;
 use kition_kit::session::{KitSession, KitSessionDocument};
 
 use super::*;
+use crate::test_support::lent_turn;
 
 mod notes {
     #![allow(dead_code)]
@@ -195,6 +196,7 @@ fn batch(id: &str, kind: &str, command: &str, params: Value) -> Value {
 
 #[test]
 fn a_batch_runs_no_command_commands_execute_refuses() {
+    let _turn = lent_turn();
     let root = workspace("batch");
     for (name, make) in MAKERS {
         let (mut kit, _folder, id) = opened(make, &root);
@@ -235,6 +237,7 @@ fn a_batch_runs_no_command_commands_execute_refuses() {
 /// agent's connection lists no command the manifest keeps from the agent.
 #[test]
 fn a_kits_own_dispatcher_runs_its_steps_through_the_gate() {
+    let _turn = lent_turn();
     use kition_kit::dispatch::Role;
     let root = workspace("nested");
     for (name, make) in MAKERS {

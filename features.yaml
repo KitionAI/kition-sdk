@@ -1995,6 +1995,7 @@ features:
       - regressions/issue-8
       - regressions/issue-kit-home-race
       - regressions/issue-screenshot-scale
+      - regressions/issue-headless-lent-turns
       - regressions/issue-session-keys-any-depth
     since: "2026-11-16"
   - id: sdk.quality.kit-vocabulary

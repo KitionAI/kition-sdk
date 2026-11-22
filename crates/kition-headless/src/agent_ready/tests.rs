@@ -6,6 +6,7 @@ use kition_kit::diagnostics::{Diagnostic, Severity};
 use kition_kit::{KitCommand, KitDocument};
 use serde_json::{Value, json};
 
+use crate::test_support::lent_turn;
 use crate::{Headless, KitInfo};
 use kition_kit_server::protocol::base64;
 
@@ -155,6 +156,7 @@ fn has(failures: &[String], wanted: &str) -> bool {
 // two-colour preview and a new document with a documented `info` code.
 #[test]
 fn a_two_colour_preview_and_an_info_on_a_new_document_pass() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Info);
     let repo = repo("spec");
     assert_eq!(check(&repo), Ok(()));
@@ -165,6 +167,7 @@ fn a_two_colour_preview_and_an_info_on_a_new_document_pass() {
 // conformance/expected/; without it, the tolerance is missing there.
 #[test]
 fn the_expected_previews_are_read_from_expected() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Info);
     let repo = repo("expected-folder");
     assert_eq!(check(&repo), Ok(()), "expected/");
@@ -176,6 +179,7 @@ fn the_expected_previews_are_read_from_expected() {
 
 #[test]
 fn a_new_document_with_an_error_diagnostic_fails() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Error);
     let repo = repo("new-error");
     let failures = check(&repo).unwrap_err();
@@ -185,6 +189,7 @@ fn a_new_document_with_an_error_diagnostic_fails() {
 
 #[test]
 fn a_uniform_preview_fails() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Info);
     let repo = repo("uniform");
     std::fs::write(repo.join("conformance/basic.grid"), grid(4, 2, &[128; 8])).unwrap();
@@ -207,6 +212,7 @@ fn a_transparent_or_one_colour_png_is_uniform_and_two_colours_are_not() {
 // phases' failures.
 #[test]
 fn later_phases_run_after_package_errors() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Error);
     let repo = repo("all-failures");
     std::fs::remove_file(repo.join("conformance/expected/tolerance.json")).unwrap();
@@ -221,6 +227,7 @@ fn later_phases_run_after_package_errors() {
 
 #[test]
 fn phases_that_need_a_missing_file_say_they_did_not_run() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Info);
     let repo = repo("missing-basic");
     std::fs::remove_file(repo.join("conformance/basic.grid")).unwrap();
@@ -253,6 +260,7 @@ fn phases_that_need_a_missing_file_say_they_did_not_run() {
 // `exports[].command` instead, failing kits whose agent export path worked.
 #[test]
 fn exports_run_through_the_agent_export_command_and_answer_a_file() {
+    let _turn = lent_turn();
     BLANK.set(Severity::Info);
     let repo = repo("export");
     let export = json!({ "command": "probe.exportBytes", "data": "data", "params": { "ids": [] } });
@@ -285,6 +293,7 @@ fn exports_run_through_the_agent_export_command_and_answer_a_file() {
 /// allowed with a reason.
 #[test]
 fn workspace_only_finds_what_the_kit_wrote_by_path() {
+    let _turn = lent_turn();
     let Some(mock) = crate::test_support::workspace_binary("kition-kit-mock") else {
         eprintln!("skipped: build kition-kit-mock first (cargo build -p kition-kit-mock)");
         return;

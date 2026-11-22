@@ -1,5 +1,6 @@
 //! A native mock whose successful close destroys the model.
 use super::*;
+use crate::test_support::lent_turn;
 use kition_kit::session::model::ReplicaPort;
 
 struct Closing(Option<notes::NotesDocument>);
@@ -79,6 +80,7 @@ impl ReplicaPort for Closing {
 
 #[test]
 fn terminal_premise_plans_skip_closed_state_and_release_scratch() {
+    let _turn = lent_turn();
     let root = workspace("terminal-plan");
     std::fs::write(root.join("close.notes"), b"").unwrap();
     let mut kit = Headless::<Closing>::with_replica_port(notes_kit());

@@ -7,6 +7,7 @@ use grid_kit::GridDocument;
 use kition_kit::host::{Hosting, hosting};
 
 use super::*;
+use crate::test_support::lent_turn;
 
 /// The grid kit, recording what it was told: how it is hosted while it opens, and its `hosted`.
 struct Told {
@@ -78,6 +79,7 @@ impl KitDocument for Told {
 
 #[test]
 fn reread_hook_runs_for_reload_notification_and_reopen_and_failure_keeps_the_session() {
+    let _turn = lent_turn();
     let root = std::env::temp_dir().join(format!("kition-headless-carry-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
     for route in ["reload", "notification", "reopen", "fail"] {
@@ -115,6 +117,7 @@ fn reread_hook_runs_for_reload_notification_and_reopen_and_failure_keeps_the_ses
 
 #[test]
 fn every_document_is_told_the_host_owns_every_file() {
+    let _turn = lent_turn();
     let root = std::env::temp_dir().join(format!("kition-headless-hosting-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();

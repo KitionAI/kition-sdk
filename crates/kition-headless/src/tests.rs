@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use super::*;
+use crate::test_support::lent_turn;
 use grid_kit::GridDocument;
 use kition_kit_host::HostService as _;
 
@@ -250,6 +251,7 @@ fn open<D: KitDocument + Send + 'static>(kit: &mut Headless<D>, folder: &HostFol
 
 #[test]
 fn opens_edits_and_saves_documents_in_the_workspace() {
+    let _turn = lent_turn();
     let root = workspace("edit");
     let file = root.join("art/a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 8, 4).unwrap().save(None).unwrap()).unwrap();
@@ -293,6 +295,7 @@ fn opens_edits_and_saves_documents_in_the_workspace() {
 // regressions/issue-screenshot-scale: `view.screenshot` honours `scale` (KHP A39) and `maxSize`.
 #[test]
 fn screenshots_draw_at_the_scale_the_engine_draws_and_within_max_size() {
+    let _turn = lent_turn();
     let root = workspace("scale");
     let pixels: Vec<u8> = (0..32).map(|i| (i * 8) as u8).collect();
     let mut bytes = b"GRID 8 4\n".to_vec();
@@ -327,6 +330,7 @@ fn screenshots_draw_at_the_scale_the_engine_draws_and_within_max_size() {
 
 #[test]
 fn file_parameters_come_from_the_schema() {
+    let _turn = lent_turn();
     let root = workspace("file-params");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
@@ -353,6 +357,7 @@ fn file_parameters_come_from_the_schema() {
 
 #[test]
 fn lists_output_schemas_as_json_schema() {
+    let _turn = lent_turn();
     let mut kit = Headless::<Grid>::new(kit());
     let listed = kit.commands(None).unwrap();
     let import = listed.iter().find(|command| command.id == "grid.importRows").unwrap();
@@ -382,6 +387,7 @@ fn file_parameters_become_khp_file_strings() {
 
 #[test]
 fn follows_a_file_another_editor_replaced() {
+    let _turn = lent_turn();
     let root = workspace("follow");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
@@ -404,6 +410,7 @@ fn follows_a_file_another_editor_replaced() {
 
 #[test]
 fn a_terminal_close_removes_the_headless_session() {
+    let _turn = lent_turn();
     let root = workspace("terminal-close");
     let mut kit = Headless::<Grid>::new(kit());
     let folder = serve(&mut kit, &root);
@@ -419,6 +426,7 @@ fn a_terminal_close_removes_the_headless_session() {
 
 #[test]
 fn creates_new_documents_and_opens_only_handles_the_host_granted() {
+    let _turn = lent_turn();
     let root = workspace("create");
     let mut kit = Headless::<Grid>::new(kit());
     let folder = serve(&mut kit, &root);
@@ -450,6 +458,7 @@ fn creates_new_documents_and_opens_only_handles_the_host_granted() {
 /// handle cannot write at all.
 #[test]
 fn a_save_never_replaces_a_file_changed_since_it_was_read() {
+    let _turn = lent_turn();
     let root = workspace("conflict");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
@@ -474,6 +483,7 @@ fn a_save_never_replaces_a_file_changed_since_it_was_read() {
 /// read again (`document.reload`) or saved; its edits are never dropped silently.
 #[test]
 fn a_dirty_document_whose_file_changed_is_in_conflict_until_reloaded() {
+    let _turn = lent_turn();
     let root = workspace("disk-conflict");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
@@ -507,15 +517,11 @@ fn a_dirty_document_whose_file_changed_is_in_conflict_until_reloaded() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-/// The engine's lender is process-wide (`kition_kit::host::set_lender`, installed by each backend
-/// as it serves a document): the tests that read lent files take turns.
-static LENT: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
 /// E5 through the host: the files a document names are resolved beside it by the host
 /// (`files.resolve`) and read by handle, never outside the workspace.
 #[test]
 fn lent_files_are_resolved_and_read_through_the_host() {
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("lent");
     std::fs::create_dir_all(root.join("media")).unwrap();
     std::fs::write(root.join("media/clip.bin"), b"CLIP0123456789").unwrap();
@@ -542,7 +548,7 @@ fn lent_files_are_resolved_and_read_through_the_host() {
 /// check of H3 and LR2), and the host's refusal otherwise, the same whether the file exists or not.
 #[test]
 fn an_engine_tells_a_missing_lent_file_from_a_refused_one() {
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("lent-exists");
     std::fs::create_dir_all(root.join("media")).unwrap();
     std::fs::create_dir_all(root.join(".kition")).unwrap();
@@ -653,6 +659,7 @@ fn notes_kit() -> KitInfo {
 
 #[test]
 fn serves_the_object_model_through_the_exchange_and_on_the_session() {
+    let _turn = lent_turn();
     let root = workspace("model");
     let file = root.join("ideas.notes");
     std::fs::write(&file, b"").unwrap();
@@ -701,6 +708,7 @@ fn serves_the_object_model_through_the_exchange_and_on_the_session() {
 /// document, `changes` is null and says why; a kit without an object model has neither method.
 #[test]
 fn answers_the_version_and_the_changes_since_one_for_any_kit_with_an_object_model() {
+    let _turn = lent_turn();
     let root = workspace("changes");
     std::fs::write(root.join("ideas.notes"), b"").unwrap();
     for mut kit in [Headless::<notes::NotesDocument>::with_replica_port(notes_kit()), Headless::<notes::NotesDocument>::with_session_model(notes_kit())] {
@@ -739,6 +747,7 @@ fn answers_the_version_and_the_changes_since_one_for_any_kit_with_an_object_mode
 
 #[test]
 fn opens_a_replica_without_a_file_and_imports_exports_and_saves_it() {
+    let _turn = lent_turn();
     use kition_kit::kdm::{Origin, Version};
     use kition_kit::session::KitSessionDocument as _;
 
@@ -806,6 +815,7 @@ fn opens_a_replica_without_a_file_and_imports_exports_and_saves_it() {
 /// and merges back with `model.import`.
 #[test]
 fn a_replica_port_kit_serves_a_forked_document_and_its_drafts() {
+    let _turn = lent_turn();
     use kition_kit::kdm::{ActorId, DocId};
 
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
@@ -848,6 +858,7 @@ fn base64_round_trips() {
 /// person's undo does not take it back; the same call from the person is the person's step.
 #[test]
 fn an_agents_call_is_recorded_as_the_agents_and_the_persons_undo_leaves_it() {
+    let _turn = lent_turn();
     let root = workspace("origin");
     let file = root.join("ideas.notes");
     let notes = json!({ "origin": { "kind": "agent", "principal": "agent:test" }, "ops": [
@@ -881,6 +892,7 @@ fn an_agents_call_is_recorded_as_the_agents_and_the_persons_undo_leaves_it() {
 /// undoable.
 #[test]
 fn a_hosts_change_joins_no_undo_history() {
+    let _turn = lent_turn();
     use kition_kit::session::KitSessionDocument as _;
 
     let root = workspace("system-origin");
@@ -930,6 +942,7 @@ fn a_hosts_change_joins_no_undo_history() {
 /// it is (KHP A41); it never replaces a file, and a format the manifest does not export fails.
 #[test]
 fn exports_new_files_in_the_manifest_formats() {
+    let _turn = lent_turn();
     let mut manifest: serde_json::Value = serde_json::from_str(include_str!("../../../examples/grid-kit/kit.json")).unwrap();
     manifest["exports"] = json!([{ "extension": "txt", "mime": "text/plain" }]);
     let root = workspace("export");
@@ -979,6 +992,7 @@ fn exports_new_files_in_the_manifest_formats() {
 /// importing anything.
 #[test]
 fn replica_methods_carry_blobs_only_for_kits_that_have_them() {
+    let _turn = lent_turn();
     use kition_kit::session::KitSessionDocument as _;
 
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
@@ -1000,6 +1014,7 @@ fn replica_methods_carry_blobs_only_for_kits_that_have_them() {
 /// where a value comes from.
 #[test]
 fn an_opted_in_command_publishes_its_required_parameters_and_the_gate_refuses_a_missing_one() {
+    let _turn = lent_turn();
     let root = workspace("required");
     std::fs::write(root.join("a.grid"), GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
     let mut kit = Headless::<Grid>::new(kit());
@@ -1025,6 +1040,7 @@ fn an_opted_in_command_publishes_its_required_parameters_and_the_gate_refuses_a_
 /// runs, saying what was expected; an unknown id suggests the closest ones; valid calls run.
 #[test]
 fn checks_parameters_and_suggests_close_command_ids() {
+    let _turn = lent_turn();
     let root = workspace("params");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
@@ -1060,6 +1076,7 @@ fn checks_parameters_and_suggests_close_command_ids() {
 /// misspelt parameter.
 #[test]
 fn an_unknown_top_level_key_is_refused_for_every_kit() {
+    let _turn = lent_turn();
     let root = workspace("unknown-keys");
     std::fs::write(root.join("a.grid"), GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
     let mut kit = Headless::<Grid>::new(kit());
@@ -1104,6 +1121,7 @@ fn an_unknown_top_level_key_is_refused_for_every_kit() {
 /// expected }` each, `path` a JSON Pointer into the params, and repeats the first in `detail`.
 #[test]
 fn invalid_params_lists_every_wrong_parameter_in_data_errors() {
+    let _turn = lent_turn();
     let root = workspace("param-errors");
     std::fs::write(root.join("a.grid"), GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
     let mut kit = Headless::<Grid>::new(kit());
@@ -1161,6 +1179,7 @@ fn an_unknown_command_suggests_the_command_its_words_are_keywords_of() {
 /// sheet.agent.draft/east-update and note.agent.draft/new-task).
 #[test]
 fn a_replica_under_a_files_name_never_stands_in_for_the_file() {
+    let _turn = lent_turn();
     use kition_kit::session::KitSessionDocument as _;
 
     let root = workspace("replica-name");
@@ -1199,6 +1218,7 @@ fn a_replica_under_a_files_name_never_stands_in_for_the_file() {
 /// The agent reads the kit's own description of a command, never its parameter notation.
 #[test]
 fn lists_the_kits_own_command_descriptions() {
+    let _turn = lent_turn();
     let mut kit = Headless::<Grid>::new(kit());
     let listed = kit.commands(None).unwrap();
     let set = listed.iter().find(|command| command.id == "grid.set").unwrap();
@@ -1213,6 +1233,7 @@ fn lists_the_kits_own_command_descriptions() {
 /// such method.
 #[test]
 fn serves_document_text_only_for_a_kit_with_the_capability() {
+    let _turn = lent_turn();
     let root = workspace("text");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 8, 4).unwrap().save(None).unwrap()).unwrap();
@@ -1430,6 +1451,7 @@ fn deck_kit() -> KitInfo {
 
 #[test]
 fn outside_reread_keeps_active_target_and_mode_or_refuses_deleted_identity() {
+    let _turn = lent_turn();
     for deleted in [false, true] {
         let root = workspace(if deleted { "reread-mode-deleted" } else { "reread-mode-resolved" });
         let path = root.join("a.deck");
@@ -1458,6 +1480,7 @@ fn outside_reread_keeps_active_target_and_mode_or_refuses_deleted_identity() {
 
 #[test]
 fn reread_preserves_resolving_editor_state() {
+    let _turn = lent_turn();
     let root = workspace("reread-context");
     std::fs::write(root.join("a.deck"), b"deck").unwrap();
     let mut kit = Headless::<Deck>::new(deck_kit());
@@ -1474,6 +1497,7 @@ fn reread_preserves_resolving_editor_state() {
 
 #[test]
 fn reread_refuses_deleted_active_target_and_keeps_previous_session() {
+    let _turn = lent_turn();
     let root = workspace("reread-deleted-context");
     let path = root.join("a.deck");
     std::fs::write(&path, b"deck").unwrap();
@@ -1493,6 +1517,7 @@ fn reread_refuses_deleted_active_target_and_keeps_previous_session() {
 
 #[test]
 fn reread_refuses_to_discard_unreconciled_agent_history() {
+    let _turn = lent_turn();
     let root = workspace("reread-retained-history");
     std::fs::write(root.join("a.notes"), b"").unwrap();
     let mut kit = Headless::<notes::NotesDocument>::with_session_model(notes_kit());
@@ -1513,8 +1538,7 @@ fn reread_refuses_to_discard_unreconciled_agent_history() {
 
 #[test]
 fn serves_the_editor_context_and_marks_what_commands_act_on() {
-    // Opening a document points the process-wide lent files at it (`lent_files_…` waits for its turn).
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("context");
     std::fs::write(root.join("art/a.deck"), b"deck").unwrap();
     let mut kit = Headless::<Deck>::new(deck_kit());
@@ -1562,7 +1586,7 @@ fn serves_the_editor_context_and_marks_what_commands_act_on() {
 /// tell by place is refused.
 #[test]
 fn answers_what_a_place_names_without_moving_the_editor() {
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("under");
     std::fs::write(root.join("art/a.deck"), b"deck").unwrap();
     let mut kit = Headless::<Deck>::new(deck_kit());
@@ -1590,7 +1614,7 @@ fn answers_what_a_place_names_without_moving_the_editor() {
 /// whose values are unknown), and its derived values computed now; no edit.
 #[test]
 fn answers_what_a_place_covered_and_derived_values_without_an_edit() {
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("covered");
     std::fs::write(root.join("art/a.deck"), b"deck").unwrap();
     let mut kit = Headless::<Deck>::new(deck_kit());
@@ -1621,8 +1645,7 @@ fn answers_what_a_place_covered_and_derived_values_without_an_edit() {
 
 #[test]
 fn a_kit_without_the_hooks_keeps_no_editor_state_and_refuses_to_set_one() {
-    // Opening a document points the process-wide lent files at it (`lent_files_…` waits for its turn).
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("nocontext");
     let file = root.join("art/a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 8, 4).unwrap().save(None).unwrap()).unwrap();
@@ -1708,8 +1731,7 @@ fn track_kit(volatile: &[&str]) -> KitInfo {
 /// and animated properties their `path`.
 #[test]
 fn inspect_details_keep_document_fields_named_like_editor_state() {
-    // Opening a document points the process-wide lent files at it (`lent_files_…` waits for its turn).
-    let _turn = LENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _turn = lent_turn();
     let root = workspace("track");
     std::fs::write(root.join("art/a.track"), b"track").unwrap();
     let layer = json!({
@@ -1744,6 +1766,7 @@ fn inspect_details_keep_document_fields_named_like_editor_state() {
 /// wording (regressions/issue-headless-error-code).
 #[test]
 fn a_kits_typed_failure_decides_the_error_code_over_its_wording() {
+    let _turn = lent_turn();
     let root = workspace("typed-failure");
     let file = root.join("a.grid");
     std::fs::write(&file, GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
@@ -1807,6 +1830,7 @@ fn marks_name_parameters_with_their_fields_and_types() {
 
 #[test]
 fn batch_settling_is_in_the_transaction_for_exchange_and_session_models() {
+    let _turn = lent_turn();
     let root = workspace("settled");
     std::fs::write(root.join("settled.notes"), b"").unwrap();
     for mut kit in [Headless::<notes::NotesDocument>::with_replica_port(notes_kit()), Headless::<notes::NotesDocument>::with_session_model(notes_kit())] {
@@ -1829,6 +1853,7 @@ fn batch_settling_is_in_the_transaction_for_exchange_and_session_models() {
 
 #[test]
 fn premise_plans_advance_with_cumulative_changes_and_batch_references() {
+    let _turn = lent_turn();
     let root = workspace("advance-plan");
     std::fs::write(root.join("advance.notes"), b"").unwrap();
     {
@@ -1874,6 +1899,7 @@ fn premise_plans_advance_with_cumulative_changes_and_batch_references() {
 
 #[test]
 fn premise_plan_can_replace_its_replica_without_replacing_the_live_document() {
+    let _turn = lent_turn();
     let root = workspace("replacement-plan");
     std::fs::write(root.join("replacement.notes"), b"").unwrap();
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
@@ -1894,6 +1920,7 @@ fn premise_plan_can_replace_its_replica_without_replacing_the_live_document() {
 
 #[test]
 fn null_content_region_reaches_the_mock_kit_callback() {
+    let _turn = lent_turn();
     let root = workspace("null-content-region");
     std::fs::write(root.join("null.notes"), b"").unwrap();
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
@@ -1910,6 +1937,7 @@ fn null_content_region_reaches_the_mock_kit_callback() {
 
 #[test]
 fn premise_plan_replacement_preserves_public_tool_ids() {
+    let _turn = lent_turn();
     let root = workspace("replacement-tool-ids");
     std::fs::write(root.join("replacement.notes"), b"").unwrap();
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());

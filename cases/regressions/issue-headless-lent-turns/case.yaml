@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-headless-lent-turns
+feature: sdk.host.headless-kit
+intent: >-
+  kition-headless's tests share the engine's process-wide lent files: every Headless points
+  kition_kit::host's lender, handles, root and hosting at its own workspace before each document
+  call, so a test serving a document while another read a lent file swapped the lender under it
+  (lent_files_are_resolved_and_read_through_the_host read /media/clip.bin as "no such file", CI run
+  of 5f073c3; 3 of 30 local runs failed). Only seven tests took the LENT lock; every test of the
+  crate that serves a document through a Headless, directly or through agent_ready, now takes its
+  turn (test_support::lent_turn), and the crate's tests pass every time.
+layer: gate
+source:
+  kind: issue
+  from: kition-sdk CI run 45000706233 (commit 5f073c3)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-headless]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 300
+since: "2026-11-22"
