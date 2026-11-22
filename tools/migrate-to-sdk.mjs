@@ -77,7 +77,7 @@ const SDK_MANIFEST = JSON.parse(fs.readFileSync(path.join(root, 'packages/sdk/pa
 
 export const LOCKFILES = ['pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'bun.lock', 'bun.lockb']
 const SKIPPED = new Set(['node_modules', '.git', 'dist', 'build', 'target', 'coverage', '.next', '.turbo', '.svelte-kit'])
-/** Folders never read, also for mentions: golden_* corpora stay as they are and are large. */
+/** Folders never read, also for mentions: the workspace's corpus folders (golden_word, golden_excel, golden_ppt) stay as they are and are large. */
 const skippedFolder = (name) => SKIPPED.has(name) || name.startsWith('golden_')
 const SOURCES = /\.(?:[cm]?[jt]sx?|vue|svelte|css|scss|less|html)$/
 /** A phrase catalog: comment lines rewritten, data lines listed. */

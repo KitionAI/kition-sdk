@@ -13,7 +13,7 @@
 //! ```
 //!
 //! The package (`level`, `agent.*`, `agent/checks.json` with a fixture per code, and
-//! `conformance/basic.<ext>`, `edit.json`, `golden/tolerance.json`); a schema for every listed
+//! `conformance/basic.<ext>`, `edit.json`, `expected/tolerance.json`); a schema for every listed
 //! command and `{}` answered without a crash or a change (A5, A36); `edit.json` changing the document
 //! and surviving a save and a reopen, unknown commands refused, failed calls leaving the file as it
 //! was (A18); a check that changes nothing, is clean on `basic` and yields each fixture's code (A21,
@@ -111,10 +111,15 @@ impl Package {
                 Err("conformance/basic.<ext> of a format with role edit".into())
             }
         };
-        for file in ["edit.json", "golden/tolerance.json"] {
-            if !conformance.join(file).is_file() {
-                errors.push(format!("conformance/{file} is missing"));
+        if !conformance.join("edit.json").is_file() {
+            errors.push("conformance/edit.json is missing".into());
+        }
+        match expected_folder(&conformance) {
+            Ok(folder) if !conformance.join(folder).join("tolerance.json").is_file() => {
+                errors.push(format!("conformance/{folder}/tolerance.json is missing"));
             }
+            Ok(_) => {}
+            Err(e) => errors.push(e),
         }
         let (mut codes, mut checks) = (BTreeSet::new(), Vec::new());
         match read_json(&repo.join("agent/checks.json")) {
@@ -171,6 +176,29 @@ fn detail(error: &RpcError) -> &str {
 fn read_json(path: &Path) -> Result<Value, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     serde_json::from_str(&text).map_err(|e| e.to_string())
+}
+
+/// The folder of `conformance/` that holds the expected previews and their tolerance:
+/// `expected/` (KHP spec/conformance.md, Fixtures).
+const EXPECTED: &str = "expected";
+
+/// The name `expected/` had before the rename. Read only while the kits move one by one, each
+/// at its own kition-sdk pin: a kit that pins this revision before it renames its folder still
+/// passes. Remove it, and this branch of [`expected_folder`], once every kit has
+/// `conformance/expected/` (features.yaml, sdk.testing.agent-ready, gap).
+const EXPECTED_BEFORE_RENAME: &str = "golden";
+
+/// Which folder of `conformance` holds the expected previews: `expected/`, or the old name while
+/// only that one is there. Both at once is an error: one of them would be ignored.
+fn expected_folder(conformance: &Path) -> Result<&'static str, String> {
+    match (conformance.join(EXPECTED).is_dir(), conformance.join(EXPECTED_BEFORE_RENAME).is_dir()) {
+        (true, true) => Err(format!(
+            "conformance/{EXPECTED}/ and conformance/{EXPECTED_BEFORE_RENAME}/ are both there: the expected previews are \
+             conformance/{EXPECTED}/ (renamed from conformance/{EXPECTED_BEFORE_RENAME}/); move what is left in the old folder and remove it"
+        )),
+        (false, true) => Ok(EXPECTED_BEFORE_RENAME),
+        _ => Ok(EXPECTED),
+    }
 }
 
 /// A temporary copy of `conformance/`, removed when the phase ends, and its host.

@@ -113,13 +113,13 @@ fn manifest() -> String {
 fn repo(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("kition-agent-ready-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(dir.join("conformance/golden")).unwrap();
+    std::fs::create_dir_all(dir.join("conformance/expected")).unwrap();
     std::fs::create_dir_all(dir.join("agent")).unwrap();
     let write = |path: &str, bytes: &[u8]| std::fs::write(dir.join(path), bytes).unwrap();
     write("conformance/basic.grid", &grid(4, 2, &[0, 255, 0, 255, 255, 0, 255, 0]));
     write("conformance/blank.grid", &grid(4, 2, &[255; 8]));
     write("conformance/edit.json", json!({ "steps": [{ "command": "grid.set", "params": { "x": 0, "y": 0, "grey": 77 } }] }).to_string().as_bytes());
-    write("conformance/golden/tolerance.json", b"{}");
+    write("conformance/expected/tolerance.json", b"{}");
     write(
         "agent/checks.json",
         json!([{ "code": "probe.blank", "severity": "info", "summary": "The grid is blank.", "fixture": "blank.grid" }]).to_string().as_bytes(),
@@ -161,6 +161,37 @@ fn a_two_colour_preview_and_an_info_on_a_new_document_pass() {
     let _ = std::fs::remove_dir_all(repo);
 }
 
+// regressions/issue-expected-folder-rename: the expected previews are conformance/expected/. While
+// the kits move from the old name one by one, a kit with only the old folder still passes; both
+// folders at once fail, naming them; with neither, the tolerance is missing under the new name.
+#[test]
+fn the_expected_previews_are_read_from_expected_and_the_old_folder_only_alone() {
+    BLANK.set(Severity::Info);
+    let repo = repo("expected-folder");
+    let (expected, old) = (repo.join("conformance/expected"), repo.join(format!("conformance/{}", super::EXPECTED_BEFORE_RENAME)));
+    assert_eq!(check(&repo), Ok(()), "expected/ alone");
+
+    std::fs::rename(&expected, &old).unwrap();
+    assert_eq!(check(&repo), Ok(()), "the old folder alone, until every kit has moved");
+    std::fs::remove_file(old.join("tolerance.json")).unwrap();
+    let failures = check(&repo).unwrap_err();
+    assert!(has(&failures, &format!("package: conformance/{}/tolerance.json is missing", super::EXPECTED_BEFORE_RENAME)), "{failures:#?}");
+    std::fs::write(old.join("tolerance.json"), b"{}").unwrap();
+
+    std::fs::create_dir_all(&expected).unwrap();
+    std::fs::write(expected.join("tolerance.json"), b"{}").unwrap();
+    let failures = check(&repo).unwrap_err();
+    let both = format!("package: conformance/expected/ and conformance/{}/ are both there", super::EXPECTED_BEFORE_RENAME);
+    assert!(has(&failures, &both), "{failures:#?}");
+    assert!(!failures.iter().any(|failure| failure.contains("tolerance.json is missing")), "{failures:#?}");
+
+    std::fs::remove_dir_all(&old).unwrap();
+    std::fs::remove_dir_all(&expected).unwrap();
+    let failures = check(&repo).unwrap_err();
+    assert!(has(&failures, "package: conformance/expected/tolerance.json is missing"), "neither: {failures:#?}");
+    let _ = std::fs::remove_dir_all(repo);
+}
+
 #[test]
 fn a_new_document_with_an_error_diagnostic_fails() {
     BLANK.set(Severity::Error);
@@ -190,16 +221,16 @@ fn a_transparent_or_one_colour_png_is_uniform_and_two_colours_are_not() {
 }
 
 // regressions/issue-agent-ready-all-failures: after a package error the self-test returned that
-// error alone, so the caller saw only "conformance/golden/tolerance.json is
-// missing" and none of the later phases' failures.
+// error alone, so the caller saw only that the tolerance file was missing and none of the later
+// phases' failures.
 #[test]
 fn later_phases_run_after_package_errors() {
     BLANK.set(Severity::Error);
     let repo = repo("all-failures");
-    std::fs::remove_file(repo.join("conformance/golden/tolerance.json")).unwrap();
+    std::fs::remove_file(repo.join("conformance/expected/tolerance.json")).unwrap();
     std::fs::remove_file(repo.join("agent/checks.json")).unwrap();
     let failures = check(&repo).unwrap_err();
-    assert!(has(&failures, "package: conformance/golden/tolerance.json is missing"), "{failures:#?}");
+    assert!(has(&failures, "package: conformance/expected/tolerance.json is missing"), "{failures:#?}");
     assert!(has(&failures, "package: agent/checks.json: "), "{failures:#?}");
     assert!(has(&failures, "files: create grid: a new document has error diagnostics"), "a later phase still runs: {failures:#?}");
     assert!(!failures.iter().any(|failure| failure.starts_with("verify:")), "basic is clean; only the fixtures need the catalogue: {failures:#?}");

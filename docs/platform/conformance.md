@@ -127,13 +127,13 @@ over the host's shipped bundle in the host's release checks:
 
 ```text
 khp-agent-conformance --package <kit package folder> --executable <kit executable> \
-  --fixtures <folder> [--layout] [--golden <folder>] [--platform <target triple>]
+  --fixtures <folder> [--layout] [--expected <folder>] [--platform <target triple>]
 ```
 
 Each kit keeps its fixtures in a `conformance/` folder of its repository:
 `basic.<ext>` (opens, edits, saves), one `check-<code>.<ext>` per catalogue
 code (A38), `overflow.<ext>` for a layout kit (A40), `links-outside.<ext>`
-for a kit that declares `agent.links` (KHP K21, A42), `golden/` previews,
+for a kit that declares `agent.links` (KHP K21, A42), `expected/` previews,
 and `edit.json` (a command and params that change the document).
 
 | Phase | Checks | Passes when |
@@ -144,7 +144,7 @@ and `edit.json` (a command and params that change the document).
 | 4 Schemas | Every exposed command's schema is a valid `ParameterSchemaSpec`; the coverage report counts 100% of `agent.include`; each command called with `{}` answers a typed error or a result and leaves the file unchanged (A36) | No failures |
 | 5 Act | `run` of `edit.json` changes the revision, and a save and reopen keep it; `batch` round-trips one object edit (`kdm` kits); an unknown command and bad params answer A18 errors, and no call waits on a dialog or prompt (E20); at Agent-ready complete, `edit.json` addresses its object by a name or path and an ambiguous or unknown name answers an error that lists the candidates (A44) | Matches |
 | 6 Verify | `check` on `basic` answers no errors and leaves the revision, dirty state, and history unchanged (A21); each `check-<code>` fixture yields its code; the answer is not the SDK's default (A38) | All codes triggered |
-| 7 Preview | `inspect { preview }` and `view.screenshot` of `basic`: not uniform, framed to the content, `target` and `scale: 2` honoured, equal to `golden/` within a tolerance the kit states; substituted fonts reported (A39) | Within tolerance |
+| 7 Preview | `inspect { preview }` and `view.screenshot` of `basic`: not uniform, framed to the content, `target` and `scale: 2` honoured, equal to `expected/` within a tolerance the kit states; substituted fonts reported (A39) | Within tolerance |
 | 8 Layout | `inspect { layout }` on `overflow` reports the overflowing object with `by` greater than 0, and the same object appears in `check` (A40) | Reported in both |
 | 9 Create and export | `create` for every `creates` entry and `export` for every `exports` entry write new files only: an existing file at the target is kept and the result names the unused name the host chose (A41, FA7); the outputs reopen in an independent reader (PDF: pdfium or poppler; images: a decoder; xlsx: an independent reader; MP4: a demuxer) | All reopen |
 | 10 Determinism | `edit.json` run in the page engine (`@kition/kit-dev-host` in Node or a browser) and headless gives the same canonical state (A26) | Equal |

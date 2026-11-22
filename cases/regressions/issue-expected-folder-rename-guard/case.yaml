@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-expected-folder-rename-guard
+feature: sdk.quality.sync
+intent: >-
+  tools/check-expected.mjs lists every added, changed and deleted file under a kit's
+  conformance/expected/ (the expected previews khp check compares); the old folder name stays
+  protected until every kit has renamed it, and a kit's rename is listed as a renamed expected
+  result for the maintainers.
+layer: gate
+source:
+  kind: probe
+  from: SDK regression suite
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, tools/check-expected.test.mjs, -t, protects conformance/expected/]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 120

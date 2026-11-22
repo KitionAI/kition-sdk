@@ -5,8 +5,7 @@ intent: >-
   kition_headless::agent_ready::check reports every failure it can find. A missing or broken
   package file is listed, and every later phase whose own files are there still runs; a phase that
   cannot run says what it needs. Before, the first package error ended the check, so callers
-  saw only "conformance/golden/tolerance.json is missing" and none of the failures
-  after it.
+  saw only that the tolerance file was missing and none of the failures after it.
 layer: gate
 source:
   kind: probe

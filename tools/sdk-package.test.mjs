@@ -490,7 +490,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     write('AGENTS.md', "- `web/` is a React app on `@kition/kit-editor` (kition-sdk's\n")
     write('docs/development.md', 'Links @kition/kdm, @kition/kit-editor and @kition/kit-engine.\n')
     write('cases/x/case.yaml', 'intent: >-\n  relayed by @kition/sync\n')
-    write('golden_docs/a.md', '@kition/kit-editor\n')
+    write('golden_word/a.md', '@kition/kit-editor\n')
     write('target/b.md', '@kition/kit-editor\n')
     write('web/package.json', `${JSON.stringify({ name: 'web', dependencies: { '@kition/kit-editor': '0.1.0' } }, null, 2)}\n`)
     write('web/src/main.tsx', "import { mountEditor } from '@kition/kit-editor'\n")

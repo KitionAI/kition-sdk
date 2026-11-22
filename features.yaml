@@ -1571,6 +1571,7 @@ features:
     dimension: [ai, function]
     priority: P1
     status: has
+    gap: "Transition: a kit's expected previews are conformance/expected/ (renamed from conformance/golden/ before the first release); agent_ready::check still reads the old folder when it is the only one (EXPECTED_BEFORE_RENAME), so a kit can move to this SDK before it renames its folder. Remove that branch once every kit has conformance/expected/"
     paths:
       - crates/kition-headless/src/agent_ready.rs
       - crates/kition-headless/src/agent_ready/tests.rs
@@ -1579,19 +1580,24 @@ features:
       - regressions/issue-agent-ready-spec-checks
       - regressions/issue-agent-ready-export-command
       - regressions/issue-ci-binary-layout
+      - regressions/issue-expected-folder-rename
     since: "2026-11-16"
   - id: sdk.quality.sync
     title: The quality rules, gate and Stop hook are generated into every repository from templates, with each repository's check command kept in one table
     dimension: [platform]
     priority: P1
     status: has
+    gap: "Transition: tools/check-expected.mjs still protects folders of the old name of expected results (BEFORE_RENAME_GLOBS: golden/, goldens/), which the kits rename to expected/ one at a time. Remove that list once no kit has such a folder"
     paths:
       - tools/sync-quality.mjs
       - tools/sync-quality.test.mjs
+      - tools/check-expected.mjs
+      - tools/check-expected.test.mjs
       - templates/quality/**
     cases:
       - regressions/issue-quality-gate-command
       - sdk.quality.sync/old-locations
+      - regressions/issue-expected-folder-rename-guard
     since: "2026-11-16"
   - id: sdk.quality.kit-matrix
     title: The kit matrix settles every kit against the kit requirements table, reading each kit's files where the layout standard puts them

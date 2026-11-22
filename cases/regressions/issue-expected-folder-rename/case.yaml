@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-expected-folder-rename
+feature: sdk.testing.agent-ready
+intent: >-
+  A kit's expected previews and their tolerance are conformance/expected/ (KHP spec/conformance.md,
+  renamed before the first release). kition_headless::agent_ready::check reads expected/; while the
+  kits move one at a time it still reads the old folder when that is the only one, so a kit can pin
+  this SDK before it renames; both folders at once fail, naming them; with neither, the tolerance is
+  missing under the new name.
+layer: gate
+source:
+  kind: probe
+  from: SDK regression suite
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: agent_ready::tests::the_expected_previews_are_read_from_expected_and_the_old_folder_only_alone }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-21"
+timeout_s: 60
