@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-write-state-required-refs
+feature: sdk.model.content-snapshot
+intent: >-
+  A file taken into the host's stored replica by its state (take_file falling back to write_state)
+  makes objects whose schema has required refs: each new object is made with its registers and refs
+  together, two objects that name each other included, and the written state equals the file's.
+  Before, write_state made new objects with their plain registers only and set refs afterwards, so
+  making an object with a required ref failed ("is required") and a kit had to make such refs
+  optional in its schema.
+layer: gate
+source: { kind: issue, from: kition-table 93f535fe and 89d125ab (Link's two ends made optional), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit, test: state, filter: a_file_taken_in_by_state_makes_objects_with_required_refs }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-23"

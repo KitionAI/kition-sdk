@@ -66,14 +66,17 @@ pub fn take_file(ours: &mut Replica, file: &Replica) -> Result<bool> {
 /// Objects of types `schema` does not declare are left as they are.
 pub fn write_state(tx: &mut Tx<'_>, schema: &Schema, before: &State, after: &State) -> Result<()> {
     let def = |object: &Value| schema.type_def(type_of(object)).ok();
-    // New objects first, with their plain registers, so every ref and container can name them.
+    // New objects first, with their registers and refs, so every ref and container can name them
+    // and a required ref is there when its object is made. A ref may name an object made later in
+    // this transaction (two objects that name each other): the transaction checks a ref's target
+    // only when it exists.
     for (id, object) in after.iter().filter(|(id, _)| !before.contains_key(*id)) {
         let Some(def) = def(object) else { continue };
         let fields: Map<String, Value> = object
             .as_object()
             .into_iter()
             .flatten()
-            .filter(|(name, value)| !value.is_null() && def.fields.get(*name).is_some_and(|field| is_plain(field.kind)))
+            .filter(|(name, value)| !value.is_null() && def.fields.get(*name).is_some_and(|field| is_register(field.kind)))
             .map(|(name, value)| (name.clone(), value.clone()))
             .collect();
         tx.create_with_id(type_of(object), &ObjectId::from_string(id.clone()), fields)?;
@@ -85,7 +88,7 @@ pub fn write_state(tx: &mut Tx<'_>, schema: &Schema, before: &State, after: &Sta
         for (name, value) in object.as_object().into_iter().flatten() {
             let Some(field) = def.fields.get(name) else { continue };
             let was = old.and_then(|old| old.get(name));
-            if was == Some(value) || (old.is_none() && (is_plain(field.kind) || (field.kind == FieldKind::Ref && value.is_null()))) {
+            if was == Some(value) || (old.is_none() && is_register(field.kind)) {
                 continue;
             }
             match field.kind {
@@ -121,9 +124,9 @@ pub fn write_state(tx: &mut Tx<'_>, schema: &Schema, before: &State, after: &Sta
     Ok(())
 }
 
-/// A field written with the object it belongs to: a register that names no other object.
-fn is_plain(kind: FieldKind) -> bool {
-    !matches!(kind, FieldKind::Text | FieldKind::List | FieldKind::Map | FieldKind::Tree | FieldKind::Ref)
+/// A field written with the object it belongs to: a register, a ref included.
+fn is_register(kind: FieldKind) -> bool {
+    !matches!(kind, FieldKind::Text | FieldKind::List | FieldKind::Map | FieldKind::Tree)
 }
 
 fn type_of(object: &Value) -> &str {

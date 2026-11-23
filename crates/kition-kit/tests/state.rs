@@ -204,3 +204,41 @@ fn a_file_of_another_document_is_refused() {
     let refused = take_file(&mut ours, &other).unwrap_err();
     assert!(matches!(refused, KitError::Kdm(KdmError::WrongDocument { .. })), "{refused:?}");
 }
+
+const LINKED: &str = r#"{
+  "kdm": 1, "kit": "kit.linked", "schemaVersion": 1, "root": "Doc",
+  "types": {
+    "Doc": { "fields": { "title": { "kind": "string" }, "links": { "kind": "list", "of": "Link" } } },
+    "Node": { "fields": { "name": { "kind": "string" }, "peer": { "kind": "ref", "of": "Node" } } },
+    "Link": { "fields": { "from": { "kind": "ref", "of": "Node" }, "to": { "kind": "ref", "of": "Node" } } }
+  }
+}"#;
+
+/// Objects whose schema has required refs are taken in by state: each is made with its refs, two
+/// nodes that name each other included, and a link made before or after the nodes it joins
+/// (kition-table's `Link`, whose ends had to be optional for this).
+#[test]
+fn a_file_taken_in_by_state_makes_objects_with_required_refs() {
+    let schema = Arc::new(Schema::parse(LINKED).unwrap());
+    let mut source = Replica::create(Arc::clone(&schema), DocId::new(), actor(1)).unwrap();
+    source.transact(&person(), |tx| tx.create_with_id("Doc", &doc(), fields(json!({ "title": "First" }))).map(drop)).unwrap();
+    let mut ours = Replica::load(Arc::clone(&schema), &source.snapshot().unwrap(), actor(2)).unwrap();
+    // Ids ordered so that, by id, a link comes before the nodes it joins and `a` before `b`.
+    let (a, b, link) = (ObjectId::from_string("n-a"), ObjectId::from_string("n-b"), ObjectId::from_string("l-1"));
+    source
+        .transact(&person(), |tx| {
+            tx.create_with_id("Node", &a, fields(json!({ "name": "a", "peer": "n-b" })))?;
+            tx.create_with_id("Node", &b, fields(json!({ "name": "b", "peer": "n-a" })))?;
+            tx.create_with_id("Link", &link, fields(json!({ "from": "n-a", "to": "n-b" })))?;
+            tx.list_insert(&doc(), "links", 0, &link)?;
+            tx.set(&doc(), "title", json!("Second"))
+        })
+        .unwrap();
+    let file = Replica::load(Arc::clone(&schema), &source.content_snapshot().unwrap(), actor(3)).unwrap();
+    assert!(!ours.version().includes(&file.shallow_root().unwrap()), "the file's history does not reach the store's");
+    assert!(take_file(&mut ours, &file).unwrap());
+    assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
+    assert_eq!(ours.get(&a, "peer").unwrap(), json!("n-b"));
+    assert_eq!(ours.get(&b, "peer").unwrap(), json!("n-a"));
+    assert_eq!(ours.get(&link, "to").unwrap(), json!("n-b"));
+}
