@@ -242,3 +242,44 @@ describe('rebirth', () => {
     expect(reasonOf(() => file.importChanges(b.exportChanges(before)))).toBe('history-missing')
   })
 })
+
+describe('a replica opened from a content snapshot', () => {
+  it('forks and tells what changed at every version since the file, and refuses earlier ones', () => {
+    const { a, shape } = history(false)
+    const before = a.version()
+    const file = Replica.load(testSchema(), a.contentSnapshot(), 3n)
+    const opened = file.version()
+    expect(file.reaches(opened)).toBe(true)
+    expect(file.reaches(before)).toBe(false)
+    file.transact(me, (tx) => tx.set(shape, 'x', 5))
+    const middle = file.version()
+    file.transact(me, (tx) => tx.set(shape, 'y', 6))
+    // A batch's receipt: what changed since a version after the file.
+    const since = file.changesSince(middle)
+    expect(JSON.stringify(since)).toContain('"y"')
+    expect(JSON.stringify(since)).not.toContain('"x"')
+    expect(JSON.stringify(file.changesSince(opened))).toContain('"x"')
+    const draft = file.forkAt(middle, 4n)
+    expect(draft.isShallow()).toBe(true)
+    expect(draft.version().equals(middle)).toBe(true)
+    expect(draft.get(shape, 'x')).toBe(5)
+    expect(draft.get(shape, 'y')).toBe(20)
+    // The draft edits and merges back like any.
+    draft.transact(me, (tx) => tx.set(shape, 'fill', '#222222'))
+    file.mergeChanges(draft.exportChanges(middle), me)
+    expect(file.get(shape, 'fill')).toBe('#222222')
+    expect(file.get(shape, 'y')).toBe(6)
+    // Versions before the file are not in it.
+    expect(reasonOf(() => file.forkAt(before, 5n))).toBe('history-missing')
+    expect(reasonOf(() => file.changesSince(before))).toBe('history-missing')
+  })
+
+  it('lists the origins its bytes hold: one, the seal', () => {
+    const { a } = history(true)
+    const full = Replica.snapshotOrigins(a.snapshot())
+    expect(full.length).toBeGreaterThan(5)
+    expect(full).toContainEqual(person(`user:${LAST}`, LAST_LABEL))
+    expect(Replica.snapshotOrigins(a.contentSnapshot())).toEqual([{ kind: 'system', principal: 'kdm', label: 'content-seal' }])
+    expect(reasonOf(() => Replica.snapshotOrigins(new Uint8Array([1, 2, 3])))).toBe('encoding')
+  })
+})

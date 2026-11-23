@@ -44,6 +44,12 @@ export interface KitModel<View> {
    */
   openReplica?(name: string, bytes: Uint8Array, snapshot: Uint8Array, blobs: Uint8Array, actor: bigint): Replica
   export(view: View, replica: Replica, name: string): Uint8Array
+  /**
+   * Gets the replica ready for `export` (the host calls `prepareSave` right before `save`): a kit
+   * whose file holds its replica seals it here (`replica.seal()`), so `export` writes
+   * `replica.sealedContentSnapshot()`. It must change no content.
+   */
+  prepareSave?(view: View, replica: Replica): void
   /** A new document; without it, `create` refuses. */
   create?(name: string, size: KitSize, actor: bigint): Replica
   /**
@@ -180,10 +186,27 @@ export class KitSession<View> {
   contentSnapshot(): Uint8Array {
     const before = this.replica.version()
     const bytes = this.replica.contentSnapshot()
+    this.keepSaved(before)
+    return bytes
+  }
+
+  /**
+   * Gets the document ready for `save` through the model's `prepareSave` (a seal, for a kit whose
+   * file holds its replica). What it commits is no edit: a document that was saved (or whose save
+   * is pending) stays so.
+   */
+  prepareSave(): void {
+    const before = this.replica.version()
+    this.model.prepareSave?.(this.viewState, this.replica)
+    this.keepSaved(before)
+  }
+
+  /** After a seal (no edit): the saved and the pending version follow it from `before`. */
+  private keepSaved(before: Version): void {
     const after = this.replica.version()
+    if (after.equals(before)) return
     if (this.savedVersion.equals(before)) this.savedVersion = after
     if (this.pendingSave?.equals(before)) this.pendingSave = after
-    return bytes
   }
 
   markSaved() {
@@ -393,6 +416,10 @@ export function kitEngineClass<View>(model: KitModel<View>, options: KitEngineCl
       ]
       const own = model.commands(this.session.view, this.session.replica)
       return [...history.filter((entry) => !own.some((command) => command.id === entry.id)), ...own]
+    }
+
+    prepareSave() {
+      this.session.prepareSave()
     }
 
     save(name = 'document') {

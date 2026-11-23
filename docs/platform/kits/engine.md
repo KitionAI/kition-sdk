@@ -29,7 +29,11 @@ The engine contract is specified member by member in
   resolution-independent engine (vectors, text, pages) renders at the
   requested scale so zoomed views stay sharp; below 1:1 both reduce exactly.
 - **E4** `save` MUST NOT mark the document saved; `markSaved` does, after
-  the host wrote the bytes.
+  the host wrote the bytes. `prepareSave` (`KitDocument::prepare_save`,
+  optional, nothing by default) is the engine's step before `save`, with the
+  document writable: a kit whose file holds its KDM replica seals the live
+  replica there (data model 7.3), and `save` then writes the sealed content.
+  It MUST NOT change the document's content or mark it saved.
 - **E5** Files a document refers to (media, linked images, fonts) MUST be
   read only through `kition_kit::host` (lent files), in ranges for large
   files. An engine MUST NOT read the filesystem or network directly.

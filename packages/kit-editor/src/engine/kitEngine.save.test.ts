@@ -70,4 +70,32 @@ describe('the engine worker saving', () => {
     await edit()
     expect((await handle({ method: 'markSaved' })).value).toMatchObject({ dirty: false })
   })
+
+  it('gets the kit ready before it saves, and takes the store snapshot after the file bytes', async () => {
+    fakeDocument()
+    const calls: string[] = []
+    const doc = fake.doc as Record<string, unknown>
+    const save = doc.save as () => Uint8Array
+    Object.assign(doc, {
+      prepareSave: () => calls.push('prepareSave'),
+      save: () => (calls.push('save'), save()),
+      snapshot: () => (calls.push('snapshot'), new Uint8Array([7])),
+      blobs: () => new Uint8Array(0),
+      version: () => new Uint8Array(0),
+    })
+    await open()
+    await handle({ method: 'save' })
+    expect(calls).toEqual(['prepareSave', 'save'])
+    calls.length = 0
+    const saved = (await handle({ method: 'saveWithReplica' })).value as { replica: { snapshot: ArrayBuffer } | null }
+    expect(calls).toEqual(['prepareSave', 'save', 'snapshot'])
+    expect(new Uint8Array(saved.replica!.snapshot)).toEqual(new Uint8Array([7]))
+  })
+
+  it('saves an engine that has no prepareSave as before', async () => {
+    fakeDocument()
+    await open()
+    await edit()
+    expect((await handle({ method: 'save' })).value).toMatchObject({ revision: 1 })
+  })
 })

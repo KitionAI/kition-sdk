@@ -594,11 +594,41 @@ survives in the file: the actor ids inside element ids (which replica wrote
 each character, item or node, as numbers) and the seal's lamport number. A
 save with no change since commits nothing and writes the same bytes.
 
-Saving in the editor gives the file the content bytes and the store the full
-bytes: the kit's `export` writes `replica.contentSnapshot()` (TypeScript), or
-the session seals (`KitSession::seal`) and the kit's `KitModel::export`
-writes `replica.sealed_content_snapshot()` (Rust); the host then stores
-`snapshot()`, which holds the seal.
+Saving gives the file the content bytes and the store the full bytes. Every
+host calls the engine's `prepareSave` right before `save` (engine rule E4,
+host rule H4): the editor worker, `kition-headless` (and so the kit server and
+the HTTP kits), the convergence harness. The seal happens there, in the live
+replica, so the document's next edits follow it and a replica opened from the
+file takes them. The editor then takes the store's `snapshot()` after `save`:
+the store holds the seal.
+
+What a kit whose file holds its replica does:
+
+1. **Prepare.** `KitDocument::prepare_save(&mut self)`: `self.session.seal()`
+   (TypeScript: `KitModel.prepareSave(view, replica)`: `replica.seal()`).
+2. **Save.** `KitDocument::save(&self)` writes
+   `replica.sealed_content_snapshot()` into the file (TypeScript:
+   `replica.sealedContentSnapshot()`, or `replica.contentSnapshot()` in
+   `export`, which seals itself). It never writes `snapshot()`. A replica
+   loaded from content bytes answers those same bytes while it stays at their
+   version, so an unchanged save writes the file it read, byte for byte: no
+   kit caches the bytes.
+3. **Open, file alone.** `Replica::load(schema, content, actor)`: a shallow
+   replica rooted at the file's seal. It edits, syncs, forks drafts and
+   answers `changes_since` at every version since the file
+   (`Replica::reaches`); versions before the file are `history-missing`.
+4. **Open, with the host's stored replica** (`openReplica`, the store of
+   `<workspace>/.kition/docs/<docId>/`): `kition_kit::session::take_file(&mut
+   stored, &file)`. When the stored replica has the file's version it does
+   nothing; when the file's history reaches the stored replica's version it
+   imports the file's changes; otherwise (the file was saved from changes the
+   store lacks: another machine, a store that is gone) it writes the file's
+   state over the stored one as one `system` transaction labelled `import`,
+   keyed by object id (`write_state`: registers, refs, text with marks,
+   lists, maps, trees).
+5. **Tests.** `Replica::snapshot_origins(bytes)` (`Replica.snapshotOrigins`)
+   lists the origins of the changes some bytes hold: a content snapshot holds
+   one, the seal. No kit test needs the engine (`loro`) itself.
 
 A file is a shallow replica that does not carry the document's whole history
 (sync protocol S20). A document known only from its file (no store, no room)

@@ -136,7 +136,9 @@ export abstract class KitEngineAdapter<View> implements KitAdapter<EngineDocumen
   }
 
   exportFile(doc: EngineDocument<View>): Uint8Array | null {
-    return this.fileName === null ? null : doc.save(this.fileName)
+    if (this.fileName === null) return null
+    doc.prepareSave?.()
+    return doc.save(this.fileName)
   }
 
   script(_doc: EngineDocument<View>, _step: Script): boolean {

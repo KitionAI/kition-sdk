@@ -67,6 +67,13 @@ export interface KitEngineDocument {
   disabledCommands(): string
   /** The document's diagnostics as JSON `{ diagnostics: KitEngineDiagnostic[] }` (KHP A21); optional. */
   check?(): string
+  /**
+   * Gets the document ready for `save`; hosts call it right before `save` (and before they take the
+   * replica's snapshot for their history store). A kit whose file holds its KDM replica seals the
+   * live replica here (`Replica.seal`, data model 7.3). It changes no content and does not mark the
+   * document saved; optional.
+   */
+  prepareSave?(): void
   /** The document as file bytes; it stays unsaved until `markSaved`. */
   save(name?: string): Uint8Array
   markSaved(): void

@@ -179,7 +179,7 @@ function personEdit<T>(open: KitModuleDocument, call: () => T): T {
 const encodeOrigin = (origin: Origin) => JSON.stringify([origin.kind, origin.principal, origin.label ?? null])
 
 /** The shared contract's own methods, which `invoke` must not reach around. */
-const CONTRACT = new Set(['free', 'execute', 'save', 'markSaved', 'constructor', 'open', 'create', 'openWithReplica', 'takeOutput'])
+const CONTRACT = new Set(['free', 'execute', 'prepareSave', 'save', 'markSaved', 'constructor', 'open', 'create', 'openWithReplica', 'takeOutput'])
 
 /** The replica's version when followed and made: asking an engine without one would make it. */
 function replicaVersion(open: KitModuleDocument) {
@@ -723,6 +723,8 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'save': {
       const open = opened()
+      // The kit gets ready first: a kit whose file holds its replica seals it (data model 7.3).
+      if (!readOnly) open.prepareSave?.()
       const bytes = open.save(docName)
       return { value: { bytes: bytes.buffer, revision: Number(open.revision) }, transfer: [bytes.buffer] }
     }
@@ -761,6 +763,9 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'saveWithReplica': {
       const open = opened()
+      // The seal first, then the file's bytes, then the store's snapshot: the store holds the seal
+      // the file is rooted at, and the document's next edits follow it.
+      if (!readOnly) open.prepareSave?.()
       const bytes = open.save(docName)
       let replica: { snapshot: ArrayBuffer; blobs: ArrayBuffer } | null = null
       try {

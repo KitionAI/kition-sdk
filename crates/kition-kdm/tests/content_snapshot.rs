@@ -176,19 +176,21 @@ fn a_content_snapshot_commits_nothing_and_answers_the_same_bytes_when_nothing_ch
     assert!(!a.seal().unwrap());
     assert_eq!(a.content_snapshot().unwrap(), first);
     assert_eq!(a.version(), version);
-    // A replica loaded from it is sealed too: it commits nothing and answers the same document,
-    // the same bytes each time. Not byte for byte the loaded bytes: this engine writes the version
-    // vectors inside a reloaded document's change blocks in another order (the TypeScript engine
-    // answers the loaded bytes; its suite checks that).
+    // A replica loaded from it is sealed too: it commits nothing and answers the same bytes (the
+    // bytes it was loaded from: the engine would write a reloaded document's version vectors in
+    // another order), every time, and so does one loaded from those.
     let mut file = load(&first, 3);
     assert!(file.is_sealed());
-    let again = file.content_snapshot().unwrap();
+    assert_eq!(file.content_snapshot().unwrap(), first);
     assert_eq!(file.version(), version);
-    assert_eq!(file.content_snapshot().unwrap(), again);
-    let reloaded = load(&again, 4);
-    assert_eq!(reloaded.version(), version);
-    assert_eq!(reloaded.state_hash().unwrap(), a.state_hash().unwrap());
-    assert_eq!(reloaded.shallow_root(), load(&first, 5).shallow_root());
+    assert_eq!(file.content_snapshot().unwrap(), first);
+    assert_eq!(load(&first, 4).sealed_content_snapshot().unwrap(), first);
+    // Once it changes, its content is its own again.
+    let shape = file.objects_of_type("Shape").into_iter().next().unwrap();
+    file.transact(&person(), |tx| tx.set(&shape, "x", json!(77))).unwrap();
+    let changed = file.content_snapshot().unwrap();
+    assert_ne!(changed, first);
+    assert_eq!(load(&changed, 5).get(&shape, "x").unwrap(), json!(77));
 }
 
 #[test]
@@ -294,4 +296,45 @@ fn after_a_rebirth_a_replica_that_keeps_earlier_history_cannot_send_concurrent_c
     file.rebirth().unwrap();
     b.transact(&person(), |tx| tx.set(&shape, "y", json!(1))).unwrap();
     assert!(matches!(file.import_changes(&b.export_changes(&before).unwrap()), Err(KdmError::HistoryMissing(_))));
+}
+
+#[test]
+fn a_replica_opened_from_a_content_snapshot_forks_and_tells_what_changed_since_the_file() {
+    let (mut a, _, _, shape) = history(false);
+    let before = a.version();
+    let mut file = load(&a.content_snapshot().unwrap(), 3);
+    let opened = file.version();
+    assert!(file.reaches(&opened));
+    assert!(!file.reaches(&before), "the root's own operation, the seal, is not in it");
+    file.transact(&person(), |tx| tx.set(&shape, "x", json!(5))).unwrap();
+    let middle = file.version();
+    file.transact(&person(), |tx| tx.set(&shape, "y", json!(6))).unwrap();
+    // A batch's receipt: what changed since a version after the file.
+    let since = serde_json::to_string(&file.changes_since(&middle).unwrap()).unwrap();
+    assert!(since.contains("\"y\"") && !since.contains("\"x\""), "{since}");
+    assert!(serde_json::to_string(&file.changes_since(&opened).unwrap()).unwrap().contains("\"x\""));
+    let mut draft = file.fork_at(&middle, actor(4)).unwrap();
+    assert!(draft.is_shallow());
+    assert_eq!(draft.version(), middle);
+    assert_eq!(draft.shallow_root(), file.shallow_root());
+    assert_eq!(draft.get(&shape, "x").unwrap(), json!(5));
+    assert_eq!(draft.get(&shape, "y").unwrap(), json!(20));
+    // The draft edits and merges back like any.
+    draft.transact(&person(), |tx| tx.set(&shape, "fill", json!("#222222"))).unwrap();
+    file.merge_changes(&draft.export_changes(&middle).unwrap(), &person()).unwrap();
+    assert_eq!(file.get(&shape, "fill").unwrap(), json!("#222222"));
+    assert_eq!(file.get(&shape, "y").unwrap(), json!(6));
+    // Versions before the file are not in it.
+    assert!(matches!(file.fork_at(&before, actor(5)), Err(KdmError::HistoryMissing(_))));
+    assert!(matches!(file.changes_since(&before), Err(KdmError::HistoryMissing(_))));
+}
+
+#[test]
+fn a_snapshot_lists_the_origins_it_holds() {
+    let (mut a, ..) = history(true);
+    let full = Replica::snapshot_origins(&a.snapshot().unwrap()).unwrap();
+    assert!(full.len() > 5, "{full:?}");
+    assert!(full.contains(&Some(Origin::person(format!("user:{LAST}")).with_label(LAST_LABEL))));
+    assert_eq!(Replica::snapshot_origins(&a.content_snapshot().unwrap()).unwrap(), vec![Some(Origin::system("content-seal"))]);
+    assert!(matches!(Replica::snapshot_origins(&[1, 2, 3]), Err(KdmError::Encoding(_))));
 }

@@ -108,6 +108,8 @@ export interface KitModuleDocument {
   check?(): string
   /** The next chunk of a file a command produced (engine contract E16), at most `max` bytes; optional, engines before it make none. */
   takeOutput?(id: string, max?: number): Uint8Array
+  /** Gets the document ready for `save` (a seal, for a kit whose file holds its replica); the worker calls it right before `save`. Optional: engines before it have none. */
+  prepareSave?(): void
   /** The document as file bytes; it stays unsaved until `markSaved`. */
   save(name?: string): Uint8Array
   /** Records that the bytes from the last `save` reached the file. */

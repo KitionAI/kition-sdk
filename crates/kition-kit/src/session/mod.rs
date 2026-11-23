@@ -17,9 +17,11 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 pub mod model;
+mod state;
 mod text;
 mod web;
 
+pub use state::{State, state, take_file, write_state};
 pub use text::{DIFF_BUDGET, TextEdit, TextRun, diff_text, write_marks, write_rich_text, write_text};
 pub use web::KitSessionDocument;
 #[doc(hidden)]
@@ -317,7 +319,9 @@ impl<M: KitModel> KitSession<M> {
 
     /// Seals the replica ([`Replica::seal`]) before [`KitSession::export`], so a kit whose file
     /// holds its replica writes [`Replica::sealed_content_snapshot`] from its
-    /// [`KitModel::export`], which sees the replica read-only. Answers whether it committed a seal.
+    /// [`KitModel::export`], which sees the replica read-only. A kit calls it from
+    /// [`crate::KitDocument::prepare_save`], which every host calls before `save`. Answers whether
+    /// it committed a seal; the seal is no edit, so the kit's dirty state does not change.
     pub fn seal(&mut self) -> Result<bool> {
         Ok(self.replica.seal()?)
     }

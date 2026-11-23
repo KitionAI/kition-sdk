@@ -5,7 +5,7 @@ import { open, sameBytes, Version, wrap } from './envelope'
 import { errors, KdmError } from './errors'
 import { checkActor, committedNode, uuidFromBytes, uuidToBytes, type NodeRef, type ObjectId, type TreeEntry } from './ids'
 import { configure, type TextRun } from './marks'
-import { checkOrigin, decodeCommit, encodeCommit, system, undoScopeOf, type Origin, type OriginKind, type UndoScope } from './origin'
+import { checkOrigin, decodeCommit, decodeOrigin, encodeCommit, system, undoScopeOf, type Origin, type OriginKind, type UndoScope } from './origin'
 import * as read from './read'
 import { KDM_VERSION, type Schema } from './schema'
 import { diffObjects, diffWithToolIds, withLeafEdits, withTextSpans, type StateDiff } from './diff'
@@ -42,7 +42,7 @@ const CHANGES_BEFORE_ROOT = "the changes depend on history before this shallow r
 /** What `changesSince` answers for a version its history does not hold; the Rust `changes_since` says the same. */
 const VERSION_NOT_HELD = "the version is not in this replica's history (another document's, or the document was replaced since)"
 
-const VERSION_BEFORE_ROOT = 'a shallow replica forks only at its current version; read earlier versions from the server'
+const VERSION_BEFORE_ROOT = "the version is before this shallow replica's root; read earlier versions from the server"
 /** What `rebase` answers for a snapshot older than a shallow replica's root; the Rust crate says the same. */
 const SNAPSHOT_BEFORE_ROOT = "the snapshot is older than this shallow replica's root; rebase it on a newer one"
 
@@ -174,6 +174,12 @@ export class Replica {
    * later, as it keeps another replica's (M12a). Pruned at each undo and redo.
    */
   private localWrites = new Map<Register, { by: UndoScope | null; value: unknown }>()
+  /**
+   * The engine bytes a shallow replica was loaded from, with their version: the engine here forks
+   * a shallow document only as a whole, so `forkAt` builds an earlier version from them and the
+   * changes after them (a version from theirs on).
+   */
+  private loadedFrom: { version: Version; engine: Uint8Array } | null = null
 
   private constructor(
     private doc: LoroDoc,
@@ -270,6 +276,7 @@ export class Replica {
     if (!storedBytes || !sameBytes(storedBytes, docId)) throw errors.encoding(`the bytes are labelled as document ${uuidFromBytes(docId)}, but hold another`)
     const replica = new Replica(doc, docId, schema, actor)
     replica.notePending(status)
+    if (doc.isShallow() && !replica.hasPendingChanges()) replica.loadedFrom = { version: replica.version(), engine: engine.slice() }
     return replica
   }
 
@@ -474,7 +481,7 @@ export class Replica {
   exportChanges(since: Version = Version.empty()): Uint8Array {
     this.checkOpen()
     if (!(since instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
-    if (!this.reaches(since)) return this.snapshot()
+    if (!this.reachesRoot(since)) return this.snapshot()
     let bytes: Uint8Array
     try {
       bytes = this.doc.export({ mode: 'update', from: since.toEngine() })
@@ -591,7 +598,7 @@ export class Replica {
     this.checkOpen()
     if (!(at instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
     if (!this.version().includes(at)) throw errors.invalidValue('$shallow', 'version', 'names changes this replica does not have')
-    const frontiers = this.reaches(at) ? this.doc.vvToFrontiers(at.toEngine()) : this.doc.shallowSinceFrontiers()
+    const frontiers = this.reachesRoot(at) ? this.doc.vvToFrontiers(at.toEngine()) : this.doc.shallowSinceFrontiers()
     let bytes: Uint8Array
     try {
       bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers })
@@ -704,6 +711,7 @@ export class Replica {
     freeHistories(this.undoManagers)
     this.doc = reborn.doc
     this.undoManagers = reborn.undoManagers
+    this.loadedFrom = reborn.loadedFrom
     this.importedRegisters.clear()
     this.keptRegisters.clear()
     this.ownRegisters.clear()
@@ -745,6 +753,27 @@ export class Replica {
   }
 
   /**
+   * The origins of the changes the document `bytes` hold (a snapshot, a content snapshot, or an
+   * export of changes), read without a schema: one entry per change, `null` for a change whose
+   * commit message is not a KDM origin. A change is the engine's: consecutive transactions of one
+   * replica with the same origin may be one change. A content snapshot holds one, its seal. Bytes
+   * that are not a KDM export, or that do not decode, are `encoding` errors. As the Rust
+   * `Replica::snapshot_origins`.
+   */
+  static snapshotOrigins(bytes: Uint8Array): (Origin | null)[] {
+    const { engine } = open(bytes)
+    const doc = new LoroDoc()
+    try {
+      doc.import(engine)
+      return [...doc.getAllChanges().values()].flat().map((change) => (typeof change.message === 'string' ? decodeOrigin(change.message) : null))
+    } catch (error) {
+      throw errors.encoding(engineMessage(error))
+    } finally {
+      doc.free()
+    }
+  }
+
+  /**
    * `carriesWholeHistory` of the document `bytes` (a snapshot or a full export) hold, read without
    * a schema, as a sync server reads a room's first state (rule S20). Bytes that are not a KDM
    * export, or that do not decode, are `encoding` errors. As the Rust
@@ -767,8 +796,23 @@ export class Replica {
     }
   }
 
+  /**
+   * Whether this replica's history reaches `version`, so it can read that version itself (`forkAt`,
+   * `changesSince`): always on a full replica; on a shallow one, when `version` includes its root
+   * and the root's own operation (the seal, for a replica opened from a content snapshot). It says
+   * nothing about whether the replica has the version's changes (`version().includes` does). As the
+   * Rust `Replica::reaches`; this engine forks a shallow replica at such a version only from the
+   * version it was loaded at on (`forkAt`).
+   */
+  reaches(version: Version): boolean {
+    if (!this.reachesRoot(version)) return false
+    if (!this.doc.isShallow()) return true
+    const vv = version.toEngine()
+    return this.doc.shallowSinceFrontiers().every((id) => (vv.get(id.peer) ?? 0) > id.counter)
+  }
+
   /** Whether `version` is at or after this replica's shallow root: always, on a full replica. */
-  private reaches(version: Version): boolean {
+  private reachesRoot(version: Version): boolean {
     const root = this.shallowRoot()
     return root === null || version.includes(root)
   }
@@ -808,6 +852,7 @@ export class Replica {
     freeHistories(this.undoManagers)
     this.doc = base.doc
     this.undoManagers = base.undoManagers
+    this.loadedFrom = base.loadedFrom
     this.importedRegisters.clear()
     this.keptRegisters.clear()
     this.ownRegisters.clear()
@@ -965,23 +1010,57 @@ export class Replica {
     return this.forkAt(this.version(), actor)
   }
 
-  /** A draft of this document as it was at `version` (see `fork`); `version` must be one this replica has reached. */
+  /**
+   * A draft of this document as it was at `version` (see `fork`); `version` must be one this
+   * replica has reached. A shallow replica forks at its current version, and at any version from
+   * the one it was loaded at on (a replica opened from a file's content snapshot: every version
+   * since the file), as a shallow replica with the same root; other versions are
+   * `history-missing`. The Rust `fork_at` serves every version from the root on: this engine forks
+   * a shallow document only as a whole, so an earlier version is built from the loaded bytes.
+   */
   forkAt(version: Version, actor: bigint): Replica {
     this.idle()
     this.checkOpen()
     checkActor(actor)
     if (!(version instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
     if (!this.version().includes(version)) throw errors.invalidValue('$draft', 'version', 'names changes this replica does not have')
-    // The engine forks a shallow document only as a whole.
-    if (this.doc.isShallow() && !version.equals(this.version())) throw errors.historyMissing(VERSION_BEFORE_ROOT)
     let doc: LoroDoc
-    try {
-      doc = this.doc.isShallow() ? this.doc.fork() : this.doc.forkAt(this.doc.vvToFrontiers(version.toEngine()))
-    } catch (error) {
-      throw errors.engine(engineMessage(error))
+    if (this.doc.isShallow() && !version.equals(this.version())) {
+      doc = this.shallowForkAt(version)
+    } else {
+      try {
+        doc = this.doc.isShallow() ? this.doc.fork() : this.doc.forkAt(this.doc.vvToFrontiers(version.toEngine()))
+      } catch (error) {
+        throw errors.engine(engineMessage(error))
+      }
     }
     configure(doc, this.schema)
     return new Replica(doc, this.docIdBytes, this.schema, actor)
+  }
+
+  /** A shallow document at `version`: the bytes this replica was loaded from, then its changes after them up to `version`. */
+  private shallowForkAt(version: Version): LoroDoc {
+    const from = this.loadedFrom
+    if (from === null || !version.includes(from.version)) throw errors.historyMissing(VERSION_BEFORE_ROOT)
+    const doc = new LoroDoc()
+    try {
+      doc.import(from.engine)
+      const have = doc.oplogVersion().toJSON()
+      const spans: { id: { peer: PeerID; counter: number }; len: number }[] = []
+      for (const [peer, end] of version.toEngine().toJSON()) {
+        const start = have.get(peer) ?? 0
+        if (end > start) spans.push({ id: { peer, counter: start }, len: end - start })
+      }
+      if (spans.length > 0) doc.import(this.doc.export({ mode: 'updates-in-range', spans }))
+    } catch (error) {
+      doc.free()
+      throw errors.engine(engineMessage(error))
+    }
+    if (!Version.fromEngine(doc.oplogVersion()).equals(version)) {
+      doc.free()
+      throw errors.historyMissing(VERSION_BEFORE_ROOT)
+    }
+    return doc
   }
 
   /**

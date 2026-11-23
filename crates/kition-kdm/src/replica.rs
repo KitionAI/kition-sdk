@@ -104,6 +104,11 @@ pub struct Replica {
     /// `import` transaction), with the value written. An undo in one scope keeps the value another
     /// scope wrote later, as it keeps another replica's (M12a). Pruned at each undo and redo.
     local_writes: HashMap<Register, (Option<UndoScope>, Option<LoroValue>)>,
+    /// The content snapshot this replica was loaded from, with its version: what
+    /// [`Replica::sealed_content_snapshot`] answers while the replica is still at that version.
+    /// The engine encodes a reloaded document's version vectors in another order, so its own export
+    /// of the same version is the same document but not the same bytes.
+    loaded_content: Option<(Version, Vec<u8>)>,
 }
 
 /// A register: one key of a map container inside an object (a register field, or one key of a
@@ -201,6 +206,7 @@ impl Replica {
     /// [`Replica::has_pending_changes`]): the loaded replica has none pending, and fetches those
     /// changes again when it syncs.
     pub fn load(schema: Arc<Schema>, bytes: &[u8], actor: ActorId) -> Result<Self> {
+        let whole = bytes;
         let (doc_id, bytes) = envelope::open(bytes)?;
         let doc = LoroDoc::new();
         crate::marks::configure(&doc, &schema);
@@ -237,6 +243,15 @@ impl Replica {
         }
         let mut replica = Self::attach(doc, doc_id, schema, actor)?;
         replica.note_pending(status.pending.as_ref());
+        // Content bytes (a shallow snapshot rooted at its own seal, with no change after it) are
+        // what this replica's content is while it stays at their version.
+        if replica.is_shallow()
+            && !replica.has_pending_changes()
+            && replica.is_sealed()
+            && replica.doc.shallow_since_frontiers() == replica.doc.oplog_frontiers()
+        {
+            replica.loaded_content = Some((replica.version(), whole.to_vec()));
+        }
         Ok(replica)
     }
 
@@ -257,6 +272,7 @@ impl Replica {
             kept_registers: HashMap::new(),
             own_registers: HashMap::new(),
             local_writes: HashMap::new(),
+            loaded_content: None,
         })
     }
 
@@ -482,7 +498,7 @@ impl Replica {
     /// imports into any replica that has the root, as these changes would. On a full replica, and
     /// for a `since` at or after the root, the bytes are the changes alone.
     pub fn export_changes(&self, since: &Version) -> Result<Vec<u8>> {
-        if !self.reaches(since) {
+        if !self.reaches_root(since) {
             return self.snapshot();
         }
         let bytes = self.doc.export(ExportMode::updates(&since.0)).map_err(|error| KdmError::Encoding(error.to_string()))?;
@@ -608,7 +624,7 @@ impl Replica {
         if !self.version().includes(at) {
             return Err(KdmError::InvalidValue { ty: "$shallow".into(), field: "version".into(), reason: "names changes this replica does not have".into() });
         }
-        let frontiers = if self.reaches(at) { self.doc.vv_to_frontiers(&at.0) } else { self.doc.shallow_since_frontiers() };
+        let frontiers = if self.reaches_root(at) { self.doc.vv_to_frontiers(&at.0) } else { self.doc.shallow_since_frontiers() };
         let bytes = self.doc.export(ExportMode::shallow_snapshot(&frontiers)).map_err(|error| KdmError::Encoding(error.to_string()))?;
         Ok(envelope::wrap(self.doc_id, bytes))
     }
@@ -644,6 +660,11 @@ impl Replica {
     pub fn sealed_content_snapshot(&self) -> Result<Vec<u8>> {
         if !self.is_sealed() {
             return Err(KdmError::InvalidValue { ty: "$content".into(), field: "version".into(), reason: NOT_SEALED.into() });
+        }
+        if let Some((version, bytes)) = &self.loaded_content
+            && *version == self.version()
+        {
+            return Ok(bytes.clone());
         }
         let bytes = self.doc.export(ExportMode::shallow_snapshot(&self.doc.oplog_frontiers())).map_err(|error| KdmError::Encoding(error.to_string()))?;
         Ok(envelope::wrap(self.doc_id, bytes))
@@ -779,8 +800,34 @@ impl Replica {
         Ok(carries_whole_history(&doc))
     }
 
+    /// The origins of the changes the document `bytes` hold (a snapshot, a content snapshot, or an
+    /// export of changes), read without a schema: one entry per change, `None` for a change whose
+    /// commit message is not a KDM origin. A change is the engine's: consecutive transactions of
+    /// one replica with the same origin may be one change. A content snapshot holds one, its seal
+    /// ([`Replica::content_snapshot`]); a full snapshot holds every change since the document was
+    /// made (or since its root, for a shallow one). Bytes that are not a KDM export, or that do
+    /// not decode, are [`KdmError::Encoding`]. The TypeScript `Replica.snapshotOrigins` reads the
+    /// same.
+    pub fn snapshot_origins(bytes: &[u8]) -> Result<Vec<Option<Origin>>> {
+        let (_, bytes) = envelope::open(bytes)?;
+        let doc = LoroDoc::new();
+        doc.import(bytes).map_err(|error| KdmError::Encoding(error.to_string()))?;
+        let changes = doc.export_json_updates(&VersionVector::default(), &doc.oplog_vv()).changes;
+        Ok(changes.into_iter().map(|change| change.msg.as_deref().and_then(Origin::decode)).collect())
+    }
+
+    /// Whether this replica's history reaches `version`, so it can read that version itself
+    /// ([`Replica::fork_at`], [`Replica::changes_since`]) rather than from whoever keeps the whole
+    /// history: always on a full replica; on a shallow one, when `version` includes its root and
+    /// the root's own operation (the seal, for a replica opened from a content snapshot). It says
+    /// nothing about whether the replica has the version's changes ([`Version::includes`] of
+    /// [`Replica::version`] does).
+    pub fn reaches(&self, version: &Version) -> bool {
+        self.reaches_root(version) && (!self.is_shallow() || self.doc.shallow_since_frontiers().iter().all(|id| version.0.includes_id(id)))
+    }
+
     /// Whether `version` is at or after this replica's shallow root: always, on a full replica.
-    fn reaches(&self, version: &Version) -> bool {
+    fn reaches_root(&self, version: &Version) -> bool {
         self.shallow_root().is_none_or(|root| version.includes(&root))
     }
 
@@ -1281,8 +1328,10 @@ impl Replica {
 
     /// A draft of this document as it was at `version` (see [`Replica::fork`]). `version` must be
     /// one this replica has reached ([`KdmError::InvalidValue`] otherwise). A shallow replica
-    /// forks only at its current version ([`KdmError::HistoryMissing`] otherwise): earlier
-    /// versions are read from the server.
+    /// (one opened from a file's content snapshot, for instance) forks at any version from its
+    /// root on, as a shallow replica with the same root; a version before its root, whose state
+    /// it does not hold, is [`KdmError::HistoryMissing`]: earlier versions are read from whoever
+    /// keeps the whole history.
     pub fn fork_at(&self, version: &Version, actor: ActorId) -> Result<Replica> {
         if !self.version().includes(version) {
             return Err(KdmError::InvalidValue { ty: "$draft".into(), field: "version".into(), reason: "names changes this replica does not have".into() });
@@ -1291,9 +1340,9 @@ impl Replica {
             self.doc.fork_at(&self.doc.vv_to_frontiers(&version.0)).map_err(engine)?
         } else if *version == self.version() {
             self.doc.fork()
+        } else if self.reaches(version) {
+            shallow_fork_at(&self.doc, &version.0)?
         } else {
-            // The engine forks a shallow document only as a whole; the TypeScript one has no other
-            // way to make one at an earlier version, so neither implementation does.
             return Err(KdmError::HistoryMissing(VERSION_BEFORE_ROOT.into()));
         };
         crate::marks::configure(&doc, &self.schema);
@@ -1564,7 +1613,7 @@ const PENDING_REBIRTH: &str = "has pending changes, which a rebirth would lose: 
 
 /// What a shallow replica answers for a version before its root; the TypeScript
 /// `errors.historyMissing` says the same.
-const VERSION_BEFORE_ROOT: &str = "a shallow replica forks only at its current version; read earlier versions from the server";
+const VERSION_BEFORE_ROOT: &str = "the version is before this shallow replica's root; read earlier versions from the server";
 
 /// What [`Replica::changes_since`] answers for a version its history does not hold; the
 /// TypeScript `changesSince` says the same.

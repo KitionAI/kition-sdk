@@ -294,7 +294,13 @@ A kit on the KDM ships `model/schema.json`:
   exchange, an agent's draft) works on it unchanged.
   It has no history before its root: undo covers only its own transactions
   since it was loaded (as for any loaded replica, M12), and it forks a
-  draft (A12) only at its current version. Earlier versions, blame, and
+  draft (A12), and answers `changes_since`, at the versions its history
+  reaches: `reaches(version)` (`reaches` in TypeScript) is true for a version
+  that includes its root and the root's own operation. The Rust replica forks
+  at every such version; the TypeScript engine forks a shallow document only
+  as a whole, so it forks at its current version and at the versions from the
+  one it was loaded at on (a replica opened from a file: every version since
+  the file), and refuses the others as `history-missing`. Earlier versions, blame, and
   restores are read from whoever keeps the whole history (the sync server,
   [sync-protocol.md](../reference/sync-protocol.md) sections 3 and 7; a copy
   has none before its birth, M7a). Changes that
@@ -335,9 +341,12 @@ A kit on the KDM ships `model/schema.json`:
   change commits nothing and answers the same bytes; two replicas with the
   same state but different histories answer different bytes. A copy's
   change (M7a) and a rebirth count as seals. Code that holds the replica
-  read-only (a Rust kit's `KitModel::export`) calls `seal()` before and
-  `sealed_content_snapshot()` (`sealedContentSnapshot()`) inside, which
-  refuses (`invalid-value`) an unsealed replica. A content snapshot does not
+  read-only (a Rust kit's `KitDocument::save`) has it sealed before, in the
+  engine's `prepareSave` that every host calls right before `save` (engine
+  rule E4), and writes `sealed_content_snapshot()`
+  (`sealedContentSnapshot()`), which refuses (`invalid-value`) an unsealed
+  replica. A replica loaded from content bytes answers those same bytes while
+  it stays at their version. A content snapshot does not
   carry the document's whole history (S20) unless its seal is the birth:
   `rebirth()` makes the current version the birth of a document known only
   from such a file (one `system` change labelled `rebirth`, the replica

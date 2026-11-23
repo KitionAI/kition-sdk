@@ -1,0 +1,26 @@
+format: 1
+id: sdk.model.content-snapshot/open-and-save
+feature: sdk.model.content-snapshot
+intent: >-
+  A kit whose file holds its replica saves and opens it without rewriting the plumbing: every host
+  (the editor worker, kition-headless, the convergence harness) calls the engine's prepareSave right
+  before save, so the live replica is sealed and the editor's history-store snapshot, taken after
+  the file bytes, holds the seal; a replica opened from the file forks and answers changes_since at
+  every version since the file and refuses earlier ones (history-missing); an unchanged save of a
+  reloaded file is byte-identical; take_file brings a file into the host's stored replica as its
+  changes or, when its history does not reach the store, as its state written by object id
+  (registers, refs, marked text, lists, maps, trees) in one system import transaction; and
+  snapshot_origins lists what a snapshot holds without the engine.
+layer: gate
+source: { kind: synthetic, from: kition-board adoption of content snapshots (blocked by fork_at on shallow replicas and save sealing), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: content_snapshot }
+  - cargo-test: { package: kition-kdm, test: shallow }
+  - cargo-test: { package: kition-kit, test: state }
+  - cargo-test: { package: kition-headless, filter: a_host_gets_the_kit_ready_before_every_save }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/content-snapshot.test.ts, packages/kit-engine/test/session.test.ts, packages/kit-editor/src/engine/kitEngine.save.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-22"

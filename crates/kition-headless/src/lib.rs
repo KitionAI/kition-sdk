@@ -1022,8 +1022,15 @@ impl<D: KitDocument + Send + 'static> Headless<D> {
     }
 
     /// `model.save`: the document as file bytes in `format` (the native one by default), without
-    /// writing a file; the document stays as it was (still unsaved).
-    fn save_bytes(&self, index: usize, format: Option<&str>) -> Result<Value, RpcError> {
+    /// writing a file; the document stays unsaved. The kit gets ready first
+    /// ([`KitDocument::prepare_save`]: a seal, for a kit whose file holds its replica).
+    fn save_bytes(&mut self, index: usize, format: Option<&str>) -> Result<Value, RpcError> {
+        self.docs
+            .get_mut(index)
+            .ok_or_else(|| RpcError::kit(ErrorReason::DocumentNotFound))?
+            .doc
+            .prepare_save()
+            .map_err(|message| RpcError::kit_detail(ErrorReason::IoError, message))?;
         let open = self.docs.get(index).ok_or_else(|| RpcError::kit(ErrorReason::DocumentNotFound))?;
         let format = format.or_else(|| self.format_of(&open.name)).or(self.kit.native()).unwrap_or_default().to_owned();
         if !self.kit.saves.contains(&format) {
@@ -1320,6 +1327,10 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
             return Err(RpcError::kit_detail(ErrorReason::UnsupportedFormat, format!("{} saves {} files", self.kit.id, self.kit.saves.join(", "))));
         }
         self.lend_for(open.file.as_deref());
+        // The kit gets ready first (a seal, for a kit whose file holds its replica), so the bytes
+        // and the replica the host keeps agree.
+        let open = self.docs.get_mut(index).ok_or_else(|| RpcError::kit(ErrorReason::DocumentNotFound))?;
+        open.doc.prepare_save().map_err(|message| RpcError::kit_detail(ErrorReason::IoError, message))?;
         let bytes = open.doc.save(Some(&name)).map_err(|message| RpcError::kit_detail(ErrorReason::IoError, message))?;
         let version = match host.write(&handle, &bytes, expected.as_deref()) {
             Ok(version) => version,

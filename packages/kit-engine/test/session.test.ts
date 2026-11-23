@@ -197,6 +197,31 @@ describe('kitEngineClass', () => {
     expect(titles(first.session.replica)).toEqual(['Milk', 'Eggs'])
   })
 
+  it('seals the live replica in prepareSave, so the file is rooted at a seal its next edits follow', () => {
+    const model: KitModel<View> = {
+      ...notes,
+      import: (_name, file, actor) => Replica.load(schema, file, actor),
+      prepareSave: (_view, replica) => replica.seal(),
+      export: (_view, replica) => replica.sealedContentSnapshot(),
+    }
+    const Holding = kitEngineClass(model)
+    const doc = new Holding(new KitSession(model, Replica.load(schema, notes.import('List.notes', bytes('Milk\n'), 1n).contentSnapshot(), 2n)))
+    doc.execute('note.add', JSON.stringify({ title: 'Eggs' }))
+    // A save without the host's prepareSave is refused: the replica is not sealed.
+    expect(() => doc.save('List.notes')).toThrow()
+    doc.prepareSave!()
+    const file = doc.save('List.notes')
+    const stored = doc.snapshot()
+    doc.markSaved()
+    expect(doc.dirty).toBe(false)
+    // The store holds the seal; the document's next edit follows it, so the file's replica takes it.
+    expect(Replica.load(schema, stored, 3n).version().equals(Replica.load(schema, file, 4n).version())).toBe(true)
+    doc.execute('note.add', JSON.stringify({ title: 'Tea' }))
+    const reopened = Replica.load(schema, file, 5n)
+    reopened.importChanges(doc.exportChanges(reopened.version().encode()))
+    expect(titles(reopened)).toEqual(['Milk', 'Eggs', 'Tea'])
+  })
+
   it('keeps a saved document saved when its session takes a content snapshot', () => {
     const session = new KitSession(notes, notes.import('a.notes', bytes('Milk\n'), 1n))
     session.execute('note.add', { title: 'Eggs' }, { kind: 'person', principal: 'user:test' })
