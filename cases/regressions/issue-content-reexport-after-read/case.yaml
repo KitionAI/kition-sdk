@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-content-reexport-after-read
+feature: sdk.model.content-snapshot
+intent: >-
+  An unchanged save writes the same bytes whatever was read in between: a content snapshot taken
+  after the replica's whole state was read (state_json, state_hash) equals the one taken before,
+  in Rust and TypeScript, for a replica made here, one loaded from a file and one loaded from a
+  full snapshot. Before, the first read of the minimum schema version created the engine's empty
+  root map schemaRaises, which the next export wrote, so the file changed with no edit.
+layer: gate
+source: { kind: issue, from: kition-layout fe73c628 (crates/kdm/kdm-model/tests/session.rs moved its byte check before state_hash), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: content_snapshot, filter: an_unchanged_content_snapshot_is_the_same_bytes_after_the_whole_state_is_read }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/content-snapshot.test.ts, -t, "answers the same bytes after the whole state is read"] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-23"

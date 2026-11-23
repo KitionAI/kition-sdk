@@ -193,6 +193,41 @@ fn a_content_snapshot_commits_nothing_and_answers_the_same_bytes_when_nothing_ch
     assert_eq!(load(&changed, 5).get(&shape, "x").unwrap(), json!(77));
 }
 
+/// Reading a replica's whole state between two saves changes nothing in what it saves: a replica
+/// loaded from a file or a snapshot holds the engine's encoded state until something reads it,
+/// and the content snapshot is the same bytes whether it was read or not (kition-layout's
+/// unchanged save after `state_hash`).
+#[test]
+fn an_unchanged_content_snapshot_is_the_same_bytes_after_the_whole_state_is_read() {
+    let (mut a, _, _, shape) = history(false);
+    let content = a.content_snapshot().unwrap();
+    let full = a.snapshot().unwrap();
+    for (bytes, n) in [(&content, 3), (&full, 4)] {
+        let mut replica = load(bytes, n);
+        replica.transact(&person(), |tx| tx.set(&shape, "x", json!(5))).unwrap();
+        replica.seal().unwrap();
+        let first = replica.sealed_content_snapshot().unwrap();
+        replica.state_json().unwrap();
+        replica.state_hash().unwrap();
+        assert_eq!(replica.sealed_content_snapshot().unwrap(), first, "after reading the state of a replica loaded from {n}");
+        // The same edit on a replica whose state was read before the first save: the same bytes.
+        let mut read = load(bytes, n);
+        read.state_hash().unwrap();
+        read.transact(&person(), |tx| tx.set(&shape, "x", json!(5))).unwrap();
+        read.seal().unwrap();
+        assert_eq!(read.sealed_content_snapshot().unwrap(), first, "whether or not the state was read first");
+    }
+    a.state_hash().unwrap();
+    assert_eq!(a.sealed_content_snapshot().unwrap(), content, "and from the live replica");
+    // A replica made here that has imported nothing and whose state nobody read yet.
+    let mut fresh = Replica::create(schema(), DocId::new(), actor(6)).unwrap();
+    page_with_shape(&mut fresh);
+    let first = fresh.content_snapshot().unwrap();
+    fresh.state_json().unwrap();
+    assert_eq!(fresh.sealed_content_snapshot().unwrap(), first, "and from a replica made here");
+    assert_eq!(load(&first, 7).state_json().unwrap(), fresh.state_json().unwrap());
+}
+
 #[test]
 fn a_replica_seals_again_after_an_edit_but_not_after_importing_another_replicas_seal() {
     let (mut a, mut b, _, shape) = history(false);

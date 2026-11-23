@@ -141,6 +141,22 @@ describe('contentSnapshot', () => {
     expect(file.version().equals(version)).toBe(true)
   })
 
+  it('answers the same bytes after the whole state is read', () => {
+    // A read creates an engine root map the first time it names one; the bytes do not change.
+    const fresh = Replica.create(testSchema(), newDocId(), 6n)
+    pageWithShape(fresh)
+    const first = fresh.contentSnapshot()
+    fresh.stateJson()
+    expect(fresh.sealedContentSnapshot()).toEqual(first)
+    const { a, shape } = history(false)
+    const file = Replica.load(testSchema(), a.contentSnapshot(), 3n)
+    file.transact(me, (tx) => tx.set(shape, 'x', 5))
+    file.seal()
+    const edited = file.sealedContentSnapshot()
+    file.stateJson()
+    expect(file.sealedContentSnapshot()).toEqual(edited)
+  })
+
   it('seals again after an edit, an import, or nothing but another replica’s seal', () => {
     const { a, b, shape } = history(false)
     a.contentSnapshot()

@@ -636,6 +636,10 @@ export class Replica {
   sealedContentSnapshot(): Uint8Array {
     this.checkOpen()
     if (!this.isSealed()) throw errors.invalidValue('$content', 'version', NOT_SEALED)
+    // A read creates an engine root map the first time it names one (an empty root container is
+    // part of the state the export writes): every root the KDM reads exists before the export, so
+    // the bytes do not depend on what was read since the last change. As the Rust crate.
+    for (const root of [read.META, read.OBJECTS, read.SEAL, read.BIRTH, read.SCHEMA_RAISES]) this.doc.getMap(root)
     let bytes: Uint8Array
     try {
       bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() })

@@ -592,7 +592,10 @@ change's origin stays. The seal is a real change: the host stores it and
 pushes it to the room like any other; it is no undo step. What still
 survives in the file: the actor ids inside element ids (which replica wrote
 each character, item or node, as numbers) and the seal's lamport number. A
-save with no change since commits nothing and writes the same bytes.
+save with no change since commits nothing and writes the same bytes, whatever
+was read in between: the engine creates an empty root map the first time a
+read names it, and an export writes it, so the export first creates every
+root the KDM reads (`meta`, `objects`, `seal`, `birth`, `schemaRaises`).
 
 Saving gives the file the content bytes and the store the full bytes. Every
 host calls the engine's `prepareSave` right before `save` (engine rule E4,

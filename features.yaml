@@ -153,7 +153,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/read.ts, crates/kition-kit/src/session/mod.rs, crates/kition-kit/src/session/state.rs, crates/kition-kit/src/lib.rs, crates/kition-headless/src/lib.rs, packages/kit-engine/src/session.ts, packages/kit-engine/src/contract.ts, packages/kit-editor/src/engine/kitEngine.worker.ts]
-    cases: [sdk.model.content-snapshot/no-history, sdk.model.content-snapshot/open-and-save]
+    cases: [sdk.model.content-snapshot/no-history, sdk.model.content-snapshot/open-and-save, regressions/issue-content-reexport-after-read]
     since: "2026-11-22"
   - id: sdk.host.document-fork
     title: A host reads the docId a file carries and forks a file into a new document through the kit (Kit Process Protocol document.identity, document.fork)

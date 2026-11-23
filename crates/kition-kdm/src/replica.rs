@@ -13,7 +13,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::error::{engine, importing};
-use crate::read::{self, BIRTH, BIRTH_ROOT, META, OBJECTS, SCHEMA_VERSION, SEAL, SEAL_VERSION};
+use crate::read::{self, BIRTH, BIRTH_ROOT, META, OBJECTS, SCHEMA_RAISES, SCHEMA_VERSION, SEAL, SEAL_VERSION};
 use crate::value::canonical;
 use crate::{ActorId, Changes, DocId, FieldKind, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
 
@@ -665,6 +665,12 @@ impl Replica {
             && *version == self.version()
         {
             return Ok(bytes.clone());
+        }
+        // A read creates a root map of the engine's the first time it names one (an empty root
+        // container is part of the state the export writes): every root the KDM reads exists
+        // before the export, so the bytes do not depend on what was read since the last change.
+        for root in [META, OBJECTS, SEAL, BIRTH, SCHEMA_RAISES] {
+            self.doc.get_map(root);
         }
         let bytes = self.doc.export(ExportMode::shallow_snapshot(&self.doc.oplog_frontiers())).map_err(|error| KdmError::Encoding(error.to_string()))?;
         Ok(envelope::wrap(self.doc_id, bytes))
