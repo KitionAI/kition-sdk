@@ -27,21 +27,39 @@
  *
  * It always serves picking a file to link (`links/pick`, capability `links-pick`, protocol section
  * 7i, except for `?role=viewer` and `?role=commenter`): the next answer `scriptLinkPick` queued (workspace paths), or else the
- * workspace files `pickable` names that the request accepts (the first, or all with `multiple`),
- * never the open document. Nothing is copied: the kit gets each by its path from the document's
- * folder and reads it with `host/read`. `linkPicks` keeps every request.
+ * workspace files `pickable` names that the request accepts, never the open document. Nothing is
+ * copied: the kit gets each by its path from the document's folder and reads it with `host/read`.
+ * `linkPicks` keeps every request.
+ *
+ * Picks (`host/pick`, `links/pick`, and KitFiles' `files/pick` to open) are answered the same way
+ * for every request: a queued answer first (`scriptHostPick`, `scriptLinkPick`, `scriptPick`);
+ * else, in an automated browser (`navigator.webdriver`, as Playwright's are) or with `?pick=first`,
+ * at once: `host/pick` the first fitting workspace file, `links/pick` all of them, `files/pick`
+ * nothing (cancelled); else (a person at the page, or `?pick=chooser`) a chooser lists the
+ * fitting workspace files and "Choose from computer…", which copies the chosen files into the
+ * workspace beside the document.
+ *
+ * With `lend: true` the workspace is lent to the engine (`document.lend`): every file is mirrored
+ * to `devHostWorkspace()`, the Vite plugin from `./vite` (workspaceServer.mjs), under a path of
+ * this page load, which answers the engine's ranged reads. The Workspace panel in the top bar
+ * lists the files with their sizes and saves each to disk (exports included), and adds files.
  */
 import { KitRpcError, mountKit, type KitConnection, type KitLinkRef, type KitLinksPickParams, type KitOpenParams, type KitGenerateErrorReason, type KitGenerateParams, type KitGenerateResult, type KitFileGrant, type KitFilesManifest, type KitFilesPickParams, type KitPeerPresence, type KitPresence, type KitSchemaReport, type KitUiConfig, type KitView } from '@kition/kit-host'
 import { checkNoPaths, type PathLeak } from './checkNoPaths'
 import { memoryFilesStorage, type MemoryFile } from './memoryFiles'
+import { chooseFiles, devHostStrings, folderOf, WORKSPACE_PATH, WorkspaceFiles, workspacePanel } from './workspace'
 
 export { checkNoPaths, isMimeType, isPathShaped, type PathLeak } from './checkNoPaths'
 export { memoryFilesStorage, type MemoryFile } from './memoryFiles'
+export { WORKSPACE_PATH, WorkspaceFiles, formatSize } from './workspace'
 
 type File = MemoryFile
 
 /** What the scripted picker answers next: workspace paths (none: the person cancelled), or a function of the request. */
 export type ScriptedPick = string[] | ((params: KitFilesPickParams) => string[])
+
+/** What `host/pick` answers next: a workspace path (`null`: the person cancelled), or a function of the request. */
+export type ScriptedHostPick = string | null | ((params: { purpose: string; accept: string[] }) => string | null)
 
 /** What the link chooser answers next (`links/pick`): workspace paths (none: the person cancelled), or a function of the request. */
 export type ScriptedLinkPick = string[] | ((params: KitLinksPickParams) => string[])
@@ -59,13 +77,22 @@ export type DevHostOptions = {
   entry?: string
   /** Workspace files `host/pick` and `links/pick` may answer with. */
   pickable?: RegExp
-  /** Extra files put in the workspace before the sample opens (name → URL). */
+  /** Extra files put in the workspace before the sample opens (workspace path → URL). */
   files?: Record<string, string>
+  /** The workspace folder the sample opens in (none: the workspace root), so its links resolve against it. */
+  folder?: string
   /**
-   * Files the document links (media), lent as the protocol's `document.lend`: a folder of this
-   * site that serves ranged reads (Vite's static server does), and the document's folder in it.
+   * Lends the workspace to the engine (`document.lend`), as Kition lends a project's folder: the
+   * kit's Vite config adds `devHostWorkspace()` from `@kition/sdk/dev-host/vite`, which serves the
+   * engine's ranged reads of every workspace file.
    */
-  lend?: { root: string; folder: string }
+  lend?: boolean
+  /**
+   * How picks are answered when no answer is queued: `chooser` opens the chooser, `first` answers
+   * at once as tests expect. Default: `first` in an automated browser (`navigator.webdriver`),
+   * else `chooser`; `?pick=` overrides it.
+   */
+  pick?: 'chooser' | 'first'
   /** Serves presence (capability `presence`, protocol section 7e), as `?presence=1` does. */
   presence?: boolean
   /** The kit manifest's `files` lists (K15): serves KitFiles 1.0 (`files/*`) under them. */
@@ -80,7 +107,10 @@ export type DevHostOptions = {
 export type DevOpen = { method: 'host/open'; params: KitOpenParams } | { method: 'host/openUrl'; params: { url: string } }
 
 export type DevHost = {
-  files: Map<string, File>
+  /** The workspace (path → bytes and version); with `lend`, every change is mirrored to the served workspace. */
+  files: WorkspaceFiles
+  /** Where the workspace is lent to the engine (`document.lend.root`), or `null` without `lend`. */
+  lendRoot: string | null
   connection: () => KitConnection | null
   /** Opens a file in the editor; `view` is where in it to show first (`document.view`). */
   open: (path: string, bytes: ArrayBuffer, options?: { view?: KitView }) => Promise<void>
@@ -103,7 +133,11 @@ export type DevHost = {
   schemas: KitSchemaReport[]
   /** Empty folders in the workspace (KitFiles), beside the folders the files' paths make. */
   folders: Set<string>
-  /** Queues the picker's next answers (`files/pick`), one per pick; with none queued it cancels. */
+  /** Queues `host/pick`'s next answers, one per pick; with none queued it answers as the `pick` option says. */
+  scriptHostPick: (...answers: ScriptedHostPick[]) => void
+  /** Every `host/pick` the editor sent. */
+  hostPicks: Array<{ purpose: string; accept: string[] }>
+  /** Queues the picker's next answers (`files/pick`), one per pick; with none queued it answers as the `pick` option says (`first` cancels). */
   scriptPick: (...answers: ScriptedPick[]) => void
   /** Every grant (KitFiles section 7's grant log). */
   grants: KitFileGrant[]
@@ -122,7 +156,7 @@ export type DevHost = {
   opens: DevOpen[]
   /** What an open answers (`opened`); `false` plays a person who cancelled. */
   openAnswer: boolean
-  /** Queues the link chooser's next answers (`links/pick`), one per pick; with none queued it answers the `pickable` files. */
+  /** Queues the link chooser's next answers (`links/pick`), one per pick; with none queued it answers as the `pick` option says (`first`: the `pickable` files). */
   scriptLinkPick: (...answers: ScriptedLinkPick[]) => void
   /** Every `links/pick` the editor sent, as `mountKit` checked it. */
   linkPicks: KitLinksPickParams[]
@@ -202,7 +236,19 @@ export function modesInit(param: string | null): KitUiConfig['modes'] {
 }
 
 export function startDevHost(options: DevHostOptions = {}) {
-  const files = new Map<string, File>()
+  const search = new URLSearchParams(location.search)
+  const files = new WorkspaceFiles()
+  const strings = devHostStrings(search.get('locale') ?? navigator.language)
+  const lendRoot = options.lend ? `${location.origin}${WORKSPACE_PATH}/${typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2)}/` : null
+  files.lendRoot = lendRoot
+  files.onLendFailed = () => {
+    console.warn(strings.lendFailed)
+    status.textContent = strings.lendFailed
+  }
+  const pickParam = search.get('pick')
+  const pickMode: 'chooser' | 'first' = pickParam === 'chooser' || pickParam === 'first' ? pickParam : (options.pick ?? (navigator.webdriver ? 'first' : 'chooser'))
+  const hostPickAnswers: ScriptedHostPick[] = []
+  const hostPicks: Array<{ purpose: string; accept: string[] }> = []
   const frame = document.getElementById('kit') as HTMLIFrameElement
   const status = document.getElementById('status') as HTMLElement
   const picker = document.getElementById('file') as HTMLInputElement | null
@@ -246,7 +292,9 @@ export function startDevHost(options: DevHostOptions = {}) {
   // A small panel in the header: paste a configuration, apply it, switch the scheme.
   const panel = document.createElement('details')
   panel.innerHTML = '<summary>UI configuration</summary><textarea rows="6" cols="60" spellcheck="false">{}</textarea><button type="button">Apply</button><select><option value="light">Light</option><option value="dark">Dark</option></select>'
-  status.parentElement?.append(panel)
+  const workspace = workspacePanel(files, () => folderOf(documentPath), strings)
+  status.parentElement?.append(panel, workspace.panel)
+  files.changed = workspace.render
   const field = panel.querySelector('textarea')!
   const select = panel.querySelector('select')!
   select.value = scheme
@@ -288,7 +336,7 @@ export function startDevHost(options: DevHostOptions = {}) {
           name: path.split('/').pop() ?? path,
           bytes: file.bytes.slice(0),
           version: String(file.version),
-          lend: options.lend ? { root: new URL(options.lend.root, location.href).href, folder: options.lend.folder } : undefined,
+          lend: lendRoot ? { root: lendRoot, folder: folderOf(path) } : undefined,
           ...roleInit(new URLSearchParams(location.search).get('role')),
           ...(openOptions.view ? { view: openOptions.view } : {}),
         },
@@ -312,13 +360,28 @@ export function startDevHost(options: DevHostOptions = {}) {
             files.set(target, { bytes, version })
             return { path: target, version: String(version) }
           },
-          // The first workspace file the host may answer with and the kit accepts (`accept` lists extensions).
-          pick: ({ accept }) => ({ path: [...files.keys()].find((name) => pickable.test(name) && accepts(accept, name)) ?? null }),
+          // A workspace file the host may answer with and the kit accepts (`accept` lists extensions).
+          pick: async (params) => {
+            hostPicks.push(params)
+            const next = hostPickAnswers.shift()
+            if (next !== undefined) return { path: typeof next === 'function' ? next(params) : next }
+            const fitting = pickableFiles(params.accept)
+            if (pickMode === 'first') return { path: fitting[0] ?? null }
+            const [chosen] = await chooseFiles(files, { candidates: fitting, accept: params.accept, multiple: false, folder: folderOf(documentPath), purpose: params.purpose }, strings)
+            return { path: chosen ?? null }
+          },
           // Files to link, in place (UI-N2): mountKit makes them document-relative links.
-          pickLinks: (params) => {
+          pickLinks: async (params) => {
             linkPicks.push(params)
             const next = linkPickAnswers.shift()
-            const chosen = next ? (typeof next === 'function' ? next(params) : next) : [...files.keys()].filter((name) => name !== path && pickable.test(name) && accepts(params.accept, name))
+            const fitting = pickableFiles(params.accept)
+            const chosen = next
+              ? typeof next === 'function'
+                ? next(params)
+                : next
+              : pickMode === 'first'
+                ? fitting
+                : await chooseFiles(files, { candidates: fitting, accept: params.accept, multiple: params.multiple === true, folder: folderOf(documentPath), purpose: params.purpose }, strings)
             return chosen.filter((name) => files.has(name)).map((name) => ({ path: name, version: String(files.get(name)!.version) }))
           },
           openAgent: () => {
@@ -357,7 +420,10 @@ export function startDevHost(options: DevHostOptions = {}) {
                 manifest: options.kitFiles,
                 pick: async (params: KitFilesPickParams) => {
                   const next = picks.shift()
-                  return typeof next === 'function' ? next(params) : (next ?? [])
+                  if (next) return typeof next === 'function' ? next(params) : next
+                  if (pickMode === 'first' || params.mode !== 'open') return []
+                  const fitting = [...files.keys()].filter((name) => name !== documentPath && !name.split('/').some((part) => part.startsWith('.')) && accepts(params.accept, name))
+                  return chooseFiles(files, { candidates: fitting, accept: params.accept, multiple: params.multiple === true, folder: folderOf(documentPath), purpose: params.purpose }, strings)
                 },
                 print: async ({ bytes: pdf, title }: { bytes: Uint8Array; title: string }) => {
                   prints.push({ title, size: pdf.byteLength })
@@ -374,6 +440,11 @@ export function startDevHost(options: DevHostOptions = {}) {
     } catch (error) {
       status.textContent = `could not open ${path}: ${error instanceof Error ? error.message : String(error)}`
     }
+  }
+
+  /** The workspace files `pickable` names that `accept` takes, never the open document. */
+  function pickableFiles(accept: readonly string[]) {
+    return [...files.keys()].filter((name) => name !== documentPath && pickable.test(name) && accepts(accept, name))
   }
 
   async function generate(params: KitGenerateParams): Promise<KitGenerateResult> {
@@ -410,6 +481,7 @@ export function startDevHost(options: DevHostOptions = {}) {
 
   window.devHost = {
     files,
+    lendRoot,
     connection: () => connection,
     open,
     changes,
@@ -420,6 +492,8 @@ export function startDevHost(options: DevHostOptions = {}) {
     setPeers,
     schemas,
     folders,
+    scriptHostPick: (...answers) => void hostPickAnswers.push(...answers),
+    hostPicks,
     scriptPick: (...answers) => void picks.push(...answers),
     grants,
     fileRequests,
@@ -455,6 +529,6 @@ export function startDevHost(options: DevHostOptions = {}) {
     }
     // A lent document keeps its folder in its path, so its links resolve against it.
     const name = decodeURIComponent(options.sample.split('/').pop() ?? 'Sample')
-    await open(options.lend?.folder ? `${options.lend.folder}/${name}` : name, await response.arrayBuffer())
+    await open(options.folder ? `${options.folder}/${name}` : name, await response.arrayBuffer())
   })()
 }

@@ -15,8 +15,9 @@ vi.mock('@kition/kit-host', async (importOriginal) => ({
 
 const { modesInit, resolveLink, startDevHost } = await import('./index')
 
-/** The page a kit's `dev.html` gives the host. */
+/** The page a kit's `dev.html` gives the host, in an automated browser as Playwright's are (`navigator.webdriver`). */
 function page(search = '') {
+  Object.defineProperty(navigator, 'webdriver', { value: true, configurable: true })
   document.body.innerHTML = '<header><span id="status"></span></header><iframe id="kit"></iframe><input id="file" type="file">'
   history.replaceState(null, '', `/dev.html${search}`)
 }

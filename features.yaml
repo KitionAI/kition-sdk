@@ -2257,6 +2257,23 @@ features:
     cases:
       - sdk.dev-host.watch-page/close-and-crash
     since: "2026-11-22"
+  - id: sdk.dev-host.workspace
+    title: The dev host's workspace for a person at dev.html, without a kit-side server — lent to the engine (lend true, served by devHostWorkspace() from @kition/sdk/dev-host/vite with ranged reads), a real chooser for picks with "Choose from computer…" (an automated browser or ?pick=first still answers at once), and a Workspace panel that lists, downloads and adds files
+    dimension: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-dev-host/src/workspace.ts
+      - packages/kit-dev-host/src/workspace.test.ts
+      - packages/kit-dev-host/src/workspaceServer.mjs
+      - packages/kit-dev-host/src/workspaceServer.test.mjs
+      - packages/kit-dev-host/src/index.ts
+      - packages/kit-dev-host/README.md
+    gap: No browser test drives a real kit's engine through the lent workspace here; each kit's own flow tests do (motion's footage tests, once it moves to lend true).
+    cases:
+      - sdk.dev-host.workspace/lend-pick-panel
+      - sdk.dev-host.workspace/served-ranges
+    since: "2026-11-23"
   - id: sdk.kits.outline
     title: A kit names the engine command that answers a document's outline (the parts of a file a host lists under it and opens the file at) in its manifest; a host reads it from the open editor or the headless kit without knowing the kit
     dimension: [platform, function]

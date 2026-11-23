@@ -1024,9 +1024,11 @@ previews of its documents for a host lists `render`. `linkRef` is
     the workspace paths it answers into UI-N2's links, leaving out hidden
     paths, the document itself, and files outside `accept`.
     `@kition/kit-editor`'s `connectHost()` offers `pickLinks`.
-    `@kition/kit-dev-host` serves it from its in-memory workspace (the
-    files `pickable` names, or the answers `scriptLinkPick` queues;
-    `linkPicks` keeps the requests).
+    `@kition/kit-dev-host` serves it from its in-memory workspace: the
+    answers `scriptLinkPick` queues; else, in an automated browser, the
+    files `pickable` names; else a chooser of those files with "Choose from
+    computer…", which copies the person's files into the workspace
+    (`linkPicks` keeps the requests).
 
 ## 7j. Host generation and host actions (capabilities `generate`, `action:<id>`)
 

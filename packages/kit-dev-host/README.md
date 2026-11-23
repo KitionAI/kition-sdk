@@ -20,7 +20,46 @@ startDevHost({ sample: './sample/Sample.md', entry: './index.html', presence: tr
 const state = await page.evaluate(() => window.devHost.connection()?.state())
 ```
 
-Four subpaths run in Node with Playwright:
+### The workspace: lent files, picks, downloads
+
+The dev host keeps an in-memory workspace (`window.devHost.files`: the document, the `files` you
+list, everything the kit writes). Three things make it usable by a person at the page, with no
+server of the kit's own:
+
+- **Lent files.** `lend: true` lends the workspace to the engine (`document.lend`), as Kition
+  lends a project's folder, so the engine reads footage, pictures and fonts beside the document
+  with ranged reads. The engine reads them with synchronous requests from its worker, so they are
+  served over HTTP by a Vite plugin: add `devHostWorkspace()` to the kit's Vite config. Every file
+  put in the workspace is mirrored there at once, under a path of this page load.
+  `folder` is the workspace folder the sample opens in, so its relative links resolve.
+
+  ```ts
+  // vite.config.ts
+  import { devHostWorkspace } from '@kition/kit-dev-host/vite'
+  export default defineConfig({ plugins: [react(), devHostWorkspace()] })
+
+  // src/devHost.ts
+  startDevHost({ sample: './sample/films/Cut.kfilm', folder: 'films', lend: true, pickable: /\.(mp4|mov|wav|png)$/i })
+  ```
+
+- **A real chooser.** When the kit asks to pick a file (`host/pick`, `links/pick`, or KitFiles'
+  `files/pick` to open), the page shows the workspace files that fit (`pickable` and the request's
+  extensions) and **Choose from computer…** (从电脑选择…), which opens the computer's file
+  chooser for those extensions (several when the request allows) and copies the chosen files into
+  the workspace beside the document. Tests keep answering at once: a queued answer
+  (`scriptHostPick`, `scriptLinkPick`, `scriptPick`) comes first; with none, an automated browser
+  (`navigator.webdriver`, as every Playwright browser is) or `?pick=first` (option `pick: 'first'`)
+  answers the first fitting file (`host/pick`), all of them (`links/pick`), or cancels
+  (`files/pick`). `?pick=chooser` shows the chooser in a test.
+- **The Workspace panel** in the top bar (collapsed) lists every workspace file with its size and
+  a download link, so a person can save what the kit exported, and **Add files…** copies files from
+  the computer beside the document.
+
+The page's own strings are in en-US and zh-CN (`?locale=`, else the browser's language).
+
+Five subpaths run in Node:
+
+- `@kition/kit-dev-host/vite`: `devHostWorkspace`, the Vite plugin that serves the lent workspace (dev and preview servers).
 
 - `@kition/kit-dev-host/check-ui-ids`: `checkUiIds`, which checks that every control of the editor carries an element id the editor lists.
 - `@kition/kit-dev-host/mode-smoke`: `runModeSmoke`, a smoke test of the editor in each display mode. It watches each page it opens with `watchPage`.

@@ -219,6 +219,10 @@
       "types": "./dist/types/kit-dev-host/src/watchPage.d.mts",
       "import": "./dist/lib/kit-dev-host/watchPage.mjs"
     },
+    "./dev-host/vite": {
+      "types": "./dist/types/kit-dev-host/src/workspaceServer.d.mts",
+      "import": "./dist/lib/kit-dev-host/workspaceServer.mjs"
+    },
     "./protocol": {
       "types": "./dist/types/kit-ui-protocol/src/index.d.ts",
       "import": "./dist/lib/kit-ui-protocol/index.js"

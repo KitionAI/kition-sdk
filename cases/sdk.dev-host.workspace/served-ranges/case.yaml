@@ -1,0 +1,24 @@
+format: 1
+id: sdk.dev-host.workspace/served-ranges
+feature: sdk.dev-host.workspace
+intent: >-
+  devHostWorkspace() (@kition/sdk/dev-host/vite) serves the dev host's workspace as a lent folder
+  on Vite's dev and preview servers: it keeps what the page puts, answers GET and HEAD with byte
+  ranges, an ETag and no caching, keeps each page load's files apart, refuses hidden paths and
+  paths above the workspace, and keeps only the last page loads.
+layer: gate
+dimension: function
+source:
+  kind: synthetic
+  from: SDK dev-host tests
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-dev-host/src/workspaceServer.test.mjs]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-23"

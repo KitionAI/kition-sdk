@@ -1,0 +1,28 @@
+format: 1
+id: sdk.dev-host.workspace/lend-pick-panel
+feature: sdk.dev-host.workspace
+intent: >-
+  A person hand-testing a kit in its dev.html can give the engine their own footage and get the
+  kit's exports back: with lend: true the dev host lends its in-memory workspace (document.lend,
+  a root of this page load and the document's folder) and mirrors every file put, written or
+  deleted to it synchronously; a pick with no queued answer opens a chooser of the fitting
+  workspace files and "Choose from computer…", which copies the chosen files beside the document,
+  while an automated browser (navigator.webdriver) or ?pick=first answers at once as before; the
+  collapsed Workspace panel lists every file with its size and a download link and adds files;
+  every page string is in en-US and zh-CN.
+layer: gate
+dimension: function
+source:
+  kind: synthetic
+  from: SDK dev-host tests
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-dev-host/src/workspace.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-23"
