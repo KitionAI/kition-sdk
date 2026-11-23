@@ -22,6 +22,9 @@ thiserror = { workspace = true, optional = true }
 # Engine contract 2 (`session`): the document as a KDM replica. Off by default, so contract 1 kits
 # do not build the replication engine.
 session = ["dep:kition-kdm", "dep:sha2", "dep:thiserror"]
+# Counted ids for a kit's tests and sample builds (kition-kdm `reproducible-ids`): enable it in a
+# kit's `[dev-dependencies]` only, never in a shipped build.
+reproducible-ids = ["session", "kition-kdm/reproducible-ids"]
 
 [dev-dependencies]
 # The crate's own tests run with the session.

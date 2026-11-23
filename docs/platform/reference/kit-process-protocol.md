@@ -99,6 +99,11 @@ and starts the kit with:
 | From the host's environment, when set | `KITION_FONTS_DIR`, `SOURCE_DATE_EPOCH`, `RUST_BACKTRACE`, `RUST_LIB_BACKTRACE`, `RUST_LOG`, every `KITION_KIT_*` (a kit's own settings are named `KITION_KIT_<NAME>_…`), and on Windows `SystemRoot` and `windir` |
 | The four launch variables above | as above |
 
+`SOURCE_DATE_EPOCH` fixes the times a kit writes; it never changes the ids a kit mints. Counted ids
+(`KITION_REPRODUCIBLE_IDS`, with the KDM's `reproducible-ids` feature that only a kit's tests and
+sample builds enable) are never passed: two kit processes counting from one seed would mint the
+same ids.
+
 `PATH` is not passed: a kit starts no programs. Variables a host adds for one
 launch on purpose (diagnostics) pass as it gives them. The private folder is
 outside the workspace (a launch whose private folder would lie inside it is
