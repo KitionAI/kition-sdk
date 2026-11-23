@@ -156,6 +156,58 @@ describe('kitEngineClass', () => {
     expect(doc.dirty).toBe(false)
   })
 
+  it('saves the content into a file that holds its replica, and the whole history into the store', () => {
+    // A format that holds its replica: the file is the replica's content snapshot.
+    const model: KitModel<View> = {
+      ...notes,
+      import: (_name, file, actor) => Replica.load(schema, file, actor),
+      export: (_view, replica) => replica.contentSnapshot(),
+    }
+    const holding = kitEngineClass(model)
+    const opened = notes.import('List.notes', bytes('Milk\n'), 1n).contentSnapshot()
+    const first = new holding(new KitSession(model, Replica.load(schema, opened, 2n)))
+    first.execute('note.add', JSON.stringify({ title: 'Eggs' }))
+    first.execute('note.rename', JSON.stringify({ id: first.session.replica.list(root(first.session.replica), 'items')[1], title: 'Tea' }))
+    // What the editor's save does: the file's bytes, then the store's.
+    const file = first.save('List.notes')
+    const stored = first.snapshot()
+    first.markSaved()
+    expect(first.dirty).toBe(false)
+    const fromFile = Replica.load(schema, file, 8n)
+    const fromStore = Replica.load(schema, stored, 9n)
+    expect(fromFile.docId).toBe(first.docId)
+    expect(fromFile.stateText()).toBe(fromStore.stateText())
+    expect(fromFile.version().equals(fromStore.version())).toBe(true)
+    // The file holds no history: the renamed title is gone from it, the store keeps it.
+    const holds = (data: Uint8Array, needle: string) => Buffer.from(data).includes(Buffer.from(needle))
+    expect(holds(stored, 'Eggs')).toBe(true)
+    expect(holds(file, 'Eggs')).toBe(false)
+    // The store holds every change since the document was opened from its file: rooted where the
+    // file was, while the file saved now is rooted at the new seal.
+    const openedRoot = Replica.load(schema, opened, 10n).shallowRoot()!
+    expect(fromStore.shallowRoot()!.equals(openedRoot)).toBe(true)
+    expect(fromFile.shallowRoot()!.equals(openedRoot)).toBe(false)
+    // Saving again with no edit commits nothing and writes the same bytes; Undo still takes back
+    // the person's last edit.
+    const revision = first.revision
+    expect(first.save('List.notes')).toEqual(file)
+    expect(first.revision).toBe(revision)
+    expect(first.dirty).toBe(false)
+    expect(JSON.parse(first.undo()).done).toBe(true)
+    expect(titles(first.session.replica)).toEqual(['Milk', 'Eggs'])
+  })
+
+  it('keeps a saved document saved when its session takes a content snapshot', () => {
+    const session = new KitSession(notes, notes.import('a.notes', bytes('Milk\n'), 1n))
+    session.execute('note.add', { title: 'Eggs' }, { kind: 'person', principal: 'user:test' })
+    session.save('a.notes')
+    session.markSaved()
+    const content = session.contentSnapshot()
+    expect(session.dirty).toBe(false)
+    expect(session.replica.isSealed()).toBe(true)
+    expect(Replica.load(schema, content, 2n).stateText()).toBe(session.replica.stateText())
+  })
+
   it('lists its commands after Undo and Redo, and the disabled ones', () => {
     const doc = NotesDocument.create('New.notes', 0, 0)
     const ids = (JSON.parse(doc.commands()) as Array<{ id: string }>).map((command) => command.id)

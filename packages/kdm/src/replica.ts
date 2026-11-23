@@ -46,6 +46,19 @@ const VERSION_BEFORE_ROOT = 'a shallow replica forks only at its current version
 /** What `rebase` answers for a snapshot older than a shallow replica's root; the Rust crate says the same. */
 const SNAPSHOT_BEFORE_ROOT = "the snapshot is older than this shallow replica's root; rebase it on a newer one"
 
+/** The label of a content seal's `system` change (`Replica.seal`). */
+const CONTENT_SEAL = 'content-seal'
+/** The label of the `system` change that makes a copy (`Replica.copyAsNewDocument`). */
+const NEW_DOCUMENT = 'new-document'
+/** The label of the `system` change of a rebirth (`Replica.rebirth`). */
+const REBIRTH = 'rebirth'
+/** The labels of the `system` changes that seal a version (`Replica.isSealed`); the Rust crate has the same. */
+const SEALS: readonly string[] = [CONTENT_SEAL, NEW_DOCUMENT, REBIRTH]
+/** What `sealedContentSnapshot` answers for a replica that is not sealed; the Rust crate says the same. */
+const NOT_SEALED = 'is not sealed: seal the replica first (seal), or take content_snapshot'
+/** What `rebirth` answers while changes are pending; the Rust crate says the same. */
+const PENDING_REBIRTH = 'has pending changes, which a rebirth would lose: fetch what they depend on first'
+
 /** An engine failure while importing bytes: `history-missing` for changes a shallow replica lacks the history of, `encoding` otherwise. */
 const importing = (error: unknown): KdmError =>
   engineMessage(error).includes('not included in the shallow history') ? errors.historyMissing(CHANGES_BEFORE_ROOT) : errors.encoding(engineMessage(error))
@@ -588,6 +601,117 @@ export class Replica {
     return wrap(this.docIdBytes, bytes)
   }
 
+  /**
+   * The document's **content**: what a kit writes into a person's file (data model, "A file holds
+   * no history"). `seal`s this replica first, then answers a shallow snapshot rooted at the seal:
+   * the current state, and of the history only the seal's one operation. `load` opens it as this
+   * document (same `docId`, version, object ids), which edits, imports later changes, and merges
+   * like any shallow replica; changes made before the seal that it does not hold are
+   * `history-missing`.
+   *
+   * What the bytes keep of the history: the seal (a `system` change labelled `content-seal`, its
+   * lamport number and a zero timestamp, since the KDM records no times) and the actor (peer) ids
+   * inside element ids. No deleted content, no overwritten value, no person's or agent's origin.
+   * Exporting again with no change in between commits nothing and answers the same bytes. The seal
+   * is a real change: push it to the history store and the room like any other. The bytes carry
+   * the document's whole history (sync protocol S20) only when the last change is its birth
+   * (`rebirth`, `copyAsNewDocument`). As the Rust `Replica::content_snapshot`.
+   */
+  contentSnapshot(): Uint8Array {
+    this.seal()
+    return this.sealedContentSnapshot()
+  }
+
+  /**
+   * `contentSnapshot` of a replica already sealed. Refuses (`invalid-value`) a replica whose last
+   * change is no seal. As the Rust `Replica::sealed_content_snapshot`.
+   */
+  sealedContentSnapshot(): Uint8Array {
+    this.checkOpen()
+    if (!this.isSealed()) throw errors.invalidValue('$content', 'version', NOT_SEALED)
+    let bytes: Uint8Array
+    try {
+      bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() })
+    } catch (error) {
+      throw errors.encoding(engineMessage(error))
+    }
+    return wrap(this.docIdBytes, bytes)
+  }
+
+  /**
+   * Seals the current version for `contentSnapshot`: unless the last change already is a seal
+   * (nothing changed since), commits one `system` change (label `content-seal`) that depends on
+   * every head and writes the version it closes into the root map `seal`, outside the canonical
+   * state. Answers whether it committed one. The seal is an ordinary change of this replica's actor
+   * (in `version`, `exportChanges`, the history store and the room) and never an undo step. As the
+   * Rust `Replica::seal`.
+   */
+  seal(): boolean {
+    this.idle()
+    this.checkOpen()
+    if (this.isSealed()) return false
+    try {
+      this.doc.getMap(read.SEAL).set(read.SEAL_VERSION, this.doc.oplogVersion().encode())
+      this.doc.commit({ origin: SYSTEM, message: encodeCommit(system(CONTENT_SEAL), this.schema.schemaVersion) })
+    } catch (error) {
+      throw errors.engine(engineMessage(error))
+    }
+    this.reopenUndoGroup()
+    return true
+  }
+
+  /** Whether the version has one head and that head's change is a seal (`content-seal`, `new-document` or `rebirth`, by the KDM). */
+  isSealed(): boolean {
+    const heads = this.doc.oplogFrontiers()
+    if (heads.length !== 1) return false
+    const message = this.doc.getChangeAt(heads[0])?.message
+    const decoded = typeof message === 'string' ? decodeCommit(message) : null
+    return decoded !== null && decoded.origin.kind === 'system' && SEALS.includes(decoded.origin.label ?? '')
+  }
+
+  /**
+   * Makes this replica's current version the document's **birth** (sync protocol S20), for a
+   * document known only from a file that holds no history (`contentSnapshot`): commits one
+   * `system` change (label `rebirth`) that depends on every head and records its own root as the
+   * birth, then roots this replica there, a shallow replica of the same `docId` that
+   * `carriesWholeHistory`. Answers whether it did; a replica that already carries the whole history
+   * is left as it is. It declares that no replica holds history before this version: a host calls
+   * it only for a document with no history store and no room. Clears the undo and redo history,
+   * like any load, and `subscribeText` listeners stop receiving changes. Refuses (`invalid-value`)
+   * while changes are pending. As the Rust `Replica::rebirth`.
+   */
+  rebirth(): boolean {
+    this.idle()
+    this.checkOpen()
+    if (this.carriesWholeHistory()) return false
+    if (this.hasPendingChanges()) throw errors.invalidValue('$rebirth', 'version', PENDING_REBIRTH)
+    let bytes: Uint8Array
+    try {
+      // The change has one operation, so the engine roots the shallow document at it: the root
+      // (as `shallowRoot` answers it) is the version before that operation, every head included,
+      // with this actor's entry at the operation's counter.
+      const birth = new Map(this.doc.oplogVersion().toJSON())
+      const peer = this.actor.toString() as PeerID
+      birth.set(peer, birth.get(peer) ?? 0)
+      this.doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, VersionVector.parseJSON(birth).encode())
+      this.doc.commit({ origin: SYSTEM, message: encodeCommit(system(REBIRTH), this.schema.schemaVersion) })
+      bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() })
+    } catch (error) {
+      throw errors.encoding(engineMessage(error))
+    }
+    const reborn = Replica.load(this.schema, wrap(this.docIdBytes, bytes), this.actor)
+    if (!reborn.carriesWholeHistory()) throw errors.engine('the reborn replica is not rooted at the birth it records')
+    freeHistories(this.undoManagers)
+    this.doc = reborn.doc
+    this.undoManagers = reborn.undoManagers
+    this.importedRegisters.clear()
+    this.keptRegisters.clear()
+    this.ownRegisters.clear()
+    this.localWrites.clear()
+    this.reopenUndoGroup()
+    return true
+  }
+
   /** Whether this replica holds only part of the document's history: it was loaded from a `shallowSnapshot` (or a snapshot of a shallow replica). */
   isShallow(): boolean {
     return this.doc.isShallow()
@@ -904,7 +1028,7 @@ export class Replica {
       birth.set(peer, (birth.get(peer) ?? 0) + 1)
       doc.getMap(read.META).set('docId', uuidFromBytes(idBytes))
       doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, VersionVector.parseJSON(birth).encode())
-      doc.commit({ origin: SYSTEM, message: encodeCommit(system('new-document'), this.schema.schemaVersion) })
+      doc.commit({ origin: SYSTEM, message: encodeCommit(system(NEW_DOCUMENT), this.schema.schemaVersion) })
       // Rooted after that change: the source's id is overwritten, not kept as history.
       bytes = doc.export({ mode: 'shallow-snapshot', frontiers: doc.oplogFrontiers() })
     } catch (error) {

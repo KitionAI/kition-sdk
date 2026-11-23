@@ -28,6 +28,13 @@ export const SCHEMA_RAISES = 'schemaRaises'
 export const BIRTH = 'birth'
 /** The key of `BIRTH` that holds the encoded version. */
 export const BIRTH_ROOT = 'root'
+/**
+ * The root map a content seal writes (`Replica.seal`): its `version` key holds the encoded version
+ * the seal closes. A root map outside the canonical state, like `BIRTH`.
+ */
+export const SEAL = 'seal'
+/** The key of `SEAL` that holds the encoded version. */
+export const SEAL_VERSION = 'version'
 
 const isVersion = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 

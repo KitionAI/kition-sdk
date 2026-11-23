@@ -1,8 +1,9 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { LoroDoc } from 'loro-crdt'
 import { describe, expect, it } from 'vitest'
-import { newDocId, Replica, Version } from '../src/index'
+import { decodeOrigin, newDocId, Replica, system, Version } from '../src/index'
 import { crateFixture, me, reasonOf, testSchema, tsPage } from './helpers'
 
 /** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures`; never regenerated to make a test pass. */
@@ -143,5 +144,58 @@ describe('copies as new documents across the two implementations', () => {
     expect(exported.get(exported.objectsOfType('Page')[0] as string, 'title')).toBe('Forked page')
     const again = Replica.load(testSchema(), exported.exportChanges(), 13n)
     expect(again.stateText()).toBe(exported.stateText())
+  })
+})
+
+describe('content snapshots across the two implementations', () => {
+  const NEEDLES = ['Jx4Hb8Ty3Nc6', 'Ug5Le1Fo0Dw4', 'Hs6Pn2Dc9Lx', 'Ty5Ga1Ve7Oj', 'Mz8Cu4Ki0Ef', 'Rb2Wn6Xs3Ip']
+
+  /** The commit messages of the changes a KDM export holds, read through the engine. */
+  const messages = (bytes: Uint8Array): string[] => {
+    const doc = new LoroDoc()
+    try {
+      doc.import(bytes.subarray(20))
+      return [...doc.getAllChanges().values()].flat().map((change) => change.message ?? '')
+    } finally {
+      doc.free()
+    }
+  }
+
+  /**
+   * Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures content`:
+   * `rust-page.bin` edited by two replicas (text typed and deleted, a title overwritten), merged, as
+   * its content snapshot. The Rust `a_typescript_content_snapshot_opens_as_the_document_with_no_history`
+   * checks the TypeScript-made `ts-content.*` the same way.
+   */
+  it('open a Rust-made content snapshot as the document, with no history but its seal', () => {
+    const bytes = fixture('rust-content.bin')
+    const file = Replica.load(testSchema(), bytes, 19n)
+    expect(file.docId).toBe('01920000-0000-7000-8000-000000000001')
+    expect(file.isShallow()).toBe(true)
+    expect(file.stateText()).toBe(fixture('rust-content.json').toString('utf8'))
+    for (const needle of NEEDLES) expect(bytes.includes(Buffer.from(needle)), needle).toBe(false)
+    const held = messages(bytes)
+    expect(held).toHaveLength(1)
+    expect(decodeOrigin(held[0])).toEqual(system('content-seal'))
+    expect(file.isSealed()).toBe(true)
+    expect(file.carriesWholeHistory()).toBe(false)
+    const other = Replica.load(testSchema(), bytes, 20n)
+    const shape = file.objectsOfType('Shape')[0] as string
+    file.transact(me, (tx) => tx.textInsert(shape, 'label', 0, 'TS:'))
+    other.transact(me, (tx) => tx.set(shape, 'x', 3))
+    other.importChanges(file.exportChanges(other.version()))
+    file.importChanges(other.exportChanges(file.version()))
+    expect(file.stateText()).toBe(other.stateText())
+    expect(file.rebirth()).toBe(true)
+    expect(Replica.snapshotCarriesWholeHistory(file.contentSnapshot())).toBe(true)
+  })
+
+  /** `crates/kition-kdm/tests/cross_language.rs` checks the same file from Rust. */
+  it('write a TypeScript-made content snapshot that reloads to the canonical state next to it, with no history but its seal', () => {
+    const bytes = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-content.bin', import.meta.url)))
+    const file = Replica.load(testSchema(), bytes, 21n)
+    expect(file.stateText()).toBe(crateFixture('ts-content.json'))
+    for (const needle of NEEDLES) expect(bytes.includes(Buffer.from(needle)), needle).toBe(false)
+    expect(messages(bytes).map((message) => decodeOrigin(message))).toEqual([system('content-seal')])
   })
 })

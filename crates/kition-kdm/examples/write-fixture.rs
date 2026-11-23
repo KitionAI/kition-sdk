@@ -13,7 +13,9 @@
 //! and `rust-birth-truncated.bin`, the committed `<dir>/rust-page.bin` copied as a new document under
 //! docId `01920000-0000-7000-8000-000000000003` with its page retitled, as its snapshot (rooted at
 //! its birth: it carries the whole history) and as a shallow snapshot at its last version (it does
-//! not).
+//! not); `... -- <dir> content` writes only `rust-content.bin` and `rust-content.json`, the
+//! committed `<dir>/rust-page.bin` edited by two replicas (text typed and deleted, a title
+//! overwritten), merged, as its content snapshot (`Replica::content_snapshot`).
 
 use std::sync::Arc;
 
@@ -42,6 +44,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         copy.transact(&Origin::person("user:fixture"), |tx| tx.set(&title, "title", json!("Born page")))?;
         std::fs::write(format!("{dir}/rust-birth.bin"), copy.snapshot()?)?;
         std::fs::write(format!("{dir}/rust-birth-truncated.bin"), copy.shallow_snapshot(&copy.version())?)?;
+        return Ok(());
+    }
+    if std::env::args().nth(2).as_deref() == Some("content") {
+        let mut a = Replica::load(Arc::clone(&schema), &std::fs::read(format!("{dir}/rust-page.bin"))?, ActorId::from_u64(11)?)?;
+        let mut b = Replica::load(schema, &a.snapshot()?, ActorId::from_u64(12)?)?;
+        let page = a.objects_of_type("Page").into_iter().next().ok_or("no page")?;
+        let shape = a.objects_of_type("Shape").into_iter().next().ok_or("no shape")?;
+        let typist = Origin::person("user:Hs6Pn2Dc9Lx").with_label("Ty5Ga1Ve7Oj");
+        a.transact(&typist, |tx| tx.text_insert(&shape, "label", 0, "Jx4Hb8Ty3Nc6"))?;
+        a.transact(&typist, |tx| tx.text_delete(&shape, "label", 0, 12))?;
+        let agent = Origin::agent("agent:Mz8Cu4Ki0Ef").with_label("Rb2Wn6Xs3Ip");
+        b.transact(&agent, |tx| tx.set(&page, "title", json!("Ug5Le1Fo0Dw4")))?;
+        b.transact(&agent, |tx| tx.set(&page, "title", json!("Content page")))?;
+        a.import_changes(&b.export_changes(&a.version())?)?;
+        std::fs::write(format!("{dir}/rust-content.bin"), a.content_snapshot()?)?;
+        std::fs::write(format!("{dir}/rust-content.json"), a.state_json()?.to_string())?;
+        println!("{}", a.state_hash()?);
         return Ok(());
     }
     if std::env::args().nth(2).as_deref() == Some("shallow-export") {

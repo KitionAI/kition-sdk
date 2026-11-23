@@ -303,8 +303,23 @@ impl<M: KitModel> KitSession<M> {
         self.settle()
     }
 
+    /// The whole document with its whole history ([`Replica::snapshot`]): for the host's history
+    /// store, a sync server and new replicas, never for a person's file.
     pub fn snapshot(&self) -> Result<Vec<u8>> {
         Ok(self.replica.snapshot()?)
+    }
+
+    /// The document's content for a person's file ([`Replica::content_snapshot`]): the state, no
+    /// history. Seals the replica first; the seal is no edit, no undo step, and needs no repair.
+    pub fn content_snapshot(&mut self) -> Result<Vec<u8>> {
+        Ok(self.replica.content_snapshot()?)
+    }
+
+    /// Seals the replica ([`Replica::seal`]) before [`KitSession::export`], so a kit whose file
+    /// holds its replica writes [`Replica::sealed_content_snapshot`] from its
+    /// [`KitModel::export`], which sees the replica read-only. Answers whether it committed a seal.
+    pub fn seal(&mut self) -> Result<bool> {
+        Ok(self.replica.seal()?)
     }
 
     pub fn state_hash(&self) -> Result<String> {

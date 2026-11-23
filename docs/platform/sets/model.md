@@ -308,6 +308,44 @@ A kit on the KDM ships `model/schema.json`:
   earlier version, so there the replica refuses every later change and
   export with the same error, and the host reopens the document once
   updated.
+- **M16b** A person's file holds no history (owner, 2026-11-22). A kit
+  whose file embeds its replica MUST write `content_snapshot()`
+  (`contentSnapshot()` in TypeScript) into the file, and MUST NOT write
+  `snapshot()` or a `shallow_snapshot(at)` there: `snapshot()` (the whole
+  history, with deleted content and every change's origin) is for the
+  host's history store (`<workspace>/.kition/docs/<docId>/`), a sync server
+  and new replicas. `content_snapshot()` first **seals** the replica
+  (`seal()`): unless its version has one head whose change is a seal, it
+  commits one `system` change labelled `content-seal` that depends on every
+  head and writes the version it closes into the root map `seal` (outside
+  the canonical state); then it answers a shallow snapshot (M16a) rooted at
+  the seal. A plain shallow snapshot at the current version is not enough:
+  with concurrent heads its root moves back to their last common version
+  and keeps the history since, and with one head that head's change keeps
+  its person's or agent's origin. The bytes hold the current state, the
+  seal (its origin `system`/`kdm`/`content-seal`, its lamport number, a zero
+  timestamp: the KDM records no times) and the actor ids inside element
+  ids; no deleted content, no overwritten value, no other origin. They load
+  as the same document (same `docId`, version and object ids), which edits,
+  takes later changes and merges like any shallow replica; changes that
+  depend on history before the seal are `history-missing`. A seal is an
+  ordinary change of its replica: it goes to the history store and the room,
+  is never an undo step (an undo after a save takes back the last edit), and
+  converges with another replica's concurrent seal. Saving again with no
+  change commits nothing and answers the same bytes; two replicas with the
+  same state but different histories answer different bytes. A copy's
+  change (M7a) and a rebirth count as seals. Code that holds the replica
+  read-only (a Rust kit's `KitModel::export`) calls `seal()` before and
+  `sealed_content_snapshot()` (`sealedContentSnapshot()`) inside, which
+  refuses (`invalid-value`) an unsealed replica. A content snapshot does not
+  carry the document's whole history (S20) unless its seal is the birth:
+  `rebirth()` makes the current version the birth of a document known only
+  from such a file (one `system` change labelled `rebirth`, the replica
+  rooted there, same `docId`, undo cleared; `false` when it already carries
+  the whole history; `invalid-value` while changes are pending), so it can
+  start a room. A host calls it only for a document with no history store and
+  no room: a replica that keeps earlier history cannot send it changes
+  concurrent with the rebirth (`history-missing`).
 - **M17** Every exported byte string (changes and snapshots) is an envelope:
   the 4 bytes `K D M 0x01`, the 16-byte document UUID, then the engine's
   bytes. A replica MUST refuse bytes without the envelope and changes of

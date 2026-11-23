@@ -571,6 +571,39 @@ explicitly read-only rather than silently drop it.**
   plus older snapshots; a large document can use a **shallow replica**
   (current state only, history fetched from the server on demand).
 
+### 7.3 A file holds no history
+
+The person's file holds the document's content; its history lives in the
+store above (owner, 2026-11-22; rule [M16b](sets/model.md)). A kit whose file
+embeds its replica writes `Replica::content_snapshot()` there, never
+`Replica::snapshot()`:
+
+| Bytes | Holds | Goes to |
+| --- | --- | --- |
+| `snapshot()` | state and every change: deleted content, overwritten values, each change's origin (person, agent, label) | the history store, a sync server, new replicas |
+| `content_snapshot()` | state, and of the history only a `system` seal | the person's file |
+
+`content_snapshot()` seals first: unless the last change already is a seal,
+it commits one `system` change (`content-seal`) on top of every head, then
+answers a shallow snapshot rooted at it. Without the seal a shallow snapshot
+at the current version keeps history: after an import of concurrent changes
+its root moves back to their last common version, and with one head that
+change's origin stays. The seal is a real change: the host stores it and
+pushes it to the room like any other; it is no undo step. What still
+survives in the file: the actor ids inside element ids (which replica wrote
+each character, item or node, as numbers) and the seal's lamport number. A
+save with no change since commits nothing and writes the same bytes.
+
+Saving in the editor gives the file the content bytes and the store the full
+bytes: the kit's `export` writes `replica.contentSnapshot()` (TypeScript), or
+the session seals (`KitSession::seal`) and the kit's `KitModel::export`
+writes `replica.sealed_content_snapshot()` (Rust); the host then stores
+`snapshot()`, which holds the seal.
+
+A file is a shallow replica that does not carry the document's whole history
+(sync protocol S20). A document known only from its file (no store, no room)
+starts a room after `rebirth()`, which makes its current version the birth.
+
 ## 8. Collaboration and sync (Kition Server)
 
 ### 8.1 Model

@@ -1,0 +1,26 @@
+format: 1
+id: sdk.model.content-snapshot/no-history
+feature: sdk.model.content-snapshot
+intent: >-
+  What a kit writes into a person's file (Rust content_snapshot, TypeScript contentSnapshot) holds
+  the document's state and, of its history, only a system seal: text typed then deleted, a deleted
+  object, an overwritten value and every person's or agent's origin are absent from its bytes (each
+  checked present in the full snapshot first) and the engine reads one change, the seal, whether the
+  replica had one head or two concurrent ones. It loads as the same document (docId, version, object
+  ids), edits and merges with a full replica, refuses changes made before the seal (history-missing),
+  commits nothing and answers the same bytes when saved again unchanged, is no undo step, converges
+  when two replicas seal concurrently, and after rebirth carries the whole history (sync protocol
+  S20); each implementation reads the other's content snapshot.
+layer: gate
+source: { kind: synthetic, from: kition-plan plans/2026-11-22-schema-freeze.md section 4 (a file holds no history), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: content_snapshot }
+  - cargo-test: { package: kition-kdm, test: convergence, filter: seals_two_replicas }
+  - cargo-test: { package: kition-kdm, test: cross_language, filter: content_snapshot }
+  - cargo-test: { package: kition-kit, test: session, filter: content_snapshot }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/content-snapshot.test.ts, packages/kdm/test/convergence.test.ts, packages/kdm/test/cross-language.test.ts, packages/kit-engine/test/session.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-22"

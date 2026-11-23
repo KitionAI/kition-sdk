@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Network, Rng, system, type Tx } from '../src/index'
+import { Network, Replica, Rng, system, type Tx } from '../src/index'
 import { me, pageWithShape, reasonOf, testSchema } from './helpers'
 
 const network = (count: number, seed: number) => new Network(testSchema(), count, seed)
@@ -304,6 +304,34 @@ describe('convergence', () => {
     net.syncAll()
     net.converged()
     expect(net.replicas[0].list(page, 'shapes')).toEqual([])
+  })
+
+  it('converges seals two replicas commit concurrently after the same merge (content snapshots)', () => {
+    const net = network(2, 14)
+    const { shape } = pageWithShape(net.replicas[0])
+    net.syncAll()
+    net.replicas[0].transact(me, (tx) => tx.set(shape, 'x', 1))
+    net.replicas[1].transact(me, (tx) => tx.set(shape, 'fill', '#111111'))
+    net.syncAll()
+    // Both save the same merged version: each seals it, concurrently.
+    const files = net.replicas.map((replica) => {
+      expect(replica.seal()).toBe(true)
+      return replica.contentSnapshot()
+    })
+    const states = files.map((bytes, index) => Replica.load(testSchema(), bytes, 10n + BigInt(index)).stateText())
+    expect(states[1]).toBe(states[0])
+    net.syncAll()
+    net.converged()
+    expect(net.replicas[1].version().equals(net.replicas[0].version())).toBe(true)
+    // Two seals are two heads: the next save seals again, and the other replica takes that seal.
+    expect(net.replicas.every((replica) => !replica.isSealed())).toBe(true)
+    net.replicas[0].contentSnapshot()
+    net.syncAll()
+    net.converged()
+    expect(net.replicas[1].isSealed()).toBe(true)
+    expect(net.replicas[1].seal()).toBe(false)
+    expect(net.replicas[1].get(shape, 'x')).toBe(1)
+    expect(net.replicas[0].get(shape, 'fill')).toBe('#111111')
   })
 
   it('reports bad input to the test network as errors', () => {

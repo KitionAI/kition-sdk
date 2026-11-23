@@ -11,7 +11,10 @@
  * (`ts-shallow-export.*`, `exportChanges(Version.empty())`), with `KDM_WRITE_SHALLOW_EXPORT_FIXTURE=1`,
  * or the committed `ts-page.bin` copied as a new document (docId `01920000-0000-7000-8000-0000000000ac`)
  * with its page retitled, as its snapshot (`ts-birth.bin`, rooted at its birth) and as a shallow
- * snapshot at its last version (`ts-birth-truncated.bin`), with `KDM_WRITE_BIRTH_FIXTURE=1`.
+ * snapshot at its last version (`ts-birth-truncated.bin`), with `KDM_WRITE_BIRTH_FIXTURE=1`, or the
+ * committed `ts-page.bin` edited by two replicas (text typed and deleted, a title overwritten),
+ * merged, as its content snapshot (`ts-content.*`, `contentSnapshot()`), with
+ * `KDM_WRITE_CONTENT_FIXTURE=1`.
  *
  * Skipped otherwise, so the committed fixture changes only on purpose (object ids are new each time).
  */
@@ -19,7 +22,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { it } from 'vitest'
-import { person, Replica, Version } from '../src/index'
+import { agent, person, Replica, Version } from '../src/index'
 import { testSchema, tsPage, tsShallow } from './helpers'
 
 const target = (name: string) => fileURLToPath(new URL(`../../../crates/kition-kdm/tests/fixtures/${name}`, import.meta.url))
@@ -60,4 +63,19 @@ it.skipIf(!process.env.KDM_WRITE_BIRTH_FIXTURE)('writes crates/kition-kdm/tests/
   copy.transact(person('user:fixture'), (tx) => tx.set(page, 'title', 'Born page'))
   writeFileSync(target('ts-birth.bin'), copy.snapshot())
   writeFileSync(target('ts-birth-truncated.bin'), copy.shallowSnapshot(copy.version()))
+})
+
+it.skipIf(!process.env.KDM_WRITE_CONTENT_FIXTURE)('writes crates/kition-kdm/tests/fixtures/ts-content.{bin,json,sha256}', () => {
+  const a = Replica.load(testSchema(), readFileSync(target('ts-page.bin')), 11n)
+  const b = Replica.load(testSchema(), a.snapshot(), 12n)
+  const page = a.objectsOfType('Page')[0] as string
+  const shape = a.objectsOfType('Shape')[0] as string
+  a.transact(person('user:Hs6Pn2Dc9Lx', 'Ty5Ga1Ve7Oj'), (tx) => tx.textInsert(shape, 'label', 0, 'Jx4Hb8Ty3Nc6'))
+  a.transact(person('user:Hs6Pn2Dc9Lx', 'Ty5Ga1Ve7Oj'), (tx) => tx.textDelete(shape, 'label', 0, 12))
+  b.transact(agent('agent:Mz8Cu4Ki0Ef', 'Rb2Wn6Xs3Ip'), (tx) => tx.set(page, 'title', 'Ug5Le1Fo0Dw4'))
+  b.transact(agent('agent:Mz8Cu4Ki0Ef', 'Rb2Wn6Xs3Ip'), (tx) => tx.set(page, 'title', 'Content page'))
+  a.importChanges(b.exportChanges(a.version()))
+  writeFileSync(target('ts-content.bin'), a.contentSnapshot())
+  writeFileSync(target('ts-content.json'), a.stateText())
+  writeFileSync(target('ts-content.sha256'), createHash('sha256').update(a.stateText()).digest('hex'))
 })

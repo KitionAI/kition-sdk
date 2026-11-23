@@ -147,6 +147,14 @@ features:
     paths: [crates/kition-kdm/src/replica.rs, packages/kdm/src/replica.ts]
     cases: [sdk.model.new-document/copy, regressions/issue-kdm-shallow-export]
     since: "2026-11-19"
+  - id: sdk.model.content-snapshot
+    title: A person's file holds the document's content with no history (a sealed state-only snapshot); rebirth lets such a file start a room
+    dimension: [data-safety, collab, conversion]
+    priority: P0
+    status: has
+    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/read.rs, packages/kdm/src/replica.ts, packages/kdm/src/read.ts, crates/kition-kit/src/session/mod.rs, packages/kit-engine/src/session.ts]
+    cases: [sdk.model.content-snapshot/no-history]
+    since: "2026-11-22"
   - id: sdk.host.document-fork
     title: A host reads the docId a file carries and forks a file into a new document through the kit (Kit Process Protocol document.identity, document.fork)
     dimension: [function, collab, data-safety]

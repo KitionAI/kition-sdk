@@ -13,7 +13,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::error::{engine, importing};
-use crate::read::{self, BIRTH, BIRTH_ROOT, META, OBJECTS, SCHEMA_VERSION};
+use crate::read::{self, BIRTH, BIRTH_ROOT, META, OBJECTS, SCHEMA_VERSION, SEAL, SEAL_VERSION};
 use crate::value::canonical;
 use crate::{ActorId, Changes, DocId, FieldKind, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
 
@@ -581,7 +581,14 @@ impl Replica {
         mem::take(&mut self.changed)
     }
 
-    /// A compacted copy of the whole document, for fast loading and new replicas.
+    /// A compacted copy of the whole document, for fast loading and new replicas: its state and
+    /// **its whole history** (every change, with deleted content and each change's origin).
+    ///
+    /// The rule (data model, "A file holds no history"): `snapshot()` is for a document's history
+    /// store (`<workspace>/.kition/docs/<docId>/`), a sync server, and new replicas; it is never
+    /// written into a person's file. What a kit writes into a person's file is
+    /// [`Replica::content_snapshot`] (or [`Replica::sealed_content_snapshot`] after
+    /// [`Replica::seal`]).
     pub fn snapshot(&self) -> Result<Vec<u8>> {
         let bytes = self.doc.export(ExportMode::Snapshot).map_err(|error| KdmError::Encoding(error.to_string()))?;
         Ok(envelope::wrap(self.doc_id, bytes))
@@ -604,6 +611,131 @@ impl Replica {
         let frontiers = if self.reaches(at) { self.doc.vv_to_frontiers(&at.0) } else { self.doc.shallow_since_frontiers() };
         let bytes = self.doc.export(ExportMode::shallow_snapshot(&frontiers)).map_err(|error| KdmError::Encoding(error.to_string()))?;
         Ok(envelope::wrap(self.doc_id, bytes))
+    }
+
+    /// The document's **content**: what a kit writes into a person's file (data model, "A file
+    /// holds no history"). [`Replica::seal`]s this replica first, then answers a shallow snapshot
+    /// rooted at the seal: the current state, and of the history only the seal's one operation.
+    /// [`Replica::load`] opens it as this document (same `DocId`, version, object ids), which
+    /// edits, imports later changes, and merges like any shallow replica; changes made before the
+    /// seal that it does not hold are [`KdmError::HistoryMissing`].
+    ///
+    /// What the bytes keep of the history: the seal (a `system` change with the label
+    /// `content-seal`, its lamport number and a zero timestamp, since the KDM records no times)
+    /// and the actor (peer) ids inside element ids, which say which replica wrote each surviving
+    /// character, list item or tree node. No deleted content, no overwritten value, no person's or
+    /// agent's origin. Exporting again with no change in between commits nothing and answers the
+    /// same bytes.
+    ///
+    /// The seal is a real change (see [`Replica::seal`]): push it to the history store and the
+    /// room like any other. The bytes do not carry the document's whole history (sync protocol
+    /// S20) unless the replica's last change is its birth ([`Replica::rebirth`],
+    /// [`Replica::copy_as_new_document`]).
+    pub fn content_snapshot(&mut self) -> Result<Vec<u8>> {
+        self.seal()?;
+        self.sealed_content_snapshot()
+    }
+
+    /// [`Replica::content_snapshot`] of a replica already sealed, for code that holds the replica
+    /// read-only (a kit's `KitModel::export`, after its session sealed it). Refuses
+    /// ([`KdmError::InvalidValue`]) a replica whose last change is no seal: its shallow snapshot
+    /// would keep that change's origin, and with concurrent heads, history back to their last
+    /// common version.
+    pub fn sealed_content_snapshot(&self) -> Result<Vec<u8>> {
+        if !self.is_sealed() {
+            return Err(KdmError::InvalidValue { ty: "$content".into(), field: "version".into(), reason: NOT_SEALED.into() });
+        }
+        let bytes = self.doc.export(ExportMode::shallow_snapshot(&self.doc.oplog_frontiers())).map_err(|error| KdmError::Encoding(error.to_string()))?;
+        Ok(envelope::wrap(self.doc_id, bytes))
+    }
+
+    /// Seals the current version for [`Replica::content_snapshot`]: unless the replica's last
+    /// change already is a seal (nothing changed since), commits one `system` change (label
+    /// `content-seal`) that depends on every head and writes the version it closes into the root
+    /// map `seal`, outside the canonical state. Answers whether it committed one.
+    ///
+    /// A shallow snapshot is rooted at the latest version every later change descends from: with
+    /// concurrent heads (after importing another replica's changes) that is their last common
+    /// version, and the history since then would stay in the bytes; with one head, that head's
+    /// change keeps its origin. The seal makes one head whose origin is the KDM's.
+    ///
+    /// The seal is an ordinary change of this replica's actor: it is in [`Replica::version`] and
+    /// [`Replica::export_changes`], goes to the history store and the room, and converges with
+    /// another replica's concurrent seal. It is never an undo step, and an undo after it takes
+    /// back the person's or agent's last step as before. A copy's or a rebirth's change
+    /// ([`Replica::copy_as_new_document`], [`Replica::rebirth`]) counts as a seal.
+    pub fn seal(&mut self) -> Result<bool> {
+        if self.is_sealed() {
+            return Ok(false);
+        }
+        let closes = Version(self.doc.oplog_vv());
+        self.doc.get_map(SEAL).insert(SEAL_VERSION, LoroValue::Binary(closes.encode().into())).map_err(engine)?;
+        self.doc.set_next_commit_origin(OriginKind::System.as_str());
+        self.doc.set_next_commit_message(&Origin::system(CONTENT_SEAL).encode_commit(self.schema.schema_version));
+        self.doc.commit();
+        Ok(true)
+    }
+
+    /// Whether the replica's version has one head and that head's change is a seal
+    /// ([`Replica::seal`]): a `system` change labelled `content-seal`, `new-document` or `rebirth`.
+    pub fn is_sealed(&self) -> bool {
+        let heads = self.doc.oplog_frontiers();
+        let Some(head) = heads.as_single() else { return false };
+        let Some(change) = self.doc.get_change(head) else { return false };
+        change
+            .message
+            .as_deref()
+            .and_then(Origin::decode)
+            .is_some_and(|origin| origin.kind == OriginKind::System && origin.label.as_deref().is_some_and(|label| SEALS.contains(&label)))
+    }
+
+    /// Makes this replica's current version the document's **birth** (sync protocol S20), for a
+    /// document known only from a file that holds no history ([`Replica::content_snapshot`]): its
+    /// bytes do not carry the document's whole history, so a sync server refuses them as a new
+    /// room's first state. Commits one `system` change (label `rebirth`) that depends on every
+    /// head and records its own root as the birth, then roots this replica there: it becomes a
+    /// shallow replica with the same `DocId`, state and object ids that
+    /// [`Replica::carries_whole_history`], as do its snapshots, its content snapshots and every
+    /// replica loaded from them. Answers whether it did; a replica that already carries the whole
+    /// history (a full one, or one rooted at its birth) is left as it is.
+    ///
+    /// It declares that no replica holds history before this version. A host calls it only for a
+    /// document with no history store and no room; a replica that does hold earlier history and
+    /// made changes concurrent with the rebirth cannot send them to the reborn document
+    /// ([`KdmError::HistoryMissing`]). Clears the undo and redo history, like any load. Refuses
+    /// ([`KdmError::InvalidValue`]) while changes are pending ([`Replica::has_pending_changes`]):
+    /// they would be lost.
+    pub fn rebirth(&mut self) -> Result<bool> {
+        if self.carries_whole_history() {
+            return Ok(false);
+        }
+        if self.has_pending_changes() {
+            return Err(KdmError::InvalidValue { ty: "$rebirth".into(), field: "version".into(), reason: PENDING_REBIRTH.into() });
+        }
+        // The change has one operation, so the engine roots the shallow document at it: the root
+        // (as `shallow_root` answers it) is the version before that operation, every head
+        // included, with this actor's entry at the operation's counter.
+        let mut birth = self.doc.oplog_vv();
+        let actor = self.actor.get();
+        let next = birth.get(&actor).copied().unwrap_or(0);
+        birth.insert(actor, next);
+        self.doc.get_map(BIRTH).insert(BIRTH_ROOT, LoroValue::Binary(birth.encode().into())).map_err(engine)?;
+        self.doc.set_next_commit_origin(OriginKind::System.as_str());
+        self.doc.set_next_commit_message(&Origin::system(REBIRTH).encode_commit(self.schema.schema_version));
+        self.doc.commit();
+        let bytes = self.doc.export(ExportMode::shallow_snapshot(&self.doc.oplog_frontiers())).map_err(|error| KdmError::Encoding(error.to_string()))?;
+        let reborn = Self::load(Arc::clone(&self.schema), &envelope::wrap(self.doc_id, bytes), self.actor)?;
+        if !reborn.carries_whole_history() {
+            return Err(KdmError::Engine("the reborn replica is not rooted at the birth it records".into()));
+        }
+        self.doc = reborn.doc;
+        self.undo = reborn.undo;
+        self.imported_registers.clear();
+        self.kept_registers.clear();
+        self.own_registers.clear();
+        self.local_writes.clear();
+        self.end_undo_group();
+        Ok(true)
     }
 
     /// Whether this replica holds only part of the document's history: it was loaded from a
@@ -1212,7 +1344,7 @@ impl Replica {
         doc.get_map(META).insert("docId", doc_id.to_string()).map_err(engine)?;
         doc.get_map(BIRTH).insert(BIRTH_ROOT, LoroValue::Binary(birth.encode().into())).map_err(engine)?;
         doc.set_next_commit_origin(OriginKind::System.as_str());
-        doc.set_next_commit_message(&Origin::system("new-document").encode_commit(self.schema.schema_version));
+        doc.set_next_commit_message(&Origin::system(NEW_DOCUMENT).encode_commit(self.schema.schema_version));
         doc.commit();
         // Rooted after that change: the source's id is overwritten, not kept as history.
         let bytes = doc.export(ExportMode::shallow_snapshot(&doc.oplog_frontiers())).map_err(encoding)?;
@@ -1408,6 +1540,27 @@ fn carries_whole_history(doc: &LoroDoc) -> bool {
         _ => false,
     }
 }
+
+/// The label of a content seal's `system` change ([`Replica::seal`]).
+const CONTENT_SEAL: &str = "content-seal";
+
+/// The label of the `system` change that makes a copy ([`Replica::copy_as_new_document`]).
+const NEW_DOCUMENT: &str = "new-document";
+
+/// The label of the `system` change of a rebirth ([`Replica::rebirth`]).
+const REBIRTH: &str = "rebirth";
+
+/// The labels of the `system` changes that seal a version ([`Replica::is_sealed`]): each is one
+/// change by the KDM that depends on every head and writes nothing of the document's content.
+const SEALS: [&str; 3] = [CONTENT_SEAL, NEW_DOCUMENT, REBIRTH];
+
+/// What [`Replica::sealed_content_snapshot`] answers for a replica that is not sealed; the
+/// TypeScript `sealedContentSnapshot` says the same.
+const NOT_SEALED: &str = "is not sealed: seal the replica first (seal), or take content_snapshot";
+
+/// What [`Replica::rebirth`] answers while changes are pending; the TypeScript `rebirth` says the
+/// same.
+const PENDING_REBIRTH: &str = "has pending changes, which a rebirth would lose: fetch what they depend on first";
 
 /// What a shallow replica answers for a version before its root; the TypeScript
 /// `errors.historyMissing` says the same.

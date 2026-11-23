@@ -170,6 +170,22 @@ export class KitSession<View> {
     return bytes
   }
 
+  /**
+   * The document's content for a person's file (`Replica.contentSnapshot`): the state, no history.
+   * A kit that writes its replica into its file writes these bytes (from its `export`, through
+   * `replica.contentSnapshot()`), never `replica.snapshot()`, which is for the host's history
+   * store. The seal it may commit is no edit: a document that was saved (or whose save is pending)
+   * stays so.
+   */
+  contentSnapshot(): Uint8Array {
+    const before = this.replica.version()
+    const bytes = this.replica.contentSnapshot()
+    const after = this.replica.version()
+    if (this.savedVersion.equals(before)) this.savedVersion = after
+    if (this.pendingSave?.equals(before)) this.pendingSave = after
+    return bytes
+  }
+
   markSaved() {
     if (this.pendingSave) this.savedVersion = this.pendingSave
     this.pendingSave = null

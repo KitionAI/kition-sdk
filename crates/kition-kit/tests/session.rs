@@ -404,6 +404,32 @@ fn snapshots_and_exports_round_trip() {
 }
 
 #[test]
+fn a_content_snapshot_holds_the_state_and_the_snapshot_the_history() {
+    let mut a = first();
+    let olive = a.execute(&person("a"), |_, tx| add_shape(tx, 9.0, "olive")).unwrap().0;
+    a.execute(&person("a"), |_, tx| tx.set(&olive, "color", json!("Kp4Tz8Wd2Hn")).map_err(KitError::from)).unwrap();
+    a.execute(&person("a"), |_, tx| tx.set(&olive, "color", json!("teal")).map_err(KitError::from)).unwrap();
+    assert!(a.seal().unwrap());
+    let version = a.version();
+    // Sealed already: the content snapshot commits nothing, and the export sees a sealed replica.
+    let content = a.content_snapshot().unwrap();
+    assert_eq!(a.version(), version);
+    assert!(a.replica().is_sealed());
+    assert_eq!(a.replica().sealed_content_snapshot().unwrap(), content);
+    let snapshot = a.snapshot().unwrap();
+    let holds = |bytes: &[u8]| bytes.windows(11).any(|window| window == b"Kp4Tz8Wd2Hn");
+    assert!(holds(&snapshot), "the control: the history holds the overwritten color");
+    assert!(!holds(&content));
+    let file = KitSession::<Toy>::open_snapshot(&content, Box::new(MemoryBlobs::default()), actor(4)).unwrap();
+    assert_eq!(file.state_hash().unwrap(), a.state_hash().unwrap());
+    assert_eq!(file.model(), a.model());
+    assert!(file.replica().is_shallow());
+    // The seal is no undo step: Undo takes back the last color.
+    assert!(a.undo().unwrap().0);
+    assert_eq!(a.replica().get(&olive, "color").unwrap(), json!("Kp4Tz8Wd2Hn"));
+}
+
+#[test]
 fn blob_refs_round_trip_through_memory_blobs() {
     let mut blobs = MemoryBlobs::default();
     let blob = blobs.put(b"abc", "text/plain");
