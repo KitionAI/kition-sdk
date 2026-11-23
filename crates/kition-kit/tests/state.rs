@@ -141,6 +141,47 @@ fn a_file_saved_from_changes_the_store_lacks_is_written_over_it_by_object_id() {
     assert_eq!(ours.version(), version);
 }
 
+/// The nodes of `outline` in a canonical state, as `(object, parent object)`, dead ones included.
+fn outline_nodes(state: &kition_kit::session::State) -> Vec<(String, Option<String>)> {
+    fn walk(nodes: &Value, parent: Option<&str>, out: &mut Vec<(String, Option<String>)>) {
+        for node in nodes.as_array().into_iter().flatten() {
+            let object = node["object"].as_str().unwrap().to_owned();
+            out.push((object.clone(), parent.map(str::to_owned)));
+            walk(&node["children"], Some(&object), out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(&state["doc"]["outline"], None, &mut out);
+    out
+}
+
+/// A deleted item keeps its tree node (an undo of the delete brings the item back into it), and
+/// the file's state names it. Written over a store that holds the same dead node, the state adds
+/// no node of its own for the deleted item (kition-layout's file taken in by state).
+#[test]
+fn a_file_taken_in_by_state_adds_no_node_for_a_deleted_item() {
+    let (mut source, items) = made();
+    source.transact(&person(), |tx| tx.delete(&items[1])).unwrap();
+    // The store kept the document after the delete; the file was saved after one more edit,
+    // which changes the outline too (a new root item), so the outline is written.
+    let mut ours = Replica::load(schema(), &source.snapshot().unwrap(), actor(2)).unwrap();
+    source
+        .transact(&person(), |tx| {
+            let e = tx.create("Item", fields(json!({ "name": "e" })))?;
+            tx.tree_create(&doc(), "outline", None, &e)?;
+            tx.set(&doc(), "title", json!("Second"))
+        })
+        .unwrap();
+    let file = Replica::load(schema(), &source.content_snapshot().unwrap(), actor(3)).unwrap();
+    assert!(!ours.version().includes(&file.shallow_root().unwrap()), "the file's history does not reach the store's");
+    let dead = items[1].to_string();
+    assert!(outline_nodes(&state(&file).unwrap()).iter().any(|(object, _)| *object == dead), "the file's outline names the deleted item");
+    assert!(take_file(&mut ours, &file).unwrap());
+    assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
+    assert_eq!(outline_nodes(&state(&ours).unwrap()).iter().filter(|(object, _)| *object == dead).count(), 1, "one node for the deleted item");
+    assert!(!ours.exists(&items[1]));
+}
+
 #[test]
 fn a_file_whose_history_reaches_the_store_brings_its_changes() {
     let (mut source, items) = made();

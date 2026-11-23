@@ -92,7 +92,7 @@ pub fn write_state(tx: &mut Tx<'_>, schema: &Schema, before: &State, after: &Sta
                 FieldKind::Text => write_text_field(tx, &target, name, was, value)?,
                 FieldKind::List => write_list(tx, &target, name, value)?,
                 FieldKind::Map => write_map(tx, &target, name, was, value)?,
-                FieldKind::Tree => write_tree(tx, &target, name, value)?,
+                FieldKind::Tree => write_tree(tx, &target, name, value, after)?,
                 _ => tx.set(&target, name, value.clone())?,
             }
         }
@@ -204,7 +204,12 @@ fn wanted_nodes(value: &Value, parent: Option<&ObjectId>, out: &mut Vec<(ObjectI
 /// each object's node kept (the first, when several name it) and moved under its parent's node,
 /// the missing nodes created, the nodes of objects `value` does not hold deleted, and each
 /// parent's children put in order.
-fn write_tree(tx: &mut Tx<'_>, id: &ObjectId, field: &str, value: &Value) -> Result<()> {
+///
+/// A node of an object `live` does not hold (the KDM keeps a deleted object's node, and the
+/// canonical form names it) is moved when the tree here still shows it (its object is deleted
+/// later in the same write) and otherwise left alone with its subtree: no node is made for an
+/// object that is gone, and the tree here keeps whatever node it holds for it.
+fn write_tree(tx: &mut Tx<'_>, id: &ObjectId, field: &str, value: &Value, live: &State) -> Result<()> {
     let mut want = Vec::new();
     wanted_nodes(value, None, &mut want);
     let entries = tx.tree(id, field)?;
@@ -236,8 +241,14 @@ fn write_tree(tx: &mut Tx<'_>, id: &ObjectId, field: &str, value: &Value) -> Res
         }
     }
     let wanted: BTreeSet<&ObjectId> = want.iter().map(|(object, _)| object).collect();
-    // Pre-order: a parent's node exists (or was created) before its children's.
+    // Pre-order: a parent's node exists (or was created, or was skipped) before its children's.
+    let mut skipped: BTreeSet<ObjectId> = BTreeSet::new();
     for (object, parent) in &want {
+        let gone = !node_of.contains_key(object) && !live.contains_key(object.as_str());
+        if gone || parent.as_ref().is_some_and(|parent| skipped.contains(parent)) {
+            skipped.insert(object.clone());
+            continue;
+        }
         let parent_node = match parent {
             Some(parent) => Some(node_of.get(parent).cloned().ok_or_else(|| KitError::new(format!("{id}.{field}: no node for {parent}")))?),
             None => None,
@@ -267,7 +278,7 @@ fn write_tree(tx: &mut Tx<'_>, id: &ObjectId, field: &str, value: &Value) -> Res
     }
     // Order: each parent whose children are out of order gets them moved, in order, to its end.
     let mut children: HashMap<Option<ObjectId>, Vec<ObjectId>> = HashMap::new();
-    for (object, parent) in &want {
+    for (object, parent) in want.iter().filter(|(object, _)| !skipped.contains(object)) {
         children.entry(parent.clone()).or_default().push(object.clone());
     }
     for (parent, order) in children {

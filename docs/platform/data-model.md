@@ -628,7 +628,8 @@ What a kit whose file holds its replica does:
    store lacks: another machine, a store that is gone) it writes the file's
    state over the stored one as one `system` transaction labelled `import`,
    keyed by object id (`write_state`: registers, refs, text with marks,
-   lists, maps, trees).
+   lists, maps, trees; a tree node of a deleted object, which the KDM keeps
+   and the file's state names, is never made again).
 5. **Tests.** `Replica::snapshot_origins(bytes)` (`Replica.snapshotOrigins`)
    lists the origins of the changes some bytes hold: a content snapshot holds
    one, the seal. No kit test needs the engine (`loro`) itself.
