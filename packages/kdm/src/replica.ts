@@ -756,8 +756,8 @@ export class Replica {
    * The origins of the changes the document `bytes` hold (a snapshot, a content snapshot, or an
    * export of changes), read without a schema: one entry per change, `null` for a change whose
    * commit message is not a KDM origin. A change is the engine's: consecutive transactions of one
-   * replica with the same origin may be one change. A content snapshot holds one, its seal. Bytes
-   * that are not a KDM export, or that do not decode, are `encoding` errors. As the Rust
+   * replica with the same origin may be one change. A content snapshot holds one, its seal. An
+   * export of changes that depend on changes it lacks lists none of them. Bytes that are not a KDM export, or that do not decode, are `encoding` errors. As the Rust
    * `Replica::snapshot_origins`.
    */
   static snapshotOrigins(bytes: Uint8Array): (Origin | null)[] {

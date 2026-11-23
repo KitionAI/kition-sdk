@@ -115,6 +115,7 @@ fn a_file_saved_from_changes_the_store_lacks_is_written_over_it_by_object_id() {
     let file = Replica::load(schema(), &source.content_snapshot().unwrap(), actor(3)).unwrap();
     assert!(!ours.version().includes(&file.shallow_root().unwrap()), "the file's history does not reach the store's");
     let before = ours.version();
+    let held = Replica::snapshot_origins(&ours.snapshot().unwrap()).unwrap().len();
     assert!(take_file(&mut ours, &file).unwrap());
     assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
     assert_eq!(ours.get(&doc(), "lead").unwrap(), json!(items[2].to_string()));
@@ -127,9 +128,11 @@ fn a_file_saved_from_changes_the_store_lacks_is_written_over_it_by_object_id() {
     };
     assert_eq!(outline, vec![(items[2].clone(), None), (d.clone(), Some(items[2].clone())), (items[0].clone(), None)]);
     // One system transaction labelled import, which is no undo step.
-    let origins = Replica::snapshot_origins(&ours.export_changes(&before).unwrap()).unwrap();
-    assert_eq!(origins, vec![Some(Origin::system("import"))]);
-    assert!(origins.iter().flatten().all(|origin| origin.kind == OriginKind::System));
+    let origins = Replica::snapshot_origins(&ours.snapshot().unwrap()).unwrap();
+    assert_eq!(origins.len(), held + 1, "{origins:?}");
+    assert_eq!(origins.iter().filter(|origin| **origin == Some(Origin::system("import"))).count(), 1);
+    assert!(origins.iter().flatten().any(|origin| origin.kind == OriginKind::System));
+    assert!(ours.version().includes(&before));
     assert!(!ours.can_undo());
     // A state that already agrees writes nothing.
     let version = ours.version();

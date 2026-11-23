@@ -805,8 +805,9 @@ impl Replica {
     /// commit message is not a KDM origin. A change is the engine's: consecutive transactions of
     /// one replica with the same origin may be one change. A content snapshot holds one, its seal
     /// ([`Replica::content_snapshot`]); a full snapshot holds every change since the document was
-    /// made (or since its root, for a shallow one). Bytes that are not a KDM export, or that do
-    /// not decode, are [`KdmError::Encoding`]. The TypeScript `Replica.snapshotOrigins` reads the
+    /// made (or since its root, for a shallow one). An export of changes that depend on changes it
+    /// lacks lists none of them (read a snapshot instead). Bytes that are not a KDM export, or that
+    /// do not decode, are [`KdmError::Encoding`]. The TypeScript `Replica.snapshotOrigins` reads the
     /// same.
     pub fn snapshot_origins(bytes: &[u8]) -> Result<Vec<Option<Origin>>> {
         let (_, bytes) = envelope::open(bytes)?;
