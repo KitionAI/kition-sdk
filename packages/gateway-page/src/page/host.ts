@@ -9,9 +9,11 @@
  *   and only over the version the editor holds (`expected`), answering the new version; a new file
  *   or an export goes under a name not taken yet;
  * - `host/replicaRead`, `host/replicaWrite`: the replica the editor keeps beside its document
- *   (`/api/v1/kits/replicas`).
+ *   (`/api/v1/kits/replicas`); the gateway keeps no checkpoints (no capability `checkpoints`);
+ * - `host/viewStateRead`, `host/viewStateWrite`: the person's view state of the document, in the
+ *   gateway's own data outside the workspace (`/api/v1/kits/view-state`).
  */
-import type { KitHostHandlers, StoredReplica } from '@kition/kit-host'
+import { KitRpcError, type KitHostHandlers, type KitViewState, type StoredReplica } from '@kition/kit-host'
 import { cleanPath, encodePath, type Gateway, GatewayError, read } from './gateway'
 
 /** A version stamp from an answer's headers: its `ETag`, or its time and size. */
@@ -85,8 +87,35 @@ export function unpackReplica(bytes: ArrayBuffer, fileStamp: string): StoredRepl
   return { snapshot: bytes.slice(8, 8 + length), blobs: bytes.slice(8 + length), fileStamp }
 }
 
+/** A view state as the gateway keeps it: its JSON's length (8 bytes, little-endian), the JSON, the bytes. */
+export function packViewState(value: KitViewState) {
+  const json = new TextEncoder().encode(JSON.stringify(value.state))
+  const bytes = value.bytes ? new Uint8Array(value.bytes) : new Uint8Array(0)
+  const out = new Uint8Array(8 + json.byteLength + bytes.byteLength)
+  new DataView(out.buffer).setBigUint64(0, BigInt(json.byteLength), true)
+  out.set(json, 8)
+  out.set(bytes, 8 + json.byteLength)
+  return out.buffer
+}
+
+/** A kept view state; `{ state: null }` for a damaged one. */
+export function unpackViewState(packed: ArrayBuffer): KitViewState {
+  if (packed.byteLength < 8) return { state: null }
+  const length = Number(new DataView(packed).getBigUint64(0, true))
+  if (length > packed.byteLength - 8) return { state: null }
+  let state: unknown
+  try {
+    state = JSON.parse(new TextDecoder().decode(new Uint8Array(packed, 8, length)))
+  } catch {
+    return { state: null }
+  }
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return { state: null }
+  const bytes = packed.slice(8 + length)
+  return bytes.byteLength ? { state: state as Record<string, unknown>, bytes } : { state: state as Record<string, unknown> }
+}
+
 /** The host handlers for the kit `kit` editing `document`, read-only or not. */
-export function hostHandlers(gateway: Gateway, kit: string, document: string, readOnly: boolean, held: { version: string | null }): Pick<KitHostHandlers, 'read' | 'stamp' | 'write' | 'replicaRead' | 'replicaWrite'> {
+export function hostHandlers(gateway: Gateway, kit: string, document: string, readOnly: boolean, held: { version: string | null }): Pick<KitHostHandlers, 'read' | 'stamp' | 'write' | 'replicaRead' | 'replicaWrite' | 'viewState'> {
   const own = (wanted: string) => {
     const path = cleanPath(wanted)
     if (path !== document) throw new Error(`${wanted} is not this editor's document`)
@@ -136,6 +165,30 @@ export function hostHandlers(gateway: Gateway, kit: string, document: string, re
         body: packReplica({ snapshot, blobs }),
       })
       await read(response)
+    },
+    // The person's, not the document's: kept for a read-only document too (UI-S4).
+    viewState: {
+      read: async ({ path: wanted }) => {
+        const path = own(wanted)
+        const response = await gateway.fetch(`api/v1/kits/view-state?${new URLSearchParams({ path, kit })}`)
+        if (response.status === 204 || response.status === 404) return { state: null }
+        if (!response.ok) await read(response)
+        return unpackViewState(await response.arrayBuffer())
+      },
+      write: async ({ path: wanted, state, bytes }) => {
+        const path = own(wanted)
+        const query = new URLSearchParams({ path, kit })
+        const response = await gateway.fetch(
+          `api/v1/kits/view-state?${query}`,
+          state === null ? { method: 'DELETE' } : { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: packViewState({ state, bytes }) },
+        )
+        try {
+          await read(response)
+        } catch (error) {
+          if (error instanceof GatewayError && error.reason === 'too-large') throw new KitRpcError(-32000, error.message, { reason: 'too-large' })
+          throw error
+        }
+      },
     },
   }
 }

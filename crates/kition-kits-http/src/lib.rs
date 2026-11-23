@@ -10,7 +10,9 @@
 //! - `POST /mcp/kits`: the kit tools as an MCP server over Streamable HTTP ([`mcp`]);
 //! - `GET /kits/editors`, `POST /kits/editors/install`: the kits' editor packages ([`editors`]);
 //! - `GET`/`PUT /kits/replicas?path=&kit=`: the replica an editor page keeps beside its document
-//!   (Kit UI protocol capability `replica`), in the workspace's `.kition/replicas/`.
+//!   (Kit UI protocol capability `replica`), in the workspace's `.kition/replicas/`;
+//! - `GET`/`PUT`/`DELETE /kits/view-state?path=&kit=`: the person's view state of a document (Kit
+//!   UI protocol capability `view-state`), in the server's own data folder, never the workspace.
 //!
 //! The paths are relative to where the router is mounted (`/api/v1` in the gateway and in
 //! Kition's runtime). JSON answers use the envelope `{code, message, data}`
@@ -49,11 +51,21 @@ pub struct KitsState {
     pub kits: KitManager,
     pub mcp: Arc<mcp::Connections>,
     pub editors: Option<Arc<dyn editors::EditorStore>>,
+    /// The server's own data folder for this workspace (view state), outside the workspace; none:
+    /// `/kits/view-state` keeps nothing.
+    pub data: Option<Arc<std::path::Path>>,
 }
 
 impl KitsState {
     pub fn new(kits: KitManager) -> Self {
-        Self { kits, mcp: Arc::default(), editors: None }
+        Self { kits, mcp: Arc::default(), editors: None, data: None }
+    }
+
+    /// Keeps the server's own data (view state) in `dir`, which must lie outside the workspace.
+    #[must_use]
+    pub fn with_data(mut self, dir: impl Into<std::path::PathBuf>) -> Self {
+        self.data = Some(Arc::from(dir.into()));
+        self
     }
 
     /// Serves `store`'s editor packages too.
@@ -87,6 +99,13 @@ pub fn router(state: KitsState) -> Router {
         .route("/kits/editors", get(list_editors))
         .route("/kits/editors/install", post(install_editor))
         .route("/kits/replicas", get(read_replica).put(write_replica).layer(axum::extract::DefaultBodyLimit::max(MAX_FILE_BYTES)))
+        .route(
+            "/kits/view-state",
+            get(read_view_state)
+                .put(write_view_state)
+                .delete(delete_view_state)
+                .layer(axum::extract::DefaultBodyLimit::max(8 + VIEW_STATE_JSON_LIMIT + VIEW_STATE_BYTES_LIMIT)),
+        )
         .route("/mcp/kits", post(mcp::handle))
         .with_state(state)
 }
@@ -406,6 +425,114 @@ async fn write_replica(
     })();
     written.map_err(|error| ApiError::new(500, 50011, format!("could not keep the replica of `{path}`: {}", error.kind())))?;
     Ok(ok(json!({ "path": path, "bytes": body.len() })))
+}
+
+// The person's view state of a document (Kit UI protocol `host/viewStateRead`,
+// `host/viewStateWrite`, section 7n): `<data>/view-state/<key>.bin`, `<key>` the first 32 hex
+// digits of the SHA-256 of the workspace path, in the server's own data folder, never in the
+// workspace, the replica or the file. The body of `GET` and `PUT` is the JSON's length (8 bytes,
+// little-endian), the JSON of the state (an object), then the optional bytes; the file keeps a
+// header `{ path, kit }` before it the same way. A missing or damaged entry reads as none (`204`).
+
+/// The largest view state: its JSON and its bytes (Kit UI protocol `VIEW_STATE_JSON_LIMIT`,
+/// `VIEW_STATE_BYTES_LIMIT`).
+pub const VIEW_STATE_JSON_LIMIT: usize = 256 * 1024;
+pub const VIEW_STATE_BYTES_LIMIT: usize = 16 * 1024 * 1024;
+/// Where view state is kept, in the server's data folder.
+pub const VIEW_STATE_DIR: &str = "view-state";
+
+/// Splits `bytes` at its little-endian length prefix: the part it counts and the rest.
+fn framed(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
+    let length = usize::try_from(u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?)).ok()?;
+    let rest = bytes.get(8..)?;
+    (length <= rest.len()).then(|| rest.split_at(length))
+}
+
+fn frame(head: &[u8], rest: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(8 + head.len() + rest.len());
+    out.extend_from_slice(&(head.len() as u64).to_le_bytes());
+    out.extend_from_slice(head);
+    out.extend_from_slice(rest);
+    out
+}
+
+/// The view state's file for `path` in the server's data folder; checks the path as every route does.
+fn view_state_file(state: &KitsState, path: &str) -> ApiResult<std::path::PathBuf> {
+    use sha2::Digest;
+    state.kits.resolve(path).map_err(app_error)?;
+    let data = state.data.as_ref().ok_or_else(|| ApiError::new(404, 40402, "this server keeps no view state").with_data(json!({ "reason": "unsupported" })))?;
+    let digest = sha2::Sha256::digest(path.as_bytes());
+    let key: String = digest.iter().take(16).map(|byte| format!("{byte:02x}")).collect();
+    Ok(data.join(VIEW_STATE_DIR).join(format!("{key}.bin")))
+}
+
+/// `GET /kits/view-state?path=&kit=`: the view state `kit`'s editor keeps for `path`; `204` when
+/// none is kept or it is damaged, which is no failure.
+async fn read_view_state(State(state): State<KitsState>, _caller: RequireToken, Query(query): Query<ReplicaQuery>) -> ApiResult<Response> {
+    let path = workspace_path(&query.path)?;
+    let file = view_state_file(&state, path)?;
+    let none = || http::StatusCode::NO_CONTENT.into_response();
+    let Ok(kept) = std::fs::read(&file) else {
+        return Ok(none());
+    };
+    let Some((head, body)) = framed(&kept) else {
+        return Ok(none());
+    };
+    let head = serde_json::from_slice::<Value>(head).unwrap_or_default();
+    if head["path"].as_str() != Some(path) || head["kit"].as_str() != Some(query.kit.as_str()) {
+        return Ok(none());
+    }
+    let valid = framed(body).is_some_and(|(json, _)| serde_json::from_slice::<Value>(json).is_ok_and(|value| value.is_object()));
+    if !valid {
+        return Ok(none());
+    }
+    Ok(([(header::CONTENT_TYPE, "application/octet-stream"), (header::CACHE_CONTROL, "no-store")], body.to_vec()).into_response())
+}
+
+/// `PUT /kits/view-state?path=&kit=`: replaces the view state `kit`'s editor keeps for `path`,
+/// written whole and renamed into place; `413` (`too-large`) over the limits.
+async fn write_view_state(
+    State(state): State<KitsState>,
+    _caller: RequireToken,
+    Query(query): Query<ReplicaQuery>,
+    body: axum::body::Bytes,
+) -> ApiResult<Response> {
+    let path = workspace_path(&query.path)?;
+    let file = view_state_file(&state, path)?;
+    if state.kits.kit_for_path(path).is_none_or(|kit| kit.id != query.kit) {
+        return Err(app_error(KitError::InvalidPath(format!("{} does not edit `{path}`", query.kit))));
+    }
+    let Some((json, bytes)) = framed(&body) else {
+        return Err(ApiError::new(400, 40005, "a view state is its JSON's length (8 bytes, little-endian), the JSON, then the bytes"));
+    };
+    if json.len() > VIEW_STATE_JSON_LIMIT || bytes.len() > VIEW_STATE_BYTES_LIMIT {
+        return Err(ApiError::new(413, 41302, "a view state is at most 256 KB of JSON and 16 MB of bytes").with_data(json!({ "reason": "too-large" })));
+    }
+    if !serde_json::from_slice::<Value>(json).is_ok_and(|value| value.is_object()) {
+        return Err(ApiError::new(400, 40005, "a view state's JSON is an object"));
+    }
+    let head = json!({ "path": path, "kit": query.kit }).to_string();
+    let written = (|| {
+        let dir = file.parent().ok_or_else(|| std::io::Error::other("no folder"))?;
+        std::fs::create_dir_all(dir)?;
+        let scratch = dir.join(format!(".view-{}.tmp", std::process::id()));
+        std::fs::write(&scratch, frame(head.as_bytes(), &body))?;
+        std::fs::rename(&scratch, &file)
+    })();
+    written.map_err(|error| ApiError::new(500, 50012, format!("could not keep the view state of `{path}`: {}", error.kind())))?;
+    Ok(ok(json!({ "path": path, "bytes": body.len() })))
+}
+
+/// `DELETE /kits/view-state?path=&kit=`: forgets the view state of `path` (none kept is no failure).
+async fn delete_view_state(State(state): State<KitsState>, _caller: RequireToken, Query(query): Query<ReplicaQuery>) -> ApiResult<Response> {
+    let path = workspace_path(&query.path)?;
+    let file = view_state_file(&state, path)?;
+    match std::fs::remove_file(&file) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(ApiError::new(500, 50012, format!("could not forget the view state of `{path}`: {}", error.kind()))),
+    }
+    Ok(ok(json!({ "path": path })))
 }
 
 // File grants (Kition platform `KitFiles 1.1`, `kition_kit_host::files`): the editor's host page

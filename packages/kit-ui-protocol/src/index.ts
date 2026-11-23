@@ -183,7 +183,7 @@ export type InitializeParams = {
   locale: string
   /** The host's own shortcuts, as `Cmd+N`; the kit forwards them (`host/shortcut`). */
   shortcuts: string[]
-  /** Optional host methods this host serves: `agent`, `pick-file`, `replica`, `customize`, `lease`, `presence`, `files`, `files-pick`, `print`, `generate`, `action:<id>`, `open-file`, `open-url`, `links-pick`, `fetch-image`. */
+  /** Optional host methods this host serves: `agent`, `pick-file`, `replica`, `checkpoints`, `view-state`, `customize`, `lease`, `presence`, `files`, `files-pick`, `print`, `generate`, `action:<id>`, `open-file`, `open-url`, `links-pick`, `fetch-image`. */
   capabilities: string[]
   /**
    * The capability sets this host serves (Kition platform `docs/platform/index.md` section 3), such as
@@ -205,6 +205,76 @@ export type WriteMode = 'save' | 'export' | 'create'
  * snapshot, the blobs it references, and the stamp of the file it was saved with.
  */
 export type StoredReplica = { snapshot: ArrayBuffer; blobs: ArrayBuffer; fileStamp: string }
+
+/**
+ * A checkpoint of a document's history as the host keeps it (capability `checkpoints`, protocol
+ * section 7m): a name for one version of the stored replica, never a copy of the document.
+ * `time` is in milliseconds since the Unix epoch; `origin` is who made it (`kit` for the kit's
+ * own, the host's `save`, `agent`, ...); `version` is the replica version it names, base64, as
+ * `ai/version` answers it. `available` is false when the store no longer reaches that version
+ * (the replica was replaced by one of another lineage, the file was opened alone).
+ */
+export type KitCheckpoint = {
+  id: string
+  time: number
+  origin: string
+  author?: string
+  label?: string
+  description?: string
+  version: string
+  available: boolean
+}
+
+/** What a kit asks to record with `host/replicaWrite` (capability `checkpoints`): the write and the checkpoint are one step. */
+export type KitCheckpointRequest = { label?: string; description?: string; author?: string; origin?: typeof KIT_CHECKPOINT_ORIGIN }
+
+/** The origin of the checkpoints a kit makes: the only ones it may update or delete. */
+export const KIT_CHECKPOINT_ORIGIN = 'kit'
+/** The longest checkpoint label and description, in characters. */
+export const CHECKPOINT_LABEL_LIMIT = 200
+export const CHECKPOINT_DESCRIPTION_LIMIT = 2000
+/** The most checkpoints one `host/checkpointList` answers. */
+export const CHECKPOINT_LIST_LIMIT = 200
+
+/** `error.data.reason` of a refused checkpoint request (code -32000). */
+export const CHECKPOINT_ERROR_REASONS = ['not-found', 'history-missing', 'too-long', 'read-only', 'conflict'] as const
+export type KitCheckpointErrorReason = (typeof CHECKPOINT_ERROR_REASONS)[number]
+
+/**
+ * A kit's per-document, per-person view state as the host keeps it (capability `view-state`,
+ * protocol section 7n): where the person was, zoom, panels. Kept in the host's own data, never in
+ * the workspace, the replica, or the file. `state` is the kit's JSON (versioned by the kit),
+ * `bytes` an optional binary part.
+ */
+export type KitViewState = { state: Record<string, unknown> | null; bytes?: ArrayBuffer }
+
+/** The largest view state: its JSON (UTF-8 bytes) and its binary part. */
+export const VIEW_STATE_JSON_LIMIT = 256 * 1024
+export const VIEW_STATE_BYTES_LIMIT = 16 * 1024 * 1024
+/** `error.data.reason` of a refused view-state write (code -32000). */
+export const VIEW_STATE_ERROR_REASONS = ['too-large'] as const
+export type KitViewStateErrorReason = (typeof VIEW_STATE_ERROR_REASONS)[number]
+
+/** The reason of a refused checkpoint or view-state request, or null for another error. */
+export function historyErrorReason(error: unknown): KitCheckpointErrorReason | KitViewStateErrorReason | null {
+  if (!(error instanceof KitRpcError) || error.code !== -32000 || typeof error.data !== 'object' || error.data === null) return null
+  const reason = (error.data as { reason?: unknown }).reason
+  return (CHECKPOINT_ERROR_REASONS as readonly string[]).includes(reason as string) || (VIEW_STATE_ERROR_REASONS as readonly string[]).includes(reason as string) ? (reason as KitCheckpointErrorReason | KitViewStateErrorReason) : null
+}
+
+/** The UTF-8 length of `state`'s JSON. */
+export function viewStateJsonBytes(state: Record<string, unknown> | null) {
+  return state === null ? 4 : new TextEncoder().encode(JSON.stringify(state)).byteLength
+}
+
+/** Whether `value` is an `ArrayBuffer`, from this realm or another (a buffer a port delivered). */
+export const isArrayBuffer = (value: unknown): value is ArrayBuffer => Object.prototype.toString.call(value) === '[object ArrayBuffer]'
+
+/** `value` when it is a view state's JSON (a plain object, not an array) or null; `undefined` otherwise. */
+export function parseViewStateValue(value: unknown): Record<string, unknown> | null | undefined {
+  if (value === null) return null
+  return value && typeof value === 'object' && !Array.isArray(value) && !isArrayBuffer(value) ? (value as Record<string, unknown>) : undefined
+}
 
 /** Kit AI bridge records (standard A7 to A10), as Kition's runtime defines them. */
 /**
@@ -853,7 +923,23 @@ export type KitToHost = {
   'host/pick': [{ purpose: string; accept: string[] }, { path: string | null }]
   'host/openAgent': [{ prompt?: string }, Record<string, never>]
   'host/replicaRead': [{ path: string }, StoredReplica | null]
-  'host/replicaWrite': [{ path: string } & StoredReplica, Record<string, never>]
+  /**
+   * Stores the replica; with `checkpoint` (capability `checkpoints`, section 7m) it also records a
+   * checkpoint at the version it holds, in the same step, and answers it.
+   */
+  'host/replicaWrite': [{ path: string; checkpoint?: KitCheckpointRequest } & StoredReplica, { checkpoint?: KitCheckpoint }]
+  /** The document's checkpoints, newest first: only labelled ones with `labelled`, older than the checkpoint `before`, at most `limit` (capability `checkpoints`). */
+  'host/checkpointList': [{ path: string; labelled?: boolean; before?: string; limit?: number }, { checkpoints: KitCheckpoint[]; more: boolean }]
+  /** Renames or redescribes one of the kit's own checkpoints (`origin: "kit"`); an empty string removes the field. */
+  'host/checkpointUpdate': [{ path: string; id: string; label?: string; description?: string }, { checkpoint: KitCheckpoint }]
+  /** Deletes one of the kit's own checkpoints (`origin: "kit"`). */
+  'host/checkpointDelete': [{ path: string; id: string }, Record<string, never>]
+  /** One checkpoint and the blobs its version needs; with `state: true` also the replica's snapshot at that version. */
+  'host/checkpointRead': [{ path: string; id: string; state?: boolean }, { checkpoint: KitCheckpoint; blobs: ArrayBuffer; snapshot?: ArrayBuffer }]
+  /** The person's view state of the document (capability `view-state`, section 7n); `state: null` when none is kept or it is damaged. */
+  'host/viewStateRead': [{ path: string }, KitViewState]
+  /** Replaces the view state whole (last write wins); `state: null` deletes it. */
+  'host/viewStateWrite': [{ path: string } & KitViewState, Record<string, never>]
   /** Keeps what the person hid (capability `customize`, section 9). */
   'host/customize': [{ personal: { hide: string[] } }, Record<string, never>]
   /**

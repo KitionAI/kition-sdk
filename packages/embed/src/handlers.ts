@@ -298,6 +298,19 @@ export function createHandlers(files: DocumentFiles): KitHostHandlers {
       return openUrl(url)
     }
   }
+  const viewStates = storage.viewState
+  if (viewStates) {
+    handlers.viewState = {
+      read: async ({ path }) => {
+        ownDocument(path)
+        return viewStates.read(file.id)
+      },
+      write: async ({ path, ...value }) => {
+        ownDocument(path)
+        await viewStates.write(file.id, value.state !== null && value.bytes ? { state: value.state, bytes: toArrayBuffer(value.bytes) } : { state: value.state })
+      },
+    }
+  }
   if (replicas) {
     handlers.replicaRead = async ({ path }) => {
       ownDocument(path)

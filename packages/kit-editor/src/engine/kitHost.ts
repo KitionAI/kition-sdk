@@ -1,5 +1,23 @@
+import type { KitCheckpoint, KitCheckpointRequest, KitViewState } from '@kition/kit-ui-protocol'
+
+export type { KitCheckpoint, KitCheckpointRequest, KitViewState }
+
 /** A document's KDM replica (snapshot and blobs) and the stamp of the file it was saved with. */
 export type KitStoredReplica = { snapshot: ArrayBuffer; blobs: ArrayBuffer; fileStamp: string }
+
+/** The host's checkpoints of a document (the Kit UI protocol's `checkpoints` capability, section 7m). */
+export type KitCheckpoints = {
+  list: (path: string, options?: { labelled?: boolean; before?: string; limit?: number }) => Promise<{ checkpoints: KitCheckpoint[]; more: boolean }>
+  update: (path: string, id: string, fields: { label?: string; description?: string }) => Promise<KitCheckpoint>
+  delete: (path: string, id: string) => Promise<void>
+  read: (path: string, id: string, options?: { state?: boolean }) => Promise<{ checkpoint: KitCheckpoint; blobs: ArrayBuffer; snapshot?: ArrayBuffer }>
+}
+
+/** The person's view state of a document, kept by the host outside the document (the `view-state` capability, section 7n). */
+export type KitViewStates = {
+  read: (path: string) => Promise<KitViewState>
+  write: (path: string, value: KitViewState) => Promise<void>
+}
 
 /**
  * How a kit editor reaches the file it edits. Kition reads workspace files
@@ -19,8 +37,15 @@ export type KitHost = {
    * protocol's `replica` capability), or null. Absent: the host keeps no replicas.
    */
   replicaRead?: (path: string) => Promise<KitStoredReplica | null>
-  /** Stores the document's replica with the stamp of the file it belongs to. */
-  replicaWrite?: (path: string, replica: KitStoredReplica) => Promise<void>
+  /**
+   * Stores the document's replica with the stamp of the file it belongs to; with `checkpoint` (and
+   * `checkpoints`) records a checkpoint at its version in the same step and answers it.
+   */
+  replicaWrite?: (path: string, replica: KitStoredReplica, checkpoint?: KitCheckpointRequest) => Promise<KitCheckpoint | null | void>
+  /** The host's checkpoints of the document. Absent: the host keeps none (the kit keeps versions for the session only). */
+  checkpoints?: KitCheckpoints
+  /** The person's view state of the document. Absent: the host keeps none (the kit keeps it for the session only). */
+  viewState?: KitViewStates
   /**
    * Where the document at `path` may read the other files it names (lent files): an absolute
    * URL of the workspace root that serves ranged reads, and the document's folder in it. Absent:

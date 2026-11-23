@@ -566,7 +566,17 @@ explicitly read-only rather than silently drop it.**
 
 - Every change carries its author, origin, and causal dependencies; Loro
   keeps the full operation history graph.
-- Local version history exists.
+- Local version history exists. The host names versions of the stored replica as
+  **checkpoints** (`{ id, time, origin, author?, label?, description?, version }`): each is a
+  reference to a replica version in the store, never a copy. A kit records one together with the
+  replica write that holds its version, lists them, renames or deletes its own (`origin: kit`),
+  and reads the blobs (or, on request, a snapshot) at a version (Kit UI protocol section 7m).
+  Labelled checkpoints are never thinned; unlabelled ones are, under a cap of their own. When
+  the stored replica is replaced by one of another lineage, labelled checkpoints stay listed as
+  unavailable. There are no branches.
+- A person's **view state** of a document (where they were, zoom, open panels) is neither content
+  nor history: the host keeps it per document and per person or device in its own app data, never
+  in the workspace, the replica, or the file (Kit UI protocol section 7n).
 - The Kition Server keeps the full change history (30 days proposed)
   plus older snapshots; a large document can use a **shallow replica**
   (current state only, history fetched from the server on demand).
@@ -634,6 +644,12 @@ What a kit whose file holds its replica does:
 5. **Tests.** `Replica::snapshot_origins(bytes)` (`Replica.snapshotOrigins`)
    lists the origins of the changes some bytes hold: a content snapshot holds
    one, the seal. No kit test needs the engine (`loro`) itself.
+
+What a kit used to keep in its file beside the content goes to the host: named versions (saved
+versions, record history) are checkpoints of the store (section 7.2, Kit UI protocol section 7m),
+recorded with the replica write of a save; a person's view state goes to the host's `view-state`
+(section 7n). A host without these capabilities offers neither, and the kit keeps them for the
+session only.
 
 A file is a shallow replica that does not carry the document's whole history
 (sync protocol S20). A document known only from its file (no store, no room)

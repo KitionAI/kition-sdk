@@ -5,6 +5,7 @@
 import {
   KIT_UI_PROTOCOL,
   KitPeer,
+  isArrayBuffer,
   isHandshake,
   isHello,
   matchesShortcut,
@@ -178,6 +179,8 @@ export function connectHost(kit: { id: string; version: string; capabilities?: s
           // The document's own bytes come with the request; the first read of its path uses them.
           let initial: ArrayBuffer | null = init.document.bytes ?? null
           const replica = init.capabilities.includes('replica') && (kit.capabilities ?? []).includes('replica')
+          // Checkpoints name versions of the stored replica: only for a kit that keeps one there.
+          const checkpoints = replica && init.capabilities.includes('checkpoints')
           const files: KitHost = {
             read: async (path) => {
               if (initial && path === init.document.path) {
@@ -200,8 +203,35 @@ export function connectHost(kit: { id: string; version: string; capabilities?: s
               const stored = await peer.request('host/replicaRead', { path })
               return stored && stored.snapshot instanceof ArrayBuffer && stored.blobs instanceof ArrayBuffer && typeof stored.fileStamp === 'string' ? stored : null
             }
-            files.replicaWrite = async (path, stored) => {
-              await peer.request('host/replicaWrite', { path, ...stored }, { transfer: true })
+            files.replicaWrite = async (path, stored, checkpoint) => {
+              const answer = await peer.request('host/replicaWrite', { path, ...stored, ...(checkpoint && checkpoints ? { checkpoint } : {}) }, { transfer: true })
+              return answer?.checkpoint ?? null
+            }
+            if (checkpoints) {
+              files.checkpoints = {
+                list: async (path, options = {}) => {
+                  const answer = await peer.request('host/checkpointList', { path, ...options })
+                  return { checkpoints: Array.isArray(answer?.checkpoints) ? answer.checkpoints : [], more: answer?.more === true }
+                },
+                update: async (path, id, fields) => (await peer.request('host/checkpointUpdate', { path, id, ...fields })).checkpoint,
+                delete: async (path, id) => {
+                  await peer.request('host/checkpointDelete', { path, id })
+                },
+                read: (path, id, options = {}) => peer.request('host/checkpointRead', { path, id, ...(options.state ? { state: true } : {}) }),
+              }
+            }
+          }
+          if (init.capabilities.includes('view-state')) {
+            files.viewState = {
+              read: async (path) => {
+                const answer = await peer.request('host/viewStateRead', { path })
+                const state = answer && typeof answer.state === 'object' && !Array.isArray(answer.state) ? answer.state : null
+                return state && isArrayBuffer(answer.bytes) ? { state, bytes: answer.bytes } : { state }
+              },
+              write: async (path, value) => {
+                const bytes = value.bytes ? value.bytes.slice(0) : undefined
+                await peer.request('host/viewStateWrite', { path, state: value.state, ...(bytes ? { bytes } : {}) }, { transfer: true })
+              },
             }
           }
           // The brand comes from kit.json, so it is checked at runtime.

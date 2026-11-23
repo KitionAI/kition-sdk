@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { KitEngine, type KitAgentStep, type KitEngineInfo, type KitToolMethod } from './kitEngine'
 import type { KitModuleManifest } from './kitModule'
-import type { KitHost } from './kitHost'
+import type { KitCheckpoint, KitCheckpointRequest, KitHost, KitViewState } from './kitHost'
 import { NOTHING, owedDamage } from './owedDamage'
 import type { RasterRect } from './rasterViewport'
 import { replicaToOpen, writeWithReplica } from './replica'
@@ -142,6 +142,12 @@ export type KitDocumentOptions = {
    * without it. Not asked while there are unsaved edits, which raise `conflict`.
    */
   followFile?: (engine: KitEngine, stamp: string) => boolean | Promise<boolean>
+  /**
+   * The person's view state to keep with the host after each save (Kit UI protocol section 7n,
+   * capability `view-state`): never in the file or the replica. A failed write never fails the
+   * save; without the capability nothing is written. Read it back with `readViewState`.
+   */
+  viewState?: () => KitViewState | null | undefined
 }
 
 /**
@@ -419,9 +425,12 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
    * Writes the document back to its workspace file. The bytes are taken after the commands and
    * tool events still on their way (`ordered`), so they hold everything done before Save.
    */
-  const save = useCallback(async () => {
+  const viewStateRef = useRef(options.viewState)
+  viewStateRef.current = options.viewState
+  /** Saves; with `checkpoint`, records one with the replica write and answers it (`null` when none was). */
+  const saveWith = useCallback(async (checkpoint?: KitCheckpointRequest): Promise<KitCheckpoint | null> => {
     const open = docRef.current
-    if (!open) return
+    if (!open) return null
     if (readOnly) throw new ReadOnlyError('Save')
     setSaving(true)
     busyRef.current = true
@@ -435,17 +444,33 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
         throw new FileChangedError(path)
       }
       const { bytes, replica, revision } = await ordered(async () => (host.replicaWrite ? open.saveWithReplica() : { ...(await open.serialize()), replica: null }))
-      stampRef.current = await writeWithReplica(host, path, bytes, replica, known)
+      let recorded: KitCheckpoint | null = null
+      const view = viewStateRef.current?.()
+      stampRef.current = await writeWithReplica(host, path, bytes, replica, known, {
+        ...(checkpoint ? { checkpoint, recorded: (answer: KitCheckpoint | null) => void (recorded = answer) } : {}),
+        ...(view !== undefined ? { viewState: view } : {}),
+      })
       // Only a file that reached the disk counts as saved, and only if nothing changed since the
       // bytes were taken: the engine compares `revision` in order with the edits sent before.
       if (docRef.current === open) await open.markSaved(revision)
       setConflict(false)
       refresh()
+      return recorded
     } finally {
       busyRef.current = false
       setSaving(false)
     }
   }, [host, ordered, path, readOnly, refresh])
+  /** Writes the document back to its workspace file. */
+  const save = useCallback(async () => {
+    await saveWith()
+  }, [saveWith])
+  /**
+   * Saves and records a checkpoint of the version saved (a "saved version" the person named), in
+   * the same replica write (Kit UI protocol section 7m). Answers it; `null` when the host keeps no
+   * checkpoints (the file is saved all the same).
+   */
+  const saveCheckpoint = useCallback((checkpoint: KitCheckpointRequest = {}) => saveWith(checkpoint), [saveWith])
 
   /** The document's replica, for the host's `replica/*` (only when the host keeps replicas). */
   const replica = useMemo(() => {
@@ -562,5 +587,5 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     return view
   }, [repaints])
 
-  return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, save, replica, model, draft, reopen, keepMine, checkFile, holdFile }
+  return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, save, saveCheckpoint, replica, model, draft, reopen, keepMine, checkFile, holdFile }
 }

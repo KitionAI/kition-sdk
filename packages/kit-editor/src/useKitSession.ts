@@ -143,6 +143,8 @@ export type KitSessionOptions = {
    * (`KitDocumentOptions.followFile`); without it, or when it answers `false`, the document reopens.
    */
   followFile?: KitDocumentOptions['followFile']
+  /** The person's view state kept with the host after each save (`KitDocumentOptions.viewState`, capability `view-state`). */
+  viewState?: KitDocumentOptions['viewState']
   /**
    * The person merged the agent's draft (`draft/merge`, section 7d): it is in the document as
    * one step of the person's Undo (KitModel 1.1 M12a). A kit that keeps its own undo history
@@ -192,7 +194,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
   const canComment = readOnly && host.init.document.comments?.canComment === true
   const commentList = manifest.commentCommands
   const comments = useMemo(() => commentCommands(commentList, canComment), [canComment, commentList])
-  const session = useKitDocument(host.files, manifest, path, true, describe, { readOnly, canComment, replicaMergesFile: options.replicaMergesFile, followFile: options.followFile })
+  const session = useKitDocument(host.files, manifest, path, true, describe, { readOnly, canComment, replicaMergesFile: options.replicaMergesFile, followFile: options.followFile, viewState: options.viewState })
   const { doc, failure } = session
   // The host hears of the engine's changes, keyed on its revision and saved state, not on the
   // editor's own refreshes (a view-only command refreshes the editor without changing the document).

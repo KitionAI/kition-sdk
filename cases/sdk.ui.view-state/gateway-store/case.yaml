@@ -1,0 +1,25 @@
+format: 1
+id: sdk.ui.view-state/gateway-store
+feature: sdk.ui.view-state
+intent: >-
+  The gateway keeps an editor's view state in its own data folder, never in the workspace: a round
+  trip answers what was written, the last write wins, a value over the limits is refused as
+  too-large and changes nothing, paths outside the workspace or hidden are refused for read, write
+  and delete, a damaged entry reads as none, delete forgets it, and a gateway without a data folder
+  answers unsupported. The page packs and unpacks the value the same way.
+layer: gate
+dimension: data-safety
+source:
+  kind: synthetic
+  from: crates/kition-kits-http/tests/page_routes.rs
+  license: owned
+input: []
+steps:
+  - cargo-test: { package: kition-kits-http, test: page_routes, filter: view_state }
+  - cargo-test: { package: kition-kits-http, test: security }
+expected:
+  - actual: out:exit
+    compare: exit
+    value: 0
+since: "2026-11-23"
+timeout_s: 300

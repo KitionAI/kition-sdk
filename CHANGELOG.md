@@ -4,6 +4,31 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Checkpoints and view state from the host (Kit UI protocol sections 7m and 7n, protocol 1,
+  optional capabilities `checkpoints` and `view-state`)**: a file holds no history, so a kit's saved
+  versions and record history went away when the document closed, and per-person view state had
+  nowhere to go but the file. `host/replicaWrite` takes an optional `checkpoint: { label?,
+  description?, author?, origin? }` and answers `{ checkpoint? }`: the write and the checkpoint are
+  one step, and a checkpoint (`KitCheckpoint`: `{ id, time, origin, author?, label?, description?,
+  version, available }`) names a replica version in the host's store, never a copy.
+  `host/checkpointList`, `host/checkpointUpdate`, `host/checkpointDelete` and
+  `host/checkpointRead` list, rename, delete and read them; a kit changes only its own (`origin:
+  "kit"`), the host's `save` and `agent` ones refuse with `read-only`; refusals are `-32000` with
+  `data.reason` in `not-found`, `history-missing`, `too-long`, `read-only`, `conflict` (labels at
+  most 200 characters, descriptions 2000). `host/viewStateRead` and `host/viewStateWrite` keep a
+  whole value per document and person in the host's own data (`{ state: object | null, bytes? }`,
+  256 KB of JSON, 16 MB of bytes, else `too-large`; a damaged one reads as `null`).
+  `@kition/kit-host` offers each capability only when the embedder supplies its handlers
+  (`checkpoints`, which needs the replica's, and `viewState`) and checks every rule before them;
+  `@kition/kit-editor` adds `listCheckpoints`, `updateCheckpoint`, `deleteCheckpoint`,
+  `readCheckpoint`, `readViewState`, `writeViewState` (null or nothing without the capability),
+  `useKitDocument`'s `saveCheckpoint` and the `viewState` option (written after each save; a failed
+  write never fails it). `@kition/embed` passes view state through to a `StorageProvider.viewState`
+  store and offers no checkpoints; the gateway serves view state from its data folder
+  (`<KITION_HOME>/data/<workspace key>/view-state/`, `GET`/`PUT`/`DELETE /api/v1/kits/view-state`)
+  and no checkpoints; the development host serves neither (sdk.ui.checkpoints/host-rules,
+  sdk.ui.checkpoints/editor-fallbacks, sdk.ui.view-state/host-rules,
+  sdk.ui.view-state/gateway-store, regressions/issue-view-state-outside-content).
 - **The editor's canvas no longer loses a repaint when React takes several refreshes in one
   render**: `useKitDocument`'s refresh replaced the area of its change (`KitChange.damage`) with the
   last refresh's, so a click whose press changed the document and whose release changed nothing,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { GATEWAY_PAGE_PROTOCOL, gatewayPageAddress, isGatewayPageMessage } from '../src/index'
 import { answer, backoff, events, failure, type BridgeEditor } from '../src/page/bridge'
 import { cleanPath, encodePath, gatewayRoot } from '../src/page/gateway'
-import { packReplica, readable, unpackReplica } from '../src/page/host'
+import { packReplica, packViewState, readable, unpackReplica, unpackViewState } from '../src/page/host'
 import { agentInspect } from '../src/page/inspect'
 import { chooseKit, extensionOf, shortcutsFrom } from '../src/page/kits'
 
@@ -62,6 +62,18 @@ describe('the gateway page: addresses and the kit a file opens in', () => {
     const back = unpackReplica(packed, '"stamp"')!
     expect([new Uint8Array(back.snapshot), new Uint8Array(back.blobs), back.fileStamp]).toEqual([new Uint8Array([1, 2, 3]), new Uint8Array([9, 8]), '"stamp"'])
     expect(unpackReplica(new Uint8Array([99, 0, 0, 0, 0, 0, 0, 0]).buffer, '')).toBeNull()
+  })
+
+  it('keeps a view state as its JSON length, JSON and bytes, and reads a damaged one as none (sdk.ui.view-state)', () => {
+    const packed = packViewState({ state: { z: 1 }, bytes: new Uint8Array([7]).buffer })
+    expect(new Uint8Array(packed)).toEqual(new Uint8Array([7, 0, 0, 0, 0, 0, 0, 0, ...new TextEncoder().encode('{"z":1}'), 7]))
+    const back = unpackViewState(packed)
+    expect(back.state).toEqual({ z: 1 })
+    expect(new Uint8Array(back.bytes!)).toEqual(new Uint8Array([7]))
+    expect(unpackViewState(packViewState({ state: { z: 2 } }))).toEqual({ state: { z: 2 } })
+    expect(unpackViewState(new Uint8Array([99, 0, 0, 0, 0, 0, 0, 0]).buffer)).toEqual({ state: null })
+    expect(unpackViewState(packed.slice(0, 10))).toEqual({ state: null })
+    expect(unpackViewState(packViewState({ state: [1] as never }))).toEqual({ state: null })
   })
 })
 

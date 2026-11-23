@@ -12,7 +12,9 @@
 //! - `PUT /api/v1/kits/files?expected=`: a save over another version than the editor read is
 //!   refused as `file_conflict`; a save answers the file's new version, the `ETag` `/kit-files/`
 //!   answers;
-//! - `/api/v1/kits/replicas`: the replica an editor keeps beside its document.
+//! - `/api/v1/kits/replicas`: the replica an editor keeps beside its document;
+//! - `/api/v1/kits/view-state`: the person's view state of a document, in the gateway's data folder
+//!   outside the workspace (sdk.ui.view-state).
 
 mod support;
 
@@ -94,6 +96,7 @@ impl EditorStore for Store {
 struct Fixture {
     app: Router,
     root: PathBuf,
+    data: PathBuf,
     store: Arc<Store>,
     _dir: tempfile::TempDir,
 }
@@ -113,8 +116,9 @@ fn fixture() -> Fixture {
     let kits = KitManager::new(Some(root.clone()), vec![(&MOCK, None)]);
     let gate = kition_kits_http::gateway::gate(TOKEN).unwrap();
     let identity = json!({ "protocol": kition_kits_http::gateway::PROTOCOL });
-    let app = kition_kits_http::gateway::app(kits, gate, identity, kition_kits_http::gateway::Activity::default(), Some(store.clone()));
-    Fixture { app, root, store, _dir: dir }
+    let data = base.join("data");
+    let app = kition_kits_http::gateway::app(kits, gate, identity, kition_kits_http::gateway::Activity::default(), Some(store.clone()), Some(data.clone()));
+    Fixture { app, root, data, store, _dir: dir }
 }
 
 async fn get(app: &Router, uri: &str, headers: &[(&str, &str)]) -> support::Answer {
@@ -330,4 +334,112 @@ async fn an_editor_keeps_its_replica_beside_its_document() {
     for outside in ["../x.mocktext", ".kition/replicas/x.mocktext", "/etc/passwd"] {
         assert_eq!(put(api(&format!("/kits/replicas?path={outside}&kit=kit.mock")), body.clone()).await.status, StatusCode::FORBIDDEN, "{outside}");
     }
+}
+
+/// A view state body: the JSON's length (8 bytes, little-endian), the JSON, the bytes.
+fn view_state(json: &[u8], bytes: &[u8]) -> Vec<u8> {
+    let mut body = (json.len() as u64).to_le_bytes().to_vec();
+    body.extend_from_slice(json);
+    body.extend_from_slice(bytes);
+    body
+}
+
+/// Every file under `dir`, with its bytes.
+fn files_under(dir: &std::path::Path) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(files_under(&path));
+        } else {
+            out.push((path.clone(), std::fs::read(&path).unwrap()));
+        }
+    }
+    out
+}
+
+#[tokio::test]
+async fn an_editor_keeps_the_view_state_outside_the_workspace() {
+    let f = fixture();
+    let uri = api("/kits/view-state?path=art/note.mocktext&kit=kit.mock");
+    let send_body = |method: &'static str, uri: String, body: Vec<u8>| {
+        let app = f.app.clone();
+        async move { send(&app, Request::builder().method(method).uri(uri).body(Body::from(body)).unwrap()).await }
+    };
+    assert_eq!(call(&f.app, "GET", &uri, None).await.status, StatusCode::NO_CONTENT, "none kept: no failure");
+
+    // A round trip: JSON and bytes come back as written; the last write wins.
+    let first = view_state(br#"{"v":1,"zoom":2}"#, b"\x01\x02\x03");
+    assert_eq!(send_body("PUT", uri.clone(), first).await.status, StatusCode::OK);
+    let second = view_state(br#"{"v":1,"zoom":3,"marker":"VIEWSTATE-MARKER"}"#, b"VIEWBYTES-MARKER");
+    assert_eq!(send_body("PUT", uri.clone(), second.clone()).await.status, StatusCode::OK);
+    let read = call(&f.app, "GET", &uri, None).await;
+    assert_eq!((read.status, read.bytes.as_slice()), (StatusCode::OK, second.as_slice()));
+
+    // Kept in the gateway's data folder, never in the workspace (nor its replica store).
+    assert!(f.data.join("view-state").is_dir(), "in the gateway's data folder");
+    for (path, bytes) in files_under(&f.root) {
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(!text.contains("VIEWSTATE-MARKER") && !text.contains("VIEWBYTES-MARKER"), "view state in the workspace: {}", path.display());
+    }
+    assert_eq!(std::fs::read(f.root.join("art/note.mocktext")).unwrap(), b"hello", "the document is untouched");
+
+    // Another kit's is not this one's, and a kit that does not edit the file keeps none.
+    assert_eq!(call(&f.app, "GET", &api("/kits/view-state?path=art/note.mocktext&kit=kit.other"), None).await.status, StatusCode::NO_CONTENT);
+    assert_eq!(send_body("PUT", api("/kits/view-state?path=art/note.mocktext&kit=kit.other"), view_state(b"{}", b"")).await.status, StatusCode::BAD_REQUEST);
+
+    // Malformed bodies: a length past the end, JSON that is not an object.
+    assert_eq!(send_body("PUT", uri.clone(), 99u64.to_le_bytes().to_vec()).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(send_body("PUT", uri.clone(), view_state(b"[1,2]", b"")).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(send_body("PUT", uri.clone(), view_state(b"{nope", b"")).await.status, StatusCode::BAD_REQUEST);
+
+    // The limits: 256 KB of JSON, 16 MB of bytes; over either is refused as too-large, and nothing changes.
+    let padding = "x".repeat(kition_kits_http::VIEW_STATE_JSON_LIMIT);
+    let big = send_body("PUT", uri.clone(), view_state(format!(r#"{{"p":"{padding}"}}"#).as_bytes(), b"")).await;
+    assert_eq!((big.status, big.reason()), (StatusCode::PAYLOAD_TOO_LARGE, &json!("too-large")), "{}", big.json);
+    let at_limit = format!(r#"{{"p":"{}"}}"#, "x".repeat(kition_kits_http::VIEW_STATE_JSON_LIMIT - 8));
+    assert_eq!(at_limit.len(), kition_kits_http::VIEW_STATE_JSON_LIMIT);
+    assert_eq!(send_body("PUT", uri.clone(), view_state(at_limit.as_bytes(), b"")).await.status, StatusCode::OK, "at the limit is kept");
+    let heavy = send_body("PUT", uri.clone(), view_state(b"{}", &vec![7u8; kition_kits_http::VIEW_STATE_BYTES_LIMIT + 1])).await;
+    assert_eq!((heavy.status, heavy.reason()), (StatusCode::PAYLOAD_TOO_LARGE, &json!("too-large")), "{}", heavy.json);
+    assert_eq!(
+        send_body("PUT", uri.clone(), view_state(b"{}", &vec![7u8; kition_kits_http::VIEW_STATE_BYTES_LIMIT])).await.status,
+        StatusCode::OK,
+        "at the limit is kept"
+    );
+    assert_eq!(send_body("PUT", uri.clone(), second.clone()).await.status, StatusCode::OK);
+
+    // Paths are confined like every other route's.
+    for outside in ["../x.mocktext", ".kition/replicas/x.mocktext", "/etc/passwd"] {
+        let uri = api(&format!("/kits/view-state?path={outside}&kit=kit.mock"));
+        assert_eq!(send_body("PUT", uri.clone(), view_state(b"{}", b"")).await.status, StatusCode::FORBIDDEN, "{outside}");
+        assert_eq!(call(&f.app, "GET", &uri, None).await.status, StatusCode::FORBIDDEN, "{outside}");
+        assert_eq!(call(&f.app, "DELETE", &uri, None).await.status, StatusCode::FORBIDDEN, "{outside}");
+    }
+
+    // A damaged entry reads as none.
+    let kept: Vec<PathBuf> = files_under(&f.data.join("view-state")).into_iter().map(|(path, _)| path).collect();
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    let original = std::fs::read(&kept[0]).unwrap();
+    std::fs::write(&kept[0], &original[..original.len() / 2]).unwrap();
+    assert_eq!(call(&f.app, "GET", &uri, None).await.status, StatusCode::NO_CONTENT, "a truncated entry");
+    std::fs::write(&kept[0], b"garbage").unwrap();
+    assert_eq!(call(&f.app, "GET", &uri, None).await.status, StatusCode::NO_CONTENT, "a garbled entry");
+
+    // Delete: forgets it; deleting none is no failure.
+    assert_eq!(send_body("PUT", uri.clone(), second).await.status, StatusCode::OK);
+    assert_eq!(call(&f.app, "DELETE", &uri, None).await.status, StatusCode::OK);
+    assert_eq!(call(&f.app, "GET", &uri, None).await.status, StatusCode::NO_CONTENT);
+    assert_eq!(call(&f.app, "DELETE", &uri, None).await.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_gateway_without_a_data_folder_keeps_no_view_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(dir.path()).unwrap();
+    write(&root.join("art/note.mocktext"), b"hello");
+    let kits = KitManager::new(Some(root.clone()), vec![(&MOCK, None)]);
+    let app = support::app(&kits);
+    let answer = call(&app, "GET", &api("/kits/view-state?path=art/note.mocktext&kit=kit.mock"), None).await;
+    assert_eq!((answer.status, answer.reason()), (StatusCode::NOT_FOUND, &json!("unsupported")));
 }

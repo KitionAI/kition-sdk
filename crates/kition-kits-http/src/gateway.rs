@@ -193,11 +193,23 @@ impl Activity {
 
 /// The gateway app over `kits` (whose workspace it serves) behind `gate`; `identity` is what
 /// `GET /api/v1/gateway` answers; `activity` hears every request but the health probe; `editors`
-/// is the host's store of editor packages (none: the page shows that no editor can be loaded).
-pub fn app(kits: KitManager, gate: ApiGate, identity: Value, activity: Activity, editors: Option<Arc<dyn EditorStore>>) -> Router {
+/// is the host's store of editor packages (none: the page shows that no editor can be loaded);
+/// `data` is the gateway's own folder for this workspace, outside it, where it keeps the person's
+/// view state (none: it keeps none).
+pub fn app(
+    kits: KitManager,
+    gate: ApiGate,
+    identity: Value,
+    activity: Activity,
+    editors: Option<Arc<dyn EditorStore>>,
+    data: Option<std::path::PathBuf>,
+) -> Router {
     let mut state = KitsState::new(kits.clone());
     if let Some(store) = &editors {
         state = state.with_editors(store.clone());
+    }
+    if let Some(dir) = data {
+        state = state.with_data(dir);
     }
     let pages = PageState { gate: gate.clone(), spent: Spent::default() };
     let gateway = Router::new().route(&format!("{PAGE_SESSION_ROUTE}{{nonce}}"), get(page_session)).route("/gateway/sign", post(sign)).with_state(pages);

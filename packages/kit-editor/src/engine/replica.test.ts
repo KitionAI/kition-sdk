@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { KitHost, KitStoredReplica } from './kitHost'
-import { replicaToOpen, writeWithReplica } from './replica'
+import { deleteCheckpoint, listCheckpoints, readCheckpoint, readViewState, replicaToOpen, updateCheckpoint, writeViewState, writeWithReplica } from './replica'
 
 const bytes = (...values: number[]) => new Uint8Array(values).buffer
 
@@ -94,5 +94,129 @@ describe('writeWithReplica', () => {
     const host = fakeHost('v1', stored, { write: async () => Promise.reject(new Error('conflict')) })
     await expect(writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8) })).rejects.toThrow('conflict')
     expect(stored.size).toBe(0)
+  })
+})
+
+describe('checkpoints and view state (Kit UI protocol sections 7m, 7n)', () => {
+  const replica = { snapshot: bytes(7), blobs: bytes(8) }
+  const checkpoint = { id: 'c1', time: 1, origin: 'kit', label: 'Sent', version: 'AQ==', available: true }
+
+  it('without the capabilities, the helpers answer null and do nothing', async () => {
+    const host = fakeHost('v1')
+    expect(await listCheckpoints(host, 'a.kdesign')).toBeNull()
+    expect(await updateCheckpoint(host, 'a.kdesign', 'c1', { label: 'x' })).toBeNull()
+    expect(await deleteCheckpoint(host, 'a.kdesign', 'c1')).toBe(false)
+    expect(await readCheckpoint(host, 'a.kdesign', 'c1')).toBeNull()
+    expect(await readViewState(host, 'a.kdesign')).toBeNull()
+    expect(await writeViewState(host, 'a.kdesign', { state: { zoom: 2 } })).toBe(false)
+  })
+
+  it('a save without checkpoints records none and asks for none', async () => {
+    const asked: unknown[] = []
+    const host = fakeHost('v1', new Map(), {
+      replicaWrite: async (_path, _replica, request) => {
+        asked.push(request)
+      },
+    })
+    const recorded: unknown[] = []
+    expect(await writeWithReplica(host, 'a.kdesign', new Uint8Array([1]), replica, 'v1', { checkpoint: { label: 'Sent' }, recorded: (made) => recorded.push(made) })).toBe('v2')
+    expect(asked).toEqual([undefined])
+    expect(recorded).toEqual([null])
+  })
+
+  it('records the checkpoint in the replica write and hears it', async () => {
+    const stored = new Map<string, KitStoredReplica>()
+    const requests: unknown[] = []
+    const host = fakeHost('v1', stored, {
+      replicaWrite: async (path, written, request) => {
+        stored.set(path, written)
+        requests.push(request)
+        return checkpoint
+      },
+      checkpoints: { list: async () => ({ checkpoints: [checkpoint], more: false }), update: async () => checkpoint, delete: async () => undefined, read: async () => ({ checkpoint, blobs: bytes(5) }) },
+    })
+    const recorded: unknown[] = []
+    await writeWithReplica(host, 'a.kdesign', new Uint8Array([1]), replica, 'v1', { checkpoint: { label: 'Sent' }, recorded: (made) => recorded.push(made) })
+    expect(requests).toEqual([{ label: 'Sent' }])
+    expect(recorded).toEqual([checkpoint])
+    expect(stored.get('a.kdesign')?.fileStamp).toBe('v2')
+    expect(await listCheckpoints(host, 'a.kdesign')).toEqual({ checkpoints: [checkpoint], more: false })
+    expect(await deleteCheckpoint(host, 'a.kdesign', 'c1')).toBe(true)
+  })
+
+  it('a refused checkpoint does not fail the save', async () => {
+    const host = fakeHost('v1', new Map(), {
+      replicaWrite: async () => Promise.reject(new Error('too-long')),
+      checkpoints: { list: async () => ({ checkpoints: [], more: false }), update: async () => checkpoint, delete: async () => undefined, read: async () => ({ checkpoint, blobs: bytes(5) }) },
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const recorded: unknown[] = []
+    expect(await writeWithReplica(host, 'a.kdesign', new Uint8Array([1]), replica, 'v1', { checkpoint: { label: 'x' }, recorded: (made) => recorded.push(made) })).toBe('v2')
+    expect(recorded).toEqual([null])
+    warn.mockRestore()
+  })
+
+  it('writes the view state after the file, and a failed write does not fail the save', async () => {
+    const order: string[] = []
+    const written: unknown[] = []
+    const host = fakeHost('v1', new Map(), {
+      write: async () => {
+        order.push('file')
+        return 'v2'
+      },
+      viewState: {
+        read: async () => ({ state: null }),
+        write: async (_path, value) => {
+          order.push('view')
+          written.push(value)
+        },
+      },
+    })
+    expect(await writeWithReplica(host, 'a.kdesign', new Uint8Array([1]), replica, 'v1', { viewState: { state: { v: 1, zoom: 2 } } })).toBe('v2')
+    expect(order).toEqual(['file', 'view'])
+    expect(written).toEqual([{ state: { v: 1, zoom: 2 } }])
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const failing = fakeHost('v1', new Map(), { viewState: { read: async () => Promise.reject(new Error('gone')), write: async () => Promise.reject(new Error('disk full')) } })
+    expect(await writeWithReplica(failing, 'a.kdesign', new Uint8Array([1]), replica, 'v1', { viewState: { state: { zoom: 2 } } })).toBe('v2')
+    expect(await writeViewState(failing, 'a.kdesign', { state: { zoom: 2 } })).toBe(false)
+    expect(await readViewState(failing, 'a.kdesign')).toBeNull()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('reads none kept as null, and null deletes', async () => {
+    const kept: unknown[] = []
+    const host = fakeHost('v1', new Map(), { viewState: { read: async () => ({ state: null }), write: async (_path, value) => void kept.push(value) } })
+    expect(await readViewState(host, 'a.kdesign')).toBeNull()
+    expect(await writeViewState(host, 'a.kdesign', null)).toBe(true)
+    expect(kept).toEqual([{ state: null }])
+  })
+})
+
+describe('view state stays out of the document (regressions/issue-view-state-outside-content)', () => {
+  it('a save with view state writes it only to the view-state store, never into the file bytes or the replica', async () => {
+    const marker = 'VIEWSTATE-MARKER'
+    const text = (buffer: ArrayBuffer | Uint8Array) => new TextDecoder().decode(buffer)
+    const files: string[] = []
+    const replicas: string[] = []
+    const views: string[] = []
+    const host = fakeHost('v1', new Map(), {
+      write: async (_path, written) => {
+        files.push(text(written))
+        return 'v2'
+      },
+      replicaWrite: async (_path, replica) => {
+        replicas.push(text(replica.snapshot) + text(replica.blobs) + replica.fileStamp)
+      },
+      viewState: { read: async () => ({ state: null }), write: async (_path, value) => void views.push(JSON.stringify(value.state) + text(value.bytes ?? new ArrayBuffer(0))) },
+    })
+    const content = new TextEncoder().encode('content')
+    const replica = { snapshot: new TextEncoder().encode('snapshot').buffer as ArrayBuffer, blobs: new TextEncoder().encode('blobs').buffer as ArrayBuffer }
+    await writeWithReplica(host, 'a.kphoto', content, replica, 'v1', { viewState: { state: { v: 1, marker }, bytes: new TextEncoder().encode(marker).buffer as ArrayBuffer } })
+    expect(files).toEqual(['content'])
+    expect(replicas).toEqual(['snapshotblobsv2'])
+    expect(views.join('')).toContain(marker)
+    for (const kept of [...files, ...replicas]) expect(kept).not.toContain(marker)
   })
 })

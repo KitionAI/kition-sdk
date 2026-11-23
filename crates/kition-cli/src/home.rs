@@ -56,6 +56,12 @@ impl Home {
         self.root.join("cache")
     }
 
+    /// `data/`: what a gateway keeps for a person beside a workspace, never in it (view state),
+    /// one folder per workspace.
+    pub fn data(&self) -> PathBuf {
+        self.root.join("data")
+    }
+
     /// `tmp/`: work in progress. It is on the same volume as `kits/`, so a finished kit moves
     /// into place with one rename.
     pub fn tmp(&self) -> PathBuf {

@@ -1,0 +1,27 @@
+format: 1
+id: sdk.ui.checkpoints/host-rules
+feature: sdk.ui.checkpoints
+intent: >-
+  A host library offers checkpoints only when the embedder supplies their handlers and keeps the
+  replica; a checkpoint is recorded only in the replica write that holds its version; it refuses,
+  before the handler runs, a label over 200 characters or a description over 2000 (too-long), an
+  unknown id (not-found), a version the store no longer reaches (history-missing), and any update,
+  delete or record of a checkpoint whose origin is not the kit's or of a read-only document
+  (read-only); the host's own checkpoints are listed and read but never changed by a kit, and a
+  host's conflict reaches the kit as conflict.
+layer: gate
+dimension: data-safety
+source:
+  kind: synthetic
+  from: packages/kit-host/src/history.test.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-host/src/history.test.ts, -t, checkpoints]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-23"
+timeout_s: 60

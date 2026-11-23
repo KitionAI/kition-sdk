@@ -1,0 +1,24 @@
+format: 1
+id: sdk.ui.checkpoints/editor-fallbacks
+feature: sdk.ui.checkpoints
+intent: >-
+  A kit editor reaches checkpoints and view state only when the host lists them (checkpoints only
+  for a kit that keeps its replica with the host); without them every helper answers null or does
+  nothing and a save asks for no checkpoint; a refused checkpoint or a failed view-state write
+  never fails the save.
+layer: gate
+dimension: data-safety
+source:
+  kind: synthetic
+  from: packages/kit-editor/src/engine/replica.test.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/replica.test.ts, packages/kit-editor/src/host.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-23"
+timeout_s: 60

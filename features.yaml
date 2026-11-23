@@ -1,6 +1,6 @@
 format: 1
 kit: sdk
-updated: "2026-11-22"
+updated: "2026-11-23"
 gate_budget_s: 600
 features:
   - id: sdk.agent.close-completion
@@ -1557,6 +1557,40 @@ features:
     cases:
       - sdk.ui.fetch-image/checked
     since: "2026-11-16"
+  - id: sdk.ui.checkpoints
+    title: Kits list, name and read the host's checkpoints of a document, recorded with the replica write of a save, and change only their own (Kit UI protocol section 7m)
+    dimension: [function, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-ui-protocol/src/index.ts
+      - packages/kit-host/src/index.ts
+      - packages/kit-editor/src/host.ts
+      - packages/kit-editor/src/engine/kitHost.ts
+      - packages/kit-editor/src/engine/replica.ts
+      - packages/kit-editor/src/engine/useKitDocument.ts
+    cases:
+      - sdk.ui.checkpoints/host-rules
+      - sdk.ui.checkpoints/editor-fallbacks
+    since: "2026-11-23"
+  - id: sdk.ui.view-state
+    title: Kits keep a person's view state of a document with the host, outside the workspace, the replica and the file (Kit UI protocol section 7n)
+    dimension: [function, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-ui-protocol/src/index.ts
+      - packages/kit-host/src/index.ts
+      - packages/kit-editor/src/host.ts
+      - packages/kit-editor/src/engine/replica.ts
+      - packages/embed/src/handlers.ts
+      - packages/gateway-page/src/page/host.ts
+      - crates/kition-kits-http/src/lib.rs
+    cases:
+      - sdk.ui.view-state/host-rules
+      - sdk.ui.view-state/gateway-store
+      - regressions/issue-view-state-outside-content
+    since: "2026-11-23"
   - id: sdk.embed.url
     title: Single-user URL embedding through the embed server
     dimension: [function, security]

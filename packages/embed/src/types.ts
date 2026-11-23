@@ -5,7 +5,7 @@
  */
 import type { CommentAnchor, Origin } from '@kition/kdm'
 import type { AgentPort, AgentPortOptions } from './agent'
-import type { AiRunResult, DraftComparison, DraftInfo, DraftSummary, KitCommentAnchor, KitConflict, KitDiagnostic, KitHostService, KitHostServices, KitLease, KitLinkRef, KitNotifications, KitSchemaReport, KitShownThread, KitTheme, KitUiConfig, KitUiHostButton, KitView, StoredReplica } from '@kition/kit-ui-protocol'
+import type { AiRunResult, DraftComparison, DraftInfo, DraftSummary, KitCommentAnchor, KitConflict, KitDiagnostic, KitHostService, KitHostServices, KitLease, KitLinkRef, KitNotifications, KitSchemaReport, KitShownThread, KitTheme, KitUiConfig, KitUiHostButton, KitView, KitViewState, StoredReplica } from '@kition/kit-ui-protocol'
 import type { ConnectionState, Presence, Role, SaveAuthor, SaveState, SaveTrigger } from '@kition/sync'
 import type { OpenTokenKey } from '@kition/sync/openToken'
 // The object model, bundled with the editor and loaded only by `editor.document()`.
@@ -85,6 +85,13 @@ export type StorageProvider = {
    * single-user editor needs none.
    */
   replica?: ReplicaStore
+  /**
+   * Keeps the person's view state of a document (Kit UI protocol capability `view-state`, section
+   * 7n): where they were, the zoom, open panels. Per file and per person or device, in the
+   * integrator's own data, never in the file or the replica. Without it the kit keeps it for the
+   * session only. The embed offers no checkpoints (capability `checkpoints`).
+   */
+  viewState?: ViewStateStore
   /** Keeps the editor's collaboration records; `localStorage` (`kition.embed.rooms.v1`) by default. */
   state?: EmbedState
   /** Keeps the replica's blobs by hash (`KitEmbed 1.1`); without it they stay inside the stored replica. */
@@ -115,6 +122,12 @@ export type StorageProvider = {
 
 /** `StorageProvider.resolveLink`: the linked file; `path` is relative to the linking file, as the page names it. */
 export type ResolvedLink = { fileId: string; name: string; kitId: string | null; version: string | null; path: string }
+
+/** The person's view state by file id: `state: null` when none is kept (or it is damaged); writing `state: null` deletes it. */
+export type ViewStateStore = {
+  read: (fileId: string) => Promise<KitViewState>
+  write: (fileId: string, value: KitViewState) => Promise<void>
+}
 
 export type ReplicaStore = {
   read: (fileId: string) => Promise<StoredReplica | null>

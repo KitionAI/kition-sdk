@@ -559,7 +559,7 @@ and saves the file as before. `replica/info` and narrower
 | Method | Direction | Params | Result |
 | --- | --- | --- | --- |
 | `host/replicaRead` | kit to host | `{ path }` | `{ snapshot, blobs, fileStamp }` or `null` |
-| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp }` | `{}` |
+| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp, checkpoint? }` | `{ checkpoint? }` (`checkpoint`: section 7m) |
 | `replica/version` | host to kit | `{}` | `{ version }` |
 | `replica/export` | host to kit | `{ since }` | `{ changes, blobs }` |
 | `replica/import` | host to kit | `{ changes, blobs }` | `{ damage }` |
@@ -1242,6 +1242,102 @@ then links the kept copy, never the address.
   (`isFetchableUrl`, `fetchImageErrorReason`); `@kition/kit-host`'s `mountKit`
   routes it to the handler `fetchImage`, refusing other schemes, read-only
   documents, and answers that are not pictures before or after it runs.
+
+## 7m. Checkpoints (capability `checkpoints`)
+
+A file holds no history ([data model](../data-model.md) section 7.3): a document's
+history is its replica in the host's store. A **checkpoint** names one version of that replica
+(a saved version a person labelled, the host's save, an agent's run) so a kit can list earlier
+versions, show one, and let the person name or remove the ones the kit made. A checkpoint is
+a reference into the store, never a copy of the document: the kit derives the content at its
+`version` from the replica. There are no branches: a checkpoint is only ever read.
+
+The host lists `checkpoints` in `ui/initialize`'s `capabilities` when it serves the methods
+below; it serves them only together with `replica` (section 7), since checkpoints name replica
+versions. A kit uses them only when listed.
+
+| Method | Direction | Params | Result |
+| --- | --- | --- | --- |
+| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp, checkpoint? }` | `{ checkpoint? }` |
+| `host/checkpointList` | kit to host | `{ path, labelled?, before?, limit? }` | `{ checkpoints, more }` |
+| `host/checkpointUpdate` | kit to host | `{ path, id, label?, description? }` | `{ checkpoint }` |
+| `host/checkpointDelete` | kit to host | `{ path, id }` | `{}` |
+| `host/checkpointRead` | kit to host | `{ path, id, state? }` | `{ checkpoint, blobs, snapshot? }` |
+
+A checkpoint is `{ id, time, origin, author?, label?, description?, version, available }`
+(`KitCheckpoint`): `time` in milliseconds since the Unix epoch; `origin` who made it (`kit`
+for the kit's own; the host's are `save`, `agent`, and others it names); `version` the replica
+version, base64, as `ai/version` answers it; `available` false when the store no longer reaches
+that version.
+
+- **UI-C1** A checkpoint is recorded with the replica write that holds its version:
+  `host/replicaWrite` with `checkpoint: { label?, description?, author?, origin? }` stores the
+  replica and records a checkpoint at the version it holds, in one step, and answers it. `origin`
+  is `kit` or absent (which means `kit`). Recording at the version of the newest checkpoint
+  answers that checkpoint; a request with a label upgrades it: it takes the label and
+  description and becomes the kit's (`origin: kit`), so the person can rename or remove it. A
+  checkpoint is never recorded apart from the replica it names.
+- **UI-C2** `host/checkpointList` answers newest first, at most `limit` (default and maximum 200),
+  only labelled ones with `labelled: true`, and only those older than the checkpoint `before`
+  when given; `more` tells whether older ones remain. An unknown `before` is `not-found`.
+- **UI-C3** A kit updates or deletes only checkpoints whose `origin` is `kit`. The host's own are
+  listed and read like any other, but `host/checkpointUpdate` and `host/checkpointDelete` refuse
+  them (`read-only`). In `host/checkpointUpdate` an absent field is kept and an empty string
+  removes it. A read-only document (`document.readOnly`) refuses every update, delete, and
+  `checkpoint` request (`read-only`).
+- **UI-C4** `host/checkpointRead` answers the blobs the version needs. Normally the kit derives the
+  content from its own replica at `version`; with `state: true` the host also answers its
+  replica's snapshot at that version (`snapshot`), for a kit whose replica does not reach it.
+- **UI-C5** When the store no longer reaches a checkpoint's version (the replica was replaced by
+  one of another lineage, or the file was opened alone), the checkpoint stays listed with
+  `available: false`, and `host/checkpointRead` refuses it (`history-missing`). A labelled
+  checkpoint is never dropped to make room for others: the host thins unlabelled ones, and keeps
+  its own, separate limit for labelled ones.
+- **UI-C6** Labels are at most 200 characters (`CHECKPOINT_LABEL_LIMIT`) and descriptions at most
+  2000 (`CHECKPOINT_DESCRIPTION_LIMIT`); longer ones are refused (`too-long`). A checkpoint changed
+  or deleted by someone else meanwhile is refused (`conflict`); an unknown `id` is `not-found`.
+- A refusal is `-32000` with `error.data.reason` one of `not-found`, `history-missing`,
+  `too-long`, `read-only`, or `conflict` (`CHECKPOINT_ERROR_REASONS`). A refused `checkpoint`
+  in `host/replicaWrite` stores nothing: the kit's save still succeeds (UI-R2), without the
+  checkpoint.
+- `@kition/kit-host`'s `mountKit` routes these to the handler `checkpoints` (`find`, `list`,
+  `update`, `delete`, `read`) and checks the lengths, the origin, read-only documents, missing
+  history, and unknown ids before the handler runs. `@kition/kit-editor` offers them as
+  `listCheckpoints`, `updateCheckpoint`, `deleteCheckpoint`, `readCheckpoint`, and
+  `useKitDocument`'s `saveCheckpoint`; without the capability they answer `null` and record
+  nothing.
+
+## 7n. View state (capability `view-state`)
+
+Where the person was in a document (the page, the zoom, the camera, open panels, a selection to
+restore) belongs to that person on that device, not to the document: a kit never writes it into
+the file or the replica. A host that serves `view-state` keeps one value per document and person
+(or device) in its own data, outside the workspace.
+
+| Method | Direction | Params | Result |
+| --- | --- | --- | --- |
+| `host/viewStateRead` | kit to host | `{ path }` | `{ state, bytes? }` |
+| `host/viewStateWrite` | kit to host | `{ path, state, bytes? }` | `{}` |
+
+`state` is a JSON object or `null`; `bytes` an optional `ArrayBuffer` (a thumbnail cache, a
+camera path).
+
+- **UI-S1** The value is written whole: the last write wins, `state: null` deletes it. The kit
+  versions its own payload (a `v` field) and ignores one it cannot read.
+- **UI-S2** `state`'s JSON is at most 256 KB (UTF-8, `VIEW_STATE_JSON_LIMIT`) and `bytes` at most
+  16 MB (`VIEW_STATE_BYTES_LIMIT`); a larger value is refused (`too-large`) and nothing is kept.
+- **UI-S3** A host keeps view state per document and per person or device, in its own app data:
+  never in the workspace, the replica, or the file, never synced to other people. It follows
+  the document like the replica (UI-R3) when it can; losing it loses nothing of the document.
+  A missing or damaged value reads as `{ state: null }`. It confines `path` like every other
+  host call (UI-H2).
+- **UI-S4** A failed `host/viewStateWrite` MUST NOT fail a save or an edit: the kit goes on
+  without it. A read-only document may keep view state (it is the person's, not the document's).
+- A refusal is `-32000` with `error.data.reason` `too-large` (`VIEW_STATE_ERROR_REASONS`).
+- `@kition/kit-host`'s `mountKit` routes these to the handler `viewState` (`read`, `write`) and
+  checks the value and its size; `@kition/kit-editor` offers `readViewState` (`null` without the
+  capability or on any failure) and `writeViewState` (does nothing without it, never throws), and
+  `useKitDocument`'s `viewState` option writes the value after each save.
 
 ## 8. Libraries
 

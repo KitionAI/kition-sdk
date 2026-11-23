@@ -59,6 +59,11 @@ pub fn workspace_key(canonical: &Path) -> String {
     hex::encode(&digest[..16])
 }
 
+/// The gateway's own data for the workspace `canonical` (the person's view state of its documents).
+pub fn data_dir(home: &Home, canonical: &Path) -> PathBuf {
+    home.data().join(workspace_key(canonical))
+}
+
 /// The lockfile of the gateway for `canonical`.
 pub fn lockfile_path(home: &Home, canonical: &Path) -> PathBuf {
     run_dir(home).join(format!("{}.json", workspace_key(canonical)))

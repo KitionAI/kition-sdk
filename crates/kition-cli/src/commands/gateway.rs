@@ -215,12 +215,20 @@ pub fn run(args: Vec<String>, store: kition_kits::cli::mcp::Store, source: Sourc
             return ExitCode::FAILURE;
         }
     };
-    let code = runtime.block_on(serve(prepared, options, canonical, path, editors));
+    let data = gateway::data_dir(&home, &canonical);
+    let code = runtime.block_on(serve(prepared, options, canonical, path, editors, data));
     runtime.shutdown_timeout(Duration::from_secs(1));
     code
 }
 
-async fn serve(prepared: kition_kits::cli::mcp::Prepared, options: Options, canonical: PathBuf, path: PathBuf, editors: GatewayEditors) -> ExitCode {
+async fn serve(
+    prepared: kition_kits::cli::mcp::Prepared,
+    options: Options,
+    canonical: PathBuf,
+    path: PathBuf,
+    editors: GatewayEditors,
+    data: PathBuf,
+) -> ExitCode {
     let listener = match tokio::net::TcpListener::bind(("127.0.0.1", options.port)).await {
         Ok(listener) => listener,
         Err(error) => {
@@ -282,7 +290,7 @@ async fn serve(prepared: kition_kits::cli::mcp::Prepared, options: Options, cano
     });
     let activity = Activity::default();
     let kits = prepared.kits.clone();
-    let app = kition_kits_http::gateway::app(kits.clone(), gate, identity, activity.clone(), Some(std::sync::Arc::new(editors)));
+    let app = kition_kits_http::gateway::app(kits.clone(), gate, identity, activity.clone(), Some(std::sync::Arc::new(editors)), Some(data));
     println!("{}", announcement("gateway-ready", &lock, &path));
     let _ = std::io::Write::flush(&mut std::io::stdout());
     eprintln!("kition gateway: serving {} at {} (pid {})", lock.workspace, lock.url, lock.pid);

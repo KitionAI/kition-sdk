@@ -1,0 +1,24 @@
+format: 1
+id: regressions/issue-view-state-outside-content
+feature: sdk.ui.view-state
+intent: >-
+  A person's view state never reaches the document: a save that keeps view state writes it only
+  to the host's view-state store, and neither the file's bytes nor the stored replica hold any of
+  it; the gateway keeps it outside the workspace, so no workspace file (the replica store
+  included) holds it.
+layer: gate
+dimension: data-safety
+source:
+  kind: issue
+  from: kition-photo and kition-scene kept per-person view state inside their files (owner, 2026-11-22)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/replica.test.ts, -t, stays out of the document]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-23"
+timeout_s: 60

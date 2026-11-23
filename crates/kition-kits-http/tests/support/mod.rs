@@ -20,7 +20,7 @@ pub const HOST: &str = "127.0.0.1:34115";
 pub fn app(kits: &KitManager) -> Router {
     let gate = kition_kits_http::gateway::gate(TOKEN).unwrap();
     let identity = json!({ "protocol": kition_kits_http::gateway::PROTOCOL, "pid": 1, "workspace": "test" });
-    kition_kits_http::gateway::app(kits.clone(), gate, identity, kition_kits_http::gateway::Activity::default(), None)
+    kition_kits_http::gateway::app(kits.clone(), gate, identity, kition_kits_http::gateway::Activity::default(), None, None)
 }
 
 /// The API path of `path` (`/kits` is `/api/v1/kits`).

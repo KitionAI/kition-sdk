@@ -218,3 +218,18 @@ describe('capabilities', () => {
     expect(onChanged).toHaveBeenCalledWith({ dirty: true, revision: 3, title: 'Launch', by: 'agent' })
   })
 })
+
+describe('view state (Kit UI protocol section 7n)', () => {
+  it('passes through to the storage\'s view-state store by file id, for the document only, and is absent without it', async () => {
+    const files = memoryStorage({ f1: 'hello world' })
+    expect(setUp().handlers.viewState).toBeUndefined()
+    const kept = new Map<string, { state: Record<string, unknown> | null; bytes?: ArrayBuffer }>()
+    const storage = { ...files.storage, viewState: { read: async (id: string) => kept.get(id) ?? { state: null }, write: async (id: string, value: { state: Record<string, unknown> | null }) => void kept.set(id, value) } }
+    const { handlers } = setUp({ storage })
+    expect(handlers.checkpoints).toBeUndefined()
+    await handlers.viewState!.write({ path: 'Launch.pptx', state: { slide: 3 } })
+    expect(kept.get('f1')).toEqual({ state: { slide: 3 } })
+    expect(await handlers.viewState!.read({ path: 'Launch.pptx' })).toEqual({ state: { slide: 3 } })
+    expect((await refusal(handlers.viewState!.read({ path: 'Other.pptx' }))).reason).toBe('not-allowed')
+  })
+})

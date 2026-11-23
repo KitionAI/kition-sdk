@@ -1,0 +1,24 @@
+format: 1
+id: sdk.ui.view-state/host-rules
+feature: sdk.ui.view-state
+intent: >-
+  A host library offers view state only when the embedder supplies its handlers; the value is
+  written whole, the last write wins and null deletes it, also for a read-only document; a value
+  over 256 KB of JSON or 16 MB of bytes is refused as too-large and one that is not an object or
+  null as invalid, before the handler runs; a damaged value reads as none.
+layer: gate
+dimension: data-safety
+source:
+  kind: synthetic
+  from: packages/kit-host/src/history.test.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-host/src/history.test.ts, -t, view state]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+since: "2026-11-23"
+timeout_s: 60

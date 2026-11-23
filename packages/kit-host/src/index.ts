@@ -46,6 +46,17 @@ import {
   type ModelBatchResult,
   type StoredReplica,
   type KitDiagnostic,
+  type KitCheckpoint,
+  type KitCheckpointRequest,
+  CHECKPOINT_DESCRIPTION_LIMIT,
+  CHECKPOINT_LABEL_LIMIT,
+  CHECKPOINT_LIST_LIMIT,
+  KIT_CHECKPOINT_ORIGIN,
+  VIEW_STATE_BYTES_LIMIT,
+  VIEW_STATE_JSON_LIMIT,
+  isArrayBuffer,
+  parseViewStateValue,
+  viewStateJsonBytes,
   HOST_ACTION_CAPABILITY_PREFIX,
   HOST_SERVICE_CAPABILITY_PREFIX,
   HOST_SERVICES,
@@ -73,6 +84,8 @@ export type { KitLinkRef, KitLinksPickParams, KitOpenErrorReason, KitOpenParams,
 export { isOpenableUrl, linkPathFrom, openErrorReason, parseLinkRef, parseLinksPickParams, parseOpenParams, OPEN_ERROR_REASONS, OPEN_URL_SCHEMES } from '@kition/kit-ui-protocol'
 export type { KitFetchImageErrorReason, KitFetchImageResult, KitFetchImageType } from '@kition/kit-ui-protocol'
 export { FETCH_IMAGE_ERROR_REASONS, FETCH_IMAGE_TYPES, fetchImageErrorReason, isFetchableUrl } from '@kition/kit-ui-protocol'
+export type { KitCheckpoint, KitCheckpointErrorReason, KitCheckpointRequest, KitViewState, KitViewStateErrorReason } from '@kition/kit-ui-protocol'
+export { CHECKPOINT_DESCRIPTION_LIMIT, CHECKPOINT_ERROR_REASONS, CHECKPOINT_LABEL_LIMIT, CHECKPOINT_LIST_LIMIT, KIT_CHECKPOINT_ORIGIN, VIEW_STATE_BYTES_LIMIT, VIEW_STATE_ERROR_REASONS, VIEW_STATE_JSON_LIMIT, historyErrorReason } from '@kition/kit-ui-protocol'
 export type { DocumentState, DraftComparison, DraftInfo, DraftOrigin, DraftSummary, InitializeResult, KitConflict, KitDocumentInit, KitLease, KitPeerPresence, KitPresence, KitPresenceCaret, KitSchemaReport, KitTheme, KitUiConfig, KitUiElement, ModelBatchParams, ModelBatchResult, StoredReplica }
 
 type Params<M extends keyof KitToHost> = KitToHost[M][0]
@@ -90,7 +103,37 @@ export type KitHostHandlers = {
    * `null` when none is stored. The kit decides whether it still belongs to the file.
    */
   replicaRead?: (params: Params<'host/replicaRead'>) => Result<'host/replicaRead'>
-  replicaWrite?: (params: Params<'host/replicaWrite'>) => void | Promise<void>
+  /**
+   * With `checkpoints` served, `params.checkpoint` (checked: lengths, origin `kit`) asks to record a
+   * checkpoint at the version the replica holds, in the same step; answer it as `{ checkpoint }`.
+   * Without `checkpoints`, `params.checkpoint` never arrives.
+   */
+  replicaWrite?: (params: Params<'host/replicaWrite'>) => void | { checkpoint?: KitCheckpoint } | Promise<void | { checkpoint?: KitCheckpoint }>
+  /**
+   * The document's checkpoints (capability `checkpoints`, section 7m; served only with
+   * `replicaRead` and `replicaWrite`). `find` answers one by id (`null`: unknown); `mountKit` asks
+   * it first and refuses an unknown id (`not-found`), another origin's checkpoint for `update` and
+   * `delete` (`read-only`), and an unavailable one for `read` (`history-missing`), so the other
+   * handlers see only what they may do. Refuse with `KitRpcError(-32000, …, { reason })`, `reason`
+   * one of `CHECKPOINT_ERROR_REASONS` (`conflict` for a checkpoint changed meanwhile).
+   */
+  checkpoints?: {
+    find: (params: { path: string; id: string }) => KitCheckpoint | null | Promise<KitCheckpoint | null>
+    list: (params: Params<'host/checkpointList'>) => Result<'host/checkpointList'>
+    update: (params: Params<'host/checkpointUpdate'>) => Result<'host/checkpointUpdate'>
+    delete: (params: Params<'host/checkpointDelete'>) => void | Promise<void>
+    read: (params: Params<'host/checkpointRead'>) => Result<'host/checkpointRead'>
+  }
+  /**
+   * The person's view state of the document (capability `view-state`, section 7n), kept in the
+   * host's own data, never in the workspace. `read` answers `{ state: null }` for none or a damaged
+   * one; `write` replaces it whole, `state: null` deletes it. Values arrive checked (an object or
+   * null, within `VIEW_STATE_JSON_LIMIT` and `VIEW_STATE_BYTES_LIMIT`).
+   */
+  viewState?: {
+    read: (params: Params<'host/viewStateRead'>) => Result<'host/viewStateRead'>
+    write: (params: Params<'host/viewStateWrite'>) => void | Promise<void>
+  }
   /** `replica/changed`: the replica's version after an edit, for collaboration. */
   replicaChanged?: (params: KitNotifications['replica/changed']) => void
   /** `document/changed`: show the unsaved mark, tell the agent. */
@@ -359,13 +402,39 @@ function unsupported(method: string): never {
   throw new KitRpcError(-32601, `${method} is not supported by this host`)
 }
 
+function refuse(reason: string, message: string): never {
+  throw new KitRpcError(-32000, message, { reason })
+}
+
+/** A checkpoint text field, checked: absent, or a string within `limit` characters (`too-long`). */
+function checkpointText(value: unknown, what: string, limit: number): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') throw new KitRpcError(-32602, `a checkpoint's ${what} is a string`)
+  if ([...value].length > limit) refuse('too-long', `a checkpoint's ${what} is at most ${limit} characters`)
+  return value
+}
+
+/** `host/replicaWrite`'s `checkpoint`, checked: the kit's own origin, labels and descriptions within their limits. */
+function checkpointRequest(value: unknown): KitCheckpointRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KitRpcError(-32602, 'checkpoint is an object')
+  const request = value as Record<string, unknown>
+  if (request.origin !== undefined && request.origin !== KIT_CHECKPOINT_ORIGIN) refuse('read-only', `a kit records checkpoints of origin "${KIT_CHECKPOINT_ORIGIN}" only`)
+  const label = checkpointText(request.label, 'label', CHECKPOINT_LABEL_LIMIT)
+  const description = checkpointText(request.description, 'description', CHECKPOINT_DESCRIPTION_LIMIT)
+  const author = checkpointText(request.author, 'author', CHECKPOINT_LABEL_LIMIT)
+  return { origin: KIT_CHECKPOINT_ORIGIN, ...(label !== undefined ? { label } : {}), ...(description !== undefined ? { description } : {}), ...(author !== undefined ? { author } : {}) }
+}
+
 /**
  * Hands `frame` (already loaded with the kit's UI entry) its port and initializes it. Resolves
  * when the kit has opened the document; rejects with the kit's error otherwise.
  */
 export function mountKit(frame: HTMLIFrameElement, options: MountOptions): Promise<KitConnection> {
   const { handlers } = options
-  const served = { agent: handlers.openAgent, 'pick-file': handlers.pick, replica: handlers.replicaRead && handlers.replicaWrite, customize: handlers.customize, lease: handlers.leases, presence: handlers.presence }
+  const replicas = Boolean(handlers.replicaRead && handlers.replicaWrite)
+  // Checkpoints name versions of the stored replica: served only with it.
+  const checkpoints = replicas ? handlers.checkpoints : undefined
+  const served = { agent: handlers.openAgent, 'pick-file': handlers.pick, replica: replicas, checkpoints, 'view-state': handlers.viewState, customize: handlers.customize, lease: handlers.leases, presence: handlers.presence }
   const capabilities = Object.entries(served).filter(([, handler]) => handler).map(([name]) => name)
   if (handlers.generate) capabilities.push('generate')
   if (handlers.open) capabilities.push('open-file')
@@ -401,7 +470,77 @@ export function mountKit(frame: HTMLIFrameElement, options: MountOptions): Promi
     peer.handle('host/replicaRead', (params) => (replicaRead && replicaWrite ? replicaRead(params) : unsupported('host/replicaRead')))
     peer.handle('host/replicaWrite', async (params) => {
       if (!replicaRead || !replicaWrite) unsupported('host/replicaWrite')
-      await replicaWrite(params)
+      const { checkpoint: asked, ...replica } = params
+      // A checkpoint asked of a host without them is no checkpoint; the replica is still stored.
+      if (asked === undefined || !checkpoints) {
+        await replicaWrite(replica)
+        return {}
+      }
+      if (readOnly) refuse('read-only', 'a read-only document records no checkpoints')
+      const checkpoint = checkpointRequest(asked)
+      const answer = await replicaWrite({ ...replica, checkpoint })
+      return answer && answer.checkpoint ? { checkpoint: answer.checkpoint } : {}
+    })
+    /** The checkpoint `id` of `path`, known to the host (`not-found` otherwise). */
+    const knownCheckpoint = async (method: string, params: { path?: unknown; id?: unknown } | null) => {
+      if (!checkpoints) unsupported(method)
+      if (typeof params?.path !== 'string' || typeof params.id !== 'string' || !params.id) throw new KitRpcError(-32602, `${method} needs a path and a checkpoint id`)
+      const found = await checkpoints.find({ path: params.path, id: params.id })
+      if (!found) refuse('not-found', `no checkpoint ${params.id}`)
+      return { checkpoints, found, path: params.path, id: params.id }
+    }
+    /** The kit changes only its own checkpoints, and none of a read-only document. */
+    const ownCheckpoint = async (method: string, params: { path?: unknown; id?: unknown } | null) => {
+      const known = await knownCheckpoint(method, params)
+      if (readOnly) refuse('read-only', 'a read-only document changes no checkpoints')
+      if (known.found.origin !== KIT_CHECKPOINT_ORIGIN) refuse('read-only', `checkpoint ${known.id} is the host's (${known.found.origin}): a kit changes only its own`)
+      return known
+    }
+    peer.handle('host/checkpointList', (params) => {
+      if (!checkpoints) unsupported('host/checkpointList')
+      if (typeof params?.path !== 'string') throw new KitRpcError(-32602, 'host/checkpointList needs a path')
+      const limit = Number.isSafeInteger(params.limit) && params.limit! > 0 ? Math.min(params.limit!, CHECKPOINT_LIST_LIMIT) : CHECKPOINT_LIST_LIMIT
+      return checkpoints.list({ path: params.path, limit, ...(params.labelled === true ? { labelled: true } : {}), ...(typeof params.before === 'string' && params.before ? { before: params.before } : {}) })
+    })
+    peer.handle('host/checkpointUpdate', async (params) => {
+      const { checkpoints: served, path, id } = await ownCheckpoint('host/checkpointUpdate', params)
+      const label = checkpointText(params.label, 'label', CHECKPOINT_LABEL_LIMIT)
+      const description = checkpointText(params.description, 'description', CHECKPOINT_DESCRIPTION_LIMIT)
+      return served.update({ path, id, ...(label !== undefined ? { label } : {}), ...(description !== undefined ? { description } : {}) })
+    })
+    peer.handle('host/checkpointDelete', async (params) => {
+      const { checkpoints: served, path, id } = await ownCheckpoint('host/checkpointDelete', params)
+      await served.delete({ path, id })
+      return {}
+    })
+    peer.handle('host/checkpointRead', async (params) => {
+      const { checkpoints: served, found, path, id } = await knownCheckpoint('host/checkpointRead', params)
+      if (!found.available) refuse('history-missing', `the store no longer reaches checkpoint ${id}'s version`)
+      return served.read({ path, id, ...(params.state === true ? { state: true } : {}) })
+    })
+    const { viewState } = handlers
+    peer.handle('host/viewStateRead', async (params) => {
+      if (!viewState) unsupported('host/viewStateRead')
+      if (typeof params?.path !== 'string') throw new KitRpcError(-32602, 'host/viewStateRead needs a path')
+      const answer = await viewState.read({ path: params.path })
+      // A damaged value reads as none.
+      const state = parseViewStateValue(answer?.state) ?? null
+      return state !== null && isArrayBuffer(answer.bytes) ? { state, bytes: answer.bytes } : { state }
+    })
+    peer.handle('host/viewStateWrite', async (params) => {
+      if (!viewState) unsupported('host/viewStateWrite')
+      const state = parseViewStateValue(params?.state)
+      if (typeof params?.path !== 'string' || state === undefined) throw new KitRpcError(-32602, 'host/viewStateWrite needs a path and a state (an object, or null)')
+      if (params.bytes !== undefined && !isArrayBuffer(params.bytes)) throw new KitRpcError(-32602, 'a view state\'s bytes are an ArrayBuffer')
+      let json: number
+      try {
+        json = viewStateJsonBytes(state)
+      } catch {
+        throw new KitRpcError(-32602, 'a view state is JSON')
+      }
+      if (json > VIEW_STATE_JSON_LIMIT) refuse('too-large', `a view state's JSON is at most ${VIEW_STATE_JSON_LIMIT} bytes`)
+      if ((params.bytes?.byteLength ?? 0) > VIEW_STATE_BYTES_LIMIT) refuse('too-large', `a view state's bytes are at most ${VIEW_STATE_BYTES_LIMIT}`)
+      await viewState.write(state !== null && params.bytes ? { path: params.path, state, bytes: params.bytes } : { path: params.path, state })
       return {}
     })
     peer.handle('host/customize', async (params) => {

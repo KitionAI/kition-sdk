@@ -55,6 +55,63 @@ function connectForTest(kit: Parameters<typeof connectHost>[0], capabilities: st
 }
 
 describe('connectHost', () => {
+  it('offers checkpoints and view state only when the host lists them (Kit UI protocol sections 7m, 7n)', async () => {
+    const plain = connectForTest({ id: 'kit.test', version: '2', capabilities: ['ai', 'replica'] }, ['replica'])
+    const without = await plain.connectionPromise
+    without.opened()
+    await plain.initPromise
+    expect(without.files.checkpoints).toBeUndefined()
+    expect(without.files.viewState).toBeUndefined()
+    without.close()
+    plain.hostPeer.close()
+
+    // Checkpoints only for a kit that keeps its replica with the host.
+    const noReplica = connectForTest({ id: 'kit.test', version: '2', capabilities: ['ai'] }, ['replica', 'checkpoints', 'view-state'])
+    const partial = await noReplica.connectionPromise
+    partial.opened()
+    await noReplica.initPromise
+    expect(partial.files.checkpoints).toBeUndefined()
+    expect(partial.files.viewState).toBeDefined()
+    partial.close()
+    noReplica.hostPeer.close()
+
+    const { hostPeer, connectionPromise, initPromise } = connectForTest({ id: 'kit.test', version: '2', capabilities: ['ai', 'replica'] }, ['replica', 'checkpoints', 'view-state'])
+    const connection = await connectionPromise
+    connection.opened()
+    await initPromise
+    const checkpoint = { id: 'c1', time: 1, origin: 'kit', label: 'Sent', version: 'AQ==', available: true }
+    const asked: unknown[] = []
+    hostPeer.handle('host/replicaWrite', (params) => {
+      asked.push(params.checkpoint)
+      return params.checkpoint ? { checkpoint } : {}
+    })
+    hostPeer.handle('host/checkpointList', (params) => {
+      asked.push(params)
+      return { checkpoints: [checkpoint], more: false }
+    })
+    let kept: { state: Record<string, unknown> | null; bytes?: ArrayBuffer } = { state: null }
+    hostPeer.handle('host/viewStateRead', () => kept)
+    hostPeer.handle('host/viewStateWrite', ({ state, bytes }) => {
+      kept = bytes ? { state, bytes } : { state }
+      return {}
+    })
+    try {
+      const replica = { snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(1), fileStamp: 'v2' }
+      expect(await connection.files.replicaWrite!('a.psd', replica, { label: 'Sent' })).toEqual(checkpoint)
+      expect(await connection.files.replicaWrite!('a.psd', { snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(1), fileStamp: 'v3' })).toBeNull()
+      expect(await connection.files.checkpoints!.list('a.psd', { labelled: true })).toEqual({ checkpoints: [checkpoint], more: false })
+      expect(asked).toEqual([{ label: 'Sent' }, undefined, { path: 'a.psd', labelled: true }])
+      expect(await connection.files.viewState!.read('a.psd')).toEqual({ state: null })
+      await connection.files.viewState!.write('a.psd', { state: { zoom: 2 }, bytes: new Uint8Array([4]).buffer })
+      const read = await connection.files.viewState!.read('a.psd')
+      expect(read.state).toEqual({ zoom: 2 })
+      expect(new Uint8Array(read.bytes!)).toEqual(new Uint8Array([4]))
+    } finally {
+      connection.close()
+      hostPeer.close()
+    }
+  })
+
   it('forwards the saved file version to a third-party host without refreshing it', async () => {
     const { hostPeer, connectionPromise, initPromise } = connectForTest({ id: 'kit.test', version: '2' }, [])
     const connection = await connectionPromise
