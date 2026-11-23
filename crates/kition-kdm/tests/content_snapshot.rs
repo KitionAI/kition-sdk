@@ -176,11 +176,19 @@ fn a_content_snapshot_commits_nothing_and_answers_the_same_bytes_when_nothing_ch
     assert!(!a.seal().unwrap());
     assert_eq!(a.content_snapshot().unwrap(), first);
     assert_eq!(a.version(), version);
-    // A replica loaded from it is sealed too, and answers the same bytes.
+    // A replica loaded from it is sealed too: it commits nothing and answers the same document,
+    // the same bytes each time. Not byte for byte the loaded bytes: this engine writes the version
+    // vectors inside a reloaded document's change blocks in another order (the TypeScript engine
+    // answers the loaded bytes; its suite checks that).
     let mut file = load(&first, 3);
     assert!(file.is_sealed());
-    assert_eq!(file.content_snapshot().unwrap(), first);
+    let again = file.content_snapshot().unwrap();
     assert_eq!(file.version(), version);
+    assert_eq!(file.content_snapshot().unwrap(), again);
+    let reloaded = load(&again, 4);
+    assert_eq!(reloaded.version(), version);
+    assert_eq!(reloaded.state_hash().unwrap(), a.state_hash().unwrap());
+    assert_eq!(reloaded.shallow_root(), load(&first, 5).shallow_root());
 }
 
 #[test]
