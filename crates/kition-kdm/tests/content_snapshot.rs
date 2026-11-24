@@ -373,3 +373,52 @@ fn a_snapshot_lists_the_origins_it_holds() {
     assert_eq!(Replica::snapshot_origins(&a.content_snapshot().unwrap()).unwrap(), vec![Some(Origin::system("content-seal"))]);
     assert!(matches!(Replica::snapshot_origins(&[1, 2, 3]), Err(KdmError::Encoding(_))));
 }
+
+/// Regression (kition-table `records.history`): a replica the host stores for a file starts at the
+/// file's seal and grows with the session's changes. Its earliest readable version is the sealed
+/// content, and the changes after it are listed with their origins, in order; `shallow_root`, the
+/// version before the seal's own operation, is not readable.
+#[test]
+fn a_stored_replica_reads_the_sealed_content_and_lists_the_changes_after_it() {
+    let (mut a, _, _, shape) = history(true);
+    let content = a.content_snapshot().unwrap();
+    let sealed = load(&content, 3);
+    let sealed_state = sealed.state_json().unwrap();
+    let mut file = load(&content, 3);
+    // Reading the history commits nothing: the unchanged save is the same bytes.
+    assert_eq!(file.earliest_readable(), file.version());
+    assert_eq!(file.history_since(&file.earliest_readable()).unwrap(), vec![]);
+    assert_eq!(file.content_snapshot().unwrap(), content);
+    let alice = Origin::person("user:alice");
+    let agent = Origin::agent("agent:helper").with_label("tidy");
+    file.transact(&alice, |tx| tx.set(&shape, "x", json!(31))).unwrap();
+    let after_alice = file.version();
+    file.transact(&agent, |tx| tx.set(&shape, "y", json!(32))).unwrap();
+    // What the host stores and opens again: a snapshot of the grown replica.
+    let stored = load(&file.snapshot().unwrap(), 4);
+    for replica in [&file, &stored] {
+        let start = replica.earliest_readable();
+        assert!(replica.reaches(&start));
+        let root = replica.shallow_root().expect("a replica opened from a file is shallow");
+        assert!(start.includes(&root) && start != root, "the seal's own operation is in it");
+        assert!(!replica.reaches(&root));
+        assert_eq!(replica.fork_at(&start, actor(5)).unwrap().state_json().unwrap(), sealed_state);
+        let changes = replica.history_since(&start).unwrap();
+        let origins: Vec<Option<Origin>> = changes.iter().map(|change| change.origin.clone()).collect();
+        assert_eq!(origins, vec![Some(alice.clone()), Some(agent.clone())]);
+        assert_eq!(changes[0].version, after_alice);
+        assert_eq!(changes[1].version, file.version());
+        let first = replica.fork_at(&changes[0].version, actor(6)).unwrap();
+        assert_eq!((first.get(&shape, "x").unwrap(), first.get(&shape, "y").unwrap()), (json!(31), json!(20)));
+        assert_eq!(replica.history_since(&changes[0].version).unwrap().len(), 1);
+        assert!(matches!(replica.history_since(&root), Err(KdmError::HistoryMissing(_))));
+    }
+    // The file's bytes are unchanged by all of it: one change, the seal.
+    assert_eq!(Replica::snapshot_origins(&content).unwrap(), vec![Some(Origin::system("content-seal"))]);
+    // A full replica reads every version, from the empty one; its history ends with its seal.
+    assert_eq!(a.earliest_readable(), kition_kdm::Version::empty());
+    let whole = a.history_since(&kition_kdm::Version::empty()).unwrap();
+    assert!(whole.len() > 5, "{whole:?}");
+    assert_eq!(whole.last().map(|change| change.version.clone()), Some(a.version()));
+    assert_eq!(whole.last().and_then(|change| change.origin.clone()), Some(Origin::system("content-seal")));
+}

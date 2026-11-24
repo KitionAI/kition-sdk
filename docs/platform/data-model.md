@@ -627,6 +627,8 @@ What a kit whose file holds its replica does:
 
 1. **Prepare.** `KitDocument::prepare_save(&mut self)`: `self.session.seal()`
    (TypeScript: `KitModel.prepareSave(view, replica)`: `replica.seal()`).
+   `kition_kit::testing::check_contract` calls it before it saves, as a host
+   does, so a kit's contract edit need not seal.
 2. **Save.** `KitDocument::save(&self)` writes
    `replica.sealed_content_snapshot()` into the file (TypeScript:
    `replica.sealedContentSnapshot()`, or `replica.contentSnapshot()` in
@@ -651,7 +653,26 @@ What a kit whose file holds its replica does:
    lists, maps, trees; a new object is made with its registers and refs
    together, so a required ref is never missing; a tree node of a deleted object, which the KDM keeps
    and the file's state names, is never made again).
-5. **Tests.** `Replica::snapshot_origins(bytes)` (`Replica.snapshotOrigins`)
+5. **Read the history a stored replica holds.** A replica that started from a file
+   is rooted at the file's seal and grows with every change since; stored and
+   loaded again, it keeps that root. `Replica::earliest_readable()`
+   (`Replica.earliestReadable()`) is the earliest version whose state it can
+   read: the seal's version, where its state is the file's content
+   (`Version::empty()` on a full replica). `fork_at` reads the state at it and at
+   every later version it has. `Replica::history_since(&since)`
+   (`Replica.historySince(since)`) lists the changes after `since`, oldest first
+   (causal order; concurrent ones by Lamport number, then actor), each with its
+   origin and the version it makes with the changes it depends on, so a kit cuts
+   per-object history at each change or at the host's checkpoints. From
+   `earliest_readable()` the list holds every change since the file.
+   `shallow_root()` is the engine's root, the version just before the seal's own
+   operation: neither readable nor `reaches`. Versions before the seal are
+   `history-missing`. Nothing of this is in the file's bytes: it is read from the
+   stored replica's history. The TypeScript engine forks a shallow document only
+   as a whole, so a TypeScript replica loaded from a later stored snapshot reads
+   state from the version it was loaded at on (its `earliestReadable()`), while
+   `historySince` lists every change since the seal.
+6. **Tests.** `Replica::snapshot_origins(bytes)` (`Replica.snapshotOrigins`)
    lists the origins of the changes some bytes hold: a content snapshot holds
    one, the seal. No kit test needs the engine (`loro`) itself.
 

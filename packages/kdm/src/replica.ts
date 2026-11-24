@@ -822,6 +822,58 @@ export class Replica {
   }
 
   /**
+   * The earliest version whose state this replica can read (`forkAt`, `changesSince`):
+   * `Version.empty()` on a full replica; on a shallow one opened from a content snapshot, the
+   * version the file was sealed at (its root with the root's own operation, the seal), where its
+   * state is the file's content. As the Rust `Replica::earliest_readable`, except that this engine
+   * forks a shallow document only as a whole (see `forkAt`): a shallow replica loaded from a later
+   * snapshot (a host's stored replica that grew since the file) reads from the version it was
+   * loaded at, and one loaded with changes pending only at its current version. `historySince`
+   * lists the changes from the Rust version on in every case. Nothing of it is written into any
+   * bytes.
+   */
+  earliestReadable(): Version {
+    this.checkOpen()
+    if (!this.doc.isShallow()) return Version.empty()
+    return this.loadedFrom?.version ?? this.version()
+  }
+
+  /**
+   * The changes this replica holds after `since`, oldest first: each with its origin (`null` for a
+   * change whose commit message is not a KDM origin) and the version it makes with every change it
+   * depends on (`forkAt` that version reads the state just after it, where this engine can read
+   * it). `since` is a version this replica has and `reaches` (on a shallow replica, its root with
+   * the seal or later); others are `history-missing`. A change is the engine's: consecutive
+   * transactions of one replica with the same origin may be one change. The order is causal;
+   * concurrent changes are ordered by their Lamport number, then by actor. As the Rust
+   * `Replica::history_since`.
+   */
+  historySince(since: Version): HistoryChange[] {
+    this.idle()
+    this.checkOpen()
+    if (!(since instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
+    if (!this.version().includes(since)) throw errors.historyMissing(VERSION_NOT_HELD)
+    if (!this.reaches(since)) throw errors.historyMissing(VERSION_BEFORE_ROOT)
+    const from = since.toEngine().toJSON()
+    const found: { lamport: number; peer: bigint; change: HistoryChange }[] = []
+    for (const [peer, end] of this.doc.oplogVersion().toJSON()) {
+      let counter = from.get(peer) ?? 0
+      while (counter < end) {
+        const change = this.doc.getChangeAt({ peer, counter })
+        const last = { peer, counter: change.counter + change.length - 1 }
+        found.push({
+          lamport: change.lamport,
+          peer: BigInt(peer),
+          change: { origin: typeof change.message === 'string' ? decodeOrigin(change.message) : null, version: Version.fromEngine(this.doc.frontiersToVV([last])) },
+        })
+        counter = change.counter + change.length
+      }
+    }
+    found.sort((a, b) => a.lamport - b.lamport || (a.peer < b.peer ? -1 : a.peer > b.peer ? 1 : 0))
+    return found.map(({ change }) => change)
+  }
+
+  /**
    * Replaces this replica's document with `snapshot` (a full or shallow snapshot of the same
    * document, as a server answers it) plus every change this replica has that `snapshot` lacks,
    * and answers the objects whose state changed. For a shallow replica whose import failed with
@@ -1476,6 +1528,13 @@ type Histories = Record<UndoScope, UndoManager>
  * step it popped (`popped`), so a run undone stays one run to redo.
  */
 export type UndoTouch = { id: ObjectId; fields: string[] | null }
+
+/**
+ * One change of a replica's history, as `Replica.historySince` lists it: who made it (`null` for
+ * a change whose commit message is not a KDM origin) and the version it makes with every change it
+ * depends on.
+ */
+export type HistoryChange = { origin: Origin | null; version: Version }
 type UndoMeta = { run: number | null; touches: UndoTouch[] }
 type Runs = { current: number | null; next: number; replaying: boolean; popped: UndoMeta | null; pending: UndoTouch[]; groups: Map<string, UndoTouch[]> }
 

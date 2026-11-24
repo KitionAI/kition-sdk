@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use loro::event::Diff;
 use loro::{
-    Container, ContainerID, ContainerTrait, Counter, ExportMode, IdSpan, Index, LoroDoc, LoroMap, LoroValue, PeerID, ToJson, TreeID, TreeParentId,
-    UndoItemMeta, UndoManager, ValueOrContainer, VersionRange, VersionVector,
+    Container, ContainerID, ContainerTrait, Counter, ExportMode, Frontiers, ID, IdSpan, Index, LoroDoc, LoroMap, LoroValue, PeerID, ToJson, TreeID,
+    TreeParentId, UndoItemMeta, UndoManager, ValueOrContainer, VersionRange, VersionVector,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -63,6 +63,16 @@ impl Version {
     pub fn includes(&self, other: &Version) -> bool {
         self.0.includes_vv(&other.0)
     }
+}
+
+/// One change of a replica's history, as [`Replica::history_since`] lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HistoryChange {
+    /// Who made it and why; `None` for a change whose commit message is not a KDM origin.
+    pub origin: Option<Origin>,
+    /// The version the change makes with every change it depends on: [`Replica::fork_at`] it
+    /// reads the state just after the change.
+    pub version: Version,
 }
 
 /// One node of a tree field, as [`Replica::tree`] lists it.
@@ -773,6 +783,11 @@ impl Replica {
 
     /// The version a shallow replica's retained history starts at (its root): it has every change
     /// after it, and none of the history it summarizes. `None` for a full replica.
+    ///
+    /// The root excludes the root's own operation (the seal, for a replica opened from a content
+    /// snapshot), whose state the replica does not hold, so the replica cannot read the root
+    /// itself ([`Replica::reaches`] is false for it). The earliest version it can read is
+    /// [`Replica::earliest_readable`].
     pub fn shallow_root(&self) -> Option<Version> {
         self.is_shallow().then(|| Version(self.doc.shallow_since_vv().to_vv()))
     }
@@ -826,9 +841,9 @@ impl Replica {
     /// Whether this replica's history reaches `version`, so it can read that version itself
     /// ([`Replica::fork_at`], [`Replica::changes_since`]) rather than from whoever keeps the whole
     /// history: always on a full replica; on a shallow one, when `version` includes its root and
-    /// the root's own operation (the seal, for a replica opened from a content snapshot). It says
-    /// nothing about whether the replica has the version's changes ([`Version::includes`] of
-    /// [`Replica::version`] does).
+    /// the root's own operation (the seal, for a replica opened from a content snapshot); the
+    /// earliest such version is [`Replica::earliest_readable`]. It says nothing about whether the
+    /// replica has the version's changes ([`Version::includes`] of [`Replica::version`] does).
     pub fn reaches(&self, version: &Version) -> bool {
         self.reaches_root(version) && (!self.is_shallow() || self.doc.shallow_since_frontiers().iter().all(|id| version.0.includes_id(id)))
     }
@@ -836,6 +851,68 @@ impl Replica {
     /// Whether `version` is at or after this replica's shallow root: always, on a full replica.
     fn reaches_root(&self, version: &Version) -> bool {
         self.shallow_root().is_none_or(|root| version.includes(&root))
+    }
+
+    /// The earliest version whose state this replica can read ([`Replica::fork_at`],
+    /// [`Replica::changes_since`], [`Replica::history_since`]): [`Version::empty`] on a full
+    /// replica; on a shallow one, its root with the root's own operation. For a replica opened
+    /// from a content snapshot ([`Replica::content_snapshot`]) that is the version the file was
+    /// sealed at, and its state there is the file's content, also after the replica grew with
+    /// later changes and was stored and loaded again. Every version this replica
+    /// [`Replica::reaches`] includes it. Nothing of it is written into any bytes: it is read from
+    /// the engine's history.
+    pub fn earliest_readable(&self) -> Version {
+        if !self.is_shallow() {
+            return Version::empty();
+        }
+        // The engine's root version (`shallow_since_vv`) excludes the root operation, which its
+        // root frontiers name: a checkout of those frontiers is the earliest one it allows.
+        let mut version = self.doc.shallow_since_vv().to_vv();
+        for id in self.doc.shallow_since_frontiers().iter() {
+            let end = version.get(&id.peer).copied().unwrap_or(0).max(id.counter + 1);
+            version.insert(id.peer, end);
+        }
+        Version(version)
+    }
+
+    /// The changes this replica holds after `since`, oldest first: each with its origin (`None`
+    /// for a change whose commit message is not a KDM origin) and the version it makes with every
+    /// change it depends on, so [`Replica::fork_at`] that version reads the state just after it
+    /// (without changes made concurrently with it). `since` is a version this replica has and
+    /// [`Replica::reaches`]: from [`Replica::earliest_readable`], the list holds every change
+    /// the replica has; a version it does not have is [`KdmError::HistoryMissing`], as is one
+    /// before a shallow replica's root (its seal included: the seal is in the file, not after it).
+    ///
+    /// A change is the engine's: consecutive transactions of one replica with the same origin may
+    /// be one change. The order is causal (a change comes after every change it depends on);
+    /// concurrent changes are ordered by their Lamport number, then by actor.
+    pub fn history_since(&self, since: &Version) -> Result<Vec<HistoryChange>> {
+        if !self.version().includes(since) {
+            return Err(KdmError::HistoryMissing(VERSION_NOT_HELD.into()));
+        }
+        if !self.reaches(since) {
+            return Err(KdmError::HistoryMissing(VERSION_BEFORE_ROOT.into()));
+        }
+        let held = self.doc.oplog_vv();
+        let mut changes = Vec::new();
+        for span in held.sub_iter(&since.0) {
+            let mut counter = span.counter.start;
+            while counter < span.counter.end {
+                let change =
+                    self.doc.get_change(ID::new(span.peer, counter)).ok_or_else(|| KdmError::Engine(format!("no change holds {counter}@{}", span.peer)))?;
+                let len = Counter::try_from(change.len).map_err(|_| KdmError::Engine("a change too long for its counters".into()))?;
+                let last = ID::new(span.peer, change.id.counter + len - 1);
+                let version = self.doc.frontiers_to_vv(&Frontiers::from(last)).ok_or_else(|| KdmError::Engine(format!("no version for {last:?}")))?;
+                changes.push((
+                    change.lamport,
+                    span.peer,
+                    HistoryChange { origin: change.message.as_deref().and_then(Origin::decode), version: Version(version) },
+                ));
+                counter = change.id.counter + len;
+            }
+        }
+        changes.sort_by_key(|(lamport, peer, _)| (*lamport, *peer));
+        Ok(changes.into_iter().map(|(.., change)| change).collect())
     }
 
     /// Replaces this replica's document with `snapshot` (a full or shallow snapshot of the same

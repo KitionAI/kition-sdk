@@ -10,7 +10,7 @@
 // snapshot's history holds one change, the seal. Their bytes are searched as well.
 import { LoroDoc } from 'loro-crdt'
 import { describe, expect, it } from 'vitest'
-import { agent, decodeCommit, newDocId, person, Replica, type ObjectId } from '../src/index'
+import { agent, decodeCommit, newDocId, person, Replica, Version, type ObjectId } from '../src/index'
 import { me, pageWithShape, reasonOf, testSchema } from './helpers'
 
 const DELETED_OBJECT = 'Qv7Zp9Wm2Rk5'
@@ -288,6 +288,52 @@ describe('a replica opened from a content snapshot', () => {
     // Versions before the file are not in it.
     expect(reasonOf(() => file.forkAt(before, 5n))).toBe('history-missing')
     expect(reasonOf(() => file.changesSince(before))).toBe('history-missing')
+  })
+
+  // Regression (kition-table `records.history`): the version the file was sealed at is readable,
+  // and the changes after it are listed with their origins, in order.
+  it('reads the sealed content and lists the changes after it', () => {
+    const { a, shape } = history(true)
+    const content = a.contentSnapshot()
+    const sealed = Replica.load(testSchema(), content, 3n).stateText()
+    const file = Replica.load(testSchema(), content, 3n)
+    const opened = file.version()
+    expect(file.earliestReadable().equals(opened)).toBe(true)
+    expect(file.historySince(opened)).toEqual([])
+    // Reading the history commits nothing: the unchanged save is the same bytes.
+    expect(file.contentSnapshot()).toEqual(content)
+    const alice = person('user:alice')
+    const helper = agent('agent:helper', 'tidy')
+    file.transact(alice, (tx) => tx.set(shape, 'x', 31))
+    const afterAlice = file.version()
+    file.transact(helper, (tx) => tx.set(shape, 'y', 32))
+    const start = file.earliestReadable()
+    expect(start.equals(opened)).toBe(true)
+    const root = file.shallowRoot()!
+    expect(start.includes(root) && !start.equals(root)).toBe(true)
+    expect(file.reaches(root)).toBe(false)
+    expect(file.forkAt(start, 5n).stateText()).toBe(sealed)
+    // A host's stored replica, opened again: the same history from the seal on.
+    const stored = Replica.load(testSchema(), file.snapshot(), 4n)
+    for (const replica of [file, stored]) {
+      const changes = replica.historySince(start)
+      expect(changes.map((change) => change.origin)).toEqual([alice, helper])
+      expect(changes[0].version.equals(afterAlice)).toBe(true)
+      expect(changes[1].version.equals(file.version())).toBe(true)
+      expect(replica.historySince(changes[0].version)).toHaveLength(1)
+      expect(reasonOf(() => replica.historySince(root))).toBe('history-missing')
+    }
+    const first = file.forkAt(file.historySince(start)[0].version, 6n)
+    expect([first.get(shape, 'x'), first.get(shape, 'y')]).toEqual([31, 20])
+    // This engine reads a stored replica's state from the version it was loaded at on.
+    expect(stored.earliestReadable().equals(stored.version())).toBe(true)
+    expect(Replica.snapshotOrigins(content)).toEqual([{ kind: 'system', principal: 'kdm', label: 'content-seal' }])
+    // A full replica reads every version, from the empty one; its history ends with its seal.
+    expect(a.earliestReadable().equals(Version.empty())).toBe(true)
+    const whole = a.historySince(Version.empty())
+    expect(whole.length).toBeGreaterThan(5)
+    expect(whole.at(-1)!.version.equals(a.version())).toBe(true)
+    expect(whole.at(-1)!.origin).toEqual({ kind: 'system', principal: 'kdm', label: 'content-seal' })
   })
 
   it('lists the origins its bytes hold: one, the seal', () => {

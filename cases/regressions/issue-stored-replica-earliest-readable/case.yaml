@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-stored-replica-earliest-readable
+feature: sdk.model.content-snapshot
+intent: >-
+  A replica the host stores for a file starts at the file's seal and grows with the session's
+  changes; a kit reads the state at its earliest readable version (the seal's, whose state is the
+  sealed content) and lists every change after it with its origin and version, in order, in Rust
+  and TypeScript, also after the stored replica is saved and loaded again. Before, the only root
+  the KDM named was shallow_root, the version just before the seal's own operation, which fork_at
+  refuses, and no call named the version that includes the seal, so kition-table's records.history
+  could show nothing before the first host checkpoint. The file's bytes are unchanged: one change,
+  the seal, and an unchanged save writes the same bytes.
+layer: gate
+source: { kind: issue, from: "kition-table 5566254..05fb759 (crates/engine/file/src/kdm/changes.rs, stored_record_history)", license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: content_snapshot, filter: a_stored_replica_reads_the_sealed_content_and_lists_the_changes_after_it }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/content-snapshot.test.ts, -t, "reads the sealed content and lists the changes after it"] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 60
+since: "2026-11-23"

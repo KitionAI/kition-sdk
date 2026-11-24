@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-check-contract-prepare-save
+feature: sdk.model.content-snapshot
+intent: >-
+  kition_kit::testing::check_contract calls prepare_save before it saves, as every host does, so a
+  kit that refuses an unsealed save (board, table, layout: their files hold the KDM replica) keeps
+  the contract with an edit that does not seal; a kit whose prepare_save does nothing keeps it as
+  before. Before, check_contract saved without prepare_save, and each such kit ended its contract
+  edit with a seal of its own.
+layer: gate
+source: { kind: issue, from: "kition-board, kition-table and kition-layout contract tests (schema freeze, 2026-11-23)", license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit, filter: "testing::contract_tests" }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-23"

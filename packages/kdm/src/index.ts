@@ -44,7 +44,7 @@ export { newDocId, newObjectId, NodeRef, randomActor, uuidFromBytes, uuidToBytes
 export { agent, decodeCommit, decodeOrigin, encodeCommit, encodeOrigin, person, system, undoScopeOf, type Origin, type OriginKind, type UndoScope } from './origin'
 export { open as openEnvelope, Version, wrap as wrapEnvelope } from './envelope'
 export type { TextRun } from './marks'
-export { Replica, type TextDelta, type UndoTouch } from './replica'
+export { Replica, type HistoryChange, type TextDelta, type UndoTouch } from './replica'
 export { checkValue, fieldDef, hasMarks, hasToolIds, isContainer, KDM_VERSION, objectReadOnly, parseSchema, typeDef, type Expand, type FieldDef, type FieldKind, type MarkDef, type ReadOnlyWhen, type Schema, type ToolIdDef, type TypeDef } from './schema'
 export { ToolIds, type Unresolved } from './toolIds'
 export { ProjectionView, hasProjections, type ProjectedObject } from './projection'
