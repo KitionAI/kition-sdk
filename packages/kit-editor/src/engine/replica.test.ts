@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { KitHost, KitStoredReplica } from './kitHost'
+import type { KitHost, KitStoredReplica, KitWrittenReplica } from './kitHost'
 import { deleteCheckpoint, listCheckpoints, readCheckpoint, readViewState, replicaToOpen, updateCheckpoint, writeViewState, writeWithReplica } from './replica'
 
 const bytes = (...values: number[]) => new Uint8Array(values).buffer
@@ -57,7 +57,7 @@ describe('writeWithReplica', () => {
         return 'v3'
       },
     })
-    const replica = { snapshot: bytes(7), blobs: bytes(8) }
+    const replica = { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) }
     await expect(writeWithReplica(host, 'a.psd', new Uint8Array([1]), replica, 'v1')).rejects.toThrow('stale')
     expect(stored.size).toBe(0)
     expect(await writeWithReplica(host, 'a.psd', new Uint8Array([1]), replica, 'v2')).toBe('v3')
@@ -67,21 +67,21 @@ describe('writeWithReplica', () => {
   it('stores the replica under the stamp the write answered', async () => {
     const stored = new Map<string, KitStoredReplica>()
     const host = fakeHost('v1', stored)
-    expect(await writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8) })).toBe('v2')
+    expect(await writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) })).toBe('v2')
     expect(stored.get('a.psd')?.fileStamp).toBe('v2')
   })
 
   it('takes the file stamp after the write when the write answers none', async () => {
     const stored = new Map<string, KitStoredReplica>()
     const host = fakeHost('v3', stored, { write: async () => undefined })
-    expect(await writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8) })).toBe('v3')
+    expect(await writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) })).toBe('v3')
     expect(stored.get('a.psd')?.fileStamp).toBe('v3')
   })
 
   it('keeps the saved file when the replica cannot be stored, and stores nothing without one', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const failing = fakeHost('v1', new Map(), { replicaWrite: async () => Promise.reject(new Error('disk full')) })
-    expect(await writeWithReplica(failing, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8) })).toBe('v2')
+    expect(await writeWithReplica(failing, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) })).toBe('v2')
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
     const stored = new Map<string, KitStoredReplica>()
@@ -92,13 +92,13 @@ describe('writeWithReplica', () => {
   it('fails as the file write fails, before any replica is stored', async () => {
     const stored = new Map<string, KitStoredReplica>()
     const host = fakeHost('v1', stored, { write: async () => Promise.reject(new Error('conflict')) })
-    await expect(writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8) })).rejects.toThrow('conflict')
+    await expect(writeWithReplica(host, 'a.psd', new Uint8Array([1]), { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) })).rejects.toThrow('conflict')
     expect(stored.size).toBe(0)
   })
 })
 
 describe('checkpoints and view state (Kit UI protocol sections 7m, 7n)', () => {
-  const replica = { snapshot: bytes(7), blobs: bytes(8) }
+  const replica = { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) }
   const checkpoint = { id: 'c1', time: 1, origin: 'kit', label: 'Sent', version: 'AQ==', available: true }
 
   it('without the capabilities, the helpers answer null and do nothing', async () => {
@@ -140,6 +140,8 @@ describe('checkpoints and view state (Kit UI protocol sections 7m, 7n)', () => {
     expect(requests).toEqual([{ label: 'Sent' }])
     expect(recorded).toEqual([checkpoint])
     expect(stored.get('a.kdesign')?.fileStamp).toBe('v2')
+    // The checkpoint is asked at the version taken with the saved bytes (UI-R6).
+    expect(new Uint8Array((stored.get('a.kdesign') as KitWrittenReplica).version)).toEqual(new Uint8Array([9]))
     expect(await listCheckpoints(host, 'a.kdesign')).toEqual({ checkpoints: [checkpoint], more: false })
     expect(await deleteCheckpoint(host, 'a.kdesign', 'c1')).toBe(true)
   })
@@ -212,7 +214,7 @@ describe('view state stays out of the document (regressions/issue-view-state-out
       viewState: { read: async () => ({ state: null }), write: async (_path, value) => void views.push(JSON.stringify(value.state) + text(value.bytes ?? new ArrayBuffer(0))) },
     })
     const content = new TextEncoder().encode('content')
-    const replica = { snapshot: new TextEncoder().encode('snapshot').buffer as ArrayBuffer, blobs: new TextEncoder().encode('blobs').buffer as ArrayBuffer }
+    const replica = { snapshot: new TextEncoder().encode('snapshot').buffer as ArrayBuffer, blobs: new TextEncoder().encode('blobs').buffer as ArrayBuffer, version: new ArrayBuffer(0) }
     await writeWithReplica(host, 'a.kphoto', content, replica, 'v1', { viewState: { state: { v: 1, marker }, bytes: new TextEncoder().encode(marker).buffer as ArrayBuffer } })
     expect(files).toEqual(['content'])
     expect(replicas).toEqual(['snapshotblobsv2'])

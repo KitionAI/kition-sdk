@@ -412,10 +412,9 @@ export function startDevHost(options: DevHostOptions = {}) {
     // The kit announces itself when it loads (protocol section 1); mountKit waits for that.
     frame.src = `${entry}?${Date.now()}`
     const file = files.get(path)!
-    let mine: KitConnection | null = null
-    const kept = history.handlers(path, String(file.version), async () => (mine ? mine.replica.version() : null))
+    const kept = history.handlers(path, String(file.version))
     try {
-      mine = connection = await mountKit(frame, {
+      connection = await mountKit(frame, {
         origin: location.origin,
         host: { name: 'Development host', version: '1' },
         document: {

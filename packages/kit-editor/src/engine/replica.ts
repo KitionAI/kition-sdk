@@ -6,7 +6,7 @@
  * the file plainly, never to losing or blocking it.
  */
 import type { KitCheckpoint, KitCheckpointRequest, KitHost, KitViewState } from './kitHost'
-import type { KitModuleReplica } from './kitModule'
+import type { KitModuleReplica, KitSavedReplica } from './kitModule'
 
 /**
  * The stored replica to open `path` with: the host's, when it was saved with the file as it is
@@ -42,12 +42,14 @@ export type SaveExtras = {
 }
 
 /**
- * Writes the file, then `replica` (taken with the file's bytes) under the stamp the write answered,
- * or the file's stamp after it, with `extras.checkpoint` recorded in the same replica write. A
+ * Writes the file, then `replica` (taken with the file's bytes, with the version its snapshot
+ * holds) under the stamp the write answered, or the file's stamp after it, with
+ * `extras.checkpoint` recorded in the same replica write at that version (UI-R6): edits made while
+ * the writes are pending are not in it. A
  * replica the host cannot store is left out: the file is saved, and it opens plainly next time.
  * Then the view state: a failed write never fails the save. Answers the file's new stamp.
  */
-export async function writeWithReplica(host: KitHost, path: string, bytes: Uint8Array, replica: KitModuleReplica | null, expected?: string | null, extras: SaveExtras = {}): Promise<string | null> {
+export async function writeWithReplica(host: KitHost, path: string, bytes: Uint8Array, replica: KitSavedReplica | null, expected?: string | null, extras: SaveExtras = {}): Promise<string | null> {
   const written = await host.write(path, bytes, expected)
   const stamp = written || (await host.stamp(path).catch(() => null))
   let recorded: KitCheckpoint | null = null

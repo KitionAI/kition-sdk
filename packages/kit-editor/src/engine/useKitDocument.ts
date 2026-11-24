@@ -470,8 +470,9 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
   }, [saveWith])
   /**
    * Saves and records a checkpoint of the version saved (a "saved version" the person named), in
-   * the same replica write (Kit UI protocol section 7m). Answers it; `null` when the host keeps no
-   * checkpoints (the file is saved all the same).
+   * the same replica write (Kit UI protocol section 7m), at the version taken with the saved bytes
+   * (UI-R6): an edit made while the writes are pending is not in it. Answers it; `null` when the
+   * host keeps no checkpoints (the file is saved all the same).
    */
   const saveCheckpoint = useCallback((checkpoint: KitCheckpointRequest = {}) => saveWith(checkpoint), [saveWith])
 

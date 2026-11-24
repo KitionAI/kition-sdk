@@ -1,0 +1,30 @@
+format: 1
+id: regressions/issue-checkpoint-version-at-save
+feature: sdk.ui.checkpoints
+intent: >-
+  A labelled checkpoint names the document exactly as it was saved. The host used to ask the kit's
+  replica/version once the replica write arrived, while edits kept running during the pending file
+  and replica writes, so the checkpoint named a later state than the saved file and restoring it
+  restored content never saved under that label. The kit's engine now takes the replica's version
+  with the snapshot and the saved bytes in one step, host/replicaWrite carries it (version, UI-R6),
+  mountKit refuses a write without it, and the dev host records the checkpoint at that version: a
+  save with a label and an edit injected while the writes are pending reads back the saved content,
+  without the edit.
+layer: unit
+dimension: data-safety
+source:
+  kind: issue
+  from: kit-dev-host history gap (c766c46), confirmed by the design kit (kition-design a50ea91)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/checkpointVersion.test.tsx, packages/kit-editor/src/engine/kitEngine.save.test.ts]
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-dev-host/src/history.test.ts, packages/kit-host/src/history.test.ts, -t, UI-R6]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 120
+since: "2026-11-23"

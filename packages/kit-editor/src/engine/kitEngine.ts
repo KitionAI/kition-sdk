@@ -1,4 +1,4 @@
-import type { KitCommand, KitModuleManifest, KitModuleReplica } from './kitModule'
+import type { KitCommand, KitModuleManifest, KitModuleReplica, KitSavedReplica } from './kitModule'
 import type { LentFiles } from './lentFiles'
 import type { RasterPins } from './rasterViewport'
 import { INVALID_PARAMS_REASON, type DraftSummary, type KitDiagnostic, type ModelBatchResult } from '@kition/kit-ui-protocol'
@@ -302,12 +302,13 @@ export class KitEngine {
   }
 
   /**
-   * The document as file bytes with its replica taken at the same moment (null when the engine
-   * has none to give), so the stored replica holds exactly what the file does, and the revision
-   * they hold (see `serialize`).
+   * The document as file bytes with its replica and the replica's version taken at the same
+   * moment (null when the engine has none to give), so the stored replica holds exactly what the
+   * file does and a checkpoint names exactly that version (UI-R6), and the revision they hold (see
+   * `serialize`).
    */
   async saveWithReplica() {
-    const saved = (await this.call({ method: 'saveWithReplica' })) as { bytes: ArrayBuffer; replica: KitModuleReplica | null; revision: number }
+    const saved = (await this.call({ method: 'saveWithReplica' })) as { bytes: ArrayBuffer; replica: KitSavedReplica | null; revision: number }
     return { bytes: new Uint8Array(saved.bytes), replica: saved.replica, revision: saved.revision }
   }
 

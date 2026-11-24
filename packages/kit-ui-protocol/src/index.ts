@@ -207,6 +207,14 @@ export type WriteMode = 'save' | 'export' | 'create'
 export type StoredReplica = { snapshot: ArrayBuffer; blobs: ArrayBuffer; fileStamp: string }
 
 /**
+ * A replica as the kit writes it (`host/replicaWrite`): the stored replica and `version`, the
+ * replica version `snapshot` holds (as `replica/version` encodes it), taken by the kit together
+ * with the snapshot and the saved bytes (UI-R6). A host records a checkpoint at exactly this
+ * version and never asks `replica/version` for it: by then the document may hold later edits.
+ */
+export type WrittenReplica = StoredReplica & { version: ArrayBuffer }
+
+/**
  * A checkpoint of a document's history as the host keeps it (capability `checkpoints`, protocol
  * section 7m): a name for one version of the stored replica, never a copy of the document.
  * `time` is in milliseconds since the Unix epoch; `origin` is who made it (`kit` for the kit's
@@ -924,10 +932,11 @@ export type KitToHost = {
   'host/openAgent': [{ prompt?: string }, Record<string, never>]
   'host/replicaRead': [{ path: string }, StoredReplica | null]
   /**
-   * Stores the replica; with `checkpoint` (capability `checkpoints`, section 7m) it also records a
-   * checkpoint at the version it holds, in the same step, and answers it.
+   * Stores the replica, `version` the version its snapshot holds (UI-R6); with `checkpoint`
+   * (capability `checkpoints`, section 7m) it also records a checkpoint at that `version`, in the
+   * same step, and answers it.
    */
-  'host/replicaWrite': [{ path: string; checkpoint?: KitCheckpointRequest } & StoredReplica, { checkpoint?: KitCheckpoint }]
+  'host/replicaWrite': [{ path: string; checkpoint?: KitCheckpointRequest } & WrittenReplica, { checkpoint?: KitCheckpoint }]
   /** The document's checkpoints, newest first: only labelled ones with `labelled`, older than the checkpoint `before`, at most `limit` (capability `checkpoints`). */
   'host/checkpointList': [{ path: string; labelled?: boolean; before?: string; limit?: number }, { checkpoints: KitCheckpoint[]; more: boolean }]
   /** Renames or redescribes one of the kit's own checkpoints (`origin: "kit"`); an empty string removes the field. */

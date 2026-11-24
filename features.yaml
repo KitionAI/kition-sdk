@@ -1558,7 +1558,7 @@ features:
       - sdk.ui.fetch-image/checked
     since: "2026-11-16"
   - id: sdk.ui.checkpoints
-    title: Kits list, name and read the host's checkpoints of a document, recorded with the replica write of a save, and change only their own (Kit UI protocol section 7m)
+    title: Kits list, name and read the host's checkpoints of a document, recorded with the replica write of a save at the version that write carries (taken with the saved bytes, UI-R6), and change only their own (Kit UI protocol section 7m)
     dimension: [function, data-safety]
     priority: P1
     status: has
@@ -1569,9 +1569,11 @@ features:
       - packages/kit-editor/src/engine/kitHost.ts
       - packages/kit-editor/src/engine/replica.ts
       - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
     cases:
       - sdk.ui.checkpoints/host-rules
       - sdk.ui.checkpoints/editor-fallbacks
+      - regressions/issue-checkpoint-version-at-save
     since: "2026-11-23"
   - id: sdk.ui.view-state
     title: Kits keep a person's view state of a document with the host, outside the workspace, the replica and the file (Kit UI protocol section 7n)
@@ -2319,7 +2321,6 @@ features:
       - packages/kit-dev-host/src/index.ts
       - packages/kit-dev-host/src/index.test.ts
       - packages/kit-dev-host/README.md
-    gap: A checkpoint's version is the kit's replica/version when the replica write arrives, not read from the snapshot (the dev host has no KDM); an edit between the save and that answer would name a later version.
     cases:
       - sdk.dev-host.history/store
       - sdk.dev-host.history/page

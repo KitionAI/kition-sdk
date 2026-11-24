@@ -763,17 +763,20 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'saveWithReplica': {
       const open = opened()
-      // The seal first, then the file's bytes, then the store's snapshot: the store holds the seal
-      // the file is rooted at, and the document's next edits follow it.
+      // The seal first, then the file's bytes, then the store's snapshot and the version it holds,
+      // all in this one step: the store holds the seal the file is rooted at, the document's next
+      // edits follow it, and a checkpoint names exactly the saved state (UI-R6), never a later one.
       if (!readOnly) open.prepareSave?.()
       const bytes = open.save(docName)
-      let replica: { snapshot: ArrayBuffer; blobs: ArrayBuffer } | null = null
+      let replica: { snapshot: ArrayBuffer; blobs: ArrayBuffer; version: ArrayBuffer } | null = null
       try {
-        replica = { snapshot: member(open, 'snapshot')().buffer as ArrayBuffer, blobs: member(open, 'blobs')().buffer as ArrayBuffer }
+        const snapshot = member(open, 'snapshot')().buffer as ArrayBuffer
+        const blobs = member(open, 'blobs')().buffer as ArrayBuffer
+        replica = { snapshot, blobs, version: member(open, 'version')().buffer as ArrayBuffer }
       } catch {
         // A document its engine cannot hold in a replica still saves; no replica is kept.
       }
-      const transfer: Transferable[] = [bytes.buffer, ...(replica ? [replica.snapshot, replica.blobs] : [])]
+      const transfer: Transferable[] = [bytes.buffer, ...(replica ? [replica.snapshot, replica.blobs, replica.version] : [])]
       return { value: { bytes: bytes.buffer, replica, revision: Number(open.revision) }, transfer }
     }
     case 'replicaVersion': {

@@ -195,7 +195,7 @@ describe('capabilities', () => {
     const replicas = memoryReplicaStore()
     const { handlers } = setUp({ replicas })
     expect(await handlers.replicaRead!({ path: 'Launch.pptx' })).toBeNull()
-    await handlers.replicaWrite!({ path: 'Launch.pptx', snapshot: encode('s'), blobs: new ArrayBuffer(0), fileStamp: 'v1' })
+    await handlers.replicaWrite!({ path: 'Launch.pptx', snapshot: encode('s'), blobs: new ArrayBuffer(0), fileStamp: 'v1', version: new ArrayBuffer(1) })
     expect(await replicas.read('f1')).toMatchObject({ fileStamp: 'v1' })
     expect(decode((await handlers.replicaRead!({ path: 'Launch.pptx' }))!.snapshot)).toBe('s')
     expect((await refusal(handlers.replicaRead!({ path: 'Other.pptx' }))).reason).toBe('not-allowed')
@@ -204,7 +204,7 @@ describe('capabilities', () => {
   it('in a managed room, serves no replica of an earlier version of the file (a new generation, 1.3)', async () => {
     const replicas = memoryReplicaStore()
     const { handlers, files } = setUp({ replicas, managedRoom: () => true })
-    await handlers.replicaWrite!({ path: 'Launch.pptx', snapshot: encode('s'), blobs: new ArrayBuffer(0), fileStamp: 'v1' })
+    await handlers.replicaWrite!({ path: 'Launch.pptx', snapshot: encode('s'), blobs: new ArrayBuffer(0), fileStamp: 'v1', version: new ArrayBuffer(1) })
     expect(decode((await handlers.replicaRead!({ path: 'Launch.pptx' }))!.snapshot)).toBe('s')
     // Changed outside the room (an upload): the replica is the earlier generation's document, and
     // a kit that merges the file into it would open that document, whose room is not this one.

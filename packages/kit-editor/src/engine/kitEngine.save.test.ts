@@ -92,6 +92,23 @@ describe('the engine worker saving', () => {
     expect(new Uint8Array(saved.replica!.snapshot)).toEqual(new Uint8Array([7]))
   })
 
+  it('takes the version the snapshot holds in the same step as the bytes (UI-R6)', async () => {
+    const state = fakeDocument()
+    Object.assign(fake.doc as Record<string, unknown>, {
+      snapshot: () => new Uint8Array([state.revision]),
+      blobs: () => new Uint8Array(0),
+      version: () => new Uint8Array([100 + state.revision]),
+    })
+    await open()
+    await edit()
+    const saved = (await handle({ method: 'saveWithReplica' })).value as { bytes: ArrayBuffer; replica: { snapshot: ArrayBuffer; version: ArrayBuffer } }
+    // An edit after the save moves the document on; the save's version stays the saved one.
+    await edit()
+    expect(new Uint8Array(saved.bytes)).toEqual(new Uint8Array([1]))
+    expect(new Uint8Array(saved.replica.snapshot)).toEqual(new Uint8Array([1]))
+    expect(new Uint8Array(saved.replica.version)).toEqual(new Uint8Array([101]))
+  })
+
   it('saves an engine that has no prepareSave as before', async () => {
     fakeDocument()
     await open()

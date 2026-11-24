@@ -317,7 +317,7 @@ describe('mountKit', () => {
         offered = init.capabilities
         // Nothing is stored yet: the answer is null, not an empty object.
         expect(await kit!.request('host/replicaRead', { path: 'art/Poster.psd' })).toBeNull()
-        await kit!.request('host/replicaWrite', { path: 'art/Poster.psd', snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: 'v2' })
+        await kit!.request('host/replicaWrite', { path: 'art/Poster.psd', snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: 'v2', version: new Uint8Array([4, 2]).buffer })
         const read = await kit!.request('host/replicaRead', { path: 'art/Poster.psd' })
         expect(read?.fileStamp).toBe('v2')
         expect(new Uint8Array(read!.snapshot)).toEqual(new Uint8Array([1]))

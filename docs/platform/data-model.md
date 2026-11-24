@@ -575,7 +575,8 @@ explicitly read-only rather than silently drop it.**
 - Local version history exists. The host names versions of the stored replica as
   **checkpoints** (`{ id, time, origin, author?, label?, description?, version }`): each is a
   reference to a replica version in the store, never a copy. A kit records one together with the
-  replica write that holds its version, lists them, renames or deletes its own (`origin: kit`),
+  replica write that holds its version (the write carries the version its snapshot holds, taken
+  with the saved bytes, Kit UI protocol UI-R6), lists them, renames or deletes its own (`origin: kit`),
   and reads the blobs (or, on request, a snapshot) at a version (Kit UI protocol section 7m).
   Labelled checkpoints are never thinned; unlabelled ones are, under a cap of their own. When
   the stored replica is replaced by one of another lineage, labelled checkpoints stay listed as

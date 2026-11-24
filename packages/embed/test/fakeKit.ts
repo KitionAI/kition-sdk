@@ -224,8 +224,12 @@ export class FakeEditor {
     if (!this.dirty) return { saved: false, version: null }
     this.dirty = false
     const replica = this.ensure()
-    const written = await handlers.write({ path: document.path, bytes: buffer(new TextEncoder().encode(this.text())), mode: 'save' })
-    if (handlers.replicaWrite) await handlers.replicaWrite({ path: document.path, snapshot: buffer(replica.exportChanges()), blobs: new ArrayBuffer(0), fileStamp: written.version })
+    // The replica and its version are taken with the bytes, before the writes (UI-R6).
+    const bytes = buffer(new TextEncoder().encode(this.text()))
+    const snapshot = buffer(replica.exportChanges())
+    const version = buffer(replica.version().encode())
+    const written = await handlers.write({ path: document.path, bytes, mode: 'save' })
+    if (handlers.replicaWrite) await handlers.replicaWrite({ path: document.path, snapshot, blobs: new ArrayBuffer(0), fileStamp: written.version, version })
     return { saved: true, version: written.version }
   }
 }

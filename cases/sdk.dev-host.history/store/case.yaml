@@ -3,7 +3,7 @@ id: sdk.dev-host.history/store
 feature: sdk.dev-host.history
 intent: >-
   Behind the real mountKit, the dev host's store records a checkpoint in the replica write at the
-  kit's replica version and reads its blobs and snapshot back after later saves and after a reload
+  version the write carries (UI-R6), not the one the kit holds when the write arrives, and reads its blobs and snapshot back after later saves and after a reload
   on the file the replica was saved with; at the newest checkpoint's version it answers that one,
   and a labelled request makes a host's checkpoint the kit's, which the kit may then rename and
   delete; it lists newest first, labelled only, before a checkpoint and at most limit with more,

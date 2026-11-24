@@ -217,7 +217,7 @@ describe('KitEmbed 1.1', () => {
     await (await editor).ready()
     const picture = new TextEncoder().encode('media')
     const hash = await sha256(picture)
-    await mounted().handlers.replicaWrite!({ path: 'Notes.note', snapshot: new ArrayBuffer(4), blobs: encodeBlobSection([{ hash, data: picture }]).slice().buffer as ArrayBuffer, fileStamp: 'v1' })
+    await mounted().handlers.replicaWrite!({ path: 'Notes.note', snapshot: new ArrayBuffer(4), blobs: encodeBlobSection([{ hash, data: picture }]).slice().buffer as ArrayBuffer, fileStamp: 'v1', version: new ArrayBuffer(1) })
     expect(store.writes).toEqual([hash])
     expect(section((await replicas.read('f1'))!.blobs)).toEqual([{ hash, text: '' }])
     const read = await mounted().handlers.replicaRead!({ path: 'Notes.note' })

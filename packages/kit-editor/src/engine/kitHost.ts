@@ -5,6 +5,9 @@ export type { KitCheckpoint, KitCheckpointRequest, KitViewState }
 /** A document's KDM replica (snapshot and blobs) and the stamp of the file it was saved with. */
 export type KitStoredReplica = { snapshot: ArrayBuffer; blobs: ArrayBuffer; fileStamp: string }
 
+/** A replica as a save writes it: the stored replica and `version`, the replica version its snapshot holds, taken with it (UI-R6). */
+export type KitWrittenReplica = KitStoredReplica & { version: ArrayBuffer }
+
 /** The host's checkpoints of a document (the Kit UI protocol's `checkpoints` capability, section 7m). */
 export type KitCheckpoints = {
   list: (path: string, options?: { labelled?: boolean; before?: string; limit?: number }) => Promise<{ checkpoints: KitCheckpoint[]; more: boolean }>
@@ -39,9 +42,10 @@ export type KitHost = {
   replicaRead?: (path: string) => Promise<KitStoredReplica | null>
   /**
    * Stores the document's replica with the stamp of the file it belongs to; with `checkpoint` (and
-   * `checkpoints`) records a checkpoint at its version in the same step and answers it.
+   * `checkpoints`) records a checkpoint at `replica.version` (the version its snapshot holds) in
+   * the same step and answers it.
    */
-  replicaWrite?: (path: string, replica: KitStoredReplica, checkpoint?: KitCheckpointRequest) => Promise<KitCheckpoint | null | void>
+  replicaWrite?: (path: string, replica: KitWrittenReplica, checkpoint?: KitCheckpointRequest) => Promise<KitCheckpoint | null | void>
   /** The host's checkpoints of the document. Absent: the host keeps none (the kit keeps versions for the session only). */
   checkpoints?: KitCheckpoints
   /** The person's view state of the document. Absent: the host keeps none (the kit keeps it for the session only). */

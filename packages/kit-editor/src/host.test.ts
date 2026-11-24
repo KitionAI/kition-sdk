@@ -81,7 +81,9 @@ describe('connectHost', () => {
     await initPromise
     const checkpoint = { id: 'c1', time: 1, origin: 'kit', label: 'Sent', version: 'AQ==', available: true }
     const asked: unknown[] = []
+    const versions: number[][] = []
     hostPeer.handle('host/replicaWrite', (params) => {
+      versions.push([...new Uint8Array(params.version)])
       asked.push(params.checkpoint)
       return params.checkpoint ? { checkpoint } : {}
     })
@@ -96,9 +98,11 @@ describe('connectHost', () => {
       return {}
     })
     try {
-      const replica = { snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(1), fileStamp: 'v2' }
+      const replica = { snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(1), fileStamp: 'v2', version: new Uint8Array([7]).buffer }
       expect(await connection.files.replicaWrite!('a.psd', replica, { label: 'Sent' })).toEqual(checkpoint)
-      expect(await connection.files.replicaWrite!('a.psd', { snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(1), fileStamp: 'v3' })).toBeNull()
+      expect(await connection.files.replicaWrite!('a.psd', { snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(1), fileStamp: 'v3', version: new Uint8Array([8]).buffer })).toBeNull()
+      // The version taken with the snapshot travels with the write (UI-R6).
+      expect(versions).toEqual([[7], [8]])
       expect(await connection.files.checkpoints!.list('a.psd', { labelled: true })).toEqual({ checkpoints: [checkpoint], more: false })
       expect(asked).toEqual([{ label: 'Sent' }, undefined, { path: 'a.psd', labelled: true }])
       expect(await connection.files.viewState!.read('a.psd')).toEqual({ state: null })

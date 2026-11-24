@@ -4,6 +4,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A labelled checkpoint names the document exactly as it was saved (Kit UI protocol UI-R6,
+  UI-C1; protocol stays 1).** `host/replicaWrite` now carries `version`, the replica version its
+  `snapshot` holds, which the kit's engine takes with the snapshot and the saved bytes in one step
+  (`@kition/kit-editor`'s worker `saveWithReplica`; `KitHost.replicaWrite` takes a
+  `KitWrittenReplica`). A host records the checkpoint at that version and never asks
+  `replica/version` after the write, when an edit made while the writes were pending would already
+  be in it. `@kition/kit-host`'s `mountKit` refuses a replica write without `version` (`-32602`)
+  and hands it to `replicaWrite` (`WrittenReplica`); the development host records at it
+  (`DevHistory.handlers(path, stamp)` no longer takes a version callback)
+  (regressions/issue-checkpoint-version-at-save, sdk.dev-host.history/store).
 - **A file changed outside keeps its stored replica when the kit's engine merges it (Kit UI
   protocol UI-R1, owner 2026-11-24; protocol stays 1).** The kit decides, never the host: the host
   answers `host/replicaRead` whatever the replica's `fileStamp` (a managed room's earlier

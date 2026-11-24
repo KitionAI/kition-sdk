@@ -109,7 +109,7 @@ function store() {
   return { checkpoints, calls, replicas, handlers }
 }
 
-const replica = () => ({ path: PATH, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: 'v2' })
+const replica = () => ({ path: PATH, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: 'v2', version: new Uint8Array([4]).buffer })
 
 describe('checkpoints (capability checkpoints)', () => {
   it('is offered only with the embedder\'s handlers, and only with the replica', async () => {
@@ -150,6 +150,21 @@ describe('checkpoints (capability checkpoints)', () => {
     expect(await plain.kit.request('host/replicaWrite', { ...replica(), checkpoint: { label: 'x' } })).toEqual({})
     expect(seen).not.toHaveProperty('checkpoint')
     plain.connection.close()
+  })
+
+  it('hands the handler the version the write carries, and refuses a write without one (UI-R6)', async () => {
+    const { replicas, checkpoints, handlers } = store()
+    const { kit, connection } = await mount(handlers)
+    await kit.request('host/replicaWrite', { ...replica(), checkpoint: { label: 'Saved' } })
+    expect(new Uint8Array((replicas[0] as { version: ArrayBuffer }).version)).toEqual(new Uint8Array([4]))
+    // Without the version the snapshot holds, nothing is stored and no checkpoint is recorded.
+    const { version: _dropped, ...unversioned } = replica()
+    expect(await refusal(kit.request('host/replicaWrite', { ...unversioned, checkpoint: { label: 'Later' } } as never))).toBe(-32602)
+    expect(await refusal(kit.request('host/replicaWrite', unversioned as never))).toBe(-32602)
+    expect(await refusal(kit.request('host/replicaWrite', { ...replica(), version: 'BA==' } as never))).toBe(-32602)
+    expect(replicas).toHaveLength(1)
+    expect(checkpoints).toHaveLength(4)
+    connection.close()
   })
 
   it('lists newest first, labelled only on request, within the limit', async () => {

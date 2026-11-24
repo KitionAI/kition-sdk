@@ -45,6 +45,7 @@ import {
   type ModelBatchParams,
   type ModelBatchResult,
   type StoredReplica,
+  type WrittenReplica,
   type KitDiagnostic,
   type KitCheckpoint,
   type KitCheckpointRequest,
@@ -86,7 +87,7 @@ export type { KitFetchImageErrorReason, KitFetchImageResult, KitFetchImageType }
 export { FETCH_IMAGE_ERROR_REASONS, FETCH_IMAGE_TYPES, fetchImageErrorReason, isFetchableUrl } from '@kition/kit-ui-protocol'
 export type { KitCheckpoint, KitCheckpointErrorReason, KitCheckpointRequest, KitViewState, KitViewStateErrorReason } from '@kition/kit-ui-protocol'
 export { CHECKPOINT_DESCRIPTION_LIMIT, CHECKPOINT_ERROR_REASONS, CHECKPOINT_LABEL_LIMIT, CHECKPOINT_LIST_LIMIT, KIT_CHECKPOINT_ORIGIN, VIEW_STATE_BYTES_LIMIT, VIEW_STATE_ERROR_REASONS, VIEW_STATE_JSON_LIMIT, historyErrorReason } from '@kition/kit-ui-protocol'
-export type { DocumentState, DraftComparison, DraftInfo, DraftOrigin, DraftSummary, InitializeResult, KitConflict, KitDocumentInit, KitLease, KitPeerPresence, KitPresence, KitPresenceCaret, KitSchemaReport, KitTheme, KitUiConfig, KitUiElement, ModelBatchParams, ModelBatchResult, StoredReplica }
+export type { DocumentState, DraftComparison, DraftInfo, DraftOrigin, DraftSummary, InitializeResult, KitConflict, KitDocumentInit, KitLease, KitPeerPresence, KitPresence, KitPresenceCaret, KitSchemaReport, KitTheme, KitUiConfig, KitUiElement, ModelBatchParams, ModelBatchResult, StoredReplica, WrittenReplica }
 
 type Params<M extends keyof KitToHost> = KitToHost[M][0]
 type Result<M extends keyof KitToHost> = KitToHost[M][1] | Promise<KitToHost[M][1]>
@@ -104,8 +105,11 @@ export type KitHostHandlers = {
    */
   replicaRead?: (params: Params<'host/replicaRead'>) => Result<'host/replicaRead'>
   /**
-   * With `checkpoints` served, `params.checkpoint` (checked: lengths, origin `kit`) asks to record a
-   * checkpoint at the version the replica holds, in the same step; answer it as `{ checkpoint }`.
+   * `params.version` (checked: an `ArrayBuffer`) is the version `params.snapshot` holds, taken by
+   * the kit with the saved bytes (UI-R6). With `checkpoints` served, `params.checkpoint` (checked:
+   * lengths, origin `kit`) asks to record a checkpoint at exactly that version, in the same step;
+   * answer it as `{ checkpoint }`. Never ask the kit's `replica/version` for it: the document may
+   * hold later edits by then.
    * At the version of the newest checkpoint, answer that one; when the request has a label, that
    * checkpoint takes the label and description and becomes the kit's (`origin: "kit"`), whatever
    * its origin was, so the person can rename or delete it (UI-C1). Without `checkpoints`,
@@ -473,6 +477,8 @@ export function mountKit(frame: HTMLIFrameElement, options: MountOptions): Promi
     peer.handle('host/replicaRead', (params) => (replicaRead && replicaWrite ? replicaRead(params) : unsupported('host/replicaRead')))
     peer.handle('host/replicaWrite', async (params) => {
       if (!replicaRead || !replicaWrite) unsupported('host/replicaWrite')
+      // The version comes with the snapshot it names (UI-R6): a write without it stores nothing.
+      if (!isArrayBuffer(params?.version)) throw new KitRpcError(-32602, "host/replicaWrite needs the replica's version (the version its snapshot holds)")
       const { checkpoint: asked, ...replica } = params
       // A checkpoint asked of a host without them is no checkpoint; the replica is still stored.
       if (asked === undefined || !checkpoints) {

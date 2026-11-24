@@ -43,9 +43,8 @@ async function open(history: DevHistory, stamp: string, readOnly = false) {
     })
     kit.handle('replica/version', () => ({ version: state.version.slice(0) }))
   })
-  let mine: Awaited<ReturnType<typeof mountKit>> | null = null
-  const kept = history.handlers(PATH, stamp, async () => (mine ? mine.replica.version() : null))
-  mine = await mountKit(frame, {
+  const kept = history.handlers(PATH, stamp)
+  const mine = await mountKit(frame, {
     origin: '*',
     host: { name: 't', version: '1' },
     document: { path: PATH, name: 'Poster.kdesign', readOnly },
@@ -67,9 +66,12 @@ async function refusal(request: Promise<unknown>) {
   return 'answered'
 }
 
-/** The kit's save: the replica taken with the file, under the stamp the write answered, maybe with a checkpoint. */
-const save = (kit: KitSidePeer, fileStamp: string, snapshot: number, checkpoint?: { label?: string; description?: string; author?: string }) =>
-  kit.request('host/replicaWrite', { path: PATH, snapshot: bytes(snapshot), blobs: bytes(snapshot, 0), fileStamp, ...(checkpoint ? { checkpoint } : {}) })
+/**
+ * The kit's save: the replica taken with the file and the version its snapshot holds (the kit's
+ * `state.version` unless given), under the stamp the write answered, maybe with a checkpoint.
+ */
+const save = (opened: { kit: KitSidePeer; state: { version: ArrayBuffer } }, fileStamp: string, snapshot: number, checkpoint?: { label?: string; description?: string; author?: string }, version = opened.state.version) =>
+  opened.kit.request('host/replicaWrite', { path: PATH, snapshot: bytes(snapshot), blobs: bytes(snapshot, 0), fileStamp, version: version.slice(0), ...(checkpoint ? { checkpoint } : {}) })
 
 describe('dev host checkpoints (capability checkpoints)', () => {
   it('records a checkpoint at the kit\'s replica version in the replica write, and reads it back after later saves and a reload', async () => {
@@ -78,11 +80,11 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     expect(first.state.offered).toEqual(expect.arrayContaining(['replica', 'checkpoints', 'view-state']))
     // The first save: a new replica, and the person names the version.
     first.state.version = bytes(7)
-    const named = await save(first.kit, '2', 10, { label: 'Sent to print', description: 'the printer got this one' })
+    const named = await save(first, '2', 10, { label: 'Sent to print', description: 'the printer got this one' })
     expect(named.checkpoint).toMatchObject({ origin: 'kit', label: 'Sent to print', description: 'the printer got this one', version: base64(bytes(7)), available: true })
     // A later save without one records nothing, and moves the stored replica on.
     first.state.version = bytes(8)
-    expect(await save(first.kit, '3', 11)).toEqual({})
+    expect(await save(first, '3', 11)).toEqual({})
     expect(new Uint8Array(history.replica(PATH)!.snapshot)).toEqual(new Uint8Array([11]))
     // checkpointRead answers the blobs of the version, and its snapshot with state.
     const read = await first.kit.request('host/checkpointRead', { path: PATH, id: named.checkpoint!.id, state: true })
@@ -98,20 +100,33 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     again.connection.close()
   })
 
+  it('records a checkpoint at the version the write carries, not the one the kit holds when it arrives (UI-R6, issue-checkpoint-version-at-save)', async () => {
+    const history = new DevHistory()
+    const opened = await open(history, '1')
+    // The save took snapshot 10 at version 7; an edit landed while the writes were pending, so the
+    // kit now answers version 8 to replica/version.
+    opened.state.version = bytes(8)
+    const named = (await save(opened, '2', 10, { label: 'Sent to print' }, bytes(7))).checkpoint!
+    expect(named.version).toBe(base64(bytes(7)))
+    const read = await opened.kit.request('host/checkpointRead', { path: PATH, id: named.id, state: true })
+    expect(new Uint8Array(read.snapshot!)).toEqual(new Uint8Array([10]))
+    opened.connection.close()
+  })
+
   it('answers the newest checkpoint at its version, and a labelled request upgrades the host\'s to the kit\'s', async () => {
     const history = new DevHistory()
     const { state, kit, connection } = await open(history, '1')
     state.version = bytes(3)
-    await save(kit, '2', 1)
+    await save({ kit, state }, '2', 1)
     // The host's own save checkpoint at the version the replica holds.
     const host = history.record(PATH, base64(bytes(3)), { origin: 'save' })!
     expect(host).toMatchObject({ origin: 'save', available: true })
     expect(await refusal(kit.request('host/checkpointUpdate', { path: PATH, id: host.id, label: 'Mine' }))).toBe('read-only')
     expect(await refusal(kit.request('host/checkpointDelete', { path: PATH, id: host.id }))).toBe('read-only')
     // At the same version without a label: that checkpoint, unchanged.
-    expect((await save(kit, '2', 1, {})).checkpoint).toEqual(host)
+    expect((await save({ kit, state }, '2', 1, {})).checkpoint).toEqual(host)
     // With a label: the same checkpoint takes it and becomes the kit's, so the person can rename or delete it.
-    const upgraded = (await save(kit, '2', 1, { label: 'Final', description: 'approved' })).checkpoint!
+    const upgraded = (await save({ kit, state }, '2', 1, { label: 'Final', description: 'approved' })).checkpoint!
     expect(upgraded).toEqual({ ...host, origin: 'kit', label: 'Final', description: 'approved' })
     expect(history.checkpoints(PATH)).toHaveLength(1)
     expect((await kit.request('host/checkpointUpdate', { path: PATH, id: host.id, label: 'Final 2' })).checkpoint).toMatchObject({ origin: 'kit', label: 'Final 2', description: 'approved' })
@@ -127,7 +142,7 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     const ids: string[] = []
     for (let index = 0; index < 5; index += 1) {
       state.version = bytes(20 + index)
-      ids.push((await save(kit, '2', index, index % 2 === 0 ? { label: `L${index}` } : {})).checkpoint!.id)
+      ids.push((await save({ kit, state }, '2', index, index % 2 === 0 ? { label: `L${index}` } : {})).checkpoint!.id)
     }
     const all = await kit.request('host/checkpointList', { path: PATH })
     expect(all.checkpoints.map((checkpoint) => checkpoint.id)).toEqual([...ids].reverse())
@@ -139,7 +154,7 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     // Unlabelled ones are thinned past their limit; labelled ones never make room for them.
     for (let index = 0; index < DEV_UNLABELLED_CHECKPOINTS + 5; index += 1) {
       state.version = bytes(100, index)
-      await save(kit, '2', 9, {})
+      await save({ kit, state }, '2', 9, {})
     }
     const kept = history.checkpoints(PATH)
     expect(kept.filter((checkpoint) => !checkpoint.label)).toHaveLength(DEV_UNLABELLED_CHECKPOINTS)
@@ -151,20 +166,20 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     const history = new DevHistory()
     const { state, kit, connection } = await open(history, '1')
     state.version = bytes(5)
-    const made = (await save(kit, '2', 1, { label: 'Draft', description: 'first' })).checkpoint!
+    const made = (await save({ kit, state }, '2', 1, { label: 'Draft', description: 'first' })).checkpoint!
     const updated = (await kit.request('host/checkpointUpdate', { path: PATH, id: made.id, description: '' })).checkpoint
     expect(updated).toMatchObject({ id: made.id, origin: 'kit', label: 'Draft', version: made.version })
     expect(updated).not.toHaveProperty('description')
     expect(history.checkpoints(PATH)[0]).not.toHaveProperty('description')
     expect(await refusal(kit.request('host/checkpointUpdate', { path: PATH, id: made.id, label: 'x'.repeat(CHECKPOINT_LABEL_LIMIT + 1) }))).toBe('too-long')
-    expect(await refusal(save(kit, '2', 1, { label: 'x'.repeat(CHECKPOINT_LABEL_LIMIT + 1) }))).toBe('too-long')
+    expect(await refusal(save({ kit, state }, '2', 1, { label: 'x'.repeat(CHECKPOINT_LABEL_LIMIT + 1) }))).toBe('too-long')
     expect(await refusal(kit.request('host/checkpointUpdate', { path: PATH, id: 'dev-checkpoint-unknown', label: 'A' }))).toBe('not-found')
     expect(history.checkpoints(PATH)).toHaveLength(1)
     connection.close()
     const viewer = await open(history, '2', true)
     expect(await refusal(viewer.kit.request('host/checkpointUpdate', { path: PATH, id: made.id, label: 'A' }))).toBe('read-only')
     expect(await refusal(viewer.kit.request('host/checkpointDelete', { path: PATH, id: made.id }))).toBe('read-only')
-    expect(await refusal(save(viewer.kit, '2', 1, { label: 'B' }))).toBe('read-only')
+    expect(await refusal(save(viewer, '2', 1, { label: 'B' }))).toBe('read-only')
     // A read-only document still lists and reads them.
     expect((await viewer.kit.request('host/checkpointList', { path: PATH })).checkpoints).toHaveLength(1)
     viewer.connection.close()
@@ -174,20 +189,20 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     const history = new DevHistory()
     const first = await open(history, '1')
     first.state.version = bytes(9)
-    const made = (await save(first.kit, '2', 1, { label: 'Kept' })).checkpoint!
+    const made = (await save(first, '2', 1, { label: 'Kept' })).checkpoint!
     first.connection.close()
     // The file changed under the replica (stamp 5, the replica was saved under 2): the kit opens it
     // plainly and its next replica is another lineage.
     const stale = await open(history, '5')
     expect((await stale.kit.request('host/checkpointList', { path: PATH })).checkpoints[0]!.available).toBe(true)
-    await save(stale.kit, '6', 2)
+    await save(stale, '6', 2)
     expect((await stale.kit.request('host/checkpointList', { path: PATH })).checkpoints).toEqual([{ ...made, available: false }])
     expect(await refusal(stale.kit.request('host/checkpointRead', { path: PATH, id: made.id }))).toBe('history-missing')
     // The labelled one stays listed, and its label can still be changed.
     expect((await stale.kit.request('host/checkpointUpdate', { path: PATH, id: made.id, label: 'Old' })).checkpoint).toMatchObject({ label: 'Old', available: false })
     // A new one in the new lineage is available; opening the file alone drops the replica.
     stale.state.version = bytes(9)
-    const fresh = (await save(stale.kit, '6', 2, { label: 'New' })).checkpoint!
+    const fresh = (await save(stale, '6', 2, { label: 'New' })).checkpoint!
     expect(fresh.id).not.toBe(made.id)
     expect(fresh.available).toBe(true)
     stale.connection.close()
@@ -200,14 +215,14 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     const history = new DevHistory({ replicaMergesFile: true })
     const first = await open(history, '1')
     first.state.version = bytes(9)
-    const made = (await save(first.kit, '2', 1, { label: 'Kept' })).checkpoint!
+    const made = (await save(first, '2', 1, { label: 'Kept' })).checkpoint!
     first.connection.close()
     // The file changed outside (stamp 5, the replica was saved under 2): the host still answers
     // the stored replica, and the kit's engine merges the file into it as one import change.
     const changed = await open(history, '5')
     expect(await changed.kit.request('host/replicaRead', { path: PATH })).toMatchObject({ fileStamp: '2' })
     changed.state.version = bytes(10)
-    const next = (await save(changed.kit, '6', 2, { label: 'After the import' })).checkpoint!
+    const next = (await save(changed, '6', 2, { label: 'After the import' })).checkpoint!
     const listed = (await changed.kit.request('host/checkpointList', { path: PATH })).checkpoints
     expect(listed.map((checkpoint) => [checkpoint.id, checkpoint.available])).toEqual([[next.id, true], [made.id, true]])
     expect((await changed.kit.request('host/checkpointRead', { path: PATH, id: made.id })).checkpoint.label).toBe('Kept')

@@ -170,6 +170,9 @@ export interface KitModuleDocument {
 /** A stored replica to open a file with: a snapshot and its blobs. */
 export type KitModuleReplica = { snapshot: ArrayBuffer; blobs: ArrayBuffer }
 
+/** A replica a save took with the file's bytes: its snapshot, its blobs, and the version the snapshot holds (UI-R6). */
+export type KitSavedReplica = KitModuleReplica & { version: ArrayBuffer }
+
 type KitModuleExports = {
   default: (input?: { module_or_path?: string | URL }) => Promise<unknown>
 } & Record<string, { open(name: string, bytes: Uint8Array): KitModuleDocument } | unknown>

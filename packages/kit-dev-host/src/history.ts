@@ -6,8 +6,9 @@
  * documents, unknown ids, unavailable versions, sizes) before these handlers run; the store keeps
  * the rest: which checkpoints exist, at which version, and which the store still reaches.
  *
- * A checkpoint's `version` is the kit's replica version when the replica write arrived
- * (`replica/version`, base64). The store keeps the snapshot and blobs of each write that recorded
+ * A checkpoint's `version` is the one the replica write carries (base64): the version its snapshot
+ * holds, taken by the kit with the saved bytes (UI-R6); the store never asks `replica/version` for
+ * it, since the document may hold later edits by then. The store keeps the snapshot and blobs of each write that recorded
  * one, so `host/checkpointRead` answers them (and `state: true` the snapshot) even after later
  * writes. A replica of another lineage (the kit opened the file without the stored replica, or
  * the dev host opened a file alone) makes every earlier checkpoint `available: false`. The store
@@ -161,10 +162,10 @@ export class DevHistory {
    * its `fileStamp`: the kit decides (UI-R1). `stamp` is the file's stamp when it opened: a kit that
    * merges a newer file into its stored replica (`replicaMergesFile`) opens with it anyway and
    * continues its lineage; any other opens with it only when it was saved under `stamp`, so
-   * otherwise its first replica write starts a new lineage. `version` asks the kit for its replica
-   * version (`replica/version`); a checkpoint is recorded only when it answers.
+   * otherwise its first replica write starts a new lineage. A checkpoint is recorded at the
+   * `version` the replica write carries (UI-R6).
    */
-  handlers(path: string, stamp: string, version: () => Promise<ArrayBuffer | null>): Required<Pick<KitHostHandlers, 'replicaRead' | 'replicaWrite' | 'checkpoints' | 'viewState'>> {
+  handlers(path: string, stamp: string): Required<Pick<KitHostHandlers, 'replicaRead' | 'replicaWrite' | 'checkpoints' | 'viewState'>> {
     const stored = this.replicas.get(path)
     let continues = Boolean(stored && (this.mergesFile || stored.fileStamp === stamp))
     const entry = (wanted: string, id: string) => {
@@ -175,14 +176,12 @@ export class DevHistory {
     }
     return {
       replicaRead: ({ path: wanted }) => this.replica(wanted),
-      replicaWrite: async ({ path: wanted, snapshot, blobs, fileStamp, checkpoint }) => {
+      replicaWrite: ({ path: wanted, snapshot, blobs, fileStamp, version, checkpoint }) => {
         const lineage = wanted !== path || continues ? this.lineage(wanted) : this.newLineage(wanted)
         if (wanted === path) continues = true
         this.replicas.set(wanted, { snapshot: snapshot.slice(0), blobs: blobs.slice(0), fileStamp, lineage })
         if (!checkpoint) return
-        const at = await version().catch(() => null)
-        if (!at) return {}
-        const recorded = this.record(wanted, base64(at), { ...checkpoint, origin: KIT_CHECKPOINT_ORIGIN })
+        const recorded = this.record(wanted, base64(version), { ...checkpoint, origin: KIT_CHECKPOINT_ORIGIN })
         return recorded ? { checkpoint: recorded } : {}
       },
       checkpoints: {

@@ -65,8 +65,9 @@ checkpoints with it (section 7m: saved versions, record history), and `viewState
 person's view state (section 7n); `?replica=1`, `?checkpoints=1` and `?view-state=1` do the same.
 All three are kept in memory for the page load, per workspace path, apart from the files.
 `@kition/kit-host` checks every rule (lengths, origins, read-only documents, sizes) before the
-store runs. A checkpoint's `version` is the kit's replica version at the save that recorded it; the
-store keeps that save's snapshot and blobs, so `host/checkpointRead` answers them later.
+store runs. A checkpoint's `version` is the one the save's replica write carries (the version its
+snapshot holds, taken with the saved bytes, UI-R6), never asked of the kit afterwards; the store
+keeps that save's snapshot and blobs, so `host/checkpointRead` answers them later.
 
 - `devHost.reload()` reopens the document as its last save left it, keeping its replica,
   checkpoints and view state: a test saves a version, reloads, and finds it.

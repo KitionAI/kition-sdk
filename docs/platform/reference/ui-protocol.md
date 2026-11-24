@@ -559,7 +559,7 @@ and saves the file as before. `replica/info` and narrower
 | Method | Direction | Params | Result |
 | --- | --- | --- | --- |
 | `host/replicaRead` | kit to host | `{ path }` | `{ snapshot, blobs, fileStamp }` or `null` |
-| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp, checkpoint? }` | `{ checkpoint? }` (`checkpoint`: section 7m) |
+| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp, version, checkpoint? }` | `{ checkpoint? }` (`checkpoint`: section 7m) |
 | `replica/version` | host to kit | `{}` | `{ version }` |
 | `replica/export` | host to kit | `{ since }` | `{ changes, blobs }` |
 | `replica/import` | host to kit | `{ changes, blobs }` | `{ damage }` |
@@ -568,7 +568,8 @@ and saves the file as before. `replica/info` and narrower
 
 `snapshot`, `blobs`, `version`, `since`, and `changes` are `ArrayBuffer`s in
 the KDM's encodings; `blobs` is the engine's blob bundle and `fileStamp` a
-version stamp as `host/stamp` answers it. `since` may be empty (every change).
+version stamp as `host/stamp` answers it. In `host/replicaWrite`, `version`
+is the replica version `snapshot` holds (UI-R6). `since` may be empty (every change).
 `docId` is the replica's own id — a sync room's `docId`
 ([sync-protocol.md](sync-protocol.md)) the kit's engine ties the document to,
 or `null` when it has none (the engine made its replica but no room exists
@@ -608,6 +609,15 @@ for it yet, or the engine does not keep one at all).
   whole blob bundle when the kit's engine can tell which blobs the changes
   since `since` actually need; a host MUST NOT assume it received every blob
   the replica ever referenced, only every blob its new changes need.
+- **UI-R6** A replica write names its own version. The kit takes `version`
+  together with `snapshot` and the saved bytes, in the one step that fixes the
+  save's content (after the engine's seal, `prepareSave`), and sends it in
+  `host/replicaWrite`: edits made while the file write and the replica write
+  are pending are in neither. A host that needs the stored replica's version
+  (a checkpoint, section 7m) uses this `version` and MUST NOT ask
+  `replica/version` for it after the write, which may answer a later state.
+  A host refuses a `host/replicaWrite` without `version` (`-32602`) and stores
+  nothing.
 
 ## 7a. Object model (capability `model`)
 
@@ -1273,7 +1283,7 @@ versions. A kit uses them only when listed.
 
 | Method | Direction | Params | Result |
 | --- | --- | --- | --- |
-| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp, checkpoint? }` | `{ checkpoint? }` |
+| `host/replicaWrite` | kit to host | `{ path, snapshot, blobs, fileStamp, version, checkpoint? }` | `{ checkpoint? }` |
 | `host/checkpointList` | kit to host | `{ path, labelled?, before?, limit? }` | `{ checkpoints, more }` |
 | `host/checkpointUpdate` | kit to host | `{ path, id, label?, description? }` | `{ checkpoint }` |
 | `host/checkpointDelete` | kit to host | `{ path, id }` | `{}` |
@@ -1287,7 +1297,10 @@ that version.
 
 - **UI-C1** A checkpoint is recorded with the replica write that holds its version:
   `host/replicaWrite` with `checkpoint: { label?, description?, author?, origin? }` stores the
-  replica and records a checkpoint at the version it holds, in one step, and answers it. `origin`
+  replica and records a checkpoint at exactly the write's `version` (UI-R6: the version of the
+  saved snapshot, never one asked of the kit afterwards), in one step, and answers it. So a
+  labelled checkpoint names the document as it was saved, and reading it back gives the saved
+  content, never an edit made while the save was being written. `origin`
   is `kit` or absent (which means `kit`). Recording at the version of the newest checkpoint
   answers that checkpoint; a request with a label upgrades it: it takes the label and
   description and becomes the kit's (`origin: kit`), so the person can rename or remove it. A
@@ -1326,8 +1339,8 @@ that version.
   nothing.
 - `@kition/kit-dev-host` serves them for a kit's flow tests (`checkpoints: true` or
   `?checkpoints=1`, with the replica; `replica: true` or `?replica=1` for the replica alone), in
-  memory for the page load and per workspace path. A checkpoint's `version` is the kit's
-  `replica/version` at the replica write; it keeps each one's snapshot and blobs, so
+  memory for the page load and per workspace path. A checkpoint's `version` is the replica
+  write's `version` (UI-R6); it keeps each one's snapshot and blobs, so
   `host/checkpointRead` answers them after later saves. `devHost.reload()` reopens the document as
   its last save left it and keeps its replica and checkpoints; `devHost.reopenChanged(bytes)`
   changes the file outside the editor (a new version) and reopens it, handing the stored replica

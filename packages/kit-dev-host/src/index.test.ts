@@ -200,10 +200,10 @@ describe('startDevHost', () => {
     expect(first.replicaRead).toBeTypeOf('function')
     expect(first.checkpoints).toBeDefined()
     expect(first.viewState).toBeDefined()
-    // The kit saves the file, then its replica with a checkpoint, then its view state.
+    // The kit saves the file, then its replica (with the version taken with it) and a checkpoint, then its view state.
     mounted.version = [7]
     const written = await first.write({ path, bytes: new ArrayBuffer(2), mode: 'save' })
-    const answer = await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, checkpoint: { origin: 'kit', label: 'V1' } })
+    const answer = await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, version: new Uint8Array([7]).buffer, checkpoint: { origin: 'kit', label: 'V1' } })
     expect(answer).toMatchObject({ checkpoint: { origin: 'kit', label: 'V1', version: 'Bw==', available: true } })
     await first.viewState!.write({ path, state: { v: 1, page: 2 } })
     // The host's own checkpoint at a later version.
@@ -228,7 +228,7 @@ describe('startDevHost', () => {
     expect([...new Uint8Array(changed.document.bytes!)]).toEqual([5, 6, 7])
     expect(await changed.handlers.replicaRead!({ path })).toMatchObject({ fileStamp: '2' })
     expect((await changed.handlers.checkpoints!.list({ path })).checkpoints.every((checkpoint) => checkpoint.available)).toBe(true)
-    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3' })
+    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3', version: new Uint8Array([8]).buffer })
     expect(window.devHost.history.checkpoints(path).map((checkpoint) => checkpoint.available)).toEqual([false, false])
     expect(await changed.handlers.viewState!.read({ path })).toEqual({ state: { v: 1, page: 2 } })
     // Opened alone: no replica, its checkpoints no longer reached; the person's view state stays.
@@ -246,14 +246,14 @@ describe('startDevHost', () => {
     const first = mounted.calls[0]!.options.handlers
     mounted.version = [7]
     const written = await first.write({ path, bytes: new ArrayBuffer(2), mode: 'save' })
-    await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, checkpoint: { origin: 'kit', label: 'V1' } })
+    await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, version: new Uint8Array([7]).buffer, checkpoint: { origin: 'kit', label: 'V1' } })
     await window.devHost.reopenChanged(new Uint8Array([9]).buffer)
     const changed = mounted.calls[1]!.options
     expect(changed.document).toMatchObject({ path, version: '3' })
     expect(await changed.handlers.replicaRead!({ path })).toMatchObject({ fileStamp: '2' })
     // The kit's engine merged the file into the stored replica: the same lineage.
     mounted.version = [8]
-    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3' })
+    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3', version: new Uint8Array([8]).buffer })
     expect(window.devHost.history.checkpoints(path).map((checkpoint) => [checkpoint.label, checkpoint.available])).toEqual([['V1', true]])
   })
 

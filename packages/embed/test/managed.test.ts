@@ -371,7 +371,7 @@ describe('managed co-editing: saves (D3)', () => {
     expect(files.text('res:1')).toBe('first draft')
     // The kit keeps its replica after a save; this one is the earlier generation's document, and
     // under the new version's stamp it would open there again: it is not kept.
-    await handlers.replicaWrite!({ path: 'res:1.note', snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(0), fileStamp: saved.version })
+    await handlers.replicaWrite!({ path: 'res:1.note', snapshot: new ArrayBuffer(1), blobs: new ArrayBuffer(0), fileStamp: saved.version, version: new ArrayBuffer(1) })
     expect((await ann.kept.replicas.read('res:1'))?.fileStamp).not.toBe(saved.version)
     // Saving while the editor moves (closing the tab right after "keep my copy") waits for the
     // new generation and saves there; a save the replaced kit sends meanwhile is refused.
