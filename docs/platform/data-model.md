@@ -583,6 +583,16 @@ explicitly read-only rather than silently drop it.**
   unavailable. A file changed outside and merged into the stored replica as one `import` change
   (section 7.1) continues the lineage: every checkpoint stays available. The host tells lineage
   by the replica written, never by the file's stamp. There are no branches.
+- **Version bytes.** A version (`Version::encode`, `Version.encode()`; `replica/version`, a replica
+  write's and a checkpoint's `version`) encodes canonically: equal versions are equal bytes in the
+  Rust and the TypeScript KDM, whichever replica or order of imports made them, so a host
+  compares and stores them as opaque bytes (Kit UI protocol UI-R7). The bytes are the engine's
+  version-vector format (a postcard map: the entry count, then each actor id and its counter as
+  varints, the counter zigzagged) with the entries sorted by actor id, ascending as numbers; the
+  engine writes its entries in its hash map's order, which two equal versions need not share, so
+  the KDM writes them itself. The versions the KDM keeps inside the document (a seal's version,
+  a copy's or rebirth's birth) are written the same way. `crates/kition-kdm/tests/fixtures/version-bytes.json`
+  holds versions and their bytes; both implementations' tests read it.
 - A person's **view state** of a document (where they were, zoom, open panels) is neither content
   nor history: the host keeps it per document and per person or device in its own app data, never
   in the workspace, the replica, or the file (Kit UI protocol section 7n).

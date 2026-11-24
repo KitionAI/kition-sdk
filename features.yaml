@@ -1462,9 +1462,13 @@ features:
       - crates/kition-kdm/tests/deterministic.rs
       - crates/kition-kdm/src/ids.rs
       - crates/kition-kdm/tests/reproducible_ids.rs
+      - crates/kition-kdm/tests/version_bytes.rs
+      - crates/kition-kdm/tests/fixtures/version-bytes.json
+      - packages/kdm/src/envelope.ts
     cases:
       - regressions/issue-kition-table-7
       - regressions/issue-reproducible-ids
+      - regressions/issue-kdm-version-bytes
     since: "2026-11-16"
   - id: sdk.kdm.values
     title: The Kit Data Model refuses a value it cannot hold and says which values it takes

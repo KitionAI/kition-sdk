@@ -1,15 +1,14 @@
 /** Versions, and the envelope every byte string a replica exports carries. */
 import { VersionVector, type PeerID } from 'loro-crdt'
-import { compareKeys } from './canonical'
 import { errors, KdmError } from './errors'
 
 /** A replica's version: the set of changes it contains. Exchanged to ask for what is missing. */
 export class Version {
-  /** Each peer's counter, sorted by peer: compares structurally. */
+  /** Each peer's counter, sorted by peer id (a number): compares structurally and encodes canonically. */
   private readonly counters: ReadonlyArray<readonly [string, number]>
 
   private constructor(counters: Array<readonly [string, number]>) {
-    this.counters = counters.sort((a, b) => compareKeys(a[0], b[0]))
+    this.counters = counters.sort((a, b) => (BigInt(a[0]) < BigInt(b[0]) ? -1 : BigInt(a[0]) > BigInt(b[0]) ? 1 : 0))
   }
 
   static empty(): Version {
@@ -36,8 +35,22 @@ export class Version {
     return VersionVector.parseJSON(new Map(this.counters as Array<[PeerID, number]>))
   }
 
+  /**
+   * The version's canonical bytes: equal versions encode to the same bytes, here and in the Rust
+   * KDM, so a host may compare and store them as they are (docs/platform/data-model.md, "Version
+   * bytes"). The engine's own encoding writes its entries in the order of its hash map, which two
+   * equal versions need not share. These are the same format, a postcard map (an entry count,
+   * then each actor id and counter as varints, the counter zigzagged), with the entries sorted by
+   * actor id; the engine decodes them, and they decode bytes it wrote.
+   */
   encode(): Uint8Array {
-    return this.toEngine().encode()
+    const bytes: number[] = []
+    varint(bytes, BigInt(this.counters.length))
+    for (const [peer, counter] of this.counters) {
+      varint(bytes, BigInt(peer))
+      varint(bytes, BigInt(((counter << 1) ^ (counter >> 31)) >>> 0))
+    }
+    return Uint8Array.from(bytes)
   }
 
   /**
@@ -53,6 +66,15 @@ export class Version {
   equals(other: Version): boolean {
     return this.counters.length === other.counters.length && this.counters.every(([peer, counter], index) => peer === other.counters[index][0] && counter === other.counters[index][1])
   }
+}
+
+/** `value` as an unsigned LEB128 varint, as postcard writes integers. */
+function varint(bytes: number[], value: bigint): void {
+  while (value >= 0x80n) {
+    bytes.push(Number(value & 0x7fn) | 0x80)
+    value >>= 7n
+  }
+  bytes.push(Number(value))
 }
 
 /** Every byte string a replica exports: 4-byte magic, the 16-byte document UUID, then the engine's bytes. */

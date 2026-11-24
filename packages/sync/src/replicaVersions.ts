@@ -3,10 +3,11 @@
  * own: whether an export carries anything, the version two versions together reach, and the
  * version a change export reaches. Not exported from the package's index: a host loads it on
  * demand (`@kition/sync/replicaVersions`), so a page that never relays a document never loads the
- * CRDT engine.
+ * CRDT engine. The versions it answers are canonical bytes (`Version.encode`): equal versions,
+ * equal bytes.
  */
 import { decodeImportBlobMeta, VersionVector, type PeerID } from 'loro-crdt'
-import { openEnvelope } from '@kition/kdm'
+import { openEnvelope, Version } from '@kition/kdm'
 
 export type ReplicaVersions = {
   /** Whether `changes` (a KDM change export) carries no change at all. */
@@ -40,11 +41,11 @@ export const LORO_REPLICA_VERSIONS: ReplicaVersions = {
   merge: (a, b) => {
     const merged = counters(a)
     for (const [peer, counter] of counters(b)) merged.set(peer, Math.max(counter, merged.get(peer) ?? 0))
-    return VersionVector.parseJSON(merged as Map<PeerID, number>).encode()
+    return Version.fromEngine(VersionVector.parseJSON(merged as Map<PeerID, number>)).encode()
   },
   endOf: (changes) => {
     try {
-      return decodeImportBlobMeta(openEnvelope(changes).engine, false).partialEndVersionVector.encode()
+      return Version.fromEngine(decodeImportBlobMeta(openEnvelope(changes).engine, false).partialEndVersionVector).encode()
     } catch {
       return null
     }
@@ -71,6 +72,6 @@ export const LORO_REPLICA_VERSIONS: ReplicaVersions = {
     // A shallow snapshot's at its root: the version before the root's operations, and those.
     const root = new Map(meta.partialStartVersionVector.toJSON())
     for (const { peer, counter } of meta.startFrontiers) root.set(peer, Math.max(counter + 1, root.get(peer) ?? 0))
-    return VersionVector.parseJSON(root).encode()
+    return Version.fromEngine(VersionVector.parseJSON(root)).encode()
   },
 }

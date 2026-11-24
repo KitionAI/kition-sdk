@@ -618,6 +618,14 @@ for it yet, or the engine does not keep one at all).
   `replica/version` for it after the write, which may answer a later state.
   A host refuses a `host/replicaWrite` without `version` (`-32602`) and stores
   nothing.
+- **UI-R7** A replica version is canonical bytes: equal versions are equal
+  bytes, whichever replica, engine (Rust or TypeScript KDM) or order of
+  imports made them ([data model](../data-model.md) section 7.2, "Version
+  bytes"). So a host compares
+  and stores `version`s (here, in `replica/changed`, and a checkpoint's
+  `version`, section 7m) as opaque bytes, for example to tell that a
+  checkpoint is at the newest one's version (UI-C1) or that a write continues
+  the stored history; it never decodes them.
 
 ## 7a. Object model (capability `model`)
 

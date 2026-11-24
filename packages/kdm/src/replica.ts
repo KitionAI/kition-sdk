@@ -662,7 +662,7 @@ export class Replica {
     this.checkOpen()
     if (this.isSealed()) return false
     try {
-      this.doc.getMap(read.SEAL).set(read.SEAL_VERSION, this.doc.oplogVersion().encode())
+      this.doc.getMap(read.SEAL).set(read.SEAL_VERSION, Version.fromEngine(this.doc.oplogVersion()).encode())
       this.doc.commit({ origin: SYSTEM, message: encodeCommit(system(CONTENT_SEAL), this.schema.schemaVersion) })
     } catch (error) {
       throw errors.engine(engineMessage(error))
@@ -704,7 +704,7 @@ export class Replica {
       const birth = new Map(this.doc.oplogVersion().toJSON())
       const peer = this.actor.toString() as PeerID
       birth.set(peer, birth.get(peer) ?? 0)
-      this.doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, VersionVector.parseJSON(birth).encode())
+      this.doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, Version.fromEngine(VersionVector.parseJSON(birth)).encode())
       this.doc.commit({ origin: SYSTEM, message: encodeCommit(system(REBIRTH), this.schema.schemaVersion) })
       bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() })
     } catch (error) {
@@ -1162,7 +1162,7 @@ export class Replica {
       const peer = actor.toString() as PeerID
       birth.set(peer, (birth.get(peer) ?? 0) + 1)
       doc.getMap(read.META).set('docId', uuidFromBytes(idBytes))
-      doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, VersionVector.parseJSON(birth).encode())
+      doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, Version.fromEngine(VersionVector.parseJSON(birth)).encode())
       doc.commit({ origin: SYSTEM, message: encodeCommit(system(NEW_DOCUMENT), this.schema.schemaVersion) })
       // Rooted after that change: the source's id is overwritten, not kept as history.
       bytes = doc.export({ mode: 'shallow-snapshot', frontiers: doc.oplogFrontiers() })
