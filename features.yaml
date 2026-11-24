@@ -2308,6 +2308,22 @@ features:
       - sdk.dev-host.workspace/lend-pick-panel
       - sdk.dev-host.workspace/served-ranges
     since: "2026-11-23"
+  - id: sdk.dev-host.history
+    title: "The dev host keeps each document's replica, its checkpoints and the person's view state (replica, checkpoints and viewState options, or ?replica=1, ?checkpoints=1, ?view-state=1), in memory per page load and workspace path behind kit-host's checks, so a kit's browser test saves a version, reloads (devHost.reload) and reads it back; a labelled save at the newest checkpoint's version makes it the kit's"
+    dimension: [function, data-safety]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-dev-host/src/history.ts
+      - packages/kit-dev-host/src/history.test.ts
+      - packages/kit-dev-host/src/index.ts
+      - packages/kit-dev-host/src/index.test.ts
+      - packages/kit-dev-host/README.md
+    gap: A checkpoint's version is the kit's replica/version when the replica write arrives, not read from the snapshot (the dev host has no KDM); an edit between the save and that answer would name a later version.
+    cases:
+      - sdk.dev-host.history/store
+      - sdk.dev-host.history/page
+    since: "2026-11-23"
   - id: sdk.kits.outline
     title: A kit names the engine command that answers a document's outline (the parts of a file a host lists under it and opens the file at) in its manifest; a host reads it from the open editor or the headless kit without knowing the kit
     dimension: [platform, function]

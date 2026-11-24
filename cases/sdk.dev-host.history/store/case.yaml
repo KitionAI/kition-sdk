@@ -1,0 +1,31 @@
+format: 1
+id: sdk.dev-host.history/store
+feature: sdk.dev-host.history
+intent: >-
+  Behind the real mountKit, the dev host's store records a checkpoint in the replica write at the
+  kit's replica version and reads its blobs and snapshot back after later saves and after a reload
+  on the file the replica was saved with; at the newest checkpoint's version it answers that one,
+  and a labelled request makes a host's checkpoint the kit's, which the kit may then rename and
+  delete; it lists newest first, labelled only, before a checkpoint and at most limit with more,
+  refuses an unknown before as not-found, and thins only unlabelled checkpoints; an empty field
+  removes it, and too-long, unknown ids and read-only documents are refused; a replica of another
+  lineage or a file opened alone leaves earlier checkpoints listed as unavailable and refuses
+  reading them as history-missing; view state is kept whole per document apart from the replica,
+  null deletes it, a value over the limit is refused as too-large and nothing is kept, and a
+  read-only document keeps it too.
+layer: gate
+dimension: data-safety
+source:
+  kind: synthetic
+  from: packages/kit-dev-host/src/history.test.ts
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-dev-host/src/history.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-23"

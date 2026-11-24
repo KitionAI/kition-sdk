@@ -14,6 +14,9 @@
 //! - `GET`/`PUT`/`DELETE /kits/view-state?path=&kit=`: the person's view state of a document (Kit
 //!   UI protocol capability `view-state`), in the server's own data folder, never the workspace.
 //!
+//! It keeps no checkpoints (Kit UI protocol capability `checkpoints`, section 7m): the page offers
+//! the replica without them.
+//!
 //! The paths are relative to where the router is mounted (`/api/v1` in the gateway and in
 //! Kition's runtime). JSON answers use the envelope `{code, message, data}`
 //! (`kition_http_guard::envelope`). Every route takes the caller from the transport guard in front

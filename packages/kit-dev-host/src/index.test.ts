@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { KitPeerPresence, MountOptions } from '@kition/kit-host'
 
 /** Each mountKit call's options, and the connection it answered. */
-const mounted = vi.hoisted(() => ({ calls: [] as Array<{ options: MountOptions; connection: { peersChanged: ReturnType<typeof vi.fn>; configure: ReturnType<typeof vi.fn> } }> }))
+const mounted = vi.hoisted(() => ({ calls: [] as Array<{ options: MountOptions; connection: { peersChanged: ReturnType<typeof vi.fn>; configure: ReturnType<typeof vi.fn> } }>, version: [1] }))
 vi.mock('@kition/kit-host', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@kition/kit-host')>()),
   mountKit: async (_frame: HTMLIFrameElement, options: MountOptions) => {
-    const connection = { kit: { id: 'kit.test', version: '1' }, capabilities: [], close: vi.fn(), configure: vi.fn(), setTheme: vi.fn(), peersChanged: vi.fn() }
+    // `replica.version` answers the kit's replica version, as `replica/version` does.
+    const connection = { kit: { id: 'kit.test', version: '1' }, capabilities: [], close: vi.fn(), configure: vi.fn(), setTheme: vi.fn(), peersChanged: vi.fn(), replica: { version: async () => new Uint8Array(mounted.version).buffer } }
     mounted.calls.push({ options, connection })
     return connection
   },
@@ -176,6 +177,52 @@ describe('startDevHost', () => {
     expect(window.devHost.grants).toHaveLength(1)
     files.trace!('files/create', { suggestedName: 'exports/Out.pdf' })
     expect(window.devHost.checkNoPaths()).toEqual([{ method: 'files/create', at: 'suggestedName', value: 'exports/Out.pdf' }])
+  })
+
+  it('serves no replica, checkpoints or view state by default; with ?checkpoints=1&view-state=1 keeps them across a reload, and open starts a file alone', async () => {
+    page()
+    startDevHost()
+    await window.devHost.open('a.test', new ArrayBuffer(1))
+    const plain = mounted.calls[0]!.options.handlers
+    expect([plain.replicaRead, plain.replicaWrite, plain.checkpoints, plain.viewState]).toEqual([undefined, undefined, undefined, undefined])
+    page('?replica=1')
+    startDevHost()
+    await window.devHost.open('a.test', new ArrayBuffer(1))
+    const replicaOnly = mounted.calls[1]!.options.handlers
+    expect(replicaOnly.replicaRead).toBeTypeOf('function')
+    expect(replicaOnly.checkpoints).toBeUndefined()
+
+    page('?checkpoints=1&view-state=1')
+    startDevHost()
+    const path = 'art/Poster.kdesign'
+    await window.devHost.open(path, new ArrayBuffer(1))
+    const first = mounted.calls[2]!.options.handlers
+    expect(first.replicaRead).toBeTypeOf('function')
+    expect(first.checkpoints).toBeDefined()
+    expect(first.viewState).toBeDefined()
+    // The kit saves the file, then its replica with a checkpoint, then its view state.
+    mounted.version = [7]
+    const written = await first.write({ path, bytes: new ArrayBuffer(2), mode: 'save' })
+    const answer = await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, checkpoint: { origin: 'kit', label: 'V1' } })
+    expect(answer).toMatchObject({ checkpoint: { origin: 'kit', label: 'V1', version: 'Bw==', available: true } })
+    await first.viewState!.write({ path, state: { v: 1, page: 2 } })
+    // The host's own checkpoint at a later version.
+    mounted.version = [8]
+    expect(await window.devHost.recordCheckpoint({ origin: 'save' })).toMatchObject({ origin: 'save', version: 'CA==' })
+    // Reloaded: the file as saved, its replica, checkpoints and view state.
+    await window.devHost.reload()
+    const again = mounted.calls[3]!.options
+    expect(again.document).toMatchObject({ path, version: '2' })
+    expect(again.document.bytes!.byteLength).toBe(2)
+    expect(await again.handlers.replicaRead!({ path })).toMatchObject({ fileStamp: '2' })
+    const listed = await again.handlers.checkpoints!.list({ path })
+    expect(listed.checkpoints.map((checkpoint) => [checkpoint.origin, checkpoint.available])).toEqual([['save', true], ['kit', true]])
+    expect(await again.handlers.viewState!.read({ path })).toEqual({ state: { v: 1, page: 2 } })
+    // Opened alone: no replica, its checkpoints no longer reached; the person's view state stays.
+    await window.devHost.open(path, new ArrayBuffer(1))
+    expect(window.devHost.history.replica(path)).toBeNull()
+    expect(window.devHost.history.checkpoints(path).map((checkpoint) => checkpoint.available)).toEqual([false, false])
+    expect(window.devHost.history.viewState(path)).toEqual({ state: { v: 1, page: 2 } })
   })
 
   it('serves no KitFiles without kitFiles', async () => {

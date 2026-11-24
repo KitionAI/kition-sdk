@@ -1306,6 +1306,15 @@ that version.
   `listCheckpoints`, `updateCheckpoint`, `deleteCheckpoint`, `readCheckpoint`, and
   `useKitDocument`'s `saveCheckpoint`; without the capability they answer `null` and record
   nothing.
+- `@kition/kit-dev-host` serves them for a kit's flow tests (`checkpoints: true` or
+  `?checkpoints=1`, with the replica; `replica: true` or `?replica=1` for the replica alone), in
+  memory for the page load and per workspace path. A checkpoint's `version` is the kit's
+  `replica/version` at the replica write; it keeps each one's snapshot and blobs, so
+  `host/checkpointRead` answers them after later saves. `devHost.reload()` reopens the document as
+  its last save left it and keeps its replica and checkpoints; `devHost.open()` opens a file alone,
+  and a replica of another lineage (the kit opened the file without the stored one) makes earlier
+  checkpoints `available: false`. `devHost.recordCheckpoint({ origin: 'save' })` plays the host's
+  own; `devHost.history.checkpoints(path)` lists them all.
 
 ## 7n. View state (capability `view-state`)
 
@@ -1338,6 +1347,9 @@ camera path).
   checks the value and its size; `@kition/kit-editor` offers `readViewState` (`null` without the
   capability or on any failure) and `writeViewState` (does nothing without it, never throws), and
   `useKitDocument`'s `viewState` option writes the value after each save.
+- `@kition/kit-dev-host` serves it for a kit's flow tests (`viewState: true` or `?view-state=1`):
+  one value per workspace path, in memory for the page load, apart from the replica; it survives
+  `devHost.reload()` and `devHost.open()`, and `devHost.history.viewState(path)` answers it.
 
 ## 8. Libraries
 

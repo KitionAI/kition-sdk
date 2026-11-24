@@ -43,15 +43,26 @@
  * to `devHostWorkspace()`, the Vite plugin from `./vite` (workspaceServer.mjs), under a path of
  * this page load, which answers the engine's ranged reads. The Workspace panel in the top bar
  * lists the files with their sizes and saves each to disk (exports included), and adds files.
+ *
+ * With `replica` (or `?replica=1`) it keeps each document's replica (capability `replica`, protocol
+ * section 7); with `checkpoints` (or `?checkpoints=1`) also its checkpoints (capability
+ * `checkpoints`, section 7m, with the replica); with `viewState` (or `?view-state=1`) the
+ * person's view state of each document (capability `view-state`, section 7n). All three live in
+ * `history` (history.ts), in memory for the page load and per workspace path, apart from the
+ * files: `reload` reopens the document as the workspace holds it, keeping them, while `open`
+ * opens a file alone (its replica is dropped and its checkpoints become unavailable).
+ * `recordCheckpoint` plays the host recording its own (origin `save`, `agent`, ...).
  */
-import { KitRpcError, mountKit, type KitConnection, type KitLinkRef, type KitLinksPickParams, type KitOpenParams, type KitGenerateErrorReason, type KitGenerateParams, type KitGenerateResult, type KitFileGrant, type KitFilesManifest, type KitFilesPickParams, type KitPeerPresence, type KitPresence, type KitSchemaReport, type KitUiConfig, type KitView } from '@kition/kit-host'
+import { KitRpcError, mountKit, type KitCheckpoint, type KitConnection, type KitLinkRef, type KitLinksPickParams, type KitOpenParams, type KitGenerateErrorReason, type KitGenerateParams, type KitGenerateResult, type KitFileGrant, type KitFilesManifest, type KitFilesPickParams, type KitPeerPresence, type KitPresence, type KitSchemaReport, type KitUiConfig, type KitView } from '@kition/kit-host'
 import { checkNoPaths, type PathLeak } from './checkNoPaths'
+import { base64, DevHistory, type DevCheckpointRecord } from './history'
 import { memoryFilesStorage, type MemoryFile } from './memoryFiles'
 import { chooseFiles, devHostStrings, folderOf, WORKSPACE_PATH, WorkspaceFiles, workspacePanel } from './workspace'
 
 export { checkNoPaths, isMimeType, isPathShaped, type PathLeak } from './checkNoPaths'
 export { memoryFilesStorage, type MemoryFile } from './memoryFiles'
 export { WORKSPACE_PATH, WorkspaceFiles, formatSize } from './workspace'
+export { DEV_LABELLED_CHECKPOINTS, DEV_UNLABELLED_CHECKPOINTS, DevHistory, type DevCheckpointRecord } from './history'
 
 type File = MemoryFile
 
@@ -101,6 +112,12 @@ export type DevHostOptions = {
   generate?: boolean
   /** Serves opening (capabilities `open-file` and `open-url`, protocol section 7i), as `?open=1` does. */
   open?: boolean
+  /** Keeps each document's replica (capability `replica`, protocol section 7), as `?replica=1` does. */
+  replica?: boolean
+  /** Keeps each document's replica and its checkpoints (capabilities `replica` and `checkpoints`, section 7m), as `?checkpoints=1` does. */
+  checkpoints?: boolean
+  /** Keeps the person's view state of each document (capability `view-state`, section 7n), as `?view-state=1` does. */
+  viewState?: boolean
 }
 
 /** A `host/open` or `host/openUrl` the editor sent, as `mountKit` checked it. */
@@ -112,8 +129,23 @@ export type DevHost = {
   /** Where the workspace is lent to the engine (`document.lend.root`), or `null` without `lend`. */
   lendRoot: string | null
   connection: () => KitConnection | null
-  /** Opens a file in the editor; `view` is where in it to show first (`document.view`). */
+  /**
+   * Opens a file in the editor, alone: its stored replica is dropped and its checkpoints become
+   * unavailable (its view state stays); `view` is where in it to show first (`document.view`).
+   */
   open: (path: string, bytes: ArrayBuffer, options?: { view?: KitView }) => Promise<void>
+  /**
+   * Reloads the editor on the open document as the workspace holds it (its last save), keeping
+   * its replica, checkpoints and view state, as reopening a file in Kition does.
+   */
+  reload: (options?: { view?: KitView }) => Promise<void>
+  /** The replicas, checkpoints and view states kept (with `replica`, `checkpoints`, `viewState`): `replica(path)`, `checkpoints(path)` (newest first), `viewState(path)`. */
+  history: DevHistory
+  /**
+   * Records a checkpoint as the host does (origin `save`, `agent`, ...) at the open document's
+   * replica version (asked of the kit) and stored replica; `null` without them or without `checkpoints`.
+   */
+  recordCheckpoint: (record: DevCheckpointRecord) => Promise<KitCheckpoint | null>
   /** Every `document/changed` the editor sent. */
   changes: unknown[]
   /** Sends a UI configuration (`ui/configure`) and keeps it for the next open. */
@@ -272,6 +304,10 @@ export function startDevHost(options: DevHostOptions = {}) {
   const opens: DevOpen[] = []
   const linkPickAnswers: ScriptedLinkPick[] = []
   const linkPicks: KitLinksPickParams[] = []
+  const servesCheckpoints = options.checkpoints === true || search.get('checkpoints') === '1'
+  const servesReplica = servesCheckpoints || options.replica === true || search.get('replica') === '1'
+  const servesViewState = options.viewState === true || search.get('view-state') === '1'
+  const history = new DevHistory()
   let documentPath = ''
 
   const personalKey = `kit-dev-host:personal:${location.pathname}`
@@ -320,15 +356,35 @@ export function startDevHost(options: DevHostOptions = {}) {
   }
 
   async function open(path: string, bytes: ArrayBuffer, openOptions: { view?: KitView } = {}) {
-    connection?.close()
-    documentPath = path
     files.set(path, { bytes, version: 1 })
+    // A file opened alone starts without a replica (UI-R3, UI-C5).
+    history.forget(path)
+    await mount(path, openOptions)
+  }
+
+  async function reload(openOptions: { view?: KitView } = {}) {
+    if (!documentPath || !files.has(documentPath)) throw new Error('no document is open')
+    await mount(documentPath, openOptions)
+  }
+
+  async function recordCheckpoint(record: DevCheckpointRecord) {
+    if (!servesCheckpoints || !connection) return null
+    const version = await connection.replica.version().catch(() => null)
+    return version ? history.record(documentPath, base64(version), record) : null
+  }
+
+  async function mount(path: string, openOptions: { view?: KitView }) {
+    connection?.close()
+    connection = null
+    documentPath = path
     status.textContent = `opening ${path}…`
     // The kit announces itself when it loads (protocol section 1); mountKit waits for that.
     frame.src = `${entry}?${Date.now()}`
     const file = files.get(path)!
+    let mine: KitConnection | null = null
+    const kept = history.handlers(path, String(file.version), async () => (mine ? mine.replica.version() : null))
     try {
-      connection = await mountKit(frame, {
+      mine = connection = await mountKit(frame, {
         origin: location.origin,
         host: { name: 'Development host', version: '1' },
         document: {
@@ -410,6 +466,9 @@ export function startDevHost(options: DevHostOptions = {}) {
           ...(servesPresence ? { presence: (presence: KitPresence) => void presences.push(presence) } : {}),
           ...(servesGenerate ? { generate: (params: KitGenerateParams) => generate(params) } : {}),
           ...(servesOpen ? { open: (params: KitOpenParams) => openLink(params), openUrl: (params: { url: string }) => openUrl(params) } : {}),
+          ...(servesReplica ? { replicaRead: kept.replicaRead, replicaWrite: kept.replicaWrite } : {}),
+          ...(servesCheckpoints ? { checkpoints: kept.checkpoints } : {}),
+          ...(servesViewState ? { viewState: kept.viewState } : {}),
         },
         ...(options.kitFiles
           ? {
@@ -484,6 +543,9 @@ export function startDevHost(options: DevHostOptions = {}) {
     lendRoot,
     connection: () => connection,
     open,
+    reload,
+    history,
+    recordCheckpoint,
     changes,
     configure,
     actions,

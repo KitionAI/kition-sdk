@@ -18,6 +18,9 @@
   "dependencies": {
     "@kition/kit-host": "workspace:*"
   },
+  "devDependencies": {
+    "@kition/kit-ui-protocol": "workspace:*"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KitionAI/kition-sdk.git",

@@ -124,6 +124,10 @@ importers:
       '@kition/kit-host':
         specifier: workspace:*
         version: link:../kit-host
+    devDependencies:
+      '@kition/kit-ui-protocol':
+        specifier: workspace:*
+        version: link:../kit-ui-protocol
 
   packages/kit-editor:
     dependencies:

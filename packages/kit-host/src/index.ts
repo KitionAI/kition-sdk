@@ -106,7 +106,10 @@ export type KitHostHandlers = {
   /**
    * With `checkpoints` served, `params.checkpoint` (checked: lengths, origin `kit`) asks to record a
    * checkpoint at the version the replica holds, in the same step; answer it as `{ checkpoint }`.
-   * Without `checkpoints`, `params.checkpoint` never arrives.
+   * At the version of the newest checkpoint, answer that one; when the request has a label, that
+   * checkpoint takes the label and description and becomes the kit's (`origin: "kit"`), whatever
+   * its origin was, so the person can rename or delete it (UI-C1). Without `checkpoints`,
+   * `params.checkpoint` never arrives.
    */
   replicaWrite?: (params: Params<'host/replicaWrite'>) => void | { checkpoint?: KitCheckpoint } | Promise<void | { checkpoint?: KitCheckpoint }>
   /**

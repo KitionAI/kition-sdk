@@ -4,6 +4,19 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The development host serves the replica, checkpoints and view state (Kit UI protocol sections
+  7, 7m and 7n)**, so a kit's browser tests can save a version, reload, and see it: `startDevHost`
+  takes `replica`, `checkpoints` (with the replica) and `viewState` (or `?replica=1`,
+  `?checkpoints=1`, `?view-state=1`) and keeps them in memory for the page load, per workspace
+  path, behind `@kition/kit-host`'s checks (`DevHistory`). A checkpoint names the kit's
+  `replica/version` at the write and keeps that write's snapshot and blobs; labelled ones are kept
+  apart from the thinned unlabelled ones; a replica of another lineage, or a file opened alone with
+  `devHost.open()`, leaves earlier ones `available: false`. `devHost.reload()` reopens the document
+  as its last save left it, `devHost.recordCheckpoint()` plays the host's own checkpoints, and
+  `devHost.history` answers what is kept. Recording at the newest checkpoint's version with a label
+  makes that checkpoint the kit's (`origin: "kit"`), as UI-C1 says, so the person can rename or
+  delete it; `@kition/kit-host`'s handler documentation now says so, and the HTTP host says it keeps
+  no checkpoints (sdk.dev-host.history/store, sdk.dev-host.history/page).
 - **Checkpoints and view state from the host (Kit UI protocol sections 7m and 7n, protocol 1,
   optional capabilities `checkpoints` and `view-state`)**: a file holds no history, so a kit's saved
   versions and record history went away when the document closed, and per-person view state had
@@ -26,7 +39,7 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   write never fails it). `@kition/embed` passes view state through to a `StorageProvider.viewState`
   store and offers no checkpoints; the gateway serves view state from its data folder
   (`<KITION_HOME>/data/<workspace key>/view-state/`, `GET`/`PUT`/`DELETE /api/v1/kits/view-state`)
-  and no checkpoints; the development host serves neither (sdk.ui.checkpoints/host-rules,
+  and no checkpoints; the development host serves both (the entry above) (sdk.ui.checkpoints/host-rules,
   sdk.ui.checkpoints/editor-fallbacks, sdk.ui.view-state/host-rules,
   sdk.ui.view-state/gateway-store, regressions/issue-view-state-outside-content).
 - **The editor's canvas no longer loses a repaint when React takes several refreshes in one

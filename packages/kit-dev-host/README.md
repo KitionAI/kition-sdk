@@ -3,7 +3,8 @@
 A development host for a kit's embedded editor. It mounts the editor in an iframe over the Kit UI
 protocol with an in-memory workspace, so you can run and test a kit without Kition. Kit authors
 load it from the kit's `dev.html`, and flow tests drive it through `window.devHost`. It can also
-serve presence, KitFiles, host generation, opening files, and picking links, each from a script.
+serve presence, KitFiles, host generation, opening files, and picking links, each from a script,
+and keep each document's replica, checkpoints and view state.
 An ES module with type declarations, for the browser.
 
 ```sh
@@ -56,6 +57,38 @@ server of the kit's own:
   the computer beside the document.
 
 The page's own strings are in en-US and zh-CN (`?locale=`, else the browser's language).
+
+### Replica, checkpoints and view state
+
+`replica: true` keeps each document's replica (Kit UI protocol section 7), `checkpoints: true` its
+checkpoints with it (section 7m: saved versions, record history), and `viewState: true` the
+person's view state (section 7n); `?replica=1`, `?checkpoints=1` and `?view-state=1` do the same.
+All three are kept in memory for the page load, per workspace path, apart from the files.
+`@kition/kit-host` checks every rule (lengths, origins, read-only documents, sizes) before the
+store runs. A checkpoint's `version` is the kit's replica version at the save that recorded it; the
+store keeps that save's snapshot and blobs, so `host/checkpointRead` answers them later.
+
+- `devHost.reload()` reopens the document as its last save left it, keeping its replica,
+  checkpoints and view state: a test saves a version, reloads, and finds it.
+- `devHost.open(path, bytes)` opens a file alone: its replica is dropped and its checkpoints stay
+  listed with `available: false`, as when the kit opens a file without its stored replica.
+- `devHost.recordCheckpoint({ origin: 'save' })` records a host checkpoint (which the kit may not
+  change) at the kit's current version; saving a label at that version makes it the kit's.
+- `devHost.history` answers what is kept: `replica(path)`, `checkpoints(path)` (newest first),
+  `viewState(path)`.
+
+```ts
+// src/devHost.ts
+startDevHost({ sample: './sample/Poster.kdesign', checkpoints: true, viewState: true })
+
+// In the editor: useKitDocument / useKitSession from @kition/sdk/editor
+const saved = await session.saveCheckpoint({ label: 'Sent to print' }) // null without the capability
+const { checkpoints } = (await listCheckpoints(host.files, path, { labelled: true })) ?? { checkpoints: [] }
+
+// In a Playwright test
+await page.evaluate(() => window.devHost.reload())
+const kept = await page.evaluate(() => window.devHost.history.checkpoints('Poster.kdesign'))
+```
 
 Five subpaths run in Node:
 
