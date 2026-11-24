@@ -70,6 +70,14 @@ store keeps that save's snapshot and blobs, so `host/checkpointRead` answers the
 
 - `devHost.reload()` reopens the document as its last save left it, keeping its replica,
   checkpoints and view state: a test saves a version, reloads, and finds it.
+- `devHost.reopenChanged(bytes)` changes the open document's file outside the editor, as another
+  program's save would (the editor closes, the file takes `bytes` at a new version), and reopens it
+  with its replica, checkpoints and view state kept. The host hands the stored replica over under
+  its earlier `fileStamp`; the kit decides (Kit UI protocol UI-R1). A kit whose engine merges a
+  newer file into its stored replica (`replicaMergesFile` in `useKitDocument` / `useKitSession`)
+  tells the dev host too, with `replicaMergesFile: true` or `?replica-merges-file=1`: its next
+  replica then continues the lineage, and the checkpoints stay available. Without it the kit's
+  next replica is another lineage and earlier checkpoints become `available: false`.
 - `devHost.open(path, bytes)` opens a file alone: its replica is dropped and its checkpoints stay
   listed with `available: false`, as when the kit opens a file without its stored replica.
 - `devHost.recordCheckpoint({ origin: 'save' })` records a host checkpoint (which the kit may not
@@ -88,6 +96,10 @@ const { checkpoints } = (await listCheckpoints(host.files, path, { labelled: tru
 // In a Playwright test
 await page.evaluate(() => window.devHost.reload())
 const kept = await page.evaluate(() => window.devHost.history.checkpoints('Poster.kdesign'))
+
+// A note changed outside the editor (dev page: startDevHost({ checkpoints: true, replicaMergesFile: true }))
+await page.evaluate((text) => window.devHost.reopenChanged(new TextEncoder().encode(text).buffer), changedMarkdown)
+const still = await page.evaluate(() => window.devHost.history.checkpoints('Notes.md'))
 ```
 
 Five subpaths run in Node:

@@ -4,6 +4,17 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A file changed outside keeps its stored replica when the kit's engine merges it (Kit UI
+  protocol UI-R1, owner 2026-11-24; protocol stays 1).** The kit decides, never the host: the host
+  answers `host/replicaRead` whatever the replica's `fileStamp` (a managed room's earlier
+  generation aside); a kit that declares `replicaMergesFile` opens with it and its engine records
+  the file's changes as one `import` change, so the lineage and every checkpoint continue (UI-C5);
+  any other kit keeps the stamp gate. Data model 7.1, 7.2 and 7.3, the Kit Process Protocol's
+  section 5.5 and check 14 say the same. The development host no longer decides lineage by the
+  stamp for such a kit (`replicaMergesFile` or `?replica-merges-file=1`), and
+  `devHost.reopenChanged(bytes)` changes the open document's file outside the editor and reopens
+  it with the replica handed over, for a kit's "changed outside" browser test
+  (sdk.dev-host.history/store, sdk.dev-host.history/page).
 - **The development host serves the replica, checkpoints and view state (Kit UI protocol sections
   7, 7m and 7n)**, so a kit's browser tests can save a version, reload, and see it: `startDevHost`
   takes `replica`, `checkpoints` (with the replica) and `viewState` (or `?replica=1`,

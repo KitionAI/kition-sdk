@@ -1,8 +1,9 @@
 /**
  * A document's KDM replica kept by the host next to its file (the Kit UI protocol's `replica`
  * capability), for files that cannot hold a replica themselves, such as PSD. The file stays the
- * document: a replica only counts while the file is the one it was saved with, so every failure
- * here degrades to opening the file plainly, never to losing or blocking it.
+ * document: a replica counts while the file is the one it was saved with, or, for an engine that
+ * merges a newer file into it, whatever the file (UI-R1); every failure here degrades to opening
+ * the file plainly, never to losing or blocking it.
  */
 import type { KitCheckpoint, KitCheckpointRequest, KitHost, KitViewState } from './kitHost'
 import type { KitModuleReplica } from './kitModule'
@@ -13,7 +14,9 @@ import type { KitModuleReplica } from './kitModule'
  * unknown). Otherwise (nothing stored, the file changed elsewhere since, the host failed) none:
  * the file opens plainly, its replica is made anew on the first edit, and the next save replaces
  * the stored one. `mergesFile` is for an engine that merges what the file holds into an older
- * replica when it opens: the stored replica opens whatever the file's stamp.
+ * replica when it opens, as one `import` change (`replicaMergesFile`): the stored replica opens
+ * whatever the file's stamp. The kit decides here; the host hands its replica over whatever the
+ * stamp (UI-R1).
  */
 export async function replicaToOpen(host: KitHost, path: string, stamp: string | null, mergesFile = false): Promise<KitModuleReplica | null> {
   if (!host.replicaRead) return null

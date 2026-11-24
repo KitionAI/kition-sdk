@@ -10,7 +10,9 @@ intent: >-
   refuses an unknown before as not-found, and thins only unlabelled checkpoints; an empty field
   removes it, and too-long, unknown ids and read-only documents are refused; a replica of another
   lineage or a file opened alone leaves earlier checkpoints listed as unavailable and refuses
-  reading them as history-missing; view state is kept whole per document apart from the replica,
+  reading them as history-missing, while for a kit that merges a newer file into its stored
+  replica (replicaMergesFile) the replica is handed over under its earlier stamp and the lineage
+  and its checkpoints continue (UI-R1); view state is kept whole per document apart from the replica,
   null deletes it, a value over the limit is refused as too-large and nothing is kept, and a
   read-only document keeps it too.
 layer: gate

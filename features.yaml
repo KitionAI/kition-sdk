@@ -2309,7 +2309,7 @@ features:
       - sdk.dev-host.workspace/served-ranges
     since: "2026-11-23"
   - id: sdk.dev-host.history
-    title: "The dev host keeps each document's replica, its checkpoints and the person's view state (replica, checkpoints and viewState options, or ?replica=1, ?checkpoints=1, ?view-state=1), in memory per page load and workspace path behind kit-host's checks, so a kit's browser test saves a version, reloads (devHost.reload) and reads it back; a labelled save at the newest checkpoint's version makes it the kit's"
+    title: "The dev host keeps each document's replica, its checkpoints and the person's view state (replica, checkpoints and viewState options, or ?replica=1, ?checkpoints=1, ?view-state=1), in memory per page load and workspace path behind kit-host's checks, so a kit's browser test saves a version, reloads (devHost.reload) and reads it back, or changes the file outside the editor and reopens it with the stored replica handed over (devHost.reopenChanged; replicaMergesFile or ?replica-merges-file=1 for a kit whose engine merges the file keeps the lineage and its checkpoints, UI-R1); a labelled save at the newest checkpoint's version makes it the kit's"
     dimension: [function, data-safety]
     priority: P1
     status: has

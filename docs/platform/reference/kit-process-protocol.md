@@ -395,10 +395,13 @@ when its engine keeps a replica (`open_with_replica`, the features
   version as `files.stat` answers it. A replica larger than the message
   limit (section 2) is answered `null` and the kit opens the file plainly.
 - **On open.** In `document.open`, a kit whose engine keeps a replica asks
-  `replica.read` for the document's handle and follows UI-R1: it opens the
-  file with the replica only when `fileStamp` equals the file's version,
-  else plainly, and a missing, stale, or damaged replica never stops the
-  file from opening.
+  `replica.read` for the document's handle and follows UI-R1: the host
+  answers the replica it keeps whatever its `fileStamp`; a kit whose engine
+  merges a newer file into its replica opens with it whatever the stamp,
+  recording what the file changed as one `import` change, and any other
+  opens the file with the replica only when `fileStamp` equals the file's
+  version, else plainly; a missing, stale, or damaged replica never stops
+  the file from opening.
 - **On save.** After `document.save` (and `document.saveAs`, for the new
   file's handle) committed, the kit writes the replica taken with the saved
   bytes under the version the commit answered (UI-R2); a failed
@@ -933,8 +936,10 @@ feature or capability or keeps the replica they name, and are skipped otherwise:
     `replica`: `document.open` asks `replica.read` for the document's handle
     and opens with a replica whose `fileStamp` matches the file's version
     (the reopened document keeps the replica's `docId` and comment
-    threads); with a stale, damaged, or missing (`null`) replica it opens
-    the file plainly; `document.save`, and `document.saveAs` for the new
+    threads); with a stale one, a kit whose engine merges a newer file
+    opens with it too (the same `docId` and threads, the file's changes as
+    one `import` change) and any other opens the file plainly; with a
+    damaged or missing (`null`) replica it opens the file plainly; `document.save`, and `document.saveAs` for the new
     file's handle, are followed by `replica.write` for that handle with the
     replica taken with the saved bytes and the committed version; a failing
     `replica.write` leaves the save successful; and against a host without

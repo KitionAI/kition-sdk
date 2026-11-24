@@ -195,6 +195,24 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     expect(history.replica(PATH)).toBeNull()
     expect(history.checkpoints(PATH).map((checkpoint) => checkpoint.available)).toEqual([false, false])
   })
+
+  it('hands the stored replica over whatever its stamp, and a kit that merges the file keeps its lineage and checkpoints (UI-R1)', async () => {
+    const history = new DevHistory({ replicaMergesFile: true })
+    const first = await open(history, '1')
+    first.state.version = bytes(9)
+    const made = (await save(first.kit, '2', 1, { label: 'Kept' })).checkpoint!
+    first.connection.close()
+    // The file changed outside (stamp 5, the replica was saved under 2): the host still answers
+    // the stored replica, and the kit's engine merges the file into it as one import change.
+    const changed = await open(history, '5')
+    expect(await changed.kit.request('host/replicaRead', { path: PATH })).toMatchObject({ fileStamp: '2' })
+    changed.state.version = bytes(10)
+    const next = (await save(changed.kit, '6', 2, { label: 'After the import' })).checkpoint!
+    const listed = (await changed.kit.request('host/checkpointList', { path: PATH })).checkpoints
+    expect(listed.map((checkpoint) => [checkpoint.id, checkpoint.available])).toEqual([[next.id, true], [made.id, true]])
+    expect((await changed.kit.request('host/checkpointRead', { path: PATH, id: made.id })).checkpoint.label).toBe('Kept')
+    changed.connection.close()
+  })
 })
 
 describe('dev host view state (capability view-state)', () => {

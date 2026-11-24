@@ -10,7 +10,11 @@
  * (`replica/version`, base64). The store keeps the snapshot and blobs of each write that recorded
  * one, so `host/checkpointRead` answers them (and `state: true` the snapshot) even after later
  * writes. A replica of another lineage (the kit opened the file without the stored replica, or
- * the dev host opened a file alone) makes every earlier checkpoint `available: false`.
+ * the dev host opened a file alone) makes every earlier checkpoint `available: false`. The store
+ * hands the stored replica over whatever its `fileStamp` (UI-R1): the kit decides whether it opens
+ * with it. A kit whose engine merges a newer file into it (`replicaMergesFile`) continues its
+ * lineage after the file changed outside, so its checkpoints stay available; the dev host cannot
+ * read KDM bytes, so the kit's dev page says so (`new DevHistory({ replicaMergesFile: true })`).
  */
 import { KitRpcError, KIT_CHECKPOINT_ORIGIN, type KitCheckpoint, type KitHostHandlers, type KitViewState, type StoredReplica } from '@kition/kit-host'
 
@@ -35,6 +39,17 @@ export function base64(bytes: ArrayBuffer) {
   return btoa(text)
 }
 
+/** How the kit opens its stored replica (UI-R1). */
+export type DevHistoryOptions = {
+  /**
+   * The kit's engine merges a newer file into its stored replica (`@kition/kit-editor`'s
+   * `replicaMergesFile`): it opens with the stored replica whatever its `fileStamp`, so its next
+   * replica continues the same lineage. Off: a stored replica saved under another stamp is not
+   * opened, and the kit's next replica is another lineage.
+   */
+  replicaMergesFile?: boolean
+}
+
 /** The replica, its checkpoints and the view state of every document of one dev-host page load. */
 export class DevHistory {
   private replicas = new Map<string, StoredReplica & { lineage: number }>()
@@ -45,6 +60,11 @@ export class DevHistory {
   private lastTime = 0
   /** The clock checkpoints are stamped with (milliseconds since the Unix epoch). */
   now: () => number = () => Date.now()
+  private readonly mergesFile: boolean
+
+  constructor(options: DevHistoryOptions = {}) {
+    this.mergesFile = options.replicaMergesFile === true
+  }
 
   private lineage(path: string) {
     return this.lineages.get(path) ?? 0
@@ -137,13 +157,16 @@ export class DevHistory {
   }
 
   /**
-   * The `mountKit` handlers of one open document. `stamp` is the file's stamp when it opened: the
-   * kit opens with the stored replica only when that replica was saved under it (UI-R1), so
+   * The `mountKit` handlers of one open document. `replicaRead` answers the stored replica whatever
+   * its `fileStamp`: the kit decides (UI-R1). `stamp` is the file's stamp when it opened: a kit that
+   * merges a newer file into its stored replica (`replicaMergesFile`) opens with it anyway and
+   * continues its lineage; any other opens with it only when it was saved under `stamp`, so
    * otherwise its first replica write starts a new lineage. `version` asks the kit for its replica
    * version (`replica/version`); a checkpoint is recorded only when it answers.
    */
   handlers(path: string, stamp: string, version: () => Promise<ArrayBuffer | null>): Required<Pick<KitHostHandlers, 'replicaRead' | 'replicaWrite' | 'checkpoints' | 'viewState'>> {
-    let continues = this.replicas.get(path)?.fileStamp === stamp
+    const stored = this.replicas.get(path)
+    let continues = Boolean(stored && (this.mergesFile || stored.fileStamp === stamp))
     const entry = (wanted: string, id: string) => {
       const found = (this.entries.get(wanted) ?? []).find((candidate) => candidate.checkpoint.id === id)
       // mountKit found it a moment ago: gone now is someone else's change.

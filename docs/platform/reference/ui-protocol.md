@@ -574,11 +574,26 @@ version stamp as `host/stamp` answers it. `since` may be empty (every change).
 or `null` when it has none (the engine made its replica but no room exists
 for it yet, or the engine does not keep one at all).
 
-- **UI-R1** The kit opens a file with its stored replica only when the
-  replica's `fileStamp` equals the stamp of the file it opens; otherwise it
-  opens the file plainly and makes a new replica on the first edit. The file
-  is always the document; a missing, stale, or damaged replica MUST NOT stop
-  it from opening.
+- **UI-R1** The kit, not the host, decides whether a file opens with its
+  stored replica. The host MUST answer `host/replicaRead` with the replica it
+  keeps for `path` whatever its `fileStamp`, also when the file changed
+  outside the host since (the one exception: a co-edited document of a
+  managed room answers `null` for a replica of an earlier file generation,
+  [managed-collab.md](../managed-collab.md) section 1.3). A kit whose engine
+  merges a newer file into its stored replica (`open_with_replica`,
+  `openReplica`) declares so (in `@kition/kit-editor`, `replicaMergesFile`)
+  and opens the file with the stored replica whatever its `fileStamp`: when
+  the stamps differ, its engine records what the file changed as one `system`
+  change labelled `import` ([data model](../data-model.md) sections 7.1 and
+  7.3), so the document keeps its identity, comment threads and history, and
+  the replica it writes next continues the stored one's lineage: its
+  checkpoints, labelled ones included, stay available (UI-C5). Any other kit
+  opens with the stored replica only when its `fileStamp` equals the stamp of
+  the file it opens; otherwise it opens the file plainly and makes a new
+  replica on the first edit, another lineage, whose history starts over. The
+  file is always the document; a missing, stale, or damaged replica MUST NOT
+  stop it from opening, and a stored replica the engine cannot merge opens
+  the file plainly.
 - **UI-R2** After a save (`host/write`), the kit stores the replica taken with
   the saved bytes, never a later one, under the stamp `host/write` answered. A
   failed `host/replicaWrite` MUST NOT fail the save.
@@ -1290,7 +1305,10 @@ that version.
   replica's snapshot at that version (`snapshot`), for a kit whose replica does not reach it.
 - **UI-C5** When the store no longer reaches a checkpoint's version (the replica was replaced by
   one of another lineage, or the file was opened alone), the checkpoint stays listed with
-  `available: false`, and `host/checkpointRead` refuses it (`history-missing`). A labelled
+  `available: false`, and `host/checkpointRead` refuses it (`history-missing`). The host tells
+  lineage by the replica the kit writes (whether it continues the stored one), never by the
+  file's stamp: a file changed outside and merged into the stored replica as one `import` change
+  (UI-R1) continues the lineage, and every checkpoint stays available. A labelled
   checkpoint is never dropped to make room for others: the host thins unlabelled ones, and keeps
   its own, separate limit for labelled ones.
 - **UI-C6** Labels are at most 200 characters (`CHECKPOINT_LABEL_LIMIT`) and descriptions at most
@@ -1311,9 +1329,13 @@ that version.
   memory for the page load and per workspace path. A checkpoint's `version` is the kit's
   `replica/version` at the replica write; it keeps each one's snapshot and blobs, so
   `host/checkpointRead` answers them after later saves. `devHost.reload()` reopens the document as
-  its last save left it and keeps its replica and checkpoints; `devHost.open()` opens a file alone,
-  and a replica of another lineage (the kit opened the file without the stored one) makes earlier
-  checkpoints `available: false`. `devHost.recordCheckpoint({ origin: 'save' })` plays the host's
+  its last save left it and keeps its replica and checkpoints; `devHost.reopenChanged(bytes)`
+  changes the file outside the editor (a new version) and reopens it, handing the stored replica
+  over under its earlier stamp (UI-R1); `devHost.open()` opens a file alone, and a replica of
+  another lineage (the kit opened the file without the stored one) makes earlier checkpoints
+  `available: false`. The dev host reads no KDM bytes, so a kit whose engine merges the file says
+  so (`replicaMergesFile: true` or `?replica-merges-file=1`): its replica after `reopenChanged`
+  continues the lineage and the checkpoints stay available. `devHost.recordCheckpoint({ origin: 'save' })` plays the host's
   own; `devHost.history.checkpoints(path)` lists them all.
 
 ## 7n. View state (capability `view-state`)

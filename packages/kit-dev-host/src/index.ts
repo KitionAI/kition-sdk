@@ -51,7 +51,11 @@
  * `history` (history.ts), in memory for the page load and per workspace path, apart from the
  * files: `reload` reopens the document as the workspace holds it, keeping them, while `open`
  * opens a file alone (its replica is dropped and its checkpoints become unavailable).
- * `recordCheckpoint` plays the host recording its own (origin `save`, `agent`, ...).
+ * `reopenChanged` changes the open document's file outside the editor (a new version, as another
+ * program's save) and reopens it with its replica kept, which the kit then opens or not (UI-R1);
+ * `replicaMergesFile` (or `?replica-merges-file=1`) says the kit's engine merges a newer file into
+ * its stored replica, so its checkpoints stay available after that. `recordCheckpoint` plays the
+ * host recording its own (origin `save`, `agent`, ...).
  */
 import { KitRpcError, mountKit, type KitCheckpoint, type KitConnection, type KitLinkRef, type KitLinksPickParams, type KitOpenParams, type KitGenerateErrorReason, type KitGenerateParams, type KitGenerateResult, type KitFileGrant, type KitFilesManifest, type KitFilesPickParams, type KitPeerPresence, type KitPresence, type KitSchemaReport, type KitUiConfig, type KitView } from '@kition/kit-host'
 import { checkNoPaths, type PathLeak } from './checkNoPaths'
@@ -62,7 +66,7 @@ import { chooseFiles, devHostStrings, folderOf, WORKSPACE_PATH, WorkspaceFiles, 
 export { checkNoPaths, isMimeType, isPathShaped, type PathLeak } from './checkNoPaths'
 export { memoryFilesStorage, type MemoryFile } from './memoryFiles'
 export { WORKSPACE_PATH, WorkspaceFiles, formatSize } from './workspace'
-export { DEV_LABELLED_CHECKPOINTS, DEV_UNLABELLED_CHECKPOINTS, DevHistory, type DevCheckpointRecord } from './history'
+export { DEV_LABELLED_CHECKPOINTS, DEV_UNLABELLED_CHECKPOINTS, DevHistory, type DevCheckpointRecord, type DevHistoryOptions } from './history'
 
 type File = MemoryFile
 
@@ -118,6 +122,14 @@ export type DevHostOptions = {
   checkpoints?: boolean
   /** Keeps the person's view state of each document (capability `view-state`, section 7n), as `?view-state=1` does. */
   viewState?: boolean
+  /**
+   * The kit's engine merges a newer file into its stored replica (`@kition/kit-editor`'s
+   * `replicaMergesFile`, Kit UI protocol UI-R1), as `?replica-merges-file=1` says: after its file
+   * changed outside (`reopenChanged`) the kit opens with the stored replica, so the replica's
+   * lineage continues and its checkpoints stay available. Off: they become unavailable at the kit's
+   * next replica write.
+   */
+  replicaMergesFile?: boolean
 }
 
 /** A `host/open` or `host/openUrl` the editor sent, as `mountKit` checked it. */
@@ -139,6 +151,15 @@ export type DevHost = {
    * its replica, checkpoints and view state, as reopening a file in Kition does.
    */
   reload: (options?: { view?: KitView }) => Promise<void>
+  /**
+   * Changes the open document's file outside the editor, as another program saving it would: the
+   * editor closes, the workspace takes `bytes` at a new version, and the editor reopens it with its
+   * replica, checkpoints and view state kept. The host hands the stored replica over although its
+   * `fileStamp` names the earlier version; the kit decides (UI-R1): a kit whose engine merges the
+   * file records the difference as one `import` change and keeps its history, any other opens the
+   * file plainly.
+   */
+  reopenChanged: (bytes: ArrayBuffer, options?: { view?: KitView }) => Promise<void>
   /** The replicas, checkpoints and view states kept (with `replica`, `checkpoints`, `viewState`): `replica(path)`, `checkpoints(path)` (newest first), `viewState(path)`. */
   history: DevHistory
   /**
@@ -307,7 +328,7 @@ export function startDevHost(options: DevHostOptions = {}) {
   const servesCheckpoints = options.checkpoints === true || search.get('checkpoints') === '1'
   const servesReplica = servesCheckpoints || options.replica === true || search.get('replica') === '1'
   const servesViewState = options.viewState === true || search.get('view-state') === '1'
-  const history = new DevHistory()
+  const history = new DevHistory({ replicaMergesFile: options.replicaMergesFile === true || search.get('replica-merges-file') === '1' })
   let documentPath = ''
 
   const personalKey = `kit-dev-host:personal:${location.pathname}`
@@ -364,6 +385,16 @@ export function startDevHost(options: DevHostOptions = {}) {
 
   async function reload(openOptions: { view?: KitView } = {}) {
     if (!documentPath || !files.has(documentPath)) throw new Error('no document is open')
+    await mount(documentPath, openOptions)
+  }
+
+  async function reopenChanged(bytes: ArrayBuffer, openOptions: { view?: KitView } = {}) {
+    const file = documentPath ? files.get(documentPath) : undefined
+    if (!file) throw new Error('no document is open')
+    // Closed first, so the editor does not follow the change itself while it is still open.
+    connection?.close()
+    connection = null
+    files.set(documentPath, { bytes: bytes.slice(0), version: file.version + 1 })
     await mount(documentPath, openOptions)
   }
 
@@ -544,6 +575,7 @@ export function startDevHost(options: DevHostOptions = {}) {
     connection: () => connection,
     open,
     reload,
+    reopenChanged,
     history,
     recordCheckpoint,
     changes,

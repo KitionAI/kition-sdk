@@ -136,7 +136,7 @@ export type KitSessionOptions = {
   agentLeaseScope?: (command: string, params: Record<string, unknown>, engine: KitEngine) => string | null | Promise<string | null>
   /** One renewal's length for an agent step's lease (milliseconds, `host/leaseAcquire`'s `ttl`); the host's own by default. */
   agentLeaseTtl?: number
-  /** The kit's engine merges the file into an older stored replica when it opens (`KitDocumentOptions.replicaMergesFile`). */
+  /** The kit declares that its engine merges a newer file into its stored replica when it opens, keeping its history (UI-R1, `KitDocumentOptions.replicaMergesFile`). */
   replicaMergesFile?: boolean
   /**
    * Takes a change of the file on disk into the open document while it has no unsaved edits

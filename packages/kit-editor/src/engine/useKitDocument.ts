@@ -129,10 +129,13 @@ export type KitDocumentOptions = {
   readOnly?: boolean
   canComment?: boolean
   /**
-   * The kit's engine merges what the file holds into an older stored replica when it opens (as
-   * the note's does): the stored replica opens whatever the file's stamp, so a document changed
-   * on disk while it was closed keeps its comments and history. Off: a stored replica opens only
-   * with the file it was saved with.
+   * The kit's declaration that its engine merges a newer file into its stored replica when it
+   * opens (`open_with_replica`, `openReplica`; the note's does), Kit UI protocol UI-R1: the host's
+   * stored replica opens with the file whatever its `fileStamp`, and when the file changed outside
+   * since, the engine records the difference as one `system` change labelled `import`. The
+   * document keeps its id, comment threads and history, and its checkpoints stay available (the
+   * replica's lineage continues). Off: a stored replica opens only with the file it was saved
+   * with; after a change outside, the file opens plainly and its history starts over.
    */
   replicaMergesFile?: boolean
   /**

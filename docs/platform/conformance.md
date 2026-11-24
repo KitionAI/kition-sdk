@@ -72,7 +72,7 @@ section 5.5, H18). Neither side is implemented yet.
 
 | Who | Test | Rules |
 | --- | --- | --- |
-| Kits, headless | `kition-kit-conformance` check 14 of the Kit Process Protocol (section 14), for a kit whose engine keeps a replica: the stored replica read on open and used only when its `fileStamp` matches; a stale, damaged, or missing replica opens the file plainly; the replica of the saved bytes written after `document.save` and `document.saveAs` under the committed version; a failing `replica.write` never fails the save; no `replica.*` request to a host that does not serve it | UI-R1, UI-R2 |
+| Kits, headless | `kition-kit-conformance` check 14 of the Kit Process Protocol (section 14), for a kit whose engine keeps a replica: the stored replica read on open and used when its `fileStamp` matches, or whatever it is when the kit's engine merges a newer file (one `import` change); otherwise a stale replica, and a damaged or missing one, opens the file plainly; the replica of the saved bytes written after `document.save` and `document.saveAs` under the committed version; a failing `replica.write` never fails the save; no `replica.*` request to a host that does not serve it | UI-R1, UI-R2 |
 | Hosts | In Chromium and WebKit and headless: a comment thread added in the page is seen by a headless kit opening the same file, and one added headless is seen by the page, with the same `docId`; an agent's draft beside the file forks that replica and its merge keeps the `docId`; the replica follows a rename or move and a copy starts without one; `replica.read` and `replica.write` refused for any handle the host did not mint for the connection | H18, UI-R3, A27 |
 
 ## `KitPointer 1.0`

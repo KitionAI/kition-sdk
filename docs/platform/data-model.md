@@ -558,9 +558,15 @@ explicitly read-only rather than silently drop it.**
   A store has one writer at a time (a lock file).
 - KDM state is saved continuously; "Save" means exporting the exchange file.
   A new native format can use the KDM container directly, with no export.
-- File binding: when the file changes outside Kition, the new file is
-  imported into a temporary document and the difference applied as one
-  `import` transaction; **unsaved local edits are never lost**.
+- File binding: when the file changes outside Kition, a kit whose engine
+  merges a newer file into its stored replica (it declares so; Kit UI
+  protocol UI-R1) opens the stored replica with the new file, and the
+  difference is applied to it as one `system` transaction labelled `import`
+  (section 7.3, step 4), keeping the document's id, comment threads and
+  history; **unsaved local edits are never lost**. The host hands the stored
+  replica over whatever the file's stamp; the kit decides. A kit whose engine
+  cannot merge opens the changed file plainly, and its history starts over
+  as another lineage (section 7.2).
 
 ### 7.2 History
 
@@ -573,7 +579,9 @@ explicitly read-only rather than silently drop it.**
   and reads the blobs (or, on request, a snapshot) at a version (Kit UI protocol section 7m).
   Labelled checkpoints are never thinned; unlabelled ones are, under a cap of their own. When
   the stored replica is replaced by one of another lineage, labelled checkpoints stay listed as
-  unavailable. There are no branches.
+  unavailable. A file changed outside and merged into the stored replica as one `import` change
+  (section 7.1) continues the lineage: every checkpoint stays available. The host tells lineage
+  by the replica written, never by the file's stamp. There are no branches.
 - A person's **view state** of a document (where they were, zoom, open panels) is neither content
   nor history: the host keeps it per document and per person or device in its own app data, never
   in the workspace, the replica, or the file (Kit UI protocol section 7n).
@@ -632,7 +640,9 @@ What a kit whose file holds its replica does:
    (`Replica::reaches`); versions before the file are `history-missing`.
 4. **Open, with the host's stored replica** (`openReplica`, the store of
    `<workspace>/.kition/docs/<docId>/`): `kition_kit::session::take_file(&mut
-   stored, &file)`. When the stored replica has the file's version it does
+   stored, &file)`. The host hands the stored replica over whatever its file
+   stamp, and a kit whose engine does this declares so (Kit UI protocol
+   UI-R1) and opens with it also when the file changed outside since. When the stored replica has the file's version it does
    nothing; when the file's history reaches the stored replica's version it
    imports the file's changes; otherwise (the file was saved from changes the
    store lacks: another machine, a store that is gone) it writes the file's
