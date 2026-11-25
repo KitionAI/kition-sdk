@@ -51,3 +51,21 @@ jobs:
           --name fixture.grid --fixture examples/grid-kit/fixture.grid
           --edit '{"command":"grid.set","params":{"x":2,"y":3,"grey":7}}'
       - run: node tools/check-manifest.mjs examples/grid-kit/kit.json --module target/grid-kit-pkg
+  # kit-editor in a browser: the typing kit under kit-dev-host (packages/kit-editor/browser).
+  editor-browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+      - name: Check out Kition Tessera beside the SDK
+        run: |
+          git clone --depth 1 https://github.com/KitionAI/kition-tessera "$GITHUB_WORKSPACE/../kition-tessera"
+          cd "$GITHUB_WORKSPACE/../kition-tessera" && pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:editor:keys

@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-keys-under-host-calls
+feature: sdk.editor.typing-focus
+intent: >-
+  A key the person presses is never dropped, reordered or overwritten while the host calls the
+  editor: with two loops calling ai/inspect, ai/version, ai/changes, model/describe, model/batch,
+  document/check and ai/run reads without pause (the members modelReply, changesSince,
+  modelDescribe and modelBatch sharing the worker's one queue with the keys), 300 typed
+  characters, 50 Enter and Backspace pairs and 300 Shift+ArrowLeft pressed as fast as Playwright
+  can each reach the engine once and in order, on Chromium and WebKit, with no engine cost and
+  with slow host members and tool events. Seen in Kition Sheet (FX-C6: a cell typed after a
+  function was chosen ended empty) and Kition Note (one of 21 Shift+ArrowLeft without effect) once
+  their engines exported those members.
+layer: gate
+source: { kind: issue, from: Kition Sheet FX-C6 and Kition Note comments.mjs in kit CI, license: owned }
+input: []
+steps:
+  - exec: { cmd: [node, packages/kit-editor/browser/keys.mjs, all, "12"] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 1200
+since: "2026-11-25"

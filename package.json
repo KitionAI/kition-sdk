@@ -15,6 +15,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p examples/embed-app/tsconfig.json && tsc --noEmit -p examples/gateway-page/tsconfig.json && tsc --noEmit -p plugins/deepseek-harness/kition-kits/tsconfig.json && tsc --noEmit -p plugins/deepseek-harness/kition-kits/test/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json && tsc --noEmit -p cases/regressions/issue-consumer-schema-spread/tsconfig.json --strict false",
     "test": "vitest run",
+    "test:editor:keys": "node packages/kit-editor/browser/keys.mjs all 12",
     "example:embed": "pnpm --filter @kition/embed --filter @kition/script build && node examples/embed-app/serve.mjs",
     "test:sdk:example": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-node.mjs",
     "test:sdk:headless": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-headless.mjs",
