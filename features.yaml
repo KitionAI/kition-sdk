@@ -168,8 +168,8 @@ features:
     dimension: [function, collab]
     priority: P1
     status: has
-    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/tests/undo_nothing.rs, docs/platform/data-model.md]
-    cases: [sdk.model.undo-outcome/steps-taken]
+    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/tests/undo_nothing.rs, crates/kition-kit/src/session/mod.rs, crates/kition-kit/tests/session.rs, docs/platform/data-model.md]
+    cases: [sdk.model.undo-outcome/steps-taken, sdk.model.undo-outcome/session-steps]
     since: "2026-11-24"
   - id: sdk.model.change-list-reader
     title: "@kition/kdm reads a change list (readChangeList): each change's number, actor, origin and operations"

@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.undo-outcome/session-steps
+feature: sdk.model.undo-outcome
+intent: >-
+  A kit on KitSession reads which steps an undo or a redo took (KitSession::undo_in_outcome, redo_in_outcome: the UndoOutcome and the damage), so the undo labels it keeps beside the replica's history follow it: an undo that passes over a step whose objects another session deleted and takes back the one below it says two steps moved. undo_in and redo_in keep answering whether one was taken.
+layer: gate
+source: { kind: synthetic, from: kition-scene on the plain KDM (its own undo labels drifted by one), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit, test: session, filter: an_undo_through_the_session_answers_the_steps_it_passed_over_and_took_back }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

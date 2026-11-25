@@ -11,7 +11,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::hash::Hash;
 use std::sync::Arc;
 
-use kition_kdm::{ActorId, KdmError, ObjectId, Origin, Replica, Schema, Tx, UndoScope, Version};
+use kition_kdm::{ActorId, KdmError, ObjectId, Origin, Replica, Schema, Tx, UndoOutcome, UndoScope, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -232,14 +232,30 @@ impl<M: KitModel> KitSession<M> {
     /// agent's steps, and the person's (`undo`) only the person's. Repairs the result like
     /// [`KitSession::undo`].
     pub fn undo_in(&mut self, scope: UndoScope) -> Result<(bool, Damage)> {
-        let done = self.replica.undo_in(scope)?.is_done();
-        Ok((done, self.settle()?))
+        let (outcome, damage) = self.undo_in_outcome(scope)?;
+        Ok((outcome.is_done(), damage))
     }
 
     /// Redoes the last undone transaction of `scope`, like [`KitSession::undo_in`].
     pub fn redo_in(&mut self, scope: UndoScope) -> Result<(bool, Damage)> {
-        let done = self.replica.redo_in(scope)?.is_done();
-        Ok((done, self.settle()?))
+        let (outcome, damage) = self.redo_in_outcome(scope)?;
+        Ok((outcome.is_done(), damage))
+    }
+
+    /// [`KitSession::undo_in`] answering which steps the undo took off the stack
+    /// ([`UndoOutcome`]: the steps passed over, top first, and the one taken back) instead of
+    /// whether it took one. A kit that keeps its own labels or entries beside the replica's
+    /// history drops one for each step the outcome names ([`UndoOutcome::steps`]): an undo that
+    /// passes over a step with nothing left to change takes two off the stack.
+    pub fn undo_in_outcome(&mut self, scope: UndoScope) -> Result<(UndoOutcome, Damage)> {
+        let outcome = self.replica.undo_in(scope)?;
+        Ok((outcome, self.settle()?))
+    }
+
+    /// [`KitSession::redo_in`] answering which steps it took, like [`KitSession::undo_in_outcome`].
+    pub fn redo_in_outcome(&mut self, scope: UndoScope) -> Result<(UndoOutcome, Damage)> {
+        let outcome = self.replica.redo_in(scope)?;
+        Ok((outcome, self.settle()?))
     }
 
     pub fn can_undo_in(&self, scope: UndoScope) -> bool {

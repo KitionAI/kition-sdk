@@ -250,6 +250,30 @@ fn the_persons_undo_and_the_agents_undo_take_back_only_their_own_steps() {
     assert_view_follows_replica(&a);
 }
 
+/// A kit that keeps its own undo labels beside the replica's history (kition-scene) reads which
+/// steps an undo took: one whose shape another session deleted is passed over, and the one below
+/// it taken back, two steps off the stack (case sdk.model.undo-outcome/session-steps).
+#[test]
+fn an_undo_through_the_session_answers_the_steps_it_passed_over_and_took_back() {
+    let mut a = first();
+    let (kept, _) = a.execute(&person("a"), |_, tx| add_shape(tx, 10.0, "teal")).unwrap();
+    let (gone, _) = a.execute(&person("a"), |_, tx| add_shape(tx, 20.0, "pink")).unwrap();
+    let mut b = peer(&a, 2);
+    b.execute(&person("b"), |_, tx| delete_shape(tx, &gone)).unwrap();
+    sync(&mut a, &mut b);
+    let (outcome, damage) = a.undo_in_outcome(UndoScope::Person).unwrap();
+    assert_eq!((outcome.passed.len(), outcome.is_done(), outcome.steps()), (1, true, 2), "the deleted shape's step and the one below it");
+    assert_ne!(damage, Damage::None);
+    assert!(!ids(&a).contains(&kept));
+    assert!(!a.can_undo());
+    let (outcome, _) = a.redo_in_outcome(UndoScope::Person).unwrap();
+    assert_eq!((outcome.passed.len(), outcome.is_done(), outcome.steps()), (0, true, 1), "the redo brings back both steps as one");
+    assert!(ids(&a).contains(&kept) && !ids(&a).contains(&gone));
+    let (outcome, damage) = a.undo_in_outcome(UndoScope::Agent).unwrap();
+    assert_eq!((outcome.steps(), outcome.is_done(), damage), (0, false, Damage::None), "the agent has no steps");
+    assert_view_follows_replica(&a);
+}
+
 #[test]
 fn history_scope_reads_the_scope_parameter_else_the_origin() {
     let agent = Origin::agent("user:a");
