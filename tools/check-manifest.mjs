@@ -13,13 +13,12 @@
 // It prints WARN for what a manifest alone cannot settle (the package's agent/ files, proposed
 // rules), then the platform conformance levels the manifest supports (docs/platform/kits/levels.md).
 //
-//   node tools/check-manifest.mjs path/to/kit.json [--module <engine dir>] [--convergence <report.json>]
+//   node tools/check-manifest.mjs path/to/kit.json [--module <engine dir>]
 //
 // With --module (a wasm-pack output folder, or a ts-worker engine's folder), it also loads the
 // built engine and checks that the manifest matches it: the class exists, contractVersion()
 // matches engine.contract, a contract 2 engine has the session members, and every declared extra
-// exists. With --convergence, it reads the report the kit's
-// convergence test wrote (kition-convergence, through KITION_CONVERGENCE_REPORT) for L6.
+// exists.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -34,8 +33,6 @@ if (!file) {
 }
 const moduleIndex = process.argv.indexOf('--module')
 const moduleDir = moduleIndex > 0 ? path.resolve(process.argv[moduleIndex + 1]) : null
-const convergenceIndex = process.argv.indexOf('--convergence')
-const convergenceFile = convergenceIndex > 0 ? path.resolve(process.argv[convergenceIndex + 1]) : null
 
 const failures = []
 const fail = (where, message) => failures.push(`${where || '(root)'}: ${message}`)
@@ -340,19 +337,6 @@ console.log(
 // manifest shows them. L1 needs check_contract and tools/check-sdk.mjs too, L4 the kit in
 // @kition/dsh-kits (plugins/deepseek-harness/kition-kits, which serves every published kit:
 // published-kits.json), and L5 the kit's import/export round trip tests.
-let convergence = null
-if (convergenceFile) {
-  try {
-    convergence = JSON.parse(fs.readFileSync(convergenceFile, 'utf8'))
-  } catch (error) {
-    console.log(`FAIL --convergence: ${error.message}`)
-    process.exit(1)
-  }
-  if (convergence.kit !== manifest.id) {
-    console.log(`FAIL --convergence: the report is for ${convergence.kit}, not ${manifest.id}`)
-    process.exit(1)
-  }
-}
 const levels = ['L1']
 const notes = []
 if (manifest.ui && (manifest.creates ?? []).length) levels.push('L2')
@@ -366,8 +350,5 @@ if (contract === 2 && modelSchema && typings && !fs.existsSync(typings)) {
   notes.push(`L5 needs object model typings generated into packages/script/kits/${path.basename(typings)}`)
 } else if (contract === 2 && modelSchema && manifest.objectModel) {
   levels.push('L5')
-  if (convergence?.level6 === true) levels.push('L6')
-  else if (convergence) notes.push(`L6: the convergence report did not pass (${(convergence.checks ?? []).filter((check) => check.outcome !== 'passed').map((check) => check.id).join(', ')})`)
-  else notes.push('L6 needs a passing convergence report (--convergence)')
 } else notes.push('L5 needs engine contract 2, a KDM schema, and an object model namespace (platform K10 to K14)')
 console.log(`PLATFORM LEVELS ${levels.join(' ')}${notes.length ? ` (${notes.join('; ')})` : ''}`)

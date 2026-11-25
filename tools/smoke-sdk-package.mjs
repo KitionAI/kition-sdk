@@ -127,26 +127,47 @@ console.log(JSON.stringify(missing))
   pass(`the packages ${SDK}'s code and declarations import are all declared: ${declared.imported.join(', ')}`)
   pass(`Node imports ${nodeSafe.length} subpaths; ${SDK} alone is refused (${imported[SDK].error.trim().split(' ')[0]}); not imported in Node (a page's): ${[...browserOnly].join(', ')}`)
   // The embed server, installed from @kition/sdk, finds the embed module in its own package and
-  // serves it with its chunks (it found @kition/embed's before).
+  // serves it with every module it imports, statically or on demand (zero or more: the kit modules
+  // of /script/kits and the chunks they share), and every file of a chunks folder the package ships
+  // next to it.
+  const embedEntry = manifest.exports['./embed'].import
+  const embedDir = path.dirname(path.join(installed, embedEntry))
+  const shippedChunks = fs.existsSync(path.join(embedDir, 'chunks')) ? fs.readdirSync(path.join(embedDir, 'chunks'), { recursive: true }).filter((file) => fs.statSync(path.join(embedDir, 'chunks', file)).isFile()).map((file) => `chunks/${file.split(path.sep).join('/')}`) : []
   const serverCheck = path.join(consumer, 'server-check.mjs')
   fs.writeFileSync(serverCheck, `
 import { startEmbedServer } from '${SDK}/embed/server'
 const service = await startEmbedServer({ secret: 'x'.repeat(32), kitsUrl: 'http://127.0.0.1:9/', integrators: [], kits: [], port: 0 })
+const served = {}
+const get = async (file) => {
+  const response = await fetch(service.url + '/assets/embed/' + file)
+  const text = await response.text()
+  served[file] = { status: response.status, length: text.length }
+  return text
+}
 try {
-  const entry = await fetch(service.url + '/assets/embed/index.js')
-  const text = await entry.text()
-  const chunk = /from ["']\\.\\/(chunks\\/[^"']+)["']/.exec(text)?.[1]
-  const second = chunk ? await fetch(service.url + '/assets/embed/' + chunk) : null
-  console.log(JSON.stringify({ status: entry.status, length: text.length, chunk, chunkStatus: second?.status }))
+  const pending = ['index.js']
+  const referenced = []
+  while (pending.length) {
+    const file = pending.shift()
+    if (file in served) continue
+    const text = await get(file)
+    for (const match of text.matchAll(/(?:\\bfrom\\s*|\\bimport\\s*\\(?\\s*)["'](\\.\\.?\\/[^"']+)["']/g)) {
+      const next = new URL(match[1], 'https://x/' + file).pathname.slice(1)
+      if (!(next in served) && !pending.includes(next)) { pending.push(next); referenced.push(next) }
+    }
+  }
+  for (const file of JSON.parse(process.argv[2])) if (!(file in served)) await get(file)
+  console.log(JSON.stringify({ served, referenced }))
 } finally { await service.close() }
 `)
-  const served = spawnSync(process.execPath, [serverCheck], { cwd: consumer, encoding: 'utf8' })
+  const served = spawnSync(process.execPath, [serverCheck, JSON.stringify(shippedChunks)], { cwd: consumer, encoding: 'utf8' })
   assert.equal(served.status, 0, served.stderr)
   const answer = JSON.parse(served.stdout.trim().split('\n').pop())
-  assert.equal(answer.status, 200, 'the embed server serves /assets/embed/index.js')
-  assert.equal(answer.length, fs.readFileSync(path.join(installed, manifest.exports['./embed'].import), 'utf8').length, "and it is @kition/sdk/embed's module")
-  assert.ok(answer.chunk && answer.chunkStatus === 200, `and its chunk ${answer.chunk}`)
-  pass(`the embed server from ${SDK}/embed/server serves ${SDK}/embed's module and its chunks (/assets/embed/index.js, /assets/embed/${answer.chunk})`)
+  assert.equal(answer.served['index.js'].status, 200, 'the embed server serves /assets/embed/index.js')
+  assert.equal(answer.served['index.js'].length, fs.readFileSync(path.join(installed, embedEntry), 'utf8').length, "and it is @kition/sdk/embed's module")
+  const wrong = Object.entries(answer.served).filter(([file, { status, length }]) => status !== 200 || !fs.existsSync(path.join(embedDir, file)) || length !== fs.readFileSync(path.join(embedDir, file), 'utf8').length).map(([file, { status }]) => `${file} (${status})`)
+  assert.deepEqual(wrong, [], `every module /assets/embed/index.js imports (${answer.referenced.length}) and every file of its chunks folder (${shippedChunks.length}) is served as the package ships it`)
+  pass(`the embed server from ${SDK}/embed/server serves ${SDK}/embed's module (/assets/embed/index.js), the ${answer.referenced.length} modules it imports and the ${shippedChunks.length} files of its chunks folder`)
   for (const [name, file] of Object.entries(manifest.bin ?? {})) {
     assert.ok(fs.readFileSync(path.join(installed, file), 'utf8').startsWith('#!/usr/bin/env node\n'), `${name}: ${file} starts with #!`)
   }

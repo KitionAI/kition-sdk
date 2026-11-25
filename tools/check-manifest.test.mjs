@@ -131,7 +131,7 @@ describe('check-manifest engine contract 2 (platform K10 to K14)', () => {
     expect(result.out).toContain('PASS example.grid 0.1.0: KHP 1.0 manifest, tier basic claimed')
     expect(result.code).toBe(0)
     expect(result.out).toMatch(/PLATFORM LEVELS L1 .*L5\b/)
-    expect(result.out).toContain('L6 needs a passing convergence report')
+    expect(result.out.match(/LEVELS ([L0-9 ]+)/)?.[1].trim().split(' ')).toEqual(['L1', 'L2', 'L3', 'L5'])
   })
 
   it('refuses a host-drawn editor (K8)', () => {
@@ -143,20 +143,6 @@ describe('check-manifest engine contract 2 (platform K10 to K14)', () => {
   it('accepts an embedded UI, whatever the KHP version', () => {
     const result = checkFolder({ ...v2, ui: { ...example.ui, mode: 'embedded', entry: 'ui/index.html' } }, { 'model/schema.json': schema })
     expect(result.code).toBe(0)
-  })
-
-  it('reports L6 from a passing convergence report', () => {
-    const report = { kit: example.id, suite: 'kition-convergence 1.0', level6: true, checks: [{ id: 'fuzz', outcome: 'passed' }] }
-    const result = checkFolder(v2, { 'model/schema.json': schema, 'report.json': report }, ['--convergence', '$DIR/report.json'])
-    expect(result.code).toBe(0)
-    expect(result.out).toMatch(/LEVELS .*L5 L6/)
-  })
-
-  it('names the failed scenarios of a convergence report', () => {
-    const report = { kit: example.id, level6: false, checks: [{ id: 'undo', outcome: 'failed' }, { id: 'fuzz', outcome: 'passed' }] }
-    const result = checkFolder(v2, { 'model/schema.json': schema, 'report.json': report }, ['--convergence', '$DIR/report.json'])
-    expect(result.out.match(/LEVELS ([L0-9 ]+)/)?.[1].trim().split(' ')).toEqual(['L1', 'L2', 'L3', 'L5'])
-    expect(result.out).toContain('did not pass (undo)')
   })
 
   it('refuses the old field name standard, with no alias (K2)', () => {
