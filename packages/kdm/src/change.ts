@@ -6,6 +6,7 @@
  */
 import { checkUuid } from './content'
 import { errors } from './errors'
+import { readJson } from './json'
 import { decodeCommit, type Origin } from './origin'
 import type { Schema } from './schema'
 import { parseOp, type Op } from './store'
@@ -63,4 +64,37 @@ function parseChange(value: JsonValue, schema: Schema): Change {
   if (commit === null) throw bad('origin')
   if (!Array.isArray(value.ops)) throw bad('ops')
   return { seq, actor, origin: commit.origin, schemaVersion: commit.schemaVersion, ops: value.ops.map((op) => parseOp(op, schema)) }
+}
+
+/** One change of a change list as {@link readChangeList} answers it: its operations in their JSON form. */
+export type ListedChange = { seq: number; actor: string; origin: Origin; schemaVersion: number | null; ops: JsonValue[] }
+
+/** A change list as {@link readChangeList} answers it. */
+export type ListedChanges = { docId: string; lineage: string; after: number; afterActor: string | null; changes: ListedChange[] }
+
+/** No types: every field of a created object reads as a register; enough to check a change list's form. */
+const ANY_SCHEMA: Schema = { kdm: 1, kit: '', schemaVersion: 0, root: '', types: {} }
+
+/**
+ * Reads the change list in `bytes` (a kit engine's `exportChanges`, the Rust
+ * `Replica::export_changes`): the document, the line and the version it follows, and each change
+ * with its number, actor, origin (`[kind, principal, label, schemaVersion]` read as an
+ * {@link Origin}) and operations, checked as an import checks them. Kit tests read who made each
+ * change with it instead of parsing the JSON. Bytes that are not KDM changes, or a snapshot (the
+ * export of a version older than the engine's log), are an `encoding` error.
+ */
+export function readChangeList(bytes: Uint8Array): ListedChanges {
+  const value = readJson(bytes, 'not KDM changes')
+  const docId = docIdOf(value)
+  const record = value as Record<string, JsonValue>
+  if (!Array.isArray(record.changes)) throw errors.encoding('not KDM changes: a snapshot, not a change list')
+  const list = parseChangeList(record, ANY_SCHEMA)
+  const ops = record.changes.map((change) => (isRecord(change) && Array.isArray(change.ops) ? change.ops : []))
+  return {
+    docId,
+    lineage: list.lineage,
+    after: list.after,
+    afterActor: list.afterActor,
+    changes: list.changes.map((change, at) => ({ seq: change.seq, actor: change.actor, origin: change.origin, schemaVersion: change.schemaVersion, ops: ops[at] ?? [] })),
+  }
 }

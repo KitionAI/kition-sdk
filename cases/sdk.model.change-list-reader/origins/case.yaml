@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.change-list-reader/origins
+feature: sdk.model.change-list-reader
+intent: >-
+  @kition/kdm's readChangeList reads a kit engine's exportChanges: the document, the line and version it follows, and each change's number, actor, origin and operations, checked as an import checks them; a snapshot or bytes that are not KDM changes are an encoding error. Kit tests read who made each change with it instead of parsing the JSON.
+layer: gate
+source: { kind: synthetic, from: kit migrations to the plain KDM, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/change-list.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

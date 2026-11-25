@@ -1,5 +1,6 @@
 export { BatchError, OBJECT_MODEL_CAPABILITY, schemaOfDescription, type BatchErrorCode, type BatchOp, type BatchRequest, type BatchResult, type LoadedObject } from './batch'
 export { canonicalText } from './canonical'
+export { readChangeList, type ListedChange, type ListedChanges } from './change'
 export { COMMENT_THREAD_TYPE, COMMENT_THREAD_TYPE_DEF, COMMENT_TYPE, COMMENT_TYPE_DEF, commentThreads, isCommentType, type Comment, type CommentAnchor, type CommentThread } from './comment'
 export type { FieldEdit, Move, ObjectChange, Position, StateDiff, TextChange, TextSpan } from './diff'
 export { KdmError, type KdmErrorReason } from './errors'
