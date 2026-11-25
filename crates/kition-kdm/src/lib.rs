@@ -13,6 +13,7 @@ pub mod batch;
 mod changes;
 pub mod comment;
 pub mod conflict;
+pub mod content;
 pub mod diff;
 mod error;
 pub mod footprint;

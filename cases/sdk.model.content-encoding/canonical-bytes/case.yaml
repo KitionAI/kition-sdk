@@ -1,0 +1,21 @@
+format: 1
+id: sdk.model.content-encoding/canonical-bytes
+feature: sdk.model.content-encoding
+intent: >-
+  The content a kit writes into a person's file (content.json) is one deterministic JSON encoding
+  of the document's state: the header (kdm, kit, docId, schemaVersion) on the first line, one
+  object per line in the byte order of their ids, keys in the byte order of their UTF-8 at every
+  depth, whole numbers within 2^53 as integers and other numbers in their shortest round-trip form,
+  only quotes, backslashes and controls escaped, null fields and empty containers left out, no
+  version, actor, origin or time. Each canonical fixture state encodes to its fixture bytes exactly,
+  and each fixture decodes to its state and encodes back to the same bytes; a snapshot is the same
+  encoding with its version after the docId.
+layer: gate
+source: { kind: synthetic, from: kition-plan plans/2026-11-24-plain-model-design.md section 2, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: content }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 120
+since: "2026-11-24"

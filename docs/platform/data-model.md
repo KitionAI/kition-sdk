@@ -697,6 +697,40 @@ A file is a shallow replica that does not carry the document's whole history
 (sync protocol S20). A document known only from its file (no store, no room)
 starts a room after `rebirth()`, which makes its current version the birth.
 
+### 7.4 The content encoding
+
+What a kit writes into a person's file is `content.json`: the document's state in one deterministic
+JSON encoding (`kition_kdm::content`; plan 2026-11-24, plain model, section 2). It is the one part
+of the KDM that cannot change after the first public release, so every rule below is a test
+(`crates/kition-kdm/tests/content.rs`) and the canonical fixtures under
+`crates/kition-kdm/tests/fixtures/content/` are its bytes. Only Rust writes it; other
+implementations read it.
+
+```text
+{"kdm":1,"kit":"kit.board","docId":"0193a5c4-0000-7000-8000-000000000001","schemaVersion":1,"objects":{
+"0193a5c4-0000-7000-8000-0000000000a1":{"$type":"Board","pages":["0193a5c4-0000-7000-8000-0000000000b2"],"title":"Q4"},
+"0193a5c4-0000-7000-8000-0000000000b2":{"$type":"Page","body":[{"insert":"Ship "},{"attributes":{"bold":true},"insert":"it"}],"name":"Page 1"}
+}}
+```
+
+| # | Rule |
+| --- | --- |
+| C1 | UTF-8 without a byte order mark. Lines end with `\n`, the last line too. |
+| C2 | The first line is the header: `kdm` (1), `kit`, `docId`, then, in a snapshot only, `version` as `{"lineage":"<uuid>","seq":<n>}`, then `schemaVersion` (the minimum schema version, rule M20), then `"objects":{`, in this order. |
+| C3 | Then one line per object, `"<id>":{...}`, with a `,` after each but the last, ids in ascending order of their UTF-8 bytes; then the line `}}`. A document without objects is the header and `}}`. There is no other whitespace. |
+| C4 | Inside an object, at every depth, keys are in ascending order of their UTF-8 bytes (not UTF-16 code units: U+FF5A sorts before U+1F600). `$type` holds the object's type. |
+| C5 | A field holding `null`, an empty text, an empty list, an empty map or an empty tree is left out; reading, a field left out is empty (`null` for a register). A register holding `""`, `[]`, `{}`, `0` or `false` is written. So adding a field to a type does not change an older document's bytes. |
+| C6 | A number that is whole and within ±2^53 is an integer (`-0` is `0`, `5.0` is `5`). An integer beyond ±2^53 is refused. Any other number is the shortest form that reads back as the same double, as serde_json 1.x writes it: `0.1`, `0.30000000000000004`, `1e21` (not `1e+21`), `1e16`, `1.5e-7`, `0.0001`, `5e-324`. |
+| C7 | In strings only `"`, `\` and U+0000 to U+001F are escaped: `\b`, `\f`, `\n`, `\r`, `\t`, the others `\u00xx` in lower case. Every other character is written as itself (`/`, U+007F, U+2028, characters outside the BMP). |
+| C8 | A text field that declares marks is its runs, `[{"attributes":{...},"insert":"..."}]`, `attributes` left out of a run without marks, adjacent runs with different marks, no empty run (rule M19); one that declares no marks is a string. A list is an array of object ids; a map is an object; a tree is an array of `{"children":[...],"object":"<id>"}`, siblings in order; a blob is its value `{"hash","mime","size"}` (its bytes are in the container's `blobs/`). |
+| C9 | Fields the reader's schema does not declare (an object written under another schema version) are kept as they are. |
+| C10 | The content holds no version, lineage, actor, origin or time. A **snapshot** (the host's stored state, a draft's base, a new replica) is the same encoding with its `version` (C2); a file never holds one. |
+
+What follows: a document saved again unchanged is the same bytes (the content depends on the state
+alone), and two people who save the same state write the same bytes. A container's DEFLATE output
+depends on the compressor, so byte equality of a zipped file holds for one kit build; across builds
+the `content.json` inside is the same.
+
 ## 8. Collaboration and sync (Kition Server)
 
 ### 8.1 Model
