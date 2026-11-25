@@ -20,8 +20,8 @@
 //! - A field holding `null`, an empty text (`""`, or no runs), an empty list, an empty map or an
 //!   empty tree is left out. A register holding `""`, `[]`, `{}`, `0` or `false` is written.
 //! - A number that is whole and within ±2^53 is written as an integer (`-0` as `0`, `5.0` as `5`);
-//!   an integer beyond ±2^53 is refused; any other number is written in the shortest form that
-//!   reads back as the same double, as serde_json 1.x writes it (`0.1`, `1e21`, `1.5e-7`).
+//!   an integer beyond ±2^53 is refused; any other number is written in its shortest round-trip
+//!   digits, laid out by [`write_double`] (`0.1`, `123456789.125`, `1e21`, `1.5e-7`).
 //! - In strings only `"`, `\` and U+0000 to U+001F are escaped (`\b`, `\f`, `\n`, `\r`, `\t`, else
 //!   `\u00xx` in lower case); every other character is written as itself, outside the BMP too.
 //! - A text field that declares marks is its runs, `[{"attributes":{…},"insert":"…"}]`
@@ -298,7 +298,7 @@ fn write_value(out: &mut String, value: &Value) -> Result<()> {
 }
 
 /// A number: an integer when whole and within ±2^53 (`-0` is `0`); an integer beyond is refused;
-/// any other double in serde_json's shortest round-trip form.
+/// any other double by [`write_double`].
 fn write_number(out: &mut String, number: &serde_json::Number) -> Result<()> {
     if let Some(integer) = number.as_i64() {
         if integer.unsigned_abs() > MAX_SAFE_INTEGER {
@@ -321,8 +321,51 @@ fn write_number(out: &mut String, number: &serde_json::Number) -> Result<()> {
         out.push_str(&(float as i64).to_string());
         return Ok(());
     }
-    out.push_str(&serde_json::to_string(&float).map_err(|error| KdmError::Encoding(error.to_string()))?);
+    write_double(out, float);
     Ok(())
+}
+
+/// A double that is not a whole number within ±2^53, in its shortest round-trip digits (the
+/// fewest decimal digits that read back as the same double, as Rust's float formatting finds
+/// them), laid out by where its decimal point falls (`point`: the value is `0.<digits> × 10^point`):
+///
+/// - `0 <= point - digits` and `point <= 16`: the digits, zeros, `.0` (`9007199254740994.0`);
+/// - `0 < point <= 16`: the digits with a decimal point (`123456789.125`, `0.5` is `point` 0, below);
+/// - `-5 < point <= 0`: `0.`, zeros, the digits (`0.1`, `0.0001`);
+/// - otherwise an exponent without `+`: `1e21`, `1e16`, `1.5e-7`, `5e-324`.
+fn write_double(out: &mut String, float: f64) {
+    let scientific = format!("{:e}", float.abs());
+    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((scientific.as_str(), "0"));
+    let exponent: i64 = exponent.parse().unwrap_or(0);
+    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    let count = i64::try_from(digits.len()).unwrap_or(i64::MAX);
+    let point = exponent + 1;
+    if float < 0.0 {
+        out.push('-');
+    }
+    if 0 <= point - count && point <= 16 {
+        out.push_str(&digits);
+        out.push_str(&"0".repeat(usize::try_from(point - count).unwrap_or(0)));
+        out.push_str(".0");
+    } else if 0 < point && point <= 16 {
+        let (whole, fraction) = digits.split_at(usize::try_from(point).unwrap_or(0).min(digits.len()));
+        out.push_str(whole);
+        out.push('.');
+        out.push_str(fraction);
+    } else if -5 < point && point <= 0 {
+        out.push_str("0.");
+        out.push_str(&"0".repeat(usize::try_from(-point).unwrap_or(0)));
+        out.push_str(&digits);
+    } else {
+        let (first, rest) = digits.split_at(1.min(digits.len()));
+        out.push_str(first);
+        if !rest.is_empty() {
+            out.push('.');
+            out.push_str(rest);
+        }
+        out.push('e');
+        out.push_str(&(point - 1).to_string());
+    }
 }
 
 /// A string as serde_json writes it: `"` and `\` escaped, U+0000 to U+001F escaped (`\b`, `\f`,
@@ -369,6 +412,16 @@ mod tests {
         assert_eq!(number(serde_json::json!(1.5e-7)), "1.5e-7");
         assert_eq!(number(serde_json::json!(0.0001)), "0.0001");
         assert_eq!(number(serde_json::json!(-2.5)), "-2.5");
+        assert_eq!(number(serde_json::json!(0.5)), "0.5");
+        assert_eq!(number(serde_json::json!(123_456_789.125)), "123456789.125");
+        assert_eq!(number(serde_json::json!(9_007_199_254_740_994.0)), "9007199254740994.0");
+        assert_eq!(number(serde_json::json!(1e-5)), "0.00001");
+        assert_eq!(number(serde_json::json!(1e-6)), "1e-6");
+        assert_eq!(number(serde_json::json!(1.5e-6)), "1.5e-6");
+        assert_eq!(number(serde_json::json!(1e-7)), "1e-7");
+        assert_eq!(number(serde_json::json!(5e-324)), "5e-324");
+        assert_eq!(number(serde_json::json!(-2.5e-10)), "-2.5e-10");
+        assert_eq!(number(serde_json::json!(1.7976931348623157e308)), "1.7976931348623157e308");
         let mut out = String::new();
         let Value::Number(big) = serde_json::json!(9_007_199_254_740_993u64) else { unreachable!() };
         assert!(write_number(&mut out, &big).is_err());
