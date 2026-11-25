@@ -158,31 +158,42 @@ pub(crate) fn objects_by_type(store: &Store) -> HashMap<String, Vec<ObjectId>> {
 
 /// A tree's JSON as reads see it: a node naming no object of the document is left out with its
 /// subtree.
-fn tree_json(store: &Store, tree: &Tree) -> Value {
-    tree.to_json(&|node: &ObjectId| store.contains(node))
+fn tree_json(tree: &Tree, live: &dyn Fn(&ObjectId) -> bool) -> Value {
+    tree.to_json(live)
 }
 
 /// One object in canonical form: `$type` and every schema field. An object of a type the schema
 /// does not declare (written under a newer schema version) is reported as its `$type` only, and a
 /// field the stored object lacks reads as empty.
 pub(crate) fn object_json(store: &Store, schema: &Schema, id: &ObjectId) -> Result<Value> {
+    object_json_in(store, schema, id, &|node: &ObjectId| store.contains(node))
+}
+
+/// [`object_json`] with `live` saying which objects exist (a tree's nodes naming none are left
+/// out): a store holding only some of a state's objects reads them as the whole state does.
+pub(crate) fn object_json_in(store: &Store, schema: &Schema, id: &ObjectId, live: &dyn Fn(&ObjectId) -> bool) -> Result<Value> {
     let ty = object_type(store, id)?;
     let mut out = Map::new();
     out.insert(TYPE_KEY.to_owned(), Value::String(ty.clone()));
     let Ok(def) = schema.type_def(&ty) else { return Ok(Value::Object(out)) };
     for (name, field) in &def.fields {
-        out.insert(name.clone(), field_json(store, schema, id, name, field)?);
+        out.insert(name.clone(), field_json_in(store, schema, id, name, field, live)?);
     }
     Ok(Value::Object(out))
 }
 
 /// Field `name` (declared as `field`) of object `id`, as [`object_json`] reports it.
 pub(crate) fn field_json(store: &Store, schema: &Schema, id: &ObjectId, name: &str, field: &FieldDef) -> Result<Value> {
+    field_json_in(store, schema, id, name, field, &|node: &ObjectId| store.contains(node))
+}
+
+/// [`field_json`] with `live` saying which objects exist ([`object_json_in`]).
+fn field_json_in(store: &Store, schema: &Schema, id: &ObjectId, name: &str, field: &FieldDef, live: &dyn Fn(&ObjectId) -> bool) -> Result<Value> {
     Ok(match field.kind {
         FieldKind::Text if field.has_marks() => crate::marks::runs_json(&text(store, schema, id, name)?.map(|text| runs_of(text, field)).unwrap_or_default()),
         FieldKind::Text => Value::String(text(store, schema, id, name)?.map(Text::string).unwrap_or_default()),
         FieldKind::List => Value::Array(list(store, schema, id, name)?.iter().map(|item| Value::String(item.to_string())).collect()),
-        FieldKind::Tree => tree(store, schema, id, name)?.map_or(Value::Array(Vec::new()), |tree| tree_json(store, tree)),
+        FieldKind::Tree => tree(store, schema, id, name)?.map_or(Value::Array(Vec::new()), |tree| tree_json(tree, live)),
         FieldKind::Map => Value::Object(
             map(store, schema, id, name)?.map(|entries| entries.iter().map(|(key, value)| (key.to_text(), value.to_value())).collect()).unwrap_or_default(),
         ),

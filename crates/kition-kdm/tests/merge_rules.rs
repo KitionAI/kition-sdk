@@ -391,6 +391,55 @@ fn d8_an_object_one_side_deleted_and_the_other_changed_collides() {
     assert_eq!(live.list(&page, "shapes").expect("list"), vec![s[0].clone()]);
 }
 
+/// The same change on both sides is no collision (D4, D6, D7, D8): both deleted one object (its
+/// list entry and its outline node with it), both removed one list item, both took one node out of
+/// the outline, both deleted one map key; the draft's other edits around them land where it meant.
+#[test]
+fn d6_d7_d8_the_same_removal_on_both_sides_merges() {
+    let (mut live, page, s, sheet) = document(4);
+    let base = live.version();
+    let mut draft = live.fork(actor(9)).expect("fork");
+    let remove_and_delete = |tx: &mut kition_kdm::Tx<'_>, index: usize, object: &ObjectId| -> kition_kdm::Result<()> {
+        tx.list_remove(&page, "shapes", index)?;
+        tx.delete(object)
+    };
+    // The draft writes to s0 and then deletes it; it also inserts a new item where s0 was.
+    draft.transact(&agent(), |tx| tx.set(&s[0], "x", json!(77))).expect("draft");
+    draft.transact(&agent(), |tx| remove_and_delete(tx, 0, &s[0])).expect("draft");
+    let drafted = draft
+        .transact(&agent(), |tx| {
+            let made = shape(tx, 5)?;
+            tx.list_insert(&page, "shapes", 0, &made)?;
+            Ok(made)
+        })
+        .expect("draft");
+    // Both remove s1 from the list, and both take s2 out of the outline.
+    draft.transact(&agent(), |tx| tx.list_remove(&page, "shapes", 1)).expect("draft");
+    let s2 = node(&draft, &page, &s[2]);
+    draft.transact(&agent(), |tx| tx.tree_delete(&page, "outline", &s2)).expect("draft");
+    draft.transact(&agent(), |tx| tx.map_delete(&sheet, "cells", "k3")).expect("draft");
+
+    live.transact(&person(), |tx| remove_and_delete(tx, 0, &s[0])).expect("live");
+    live.transact(&person(), |tx| tx.list_remove(&page, "shapes", 0)).expect("live");
+    let s2 = node(&live, &page, &s[2]);
+    live.transact(&person(), |tx| tx.tree_delete(&page, "outline", &s2)).expect("live");
+    live.transact(&person(), |tx| tx.map_delete(&sheet, "cells", "k3")).expect("live");
+
+    merge(&mut live, &draft, &base);
+    assert!(!live.exists(&s[0]));
+    assert_eq!(live.list(&page, "shapes").expect("list"), vec![drafted, s[2].clone(), s[3].clone()]);
+    let outline: Vec<ObjectId> = tree(&live, &page).into_iter().map(|entry| entry.object).collect();
+    assert_eq!(outline, vec![s[1].clone(), s[3].clone()]);
+    assert_eq!(live.map_get(&sheet, "cells", "k3").expect("k3"), Value::Null);
+
+    // Still a collision: the draft moves an item the document removed (D6).
+    let base = live.version();
+    let mut draft = live.fork(actor(10)).expect("fork");
+    draft.transact(&agent(), |tx| tx.list_move(&page, "shapes", 1, 0)).expect("draft");
+    live.transact(&person(), |tx| tx.list_remove(&page, "shapes", 1)).expect("live");
+    refused(&mut live, &draft, &base, "D6");
+}
+
 // ---- Seeded property tests ----
 
 /// A small seeded generator (xorshift64*), so every run tests the same cases.

@@ -293,6 +293,9 @@ pub struct Replica {
     /// The tool ids of the current state, once read ([`Replica::tool_ids`]); every change of the
     /// state drops them ([`Replica::state_changed`]).
     tool_ids: std::sync::Mutex<Option<Arc<ToolIds>>>,
+    /// The objects of the schema's root type ([`Replica::root_id`]), kept as changes create and
+    /// delete them.
+    roots: BTreeSet<ObjectId>,
 }
 
 impl Replica {
@@ -327,6 +330,7 @@ impl Replica {
     }
 
     fn attach(store: Store, schema: Arc<Schema>, actor: ActorId, lineage: [u8; 16], seq: u64) -> Self {
+        let roots = roots_of(&store, &schema);
         Self {
             store,
             schema,
@@ -339,7 +343,45 @@ impl Replica {
             changed: Changes::default(),
             author_schema: None,
             tool_ids: std::sync::Mutex::new(None),
+            roots,
         }
+    }
+
+    /// Follows the objects of the root type through operations that applied (`forward`) or whose
+    /// inverses applied.
+    fn track_roots(&mut self, ops: &[Op], forward: bool) {
+        let root = self.schema.root.as_str();
+        for op in ops {
+            match (op, forward) {
+                (Op::Create { id, object, .. }, true) | (Op::Delete { id, was: Some(object), .. }, false) => {
+                    if &**object.ty() == root {
+                        self.roots.insert(id.clone());
+                    }
+                }
+                (Op::Delete { id, .. }, true) | (Op::Create { id, .. }, false) => {
+                    self.roots.remove(id);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// The document's root object: the first object (by id) of the schema's root type, without a
+    /// walk of the document.
+    pub fn root_id(&self) -> Option<ObjectId> {
+        self.roots.first().cloned()
+    }
+
+    /// The tool ids of the objects `ids`, read only at them ([`ToolIds::of_objects`]) when that is
+    /// exact, else the whole document's ([`Replica::tool_ids`]): what a call naming a few objects
+    /// (an agent's reply, the root of `model/describe`) costs is those objects.
+    pub fn tool_ids_of(&self, ids: &BTreeSet<ObjectId>) -> Arc<ToolIds> {
+        let store = &self.store;
+        let schema = &self.schema;
+        let read = ToolIds::of_objects(schema, ids, &|id| store.object(id).map(|object| object.ty().to_string()), &|id, field| {
+            read::register(store, schema, id, field).unwrap_or(Value::Null)
+        });
+        read.map_or_else(|| self.tool_ids(), Arc::new)
     }
 
     /// Drops what was read from the state before it changed (the tool ids).
@@ -469,6 +511,7 @@ impl Replica {
     /// answers its `seq`.
     fn commit(&mut self, origin: &Origin, ops: Ops, schema_version: u32, cancels: Vec<u64>) -> u64 {
         self.state_changed();
+        self.track_roots(&ops.ops, !ops.inverted);
         self.seq += 1;
         let size = if ops.inverted { 96 } else { 96 + size_of_ops(&ops.ops) };
         self.author_schema = self.author_schema.max(Some(schema_version));
@@ -656,6 +699,7 @@ impl Replica {
             match self.store.apply_all_checked(change.ops, &self.schema) {
                 Ok(applied) => {
                     self.state_changed();
+                    self.track_roots(&applied, true);
                     changed.extend(changes_of(&applied));
                     self.seq = change.seq;
                     let ops = Ops::plain(applied);
@@ -703,7 +747,8 @@ impl Replica {
     fn rewind(&mut self, seq: u64) -> Result<()> {
         let undone: Vec<Op> = self.log.after(seq).collect::<Vec<_>>().into_iter().rev().flat_map(|entry| entry.ops.backward()).collect();
         for op in undone {
-            self.store.apply(op, &self.schema).map_err(applying_failed)?;
+            let done = self.store.apply(op, &self.schema).map_err(applying_failed)?;
+            self.track_roots(std::slice::from_ref(&done), true);
         }
         self.log.truncate(seq);
         self.seq = seq;
@@ -759,6 +804,7 @@ impl Replica {
         }
         self.store = store;
         self.state_changed();
+        self.roots = roots_of(&self.store, &self.schema);
         self.author_schema = self.author_schema.max(version.author_schema_version.and_then(|author| u32::try_from(author).ok()));
         self.lineage = version.lineage;
         self.seq = version.seq;
@@ -1119,6 +1165,20 @@ impl Replica {
         Ok(store)
     }
 
+    /// The objects `touched` (every object the logged changes after `seq` wrote, and the trees
+    /// they placed nodes in: [`Replica::touched_since`]) as they were at `seq`, in a store of
+    /// their own: the changes since taken back there, without a copy of the document's index.
+    fn subset_at(&self, seq: u64, touched: &BTreeSet<ObjectId>) -> Result<Store> {
+        let mut store = self.store.subset(touched);
+        let entries: Vec<&Entry> = self.log.after(seq).collect();
+        for entry in entries.into_iter().rev() {
+            for op in entry.ops.backward() {
+                store.apply(op, &self.schema).map_err(applying_failed)?;
+            }
+        }
+        Ok(store)
+    }
+
     /// A copy of this document as a **new document** (data model, "A copy is a new document"): the
     /// same objects, ids and content under the new permanent `doc_id`, on a new line of changes,
     /// as a writable replica of `actor` with no history. Refuses ([`KdmError::InvalidValue`])
@@ -1152,7 +1212,7 @@ impl Replica {
         let mut merged = self.fork(self.actor)?;
         merged.log = self.log.clone();
         let touched = merged.merge_changes(changes, &Origin::system("merged-state"))?;
-        diff_of_objects(&self.store, &merged.store, &self.schema, &touched)
+        diff_of_objects(&self.store, &|id: &ObjectId| self.store.contains(id), &merged.store, &self.schema, &touched)
     }
 
     /// [`crate::diff::diff_states`] of the state at `since` (a version this replica reached and its
@@ -1163,9 +1223,14 @@ impl Replica {
         if !self.version().includes(since) {
             return Err(KdmError::HistoryMissing(VERSION_NOT_HELD.into()));
         }
-        let before = self.fork_at(since, self.actor)?;
-        let touched = self.touched_since(since.0.map_or(0, |(_, seq)| seq));
-        diff_of_objects(&before.store, &self.store, &self.schema, &touched)
+        let seq = since.0.map_or(0, |(_, seq)| seq);
+        if !self.log.covers(seq) {
+            return Err(KdmError::HistoryMissing(BEFORE_LOG.into()));
+        }
+        let touched = self.touched_since(seq);
+        let before = self.subset_at(seq, &touched)?;
+        let live = |id: &ObjectId| if touched.contains(id) { before.contains(id) } else { self.store.contains(id) };
+        diff_of_objects(&before, &live, &self.store, &self.schema, &touched)
     }
 
     /// The objects the logged changes after `seq` wrote: each operation's object, and the owners
@@ -1173,7 +1238,7 @@ impl Replica {
     fn touched_since(&self, seq: u64) -> BTreeSet<ObjectId> {
         let mut touched: BTreeSet<ObjectId> = BTreeSet::new();
         for entry in self.log.after(seq) {
-            for op in entry.ops.forward() {
+            for op in entry.ops.forward_placed() {
                 if let Some(id) = op.object() {
                     touched.insert(id.clone());
                 }
@@ -1308,7 +1373,9 @@ impl Replica {
     /// What changed since `since` (a version this replica reached and its log holds), as a
     /// write's receipt: a [`crate::diff::StateDiff`] without `texts`, its values cut to excerpts,
     /// objects named by their tool ids where the schema declares them (OM9). Only the objects the
-    /// changes since then touched are read, here and in a fork at `since`; the answer equals
+    /// changes since then touched are read, now and as they were at `since` (taken back in a
+    /// store of their own, [`Replica::subset_at`]), and the tool ids only of the objects the
+    /// answer names when that is exact ([`ToolIds::of_objects`]); the answer equals
     /// [`crate::diff::diff_states`] of the two whole states. A version this replica's log does not
     /// hold (another document's, one from before a reload, one older than the log) is
     /// [`KdmError::HistoryMissing`].
@@ -1320,25 +1387,46 @@ impl Replica {
         if *since == self.version() {
             return Ok(crate::diff::diff_objects(&[], &Map::new(), &Map::new(), &|_| None, false));
         }
-        let before = self.fork_at(since, self.actor)?;
-        let touched = self.touched_since(since.0.map_or(0, |(_, seq)| seq));
-        let read = |store: &Store| -> Result<Map<String, Value>> {
-            let mut objects = Map::new();
-            for id in &touched {
-                if store.contains(id) {
-                    objects.insert(id.to_string(), read::object_json(store, schema, id)?);
-                }
+        let seq = since.0.map_or(0, |(_, seq)| seq);
+        if !self.log.covers(seq) {
+            return Err(KdmError::HistoryMissing(BEFORE_LOG.into()));
+        }
+        let touched = self.touched_since(seq);
+        // The touched objects as they were, taken back in a store of their own; every other
+        // object is as it is now.
+        let before = self.subset_at(seq, &touched)?;
+        let at_since = |id: &ObjectId| if touched.contains(id) { &before } else { &self.store };
+        let live = |id: &ObjectId| at_since(id).contains(id);
+        let mut old = Map::new();
+        let mut new = Map::new();
+        for id in &touched {
+            if before.contains(id) {
+                old.insert(id.to_string(), read::object_json_in(&before, schema, id, &live)?);
             }
-            Ok(objects)
-        };
-        let (old, new) = (read(&before.store)?, read(&self.store)?);
+            if self.store.contains(id) {
+                new.insert(id.to_string(), read::object_json(&self.store, schema, id)?);
+            }
+        }
         let ids: Vec<String> = touched.iter().map(ToString::to_string).collect();
         let type_of_id = |id: &str| {
             let id = ObjectId::from_string(id);
-            read::object_type(&self.store, &id).or_else(|_| read::object_type(&before.store, &id)).ok()
+            read::object_type(&self.store, &id).or_else(|_| read::object_type(&before, &id)).ok()
         };
         let diff = crate::diff::diff_objects(&ids, &old, &new, &type_of_id, false).with_leaf_edits(schema);
-        Ok(diff.with_tool_ids(schema, &ToolIds::of_replica(&before), &self.tool_ids()))
+        if !schema.has_tool_ids() {
+            return Ok(diff);
+        }
+        // Tool ids of the objects the change set names, read at them, before and now; the whole
+        // document's only when one of them needs more of it ([`ToolIds::of_objects`]).
+        let named = crate::tool_ids::named_ids(&diff.to_json(), &|id| live(id) || self.store.contains(id));
+        let type_at = |store: &Store, id: &ObjectId| store.object(id).map(|object| object.ty().to_string());
+        let register_at = |store: &Store, id: &ObjectId, field: &str| read::register(store, schema, id, field).unwrap_or(Value::Null);
+        let was = ToolIds::of_objects(schema, &named, &|id| type_at(at_since(id), id), &|id, field| register_at(at_since(id), id, field));
+        let now = ToolIds::of_objects(schema, &named, &|id| type_at(&self.store, id), &|id, field| register_at(&self.store, id, field));
+        Ok(match (was, now) {
+            (Some(was), Some(now)) => diff.with_tool_ids(schema, &was, &now),
+            _ => diff.with_tool_ids(schema, &ToolIds::of_replica(&self.fork_at(since, self.actor)?), &self.tool_ids()),
+        })
     }
 
     /// SHA-256 of the canonical state, as lowercase hex.
@@ -1348,22 +1436,34 @@ impl Replica {
     }
 }
 
+/// The objects of `schema`'s root type in `store`.
+fn roots_of(store: &Store, schema: &Schema) -> BTreeSet<ObjectId> {
+    store.objects().filter(|(_, object)| **object.ty() == *schema.root).map(|(id, _)| id.clone()).collect()
+}
+
 /// [`crate::diff::diff_states`] of two states of one document, `before` and `after`, read only at
 /// `touched` (the objects every change between them wrote), nodes naming no object left out as
-/// `diff_states` leaves them.
-fn diff_of_objects(before: &Store, after: &Store, schema: &Schema, touched: &BTreeSet<ObjectId>) -> Result<crate::diff::StateDiff> {
-    let read = |store: &Store| -> Result<Map<String, Value>> {
+/// `diff_states` leaves them. `before` may hold only `touched`; `before_live` says which objects
+/// its state holds.
+fn diff_of_objects(
+    before: &Store,
+    before_live: &dyn Fn(&ObjectId) -> bool,
+    after: &Store,
+    schema: &Schema,
+    touched: &BTreeSet<ObjectId>,
+) -> Result<crate::diff::StateDiff> {
+    let read = |store: &Store, live: &dyn Fn(&ObjectId) -> bool| -> Result<Map<String, Value>> {
         let mut objects = Map::new();
         for id in touched {
             if store.contains(id) {
-                let mut object = read::object_json(store, schema, id)?;
-                crate::diff::with_live_nodes(&mut object, &|node: &str| store.contains(&ObjectId::from_string(node)));
+                let mut object = read::object_json_in(store, schema, id, live)?;
+                crate::diff::with_live_nodes(&mut object, &|node: &str| live(&ObjectId::from_string(node)));
                 objects.insert(id.to_string(), object);
             }
         }
         Ok(objects)
     };
-    let (old, new) = (read(before)?, read(after)?);
+    let (old, new) = (read(before, before_live)?, read(after, &|id: &ObjectId| after.contains(id))?);
     let mut ids: Vec<String> = touched.iter().map(ToString::to_string).collect();
     ids.sort();
     let type_of_id = |id: &str| {

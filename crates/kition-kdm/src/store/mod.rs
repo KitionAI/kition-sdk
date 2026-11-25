@@ -421,6 +421,18 @@ impl Store {
         Ok(store)
     }
 
+    /// A store of only the objects `ids` (those it holds), shared with this one, and the nodes of
+    /// their trees: what changes to those objects alone can be taken back in.
+    pub(crate) fn subset(&self, ids: &std::collections::BTreeSet<ObjectId>) -> Self {
+        let mut out = Self::new(self.doc_id, self.kit.clone(), self.schema_version);
+        let held: Vec<(ObjectId, Arc<Object>)> = ids.iter().filter_map(|id| self.objects.get(id).map(|object| (id.clone(), Arc::clone(object)))).collect();
+        for (id, object) in held {
+            out.index_trees(&id, &object, true);
+            out.objects.insert(id, object);
+        }
+        out
+    }
+
     /// Whether both stores hold one document's same objects (the tree index follows from them).
     pub(crate) fn same_objects(&self, other: &Self) -> bool {
         self.doc_id == other.doc_id && self.kit == other.kit && self.schema_version == other.schema_version && self.objects == other.objects

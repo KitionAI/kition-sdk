@@ -207,6 +207,11 @@ fn chars(text: &str) -> usize {
 /// to apply after `a`. At one position, `b`'s text comes first, and `a`'s list item does
 /// ([`Tie::Undo`]) or `b`'s ([`Tie::Merge`]). Answers none for an operation left with nothing to do.
 fn pair(a: Op, b: Op, tie: Tie) -> (Vec<Op>, Vec<Op>) {
+    if tie == Tie::Merge
+        && let Some(both) = both_removed(&a, &b)
+    {
+        return both;
+    }
     if share_a_tree(&a, &b) {
         let (a, b) = tree_pair(a, b, tie);
         return (vec![a], vec![b]);
@@ -337,6 +342,45 @@ fn pair(a: Op, b: Op, tie: Tie) -> (Vec<Op>, Vec<Op>) {
             }
         }
         (a, b) => (vec![a], vec![b]),
+    }
+}
+
+/// For a merge ([`Tie::Merge`]): two operations made on one state that both remove one list
+/// item, one tree node, or one object, transformed against each other. What remains of each is
+/// what the other did not do already: nothing for the same removal, and an object's deletion
+/// without its place in a tree the other side took the node out of.
+fn both_removed(a: &Op, b: &Op) -> Option<(Vec<Op>, Vec<Op>)> {
+    let without_place = |op: &Op, owner: &ObjectId, field: &Name| match op {
+        Op::Delete { id, was, trees } => Op::Delete {
+            id: id.clone(),
+            was: was.clone(),
+            trees: trees.iter().filter(|place| !(place.owner == *owner && place.field == *field)).cloned().collect(),
+        },
+        other => other.clone(),
+    };
+    match (a, b) {
+        (Op::ListRemove { id, field, item: Some(x), .. }, Op::ListRemove { id: other, field: other_field, item: Some(y), .. })
+            if id == other && field == other_field && x == y =>
+        {
+            Some((Vec::new(), Vec::new()))
+        }
+        (Op::TreeDelete { id, field, node, .. }, Op::TreeDelete { id: other, field: other_field, node: other_node, .. })
+            if id == other && field == other_field && node == other_node =>
+        {
+            Some((Vec::new(), Vec::new()))
+        }
+        (Op::Delete { id, .. }, Op::Delete { id: other, .. }) if id == other => Some((Vec::new(), Vec::new())),
+        (Op::TreeDelete { id, field, node, .. }, Op::Delete { id: object, trees, .. })
+            if node == object && trees.iter().any(|place| place.owner == *id && place.field == *field) =>
+        {
+            Some((Vec::new(), vec![without_place(b, id, field)]))
+        }
+        (Op::Delete { id: object, trees, .. }, Op::TreeDelete { id, field, node, .. })
+            if node == object && trees.iter().any(|place| place.owner == *id && place.field == *field) =>
+        {
+            Some((vec![without_place(a, id, field)], Vec::new()))
+        }
+        _ => None,
     }
 }
 

@@ -592,7 +592,7 @@ fn show_ids(names: &ToolIds, kind: FieldKind, value: Value) -> Value {
 
 /// The root object: the first object of the schema's root type.
 pub fn root_id(replica: &Replica) -> Option<ObjectId> {
-    replica.objects_of_type(&replica.schema().root).into_iter().next()
+    replica.root_id()
 }
 
 fn str_field<'a>(index: usize, op: &'a Value, key: &str) -> Result<&'a str, BatchError> {
@@ -1402,7 +1402,7 @@ pub fn describe(replica: &Replica) -> Value {
         "kit": schema.kit,
         "schemaVersion": schema.schema_version,
         "root": schema.root,
-        "rootId": root_id(replica).map(|id| if schema.has_tool_ids() { replica.tool_ids().show(&id) } else { id.to_string() }),
+        "rootId": root_id(replica).map(|id| if schema.has_tool_ids() { replica.tool_ids_of(&std::collections::BTreeSet::from([id.clone()])).show(&id) } else { id.to_string() }),
         "types": types,
     })
 }

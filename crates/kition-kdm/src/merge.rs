@@ -105,7 +105,7 @@ struct Side {
     taken: BTreeMap<FieldKey, BTreeSet<ObjectId>>,
     /// The items (nodes) it inserted, placed or moved in each list (tree) field.
     placed: BTreeMap<FieldKey, BTreeSet<ObjectId>>,
-    /// The nodes it took out of each tree field.
+    /// The items (nodes) it removed from each list (tree) field.
     removed: BTreeMap<FieldKey, BTreeSet<ObjectId>>,
     /// The nodes it put nodes under in each tree field.
     parents: BTreeMap<FieldKey, BTreeSet<ObjectId>>,
@@ -159,7 +159,10 @@ impl Side {
                             side.placed_anywhere.insert(item.clone());
                             add(&mut side.placed, &key, item);
                         }
-                        Op::ListRemove { item: Some(item), .. } => add(&mut side.taken, &key, item),
+                        Op::ListRemove { item: Some(item), .. } => {
+                            add(&mut side.taken, &key, item);
+                            add(&mut side.removed, &key, item);
+                        }
                         Op::ListMove { item: Some(item), .. } => {
                             add(&mut side.taken, &key, item);
                             add(&mut side.placed, &key, item);
@@ -263,8 +266,15 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
         conflicts.push(conflict("D8", id, None, None, "both created it"));
     }
     let deleted_by_doc = |id: &ObjectId| before.contains(id) && !now.contains(id);
+    // Objects both deleted: the outcome both asked for, so the draft's deletion and its writes to
+    // them do nothing.
+    let mut deleted_by_both: BTreeSet<ObjectId> = BTreeSet::new();
     for id in doc.deleted.iter().filter(|id| deleted_by_doc(id)) {
-        if draft.written.contains(id) || draft.deleted.contains(id) || draft.placed_anywhere.contains(id) {
+        if draft.deleted.contains(id) {
+            deleted_by_both.insert(id.clone());
+            continue;
+        }
+        if draft.written.contains(id) || draft.placed_anywhere.contains(id) {
             conflicts.push(conflict("D8", id, None, None, "the draft changes it; the document deleted it"));
         }
     }
@@ -333,12 +343,19 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
             Kind::Tree => ("D7", "both moved or deleted the node", "both placed the node"),
             _ => ("D6", "both moved or removed the item", "both inserted the item"),
         };
-        let taken_by_both = both(draft.taken.get(key), doc.taken.get(key));
+        // An item (node) both only removed is the outcome both asked for: the draft's removal
+        // does nothing ([`Tie::Merge`]).
+        let removed_only = |side: &Side, item: &ObjectId| {
+            side.removed.get(key).is_some_and(|items| items.contains(item)) && !side.placed.get(key).is_some_and(|items| items.contains(item))
+        };
+        let taken_by_both: Vec<&ObjectId> =
+            both(draft.taken.get(key), doc.taken.get(key)).into_iter().filter(|item| !(removed_only(&draft, item) && removed_only(&doc, item))).collect();
         for item in &taken_by_both {
             conflicts.push(conflict(rule, id, Some(field), Some(MergeAt::Item((*item).clone())), taken));
         }
+        let all_taken = both(draft.taken.get(key), doc.taken.get(key));
         for item in both(draft.placed.get(key), doc.placed.get(key)) {
-            if !taken_by_both.contains(&item) {
+            if !all_taken.contains(&item) {
                 conflicts.push(conflict(rule, id, Some(field), Some(MergeAt::Item(item.clone())), placed));
             }
         }
@@ -387,11 +404,20 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
             })
             .collect()
     };
+    // The draft's deletions of objects the document deleted too, and its writes to them, do
+    // nothing (after the transform, which cancels the two deletions' places in a tree).
+    let without_deleted = |ops: Vec<Op>| -> Vec<Op> {
+        if deleted_by_both.is_empty() {
+            return ops;
+        }
+        ops.into_iter().filter(|op| !op.object().is_some_and(|id| deleted_by_both.contains(id))).collect()
+    };
     if carried.is_empty() {
-        return Ok(kept);
+        return Ok(without_deleted(kept));
     }
     let later: Vec<Op> = ours.iter().filter_map(|op| carried_part(op, &carried)).collect();
     let (ops, _) = through_with(kept, &later, Tie::Merge);
+    let ops = without_deleted(ops);
     let cycles = cycles(&ops, &carried, now);
     if cycles.is_empty() { Ok(ops) } else { Err(cycles) }
 }

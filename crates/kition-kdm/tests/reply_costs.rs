@@ -82,3 +82,53 @@ fn replies_naming_no_object_read_no_tool_ids_and_named_ones_read_them_once_per_s
     assert_eq!(ToolIds::show_reply(&replica, &json!({ "target": made.to_string() })), json!({ "target": made.to_string() }));
     assert!(Arc::ptr_eq(&replica.tool_ids(), &replica.tool_ids()), "one state, one table");
 }
+
+/// What the editor asks after every change costs about what it names or what the change touched,
+/// not the document: on a 200,000-object document, 100 rounds of one edit and one reply naming
+/// the edited cell, 100 rounds of one edit and its receipt (`changes_since`), and 100 descriptions
+/// of the object model (its root found without a walk) each take well under a second.
+#[test]
+fn a_reply_a_receipt_and_a_description_after_each_edit_cost_what_they_name() {
+    const LARGE: usize = 200_000;
+    let schema = Arc::new(Schema::parse(SCHEMA).expect("schema"));
+    let (mut replica, (sheet, cells)) = Replica::create_with(schema, DocId::new(), ActorId::from_u64(1).expect("actor"), &Origin::system("import"), |tx| {
+        let sheet = tx.create("Sheet", Map::new())?;
+        let mut cells = Vec::new();
+        for at in 0..LARGE {
+            let made = tx.create("Cell", cell(at + 1))?;
+            tx.list_insert(&sheet, "cells", at, &made)?;
+            if at % 2_000 == 0 {
+                cells.push((made, at + 1));
+            }
+        }
+        Ok((sheet, cells))
+    })
+    .expect("sheet");
+    let person = Origin::person("user:test");
+
+    let started = Instant::now();
+    for (round, (made, number)) in cells.iter().enumerate() {
+        replica.transact(&person, |tx| tx.set(made, "text", json!(format!("edit {round}")))).expect("edit");
+        let shown = ToolIds::show_reply(&replica, &json!({ "target": made.to_string() }));
+        assert_eq!(shown, json!({ "target": format!("cell:{number}") }));
+    }
+    let replies = started.elapsed();
+    assert!(replies < Duration::from_secs(1), "100 edits and replies took {replies:?}");
+
+    let started = Instant::now();
+    for (round, (made, _)) in cells.iter().enumerate() {
+        let since = replica.version();
+        replica.transact(&person, |tx| tx.set(made, "text", json!(format!("again {round}")))).expect("edit");
+        let receipt = replica.changes_since(&since).expect("receipt").to_json();
+        assert!(receipt.to_string().contains("cell:"), "{receipt}");
+    }
+    let receipts = started.elapsed();
+    assert!(receipts < Duration::from_secs(1), "100 edits and receipts took {receipts:?}");
+
+    let started = Instant::now();
+    for _ in 0..100 {
+        assert_eq!(kition_kdm::batch::describe(&replica)["rootId"], json!(sheet.to_string()));
+    }
+    let described = started.elapsed();
+    assert!(described < Duration::from_millis(500), "100 descriptions took {described:?}");
+}
