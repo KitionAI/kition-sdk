@@ -4,6 +4,18 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Undo answers, change lists, engine members (plan 2026-11-24, plain model).** `Replica::undo`,
+  `redo`, `undo_in` and `redo_in` answer an `UndoOutcome` instead of a `bool`: the steps passed over
+  (top first) and the one taken back, each by its footprint (`is_done()` is the old answer;
+  `KitSession` keeps its `(bool, Damage)`) (sdk.model.undo-outcome/steps-taken). Appended objects
+  and text come back in order after N undos and N redos, and two deletions at one place undone in
+  turn keep their order (regressions/issue-kdm-redo-order). `@kition/kdm` exports
+  `readChangeList` (sdk.model.change-list-reader/origins). `tools/check-manifest.mjs --module`
+  refuses a contract 2 engine without `mergeChanges`, `compareChanges`, `restoreState`,
+  `changesSince`, `modelReply`, `modelBatch` or `modelDescribe` (platform K3a); a kit turns it on
+  with a `web/` script `"test:contract": "node ../../kition-sdk/tools/check-manifest.mjs
+  ../kit.json --module public/engine"` (sdk.platform.engine-session-members/check-manifest). The
+  quality template's `collab` row speaks of one line of changes.
 - **Undo after undo, and receipts across a later load (plan 2026-11-24, plain model).** An undo
   of an older step is carried over neither a later step nor the undo or redo that took it back
   (the pair composes to nothing), so N undos of a scope's last N steps give back the state before

@@ -120,6 +120,16 @@ Requirements:
   (read-only).
 - **K3** `engine.contract` MUST be the engine contract version the module
   exports (`contractVersion()`, [engine contract](engine.md)).
+- **K3a** A contract 2 module MUST have the session members beyond the change
+  exchange that `export_kit_session!` writes: `mergeChanges`,
+  `compareChanges`, `restoreState`, `changesSince`, `modelReply`, `modelBatch`
+  and `modelDescribe` ([engine contract](engine.md)). Without them the module
+  loads and its editor loses drafts, restore, receipts or the object model
+  without an error. `tools/check-manifest.mjs kit.json --module <engine dir>`
+  checks them on the built engine; a kit runs it as a test script of `web/`,
+  which kit CI runs after the engine build:
+  `"test:contract": "node ../../kition-sdk/tools/check-manifest.mjs ../kit.json --module public/engine"`
+  (`--module` names the folder the kit's `engine` script writes).
 - **K4** Every extension in `formats` with role `edit` is a file the kit owns:
   the host routes it to the kit and the kit saves it in place.
 - **K5** Every extension in `exports` is a file the kit writes as a new file

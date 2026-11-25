@@ -214,7 +214,8 @@ describe('check-manifest engine contract 2 (platform K10 to K14)', () => {
 
   it('loads a ts-worker engine with --module: prepared from its folder, then checked like a wasm one', () => {
     const tsWorker = { ...v2, distribution: 'default', capabilities: ['kdm'], engine: { ...v2.engine, runtime: 'ts-worker' } }
-    const members = ['version', 'exportChanges', 'importChanges', 'snapshot', 'executeAs'].map((name) => `${name}() {}`).join(' ')
+    const session = ['version', 'exportChanges', 'importChanges', 'snapshot', 'executeAs', 'mergeChanges', 'compareChanges', 'restoreState', 'changesSince', 'modelReply', 'modelBatch', 'modelDescribe']
+    const members = session.map((name) => `${name}() {}`).join(' ')
     const engine = (extra) => `
       import fs from 'node:fs'
       let ready = false
@@ -228,6 +229,17 @@ describe('check-manifest engine contract 2 (platform K10 to K14)', () => {
     expect(passed.code).toBe(0)
     const missing = checkFolder({ ...tsWorker, engine: { ...tsWorker.engine, class: 'OtherDocument' } }, files(extras), ['--module', '$DIR/engine'])
     expect(missing.out).toContain('exports no OtherDocument')
+  })
+
+  it('refuses a contract 2 module without the drafts, restore, receipt and object-model members (K3a)', () => {
+    const tsWorker = { ...v2, distribution: 'default', capabilities: ['kdm'], engine: { ...v2.engine, runtime: 'ts-worker' } }
+    const exchange = ['version', 'exportChanges', 'importChanges', 'snapshot', 'executeAs']
+    const engine = (names) => `export class ${v2.engine.class} { static contractVersion() { return 2 } static openWithReplica() {} ${names.map((name) => `${name}() {}`).join(' ')} }`
+    const extras = Object.keys(v2.extras ?? {})
+    const handWritten = checkFolder(tsWorker, { 'model/schema.json': schema, [`engine/${v2.engine.module}.js`]: engine([...exchange, ...extras, 'modelBatch', 'modelDescribe']) }, ['--module', '$DIR/engine'])
+    expect(handWritten.code).toBe(1)
+    for (const member of ['mergeChanges', 'compareChanges', 'restoreState', 'changesSince', 'modelReply']) expect(handWritten.out).toContain(`a contract 2 module has ${member}`)
+    expect(handWritten.out).not.toContain('a contract 2 module has modelBatch')
   })
 
   it('refuses an unknown merge class and a malformed lease scope', () => {

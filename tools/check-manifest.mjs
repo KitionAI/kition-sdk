@@ -17,8 +17,14 @@
 //
 // With --module (a wasm-pack output folder, or a ts-worker engine's folder), it also loads the
 // built engine and checks that the manifest matches it: the class exists, contractVersion()
-// matches engine.contract, a contract 2 engine has the session members, and every declared extra
-// exists.
+// matches engine.contract, a contract 2 engine has the session members (the change exchange, and
+// the drafts, restore, receipt and object-model members export_kit_session! writes: K3a), and
+// every declared extra exists. A kit runs it on its built engine from web/package.json, as a test
+// script CI runs after the engine build:
+//
+//   "test:contract": "node ../../kition-sdk/tools/check-manifest.mjs ../kit.json --module public/engine"
+//
+// (`--module` names the folder the kit's `engine` script writes).
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -33,6 +39,9 @@ if (!file) {
 }
 const moduleIndex = process.argv.indexOf('--module')
 const moduleDir = moduleIndex > 0 ? path.resolve(process.argv[moduleIndex + 1]) : null
+
+/** The members of a contract 2 engine's session beyond the change exchange (engine contract K3a). */
+const CONTRACT_2_SESSION = ['mergeChanges', 'compareChanges', 'restoreState', 'changesSince', 'modelReply', 'modelBatch', 'modelDescribe']
 
 const failures = []
 const fail = (where, message) => failures.push(`${where || '(root)'}: ${message}`)
@@ -309,6 +318,11 @@ if (moduleDir && manifest.engine) {
       if (typeof Document.openWithReplica !== 'function') fail('engine.contract', `a contract 2 module has a static openWithReplica ${PLATFORM('K3')}`)
       for (const member of ['version', 'exportChanges', 'importChanges', 'snapshot', 'executeAs']) {
         if (typeof Document.prototype[member] !== 'function') fail('engine.contract', `a contract 2 module has ${member} ${PLATFORM('K3')}`)
+      }
+      // What `export_kit_session!` adds: drafts (merge, compare), restore, receipts and the object
+      // model. A hand-written surface without them loads, and its editor silently loses them.
+      for (const member of CONTRACT_2_SESSION) {
+        if (typeof Document.prototype[member] !== 'function') fail('engine.contract', `a contract 2 module has ${member}, as export_kit_session! writes it ${PLATFORM('K3a')}`)
       }
     }
     // The engine-tools capability is a fixed set of members (docs/platform/kits/ui.md, U8a).

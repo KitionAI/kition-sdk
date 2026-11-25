@@ -231,7 +231,10 @@ field the document also changed since). `restoreState(snapshot, origin)` writes
 a checkpoint's state over the document as one change (Kit UI protocol
 `replica/restore`), and `changesSince(since)` answers a write's receipt,
 `{ changes }`, or `{ changes: null, unavailable }` when the replica's log does
-not hold `since`. `origin` is the KDM commit form `[kind, principal, label]`.
+not hold `since`; `modelReply(value)` names the objects of an agent's reply by
+their tool ids. `origin` is the KDM commit form `[kind, principal, label]`.
+A module without any of these fails manifest rule K3a
+([manifest](manifest.md)).
 An engine SHOULD add `schemaVersion()` (the schema version its replica reads) and
 `authorSchemaVersion()` (the newest one its changes were written under, or
 `null`; rule M5a). `export_kit_session!` provides every one of these:

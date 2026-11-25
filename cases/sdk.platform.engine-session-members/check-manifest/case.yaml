@@ -1,0 +1,13 @@
+format: 1
+id: sdk.platform.engine-session-members/check-manifest
+feature: sdk.platform.engine-session-members
+intent: >-
+  tools/check-manifest.mjs --module refuses a contract 2 engine without mergeChanges, compareChanges, restoreState, changesSince, modelReply, modelBatch or modelDescribe (platform K3a): six kits with hand-written wasm surfaces lost drafts and restore without an error. A kit runs it from web/package.json as test:contract, after CI's engine build.
+layer: gate
+source: { kind: synthetic, from: kit migrations to the plain KDM, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/check-manifest.test.mjs] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"
