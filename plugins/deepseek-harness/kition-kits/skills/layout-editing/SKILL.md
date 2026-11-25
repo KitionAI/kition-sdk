@@ -51,7 +51,7 @@ your draft of the document and leave the file as it is; only the person merges o
   **1**.
 - Items and stories are named by numeric **ids**: `layout_inspect` lists `spreads[].items[]` (each
   with `id`, `kind`, `bounds`, and `story` for text frames) and `stories[]` (each with `id`,
-  `frames` and `overset`). [`frame.create`](/kits/layout/commands/frame.create/) answers `{id}` and,
+  `frames` and `overset`). [`frame.add`](/kits/layout/commands/frame.add/) answers `{id}` and,
   for a text frame, `{id, story}`.
 - Ids are stored in the document: an object keeps its id when the document is saved and opened
   again, in another session, and in your draft. Two people who
@@ -70,7 +70,7 @@ your draft of the document and leave the file as it is; only the person merges o
   settings records is incomplete; use query/batch addresses for those records.
 - Diagnostics name an item as `target.path` `item:<id>`.
 - Commands that take `ids` act on those items; without `ids` they act on the selection. Character
-  formatting ([`type.char`](/kits/layout/commands/type.char/)) acts on selected text: select it
+  formatting ([`text.char`](/kits/layout/commands/text.char/)) acts on selected text: select it
   first with [`text.select`](/kits/layout/commands/text.select/) `{story, anchor, focus}`, where
   `anchor` and `focus` are UTF-8 byte offsets in the story, counted from 0.
 
@@ -112,20 +112,20 @@ These are the currently audited per-call premises, implemented in `bindings/wasm
 | `object.rename`, `fill`, `opacity`, `label`, `altText`, `lock`, `hide`, `setFlags`, `attributes`, `transparencyGroup`, `setLayer`; `layer.set` | The fields written, without placement. Fill holds swatch and tint; opacity also holds blend when supplied. Referenced swatches/layers are declared objects. |
 | Non-copy `transform.move` | Target lock and transform/ownership placement; ancestor transforms/ownership. `toSpread` also holds the destination spread and its index window. An unrelated target property may change. |
 | `object.align` with `to` page, margins or spread | The targets, and the size, margins and place of the page under them (every page of the spread for `spread`). |
-| `object.group` | Members' layer, transform and ownership placement. Only top-level members in one spread are accepted. |
+| `arrange.group` | Members' layer, transform and ownership placement. Only top-level members in one spread are accepted. |
 | `xml.deleteTag` | The set of items tagged with the name (an item another writer tagged or created tagged refuses `relocated`; one untagged, deleted or tagged otherwise does not), the tag's definition and the style-to-tag mappings. |
 | `form.set` without `name` | The existing form fields' names, which the default name avoids: another writer's new or renamed field on an existing item refuses. A new item created as a form field after the observation is not held (the command has no place parameter for the guard to ask about); the name chosen is still unused when the write runs. |
 | Writes that map spread coordinates into an item or its path out to the spread (`path.split`, `path.erase`/`smooth`/`addAnchor`/`appendAnchor`/`moveAnchors`, `path.convertAnchor` with `to`, `object.gradientFeather`/`object.gradient` with `from`/`to`, `object.makeCompoundPath`, `object.pathfinder`, `anchored.insert`, `object.caption`, `edit.pasteInto`, `transform.set`, `text.placeCaret`, `table.dropCells`) | Each ancestor group's transform and place, besides the target. |
-| `layout.deleteAlternate`, `layout.createAlternate` | Deletion: the layout's pages (its `name` is a place), their items, stories, assets and parents, and the sections. Creation: the source layout's pages, their items, stories, assets and parents, the sections and the spread list (a page added anywhere refuses). |
+| `layout.deleteAlternate`, `layout.addAlternate` | Deletion: the layout's pages (its `name` is a place), their items, stories, assets and parents, and the sections. Creation: the source layout's pages, their items, stories, assets and parents, the sections and the spread list (a page added anywhere refuses). |
 | `liquid.pageRule`, `page.background` without `pages`; `page.transition` with `all` | Every page's stored fields and the spread list: a page another writer adds or changes refuses. |
 | `data.source.remove`, `data.placeholder.add` | The data sources (`settings.dataMerge.sources`); the placeholder's story or item as named. |
 | `layer.move` | Source placement and destination list gap in stored order, accounting for removal of the source. |
 | `layer.new`, `layer.others`, `layer.deleteUnused` | Creation holds the layer count used for naming/color. Others holds the sorted layer identity set and affected flags, leaving an excluded layer's other fields free. Unused deletion holds layer and used-layer identity sets, plus the first stored layer when none is used. Reordering does not refuse when only count or membership matters. |
 | `layer.delete`; `object.setLayer` | Deletion holds the layer, every item on it and `~layerItems`, the set of items the engine deletes with it; that set is also a place of the layer (its `id`), so an item another writer changes on the layer, moves onto it or creates on it refuses, and one put on another layer does not. Assigning a layer holds the layer's stored fields, not its items. |
-| A `spread` counted from 0 that a command creates or acts in (`frame.create`, `line.create`, `path.create`, `file.place`, `guide.add`, `layout.createGuides`, ...); `button.set` `page`; `toc.generate`, `index.generate`, `file.place` `page`; `page.transition` `pages` or `spread`; `liquid.pageRule` and `page.background` `pages` | The counted spread and page prefix (an insertion or deletion before refuses `relocated`) and the addressed spread's or page's identity. `gap.move`'s `spread` holds the prefix spreads' places but not an insertion before them (a `within` window beside `covers` is not checked at this pin). |
-| `states.show`/`rename` `index`, `path.deleteAnchor`/`convertAnchor` `anchor`/`subpath`, `path.moveAnchors` `anchors`, `anchored.options`/`release` `index`, `xref.setFormat` `index`, `text.select` `anchor`/`focus` | The object the position counts in (item or story), whole. |
+| A `spread` counted from 0 that a command creates or acts in (`frame.add`, `line.add`, `path.add`, `file.place`, `guide.add`, `layout.addGuides`, ...); `button.set` `page`; `toc.generate`, `index.generate`, `file.place` `page`; `page.transition` `pages` or `spread`; `liquid.pageRule` and `page.background` `pages` | The counted spread and page prefix (an insertion or deletion before refuses `relocated`) and the addressed spread's or page's identity. `gap.move`'s `spread` holds the prefix spreads' places but not an insertion before them (a `within` window beside `covers` is not checked at this pin). |
+| `state.show`/`rename` `index`, `path.deleteAnchor`/`convertAnchor` `anchor`/`subpath`, `path.moveAnchors` `anchors`, `anchored.options`/`release` `index`, `xref.setFormat` `index`, `text.select` `anchor`/`focus` | The object the position counts in (item or story), whole. |
 | `guide.move`, `guide.delete`, `guide.liquid` | The counted spread and page prefix, and the guide at that index on its page, including every guide before it (guides are stored by position); a parent spread named by its prefix also holds that prefix and name. Move/delete also hold the layer's effective visible/unlocked/show-guides predicate. |
-| `find.changeObjects` | Matched target fields and query membership, evaluated by the engine's shared matcher against historical scalar facts. Layer names and typed addresses use one resolver. |
+| `edit.replaceObjects` | Matched target fields and query membership, evaluated by the engine's shared matcher against historical scalar facts. Layer names and typed addresses use one resolver. |
 | Parent application and page insertion | Parent prefix or full label identity, not its definition. The omitted insertion parent holds the first parent's identity and list position. |
 | Page-number writes (`pages.insert/delete/move/applyParent/toSpread`, page size, margins, section, overrides); spread duplicate/shuffle/rotation | Resolved page/spread, the identities and placement of the prefix counted by the address, and insertion windows. Page deletion also holds the removed items, their stories/assets and `~pageItems`, the set of items the engine deletes with the page, so an item another writer puts on the page refuses; other page writes hold the page's stored fields, not its items. Page source and reshuffling dependencies are still being reviewed. |
 | `story.replaceRange`, `spelling.change`, `anchored.insert` with `story` and `pos` | Offsets are UTF-8 **byte offsets**, not character counts, and a positional address: the write rests on the story's text before and inside its range, not on text after it. Another writer's edit before the range or inside it refuses `relocated` (inside is reported as `relocated`, not `changed`); an edit after the range applies. A change whose place a change set cannot tell refuses `relocated` with `place.unknown`: a formatting-only change anywhere in the story, and an insertion into repeated text that could have been made at or before the range's end. Change sets give a story over 80 characters as an excerpt: the kit finds the observed text among the texts its process held (opened, changed, inspected); when it held none or several that fit (after a restart of the kit, or past its memory budget) the write refuses with `place.unknown`. Anchored objects, notes and tables inside the range are held whole. |
@@ -135,18 +135,18 @@ These are the currently audited per-call premises, implemented in `bindings/wasm
 | `object.gradient` | The target and the current fill's swatch definition: changing a gradient copies and modifies its current stops, rather than merely assigning a style identity. |
 | Hyperlink record edits/deletes; placeholder removal | The settings entry selected by its stored id, rather than a same-valued global object number. |
 | Bookmark rename/delete | The settings bookmark prefix counted by the index. |
-| `document.applyTemplate`; `font.replace`; destructive `type.pathOptions` | Templates hold the whole replaced document. Font replacement conservatively holds all stories and, unless disabled, paragraph/character/composite definitions; unrelated item properties can change. Removing path text holds its story. |
+| `file.applyTemplate`; `font.replace`; destructive `text.pathOptions` | Templates hold the whole replaced document. Font replacement conservatively holds all stories and, unless disabled, paragraph/character/composite definitions; unrelated item properties can change. Removing path text holds its story. |
 | Conditions, text variables, named lists, custom strokes, articles | The settings entry selected by its name, including its content. These entries lack immutable keys: rename/delete refuse as `changed`, rather than a refined identity reason. |
 | `xref.defineFormat`, `style.compositeFont.set`, `swatch.ungroupColorGroup`, `swatch.renameColorGroup`, `ink.options` with `allToProcess` | The named definition/group consumed or overwritten; group rename holds source/destination names while allowing member changes. The ink flag is held as its effective default-aware value. Other groups/definitions and per-ink options can change independently. Per-swatch group membership and other ink-option branches remain under review. |
 | `xref.insert`, `xref.setFormat` | The assigned format's existence/name, including insertion's default format. A definition-content edit may apply because assignment stores its name; a rename-away refuses. |
 | Footnote/endnote options and insertion | The document's note options; endnotes also hold their generated story reference. |
-| `document.preferences`, `edit.transparencyBlendSpace`, `changes.track`, dictionary words and hyphenation exceptions | The stored settings fields they overwrite. |
+| `file.preferences`, `edit.transparencyBlendSpace`, `change.track`, dictionary words and hyphenation exceptions | The stored settings fields they overwrite. |
 | `object.globalLight`, `object.primaryTextFrame` | The root's `setup.globalLight` and `setup.primaryStory`, respectively. The primary-frame command's omitted `on` toggles from the observed primary story. |
 | `frame.fitText` | The resolved story, threaded frame geometry and used paragraph, character, table and cell definitions through based-on chains. Point-to-caret and outlines hold these too, and the story's `~compositionFrames`: each frame's area, options, wrap exclusions and page, as the composer reads them. Fonts are not held: a composite font redefined (`style.compositeFont.set`) or a font file added to or removed from the machine changes what fitting computes without refusing; a font replaced in the document (`font.replace`) changes the story's formatting and so refuses. |
 | `frame.thread`, `frame.unthread`, `frame.loadText` | The referenced frames and their stories, including both endpoints when joining stories. |
 | `gap.move` | Exact engine gap neighbours, geometry/visibility/lock, their layers and page geometry. Historical substitutions are applied together; unsupported historical structure returns unknown. |
 | Existing-table commands; `style.cell.apply`, `style.table.apply` | Cell non-stroke edits hold the addressed cells and possible merged owners, with counted row/column prefixes. Row height and column width edits hold addressed line definitions. Insertions hold copied neighbouring cell formats and row kinds; deletions hold removed/displaced cells; merge/unmerge hold addressed cells and merged spans. Anchor deletion/conversion also holds story text. Split, move/sort, strokes (which mirror to neighbours), table styles and composed row distribution still hold the whole table. Header/footer rows use the engine's resolved range. |
-| Rules read from the blind readings (`bindings/wasm/src/place/rests.rs`) | One table per command of what the handler reads besides its targets and parameters. Typing/special characters/deletion: `setup.trackChanges`. Page insertion/move/document setup: the setup, the sections and the items repagination moves; page size and margins with Adjust Layout: the items on those pages. Arrange: each sibling's place in the item tree. Unlock/show all: every top-level item's flag. Style deletion, object-style application, style groups, change acceptance, condition/variable deletion, find next, table drops: every story's text. Table selection: the table's rows and columns. Layer deletion: the layer count (`~layerCount`); a page background: the last layer (`~lastLayer`). Creation defaults: a new text frame (also captions, linked stories) holds the default paragraph and text-frame styles, that object style and the binding (a new story's direction); a size step, OpenType toggle, broken link, paragraph rule patch or style from the selection holds the formatted text's style chains; a table insertion the insertion story's text and frames; a new condition the conditions; a new parent the setup size, facing pages, first page's margins and columns and, without a prefix, the parents' prefixes. Paste: the selected story whole, track changes and the first spread. Cell/table style edits: every cell's/table's style and properties. `variables.insert`: the whole variable list (an instance stores its index). Misc: articles, data-merge sources/placeholders/options with hyperlink ranges, hyperlinks, bookmarks, stroke styles and XML settings whole; `links.goTo` every item's graphic; `object.layerOptions` the placed asset; `math.insert` the first page and active layer; `data.merge` and `script.run` the whole document. |
+| Rules read from the blind readings (`bindings/wasm/src/place/rests.rs`) | One table per command of what the handler reads besides its targets and parameters. Typing/special characters/deletion: `setup.trackChanges`. Page insertion/move/document setup: the setup, the sections and the items repagination moves; page size and margins with Adjust Layout: the items on those pages. Arrange: each sibling's place in the item tree. Unlock/show all: every top-level item's flag. Style deletion, object-style application, style groups, change acceptance, condition/variable deletion, find next, table drops: every story's text. Table selection: the table's rows and columns. Layer deletion: the layer count (`~layerCount`); a page background: the last layer (`~lastLayer`). Creation defaults: a new text frame (also captions, linked stories) holds the default paragraph and text-frame styles, that object style and the binding (a new story's direction); a size step, OpenType toggle, broken link, paragraph rule patch or style from the selection holds the formatted text's style chains; a table insertion the insertion story's text and frames; a new condition the conditions; a new parent the setup size, facing pages, first page's margins and columns and, without a prefix, the parents' prefixes. Paste: the selected story whole, track changes and the first spread. Cell/table style edits: every cell's/table's style and properties. `variable.insert`: the whole variable list (an instance stores its index). Misc: articles, data-merge sources/placeholders/options with hyperlink ranges, hyperlinks, bookmarks, stroke styles and XML settings whole; `linkedFile.goTo` every item's graphic; `object.layerOptions` the placed asset; `math.insert` the first page and active layer; `data.merge` and `script.run` the whole document. |
 | Effects, corners, wrap, stroke, export options | The one effect (`effects.dropShadow`, ...) or field the handler patches on each target: another writer's rename, move or paint of the same item applies. |
 
 `~boundsX0`, `~boundsY0`, `~boundsX1`, `~boundsY1` are derived from an item's path/content/transform and owned group children, in the
@@ -222,9 +222,9 @@ not a blanket guarantee for all Layout commands.
 
 ```json
 layout_run {"path": "Flyer.klayout", "steps": [
-  {"command": "swatch.create", "params": {"name": "Brand", "color": {"c": 70, "m": 75, "y": 0, "k": 0}}},
-  {"command": "frame.create", "params": {"rect": [72, 300, 540, 420], "content": "unassigned"}},
-  {"command": "frame.create", "params": {"rect": [72, 450, 540, 520], "content": "text", "text": "Saturday 8 pm, Town Hall"}}
+  {"command": "swatch.add", "params": {"name": "Brand", "color": {"c": 70, "m": 75, "y": 0, "k": 0}}},
+  {"command": "frame.add", "params": {"rect": [72, 300, 540, 420], "content": "unassigned"}},
+  {"command": "frame.add", "params": {"rect": [72, 450, 540, 520], "content": "text", "text": "Saturday 8 pm, Town Hall"}}
 ]}
 ```
 
@@ -235,7 +235,7 @@ Use those ids:
 layout_run {"path": "Flyer.klayout", "steps": [
   {"command": "object.fill", "params": {"swatch": "Brand", "ids": [9]}},
   {"command": "text.select", "params": {"story": 11, "anchor": 0, "focus": 24}},
-  {"command": "type.char", "params": {"attrs": {"size": 28, "fill": "Brand"}}},
+  {"command": "text.char", "params": {"attrs": {"size": 28, "fill": "Brand"}}},
   {"command": "object.align", "params": {"edge": "hcenter", "to": "page", "ids": [10]}}
 ]}
 layout_check {"path": "Flyer.klayout"}
@@ -276,9 +276,9 @@ layout_check {"path": "Poster.klayout"}
 
 ## Pitfalls
 
-- **Frame content:** [`frame.create`](/kits/layout/commands/frame.create/) needs `content`: `text`
+- **Frame content:** [`frame.add`](/kits/layout/commands/frame.add/) needs `content`: `text`
   (with `text`), `graphic`, or `unassigned` (a shape).
-- **Select text first:** [`type.char`](/kits/layout/commands/type.char/) `{attrs}` changes the
+- **Select text first:** [`text.char`](/kits/layout/commands/text.char/) `{attrs}` changes the
   selected text only; run [`text.select`](/kits/layout/commands/text.select/) first.
 - **Results of earlier steps:** steps in one `layout_run` cannot refer to an earlier step's result.
   Create, read the ids from `completed[].result`, then use them in the next call.
@@ -310,5 +310,5 @@ only when it is what the person asked for. Every code the kit reports is on the
 | `layout.missing-link` | error | A placed graphic's file is gone or outside the workspace (never read from there): put it in the workspace and place it again ([`file.place`](/kits/layout/commands/file.place/) `{path}`), or remove the frame |
 | `layout.unsupported-typography` | warning | A setting the kit keeps but does not compose (kinsoku, mojikumi, Arabic justification); tell the person |
 | `layout.low-resolution` | warning | The image is too small for print at its size: place a larger image or scale the frame down |
-| `layout.empty-frame` | warning | `fix` removes the empty text frame ([`edit.clear`](/kits/layout/commands/edit.clear/) `{ids}`) |
-| `layout.rgb-in-print` | warning | Use a CMYK swatch ([`swatch.create`](/kits/layout/commands/swatch.create/) `{name, color: {c, m, y, k}}`) in a print document |
+| `layout.empty-frame` | warning | `fix` removes the empty text frame ([`edit.delete`](/kits/layout/commands/edit.delete/) `{ids}`) |
+| `layout.rgb-in-print` | warning | Use a CMYK swatch ([`swatch.add`](/kits/layout/commands/swatch.add/) `{name, color: {c, m, y, k}}`) in a print document |

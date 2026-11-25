@@ -167,7 +167,7 @@ describe('the read-only rules', () => {
 
   it('let viewing commands run whatever their kit flags', () => {
     expect(editsDocument({ id: 'view.zoomIn', mutates: true })).toBe(false)
-    expect(editsDocument({ id: 'select.all', mutates: true })).toBe(false)
+    expect(editsDocument({ id: 'edit.selectAll', mutates: true })).toBe(false)
     expect(editsDocument({ id: 'playhead.set', mutates: true })).toBe(false)
     expect(editsDocument({ id: 'sequence.open', mutates: true })).toBe(false)
     expect(editsDocument({ id: 'sequence.lift', mutates: true })).toBe(true)

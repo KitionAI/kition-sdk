@@ -231,7 +231,7 @@ prints.
   from `file` parameters (A29). Bytes travel base64 in chunks of at most
   8 MiB.
 
-`document.open`, `document.saveAs`, and `document.export` take handles
+`file.open`, `document.saveAs`, and `file.export` take handles
 instead of URIs, and lent files are read through handles the host resolves
 (`files.resolve`). A headless kit process then needs no file-system access
 at all, and a host SHOULD run it with the platform's sandbox denying the
@@ -301,7 +301,7 @@ edition, with no aliases.
 | Kit UI `host/write` with `mode: "export"` or `mode: "create"` | `files/create`, then `files/write`. `host/write` keeps only `mode: "save"`, for the document's own file |
 | Kit UI `host/read`, `host/stamp`, `document.lend` | Unchanged in role: the document and the files beside it (its lent files), under LR2. Other files are reached only through handles |
 | A kit library's "export a file at a path" helper | `files/create`, then `files/write` of the bytes |
-| Kit Process Protocol paths: `uri` in `document.open`, `saveAs`, `export`; `workspaceRoots`; `DocumentState.uri`; reason `uri_not_granted` | Kit Process Protocol `file` handles; no roots; `DocumentState.name`; reason `file_not_granted` |
+| Kit Process Protocol paths: `uri` in `file.open`, `saveAs`, `export`; `workspaceRoots`; `DocumentState.uri`; reason `uri_not_granted` | Kit Process Protocol `file` handles; no roots; `DocumentState.name`; reason `file_not_granted` |
 | Name-based guesses of which command parameters name files | Parameters typed `file` (A28); a command that names files any other way is not exposed to agents |
 | Embed: other writes become `storage.create(name, bytes)` | Unchanged, now reached through `files/create` with staged writes; `write` grants call `storage.write` (EM23) |
 

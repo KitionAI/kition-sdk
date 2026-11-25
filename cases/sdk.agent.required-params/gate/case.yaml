@@ -3,7 +3,7 @@ id: sdk.agent.required-params/gate
 feature: sdk.agent.required-params
 intent: >-
   A headless kit's opted-in command lists its notation's required parameters in the JSON Schema
-  `commands.list` publishes, and the gate refuses a call that leaves one out as `invalid-params`,
+  `command.list` publishes, and the gate refuses a call that leaves one out as `invalid-params`,
   one error per missing parameter naming it and where a value comes from, before the engine runs;
   a call with only the required parameters runs.
 layer: gate

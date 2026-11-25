@@ -39,9 +39,9 @@ draft tools.
   (`details.source`); `preview: true` adds the rendered page (640 × 480 for a new page).
 - There are no per-element commands and no element ids: you edit the page by writing its whole
   source.
-- [`html.click`](/kits/html/commands/html.click/) `{x, y}` takes **CSS pixels** on the rendered
+- [`preview.click`](/kits/html/commands/preview.click/) `{x, y}` takes **CSS pixels** on the rendered
   page, from its top-left corner `(0, 0)`, with `x` growing right and `y` growing down.
-- [`html.advance`](/kits/html/commands/html.advance/) `{millis}` takes a whole number of
+- [`preview.advance`](/kits/html/commands/preview.advance/) `{millis}` takes a whole number of
   **milliseconds**.
 
 ## Workflow
@@ -50,7 +50,7 @@ draft tools.
 2. `html_commands` when you need a command other than the ones below. Use the exact id it returns
    and follow its parameter schema; never guess a command id.
 3. Change the source in your own text: keep everything you were not asked to change, byte for
-   byte. Then `html_run {path, steps: [{command: "html.setSource", params: {source}}]}`. A call that
+   byte. Then `html_run {path, steps: [{command: "file.setSource", params: {source}}]}`. A call that
    succeeds saves the page (`save` defaults to `true`).
 4. `html_check {path}`, then fix what it reports.
 5. `html_inspect {path, preview: true}` to look at the result.
@@ -59,9 +59,9 @@ draft tools.
 
 | Command | Params | What it does |
 |---|---|---|
-| [`html.setSource`](/kits/html/commands/html.setSource/) | `{source}` | Replaces the whole page with `source` (one undo step) |
-| [`html.click`](/kits/html/commands/html.click/) | `{x, y}` | Clicks the preview at those pixels (runs the page's handlers; the source is unchanged) |
-| [`html.advance`](/kits/html/commands/html.advance/) | `{millis}` | Moves the preview's clock (timers, animations; the source is unchanged) |
+| [`file.setSource`](/kits/html/commands/file.setSource/) | `{source}` | Replaces the whole page with `source` (one undo step) |
+| [`preview.click`](/kits/html/commands/preview.click/) | `{x, y}` | Clicks the preview at those pixels (runs the page's handlers; the source is unchanged) |
+| [`preview.advance`](/kits/html/commands/preview.advance/) | `{millis}` | Moves the preview's clock (timers, animations; the source is unchanged) |
 | [`edit.undo`](/kits/html/commands/edit.undo/), [`edit.redo`](/kits/html/commands/edit.redo/) | `{}` | Takes back or redoes your last source change |
 
 ## Example 1: add a link under the date
@@ -69,7 +69,7 @@ draft tools.
 ```json
 html_inspect {"path": "index.html"}
 → details.source: "<!doctype html>…<div class=\"card\"><p>Saturday 8 pm, Town Hall</p></div></body></html>\n"
-html_run {"path": "index.html", "steps": [{"command": "html.setSource", "params": {"source":
+html_run {"path": "index.html", "steps": [{"command": "file.setSource", "params": {"source":
   "<!doctype html>…<div class=\"card\"><p>Saturday 8 pm, Town Hall</p><p><a href=\"tickets.html\">Tickets</a></p></div></body></html>\n"}}]}
 html_check {"path": "index.html"}
 → {"diagnostics": []}
@@ -89,7 +89,7 @@ The kit does not load linked files, even ones in the workspace, so replace the i
 placeholder (or the picture as a `data:` URL):
 
 ```json
-html_run {"path": "poster.html", "steps": [{"command": "html.setSource", "params": {"source":
+html_run {"path": "poster.html", "steps": [{"command": "file.setSource", "params": {"source":
   "…<div style=\"width:120px;height:80px;background:#5645d4\" role=\"img\" aria-label=\"Poster\"></div></body></html>\n"}}]}
 html_check {"path": "poster.html"}
 → {"diagnostics": []}
@@ -104,15 +104,15 @@ html_check {"path": "title.html"}
 ```
 
 Define the value or replace `missingTitle` with the text (`"Spring concert 2026"`) in the script,
-send the whole source with [`html.setSource`](/kits/html/commands/html.setSource/), and check again:
+send the whole source with [`file.setSource`](/kits/html/commands/file.setSource/), and check again:
 `{"diagnostics": []}`.
 
 ## Pitfalls
 
-- **The whole page:** [`html.setSource`](/kits/html/commands/html.setSource/) replaces the whole
+- **The whole page:** [`file.setSource`](/kits/html/commands/file.setSource/) replaces the whole
   page, so always start from the source `html_inspect` gave you.
-- **Preview only:** [`html.click`](/kits/html/commands/html.click/) and
-  [`html.advance`](/kits/html/commands/html.advance/) change only the preview, never the saved file.
+- **Preview only:** [`preview.click`](/kits/html/commands/preview.click/) and
+  [`preview.advance`](/kits/html/commands/preview.advance/) change only the preview, never the saved file.
 - **Linked files:** the preview loads no file but the page: not images, stylesheets or scripts it
   links from the workspace (`images/logo.png`, `style.css`, `app.js`), and nothing from the network.
   Each one is reported as `html.resource-unavailable`. Write CSS and scripts in the page, and

@@ -247,7 +247,7 @@ fn a_host_written_from_the_spec_drives_the_kit() {
     // A new document: a handle on a file that does not exist yet (section 5, H3).
     let target = dir.join("plan.grid");
     let handle = files.lock().unwrap().grant("fh_00000000000000000000000000000001", target.clone(), &["read", "create", "write"]);
-    let opened = host.call("document.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
+    let opened = host.call("file.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
     assert_eq!(opened["name"], "plan.grid");
     assert_eq!(opened["dirty"], true);
     assert!(opened.get("uri").is_none(), "no URI: {opened}");
@@ -261,7 +261,7 @@ fn a_host_written_from_the_spec_drives_the_kit() {
     assert_eq!(refused["data"]["reason"], "command_disabled", "{refused}");
     let person_edit = json!({ "documentId": id, "command": "grid.set", "params": { "x": 1, "y": 1, "grey": 200 }, "origin": "user" });
     assert_eq!(host.call("commands.execute", person_edit.clone()).unwrap()["changed"], true);
-    let saved = host.call("document.save", json!({ "documentId": id })).unwrap();
+    let saved = host.call("file.save", json!({ "documentId": id })).unwrap();
     assert_eq!(saved["name"], "plan.grid");
     assert_eq!(saved["version"].as_str(), version(&target).as_deref(), "the version the commit answered");
     assert!(std::fs::read(&target).unwrap().starts_with(b"GRID"));
@@ -269,13 +269,13 @@ fn a_host_written_from_the_spec_drives_the_kit() {
     // A second save replaces the file with the version the first one left (FA9).
     host.call("commands.execute", person_edit).unwrap();
     host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 1, "grey": 9 }, "origin": "user" })).unwrap();
-    host.call("document.save", json!({ "documentId": id })).unwrap();
+    host.call("file.save", json!({ "documentId": id })).unwrap();
 
     // Someone else changes the file; the next save is a conflict, and the file is theirs (H4).
     std::thread::sleep(Duration::from_millis(20));
     std::fs::write(&target, b"GRID 1 1\n\x07").unwrap();
     host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 0, "y": 0, "grey": 1 }, "origin": "user" })).unwrap();
-    let conflict = host.call("document.save", json!({ "documentId": id })).unwrap_err();
+    let conflict = host.call("file.save", json!({ "documentId": id })).unwrap_err();
     assert_eq!(conflict["code"], -32015, "{conflict}");
     assert_eq!(conflict["data"]["reason"], "file_conflict");
     assert_eq!(std::fs::read(&target).unwrap(), b"GRID 1 1\n\x07");
@@ -287,9 +287,9 @@ fn a_host_written_from_the_spec_drives_the_kit() {
 
     // An existing file, read through its handle; an ungranted handle is the host's refusal.
     let existing = files.lock().unwrap().grant("fh_00000000000000000000000000000002", target.clone(), &["read"]);
-    let reopened = host.call("document.open", json!({ "file": existing, "readOnly": true })).unwrap();
+    let reopened = host.call("file.open", json!({ "file": existing, "readOnly": true })).unwrap();
     assert_eq!(reopened["readOnly"], true);
-    let refused = host.call("document.open", json!({ "file": "fh_00000000000000000000000000000099" })).unwrap_err();
+    let refused = host.call("file.open", json!({ "file": "fh_00000000000000000000000000000099" })).unwrap_err();
     assert_eq!(refused["data"]["reason"], "file_not_granted", "{refused}");
 
     // An agent may not act as the system (section 6).
@@ -321,7 +321,7 @@ fn view_screenshot_takes_scale_and_max_size_and_refuses_what_it_cannot_draw() {
     let mut host = Connection::open(&kit.endpoint, Arc::clone(&files));
     initialize(&mut host, "host", 1).unwrap();
     let handle = files.lock().unwrap().grant("fh_00000000000000000000000000000003", dir.join("shot.grid"), &["read", "create", "write"]);
-    let opened = host.call("document.open", json!({ "file": handle, "create": { "format": "grid", "options": { "width": 320, "height": 200 } } })).unwrap();
+    let opened = host.call("file.open", json!({ "file": handle, "create": { "format": "grid", "options": { "width": 320, "height": 200 } } })).unwrap();
     let id = opened["documentId"].clone();
     let size = |answer: &Value| (answer["width"].as_u64().unwrap_or(0), answer["height"].as_u64().unwrap_or(0));
     let shot = |host: &mut Connection, extra: Value| {
@@ -403,10 +403,10 @@ fn a_kit_whose_files_embed_no_replica_has_no_identity_and_forks_the_same_bytes()
 
     let source = dir.join("plan.grid");
     let handle = files.lock().unwrap().grant("fh_00000000000000000000000000000011", source.clone(), &["read", "create", "write"]);
-    let opened = host.call("document.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
+    let opened = host.call("file.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
     let id = opened["documentId"].clone();
     host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 3, "grey": 90 }, "origin": "user" })).unwrap();
-    host.call("document.save", json!({ "documentId": id })).unwrap();
+    host.call("file.save", json!({ "documentId": id })).unwrap();
 
     let read = files.lock().unwrap().grant("fh_00000000000000000000000000000012", source.clone(), &["read"]);
     assert_eq!(host.call("document.identity", json!({ "file": read })).unwrap(), json!({ "docId": null }));

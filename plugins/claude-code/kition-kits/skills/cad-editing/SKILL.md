@@ -1,6 +1,6 @@
 ---
 name: cad-editing
-description: "Create, inspect, edit and check a CAD drawing (.dxf) with the Kition CAD kit's tools: drawing, modifying, dimensions, layers, blocks, and AutoCAD-style commands; `commandLine` runs any command-line entry. Use when the user asks to make, read, change, review or fix .dxf files in this project."
+description: "Create, inspect, edit and check a CAD drawing (.dxf) with the Kition CAD kit's tools: drawing, modifying, dimensions, layers, blocks, and AutoCAD-style commands; `command.runLine` runs any command-line entry. Use when the user asks to make, read, change, review or fix .dxf files in this project."
 ---
 
 <!-- Generated from kition-cad agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
@@ -13,10 +13,10 @@ written. Paths are relative to the project folder.
 # CAD kit
 
 The CAD kit opens, edits and checks 2D drawings in DXF (`.dxf`). Its commands have the classic CAD
-command names in lower case ([`line`](/kits/cad/commands/line/),
-[`rectang`](/kits/cad/commands/rectang/), [`move`](/kits/cad/commands/move/),
-[`erase`](/kits/cad/commands/erase/), [`dimaligned`](/kits/cad/commands/dimaligned/),
-[`layer.set`](/kits/cad/commands/layer.set/), [`audit`](/kits/cad/commands/audit/)). An agent can
+command names in lower case ([`line`](/kits/cad/commands/line.add/),
+[`rectangle.add`](/kits/cad/commands/rectangle.add/), [`move`](/kits/cad/commands/object.move/),
+[`erase`](/kits/cad/commands/object.delete/), [`dimension.addAligned`](/kits/cad/commands/dimension.addAligned/),
+[`layer.set`](/kits/cad/commands/layer.set/), [`audit`](/kits/cad/commands/file.audit/)). An agent can
 draw and modify objects, add dimensions, work with layers and blocks, find objects by type, layer or
 window, and check the drawing database for damage, stray objects and hidden layers.
 
@@ -47,8 +47,8 @@ is not exported.
 
 - **Handles are the one id of an entity.** An entity (line, polyline, circle, text, dimension,
   block reference …) is named by its **handle**, a hex string such as `"1A2"` or `"3A63500000000"`:
-  the `handle` [`entities`](/kits/cad/commands/entities/) lists, the `handle`/`handles` commands take,
-  the handle a drawing command answers ([`rectang`](/kits/cad/commands/rectang/) → `{handle}`), the id
+  the `handle` [`object.query`](/kits/cad/commands/object.query/) lists, the `handle`/`handles` commands take,
+  the handle a drawing command answers ([`rectangle.add`](/kits/cad/commands/rectangle.add/) → `{handle}`), the id
   `cad_query` and `cad_batch` answer and take, the id receipts, `others` and `conflicts` name, and a
   diagnostic's `entity:<handle>`. An entity keeps its handle when it is moved or changed and when the
   file is saved and opened again; one your command makes has, from the moment the command answers,
@@ -93,19 +93,19 @@ behaviour audit, not a proof for every parameter path.
 | Creation defaults | Only the stored defaults used by that form. New dimensions hold their style, applicable DIM* overrides, arrow definitions and font metrics. Standalone leaders use a narrower set of defaults. |
 | Dimension edits | Assigned style, text, justification, override scalars or attachments. Clearing overrides holds the overwritten map. Most dimension edits retain source-geometry premises; disassociation preserves remeasured points without consuming source geometry. |
 | Dimension spacing | Base geometry and, for automatic spacing, baseline spacing and effective scale. A base with no eligible other dimension is a guarded no-op. Rendering dependencies remain held for dimensions actually changed. |
-| `setvar` | Stored header replacements hold the assigned value. Session-only settings use the editor-state contract instead of an unrelated imported header of the same name. |
+| `variable.set` | Stored header replacements hold the assigned value. Session-only settings use the editor-state contract instead of an unrelated imported header of the same name. |
 | LAYOUT set dispatcher | The named address remains held. The agent wrapper restores its temporary editor state, so independent page settings can change. Direct `layout.set` keeps its editor-state behaviour. |
-| `chspace` | Source geometry and space, destination layout, the selected viewport projection, and dependent dimensions. Choosing an omitted destination also consumes tab order. |
+| `object.changeSpace` | Source geometry and space, destination layout, the selected viewport projection, and dependent dimensions. Choosing an omitted destination also consumes tab order. |
 | Viewport creation and overrides | Used model extents/page setup, viewport numbering, new-viewport frozen layers, and identities behind override layer names. |
 | Boundary hatches and automatic associations | Engine-selected sources and historical membership replay. Curved and clipped output also holds the engine's sampled outline, including extent-dependent tessellation. Finite lines reuse their endpoint and pick witnesses. |
-| `arc.continue` | Historical last-curve selection and the selected source geometry when a start or direction is omitted. A later equal candidate can change that choice. |
+| `arc.addContinue` | Historical last-curve selection and the selected source geometry when a start or direction is omitted. A later equal candidate can change that choice. |
 | `trim`, `extend`, `stretch` | Engine-resolved targets and cutting/window sources. Some scan and target payload projections remain conservative. |
 | `find`, `select` | Observed match identities and historical replay. The SDK plans subsequent consumers in the selection state produced by earlier steps. FIND search holds membership and the relative order of its matches, preserving the recipient of a later first-object edit; replacement also holds matching words and target locks. Spatial SELECT retains the geometry its selector consumes. |
-| `qselect`, `selectall` | Historical membership and complete observed matches remain held under the query consumer contract. |
+| `select.quick`, `edit.selectAll` | Historical membership and complete observed matches remain held under the query consumer contract. |
 | Layer snapshots | Layer records actually captured or restored, plus the source snapshot. An absent previous-layer or isolation snapshot errors before consuming layer contents. |
 | Layer merge/deletion | Source membership, reassigned layer fields, current-layer state and viewport references. Deletion holds discarded payloads. Merge preserves unrelated destination fields except a destination thaw that the command assigns. |
 | `ungroup` | Victim group name/data and saved identity. Independent group order can change. |
-| `attsync`, clipboard capture, `wblock` | Definitions or drawing payloads captured by the native operation. Some definition/reference projections remain conservative; WBLOCK also needs the host file broker. |
+| `attribute.sync`, clipboard capture, `block.write` | Definitions or drawing payloads captured by the native operation. Some definition/reference projections remain conservative; WBLOCK also needs the host file broker. |
 | Constraints | Touched geometry, connected constraint values and transitive expression providers. A changed display setting can trigger the global solver; a display no-op preserves it. Removed exception and constraint handles are opaque membership data; adding an exception holds its live recipient because drawing repair prunes missing recipients. A single circle cannot infer a constraint. |
 | Undo/redo | Drawing content conservatively. Outside rereads import colleague changes into the live replica and preserve scoped undo. Saved editor state can be restored into the reread document when its layout and selection still resolve. |
 
@@ -114,14 +114,14 @@ with optional `aperture`. The point acts in the step's space (`at.part` or the r
 Historical replay uses the live engine's hit test, including relevant geometry, visibility,
 order, block members and their layers. Changes that preserve the selected place can apply.
 Explicit handles avoid depending on the geometry under a point. Native picks on `trim`,
-`extend`, `lengthen` and `ncopy` retain their command-specific meaning.
+`extend`, `object.lengthen` and `object.copyNested` retain their command-specific meaning.
 
 `~grid`, `~pick`, `~solve`, `~boundaryOutline`, override scalars and member-order projections
 are computed facts, never writable fields. Their model declarations let same-server receipts
 refresh them. Recursive blocks are bounded by the engine's maximum block depth. Referenced
 payloads can be large, and a successful guard check is not a complete dependency proof.
 
-A successful `close` or `closeall` returns `closed: true`, ends the run and omits the document
+A successful `close` or `file.closeAll` returns `closed: true`, ends the run and omits the document
 view without saving. Guarded planning and runtime execution stop at the successful close;
 remaining steps are reported as `notRun`.
 
@@ -168,7 +168,7 @@ The command transaction rolls back changes, removals and space transfers of exis
 entities, including changes made by propagation hooks. Idempotent entity writes still pass
 through that lock policy. Hatches store loops without source links; arrays are independent
 copies; ordinary leaders do not propagate source changes. Attributes synchronize through
-explicit `attsync`.
+explicit `attribute.sync`.
 
 DXF round trips do not retain every engine header or property. Stored-setting tests either use
 persisted values or verify values injected by a separate writer. They do not repair missing
@@ -183,7 +183,7 @@ copy-reference remapping remain separate engine audit work.
   origin `[0, 0]`. Points are `[x, y]` arrays.
 - Every object is on a **layer**; layers can be off, frozen or locked. Linetypes, text styles and
   dimension styles are named table entries (`style:Titles` in diagnostics).
-- Find existing objects with [`entities`](/kits/cad/commands/entities/) `{layout?, type?, layer?,
+- Find existing objects with [`object.query`](/kits/cad/commands/object.query/) `{layout?, type?, layer?,
   window?: [[x,y],[x,y]], limit?, offset?}` → `{count, entities: [{handle, layer, geometry…}]}`: any
   space by `layout` (the space shown when left out), a page at a time.
 
@@ -201,23 +201,23 @@ selection or the view: name what each step acts on.
   that parameter too), or, for a command that acts on the selection, they are selected for that step
   only. A handle names its space, so `on` needs no `at`; entities of two spaces need two steps when
   they go through the selection, while `handles` takes entities of any space.
-- **Drawing commands take `layer` and `layout`** ([`line`](/kits/cad/commands/line/),
-  [`circle`](/kits/cad/commands/circle/), [`rectang`](/kits/cad/commands/rectang/),
-  [`text`](/kits/cad/commands/text/), [`dimlinear`](/kits/cad/commands/dimlinear/) and every other
+- **Drawing commands take `layer` and `layout`** ([`line`](/kits/cad/commands/line.add/),
+  [`circle`](/kits/cad/commands/circle.add/), [`rectangle.add`](/kits/cad/commands/rectangle.add/),
+  [`text`](/kits/cad/commands/text.add/), [`dimension.addLinear`](/kits/cad/commands/dimension.addLinear/) and every other
   command that makes objects): the new objects go on that layer, in that space, and the current
   layer and the space shown stay as they were. Without `layer` they go on the **current layer**,
-  which is the drawing's own setting (the file saves it): [`layer.current`](/kits/cad/commands/layer.current/)
-  and [`layer.new`](/kits/cad/commands/layer.new/) `{current: true}` change it for good, so prefer
+  which is the drawing's own setting (the file saves it): [`layer.setCurrent`](/kits/cad/commands/layer.setCurrent/)
+  and [`layer.add`](/kits/cad/commands/layer.add/) `{current: true}` change it for good, so prefer
   `layer`. The other current properties (colour, linetype, text and dimension style) are the
   drawing's too; `cad_commands` says which commands read them.
 - A command leaves the person's space, view and selection as they were, also when it fails. Only
-  commands whose work is moving the editor ([`select`](/kits/cad/commands/select/),
-  [`qselect`](/kits/cad/commands/qselect/), `selectall`, `layout.set`, `mspace`, `pspace`, `zoom*`,
+  commands whose work is moving the editor ([`select`](/kits/cad/commands/select.set/),
+  [`select.quick`](/kits/cad/commands/select.quick/), `edit.selectAll`, `layout.set`, `viewport.modelSpace`, `viewport.paperSpace`, `zoom*`,
   `pan*`, `view.set`) move it, for the rest of the call: `select` a window, then `move` the selection
   in the next step. The editor is put back after the call: the next call starts again from the
   person's space, and the file saves the person's, never where the run worked.
 - Inside a layout viewport (MSPACE) a zoom or pan would change the viewport's view, which the file
-  saves: it is refused. Run `pspace` first, set the viewport with
+  saves: it is refused. Run `viewport.paperSpace` first, set the viewport with
   [`viewport.set`](/kits/cad/commands/viewport.set/), or look with a preview.
 - **Picking by a point.** `select {at: [x, y]}` (and commands that take a pick point next to a handle,
   such as `fillet`'s or `trim`'s) picks the object within `aperture` drawing units of the point; for
@@ -228,7 +228,7 @@ selection or the view: name what each step acts on.
 
 - `cad_inspect` lists the spaces: `layouts: [{name: "Model", part: {"layout": "Model"}, entities},
   {name, id: "layout:Layout1", part, entities, viewports}]`. List a space's entities with
-  `cad_run {save: false, steps: [{command: "entities", params: {layout: "Layout1"}}]}` (with `limit`
+  `cad_run {save: false, steps: [{command: "object.query", params: {layout: "Layout1"}}]}` (with `limit`
   and `offset` for large drawings); it does not go there.
 - `cad_inspect {preview: true, target: …}` draws, through [`file.render`](/kits/cad/commands/file.render/):
   a space (`{"layout": "Layout1"}`; Model when left out) fitted to its extents, a `window`
@@ -247,7 +247,7 @@ selection or the view: name what each step acts on.
 
 ## Measuring
 
-[`entities.measure`](/kits/cad/commands/entities.measure/) measures without changing anything (give
+[`object.measure`](/kits/cad/commands/object.measure/) measures without changing anything (give
 one question per step):
 
 - `{bounds: [handles]}` → each entity's box `{handle, min: [x, y], max: [x, y]}`;
@@ -255,11 +255,11 @@ one question per step):
   the two nearest points (0 for entities that cross);
 - `{intersections: [a, b]}` (two handles) → `{points}` where they cross;
 - `{overlaps: {layout?}}` → `{pairs: [{a, b, kind}]}`: objects of a space that draw the same geometry
-  (`duplicate` when their properties match too, what [`overkill`](/kits/cad/commands/overkill/)
+  (`duplicate` when their properties match too, what [`object.deleteDuplicates`](/kits/cad/commands/object.deleteDuplicates/)
   would delete; `same-geometry` otherwise). Nothing is deleted.
 
-[`dist`](/kits/cad/commands/dist/), [`area`](/kits/cad/commands/area/) and
-[`massprop`](/kits/cad/commands/massprop/) answer lengths, areas and mass properties.
+[`dist`](/kits/cad/commands/measure.distance/), [`area`](/kits/cad/commands/measure.area/) and
+[`measure.massProperties`](/kits/cad/commands/measure.massProperties/) answer lengths, areas and mass properties.
 
 ## What a call changed, and what others changed
 
@@ -267,7 +267,7 @@ one question per step):
   space's list it went in, `layout:Layout1` or the root's `model`), `changed` (field paths with
   `before` and `after` when available), `moved` and `deleted`, naming entities by handle. JSON edits name leaves
   such as `kind.a.x` or `common.color.value`. A move, a vertex edit
-  (`grip.stretch`, `pedit`) or any change of shape is an edit of the entity's `kind` (its geometry,
+  (`grip.stretch`, `polyline.edit`) or any change of shape is an edit of the entity's `kind` (its geometry,
   vertices included); a layer, colour or linetype change is an edit of `common`. An edit of an
   entity inside a block definition names that entity; the block's references are not listed, but
   they draw the change. `diagnostics: {new, resolved}` says what the check found new.
@@ -307,7 +307,7 @@ one question per step):
 
 1. `cad_inspect {path}`: the spaces, layers and current layer; `entities {layout}` for what a space
    holds.
-2. `cad_commands {path, query}`: find commands by keywords (`"rectang"`, `"dimension aligned"`,
+2. `cad_commands {path, query}`: find commands by keywords (`"rectangle.add"`, `"dimension aligned"`,
    `"layer new"`). Use the exact id it returns and follow its parameter schema; never guess a
    command id. The `description` gives the command's options.
 3. `cad_run {path, steps, basis}` a few steps per call, naming spaces with `target`/`at`, entities
@@ -316,28 +316,28 @@ one question per step):
    `error.index` for the failing step, fix it, and send the whole run again. A call that succeeds
    saves the file (`save` defaults to `true`; `save: false` tries steps first). Read `changes`.
 4. `cad_check {path}`: fix what it reports, then check again.
-5. `cad_inspect {path, preview: true, target}` to look at the result; `entities.measure` to check
+5. `cad_inspect {path, preview: true, target}` to look at the result; `object.measure` to check
    sizes and clearances.
 
 ## Example 1: furniture on its own layer, with a dimension
 
 ```json
 cad_run {"path": "Plan.dxf", "steps": [
-  {"command": "layer.new", "params": {"name": "Furniture", "color": 3}},
-  {"command": "rectang", "params": {"p1": [10, 10], "p2": [40, 30], "layer": "Furniture"}},
-  {"command": "dimaligned", "params": {"p1": [10, 10], "p2": [40, 10], "at": [25, 2], "layer": "Furniture"}}
+  {"command": "layer.add", "params": {"name": "Furniture", "color": 3}},
+  {"command": "rectangle.add", "params": {"p1": [10, 10], "p2": [40, 30], "layer": "Furniture"}},
+  {"command": "dimension.addAligned", "params": {"p1": [10, 10], "p2": [40, 10], "at": [25, 2], "layer": "Furniture"}}
 ]}
 ```
 
-Answer: `completed: [{command: "layer.new"}, {command: "rectang", result: {handle: "3A63500000000"}},
-{command: "dimaligned", result: {handle: "3A63500000001"}}]`, `changes.created` naming both handles,
+Answer: `completed: [{command: "layer.add"}, {command: "rectangle.add", result: {handle: "3A63500000000"}},
+{command: "dimension.addAligned", result: {handle: "3A63500000001"}}]`, `changes.created` naming both handles,
 `revision: "qxa7"`, `saved: true`; the current layer is still `0`. Move the table by its handle,
 measure its clearance to the wall line `"100"`, and pass the revision:
 
 ```json
 cad_run {"path": "Plan.dxf", "basis": "qxa7", "steps": [
-  {"command": "move", "on": ["3A63500000000"], "params": {"delta": [5, 5]}},
-  {"command": "entities.measure", "params": {"distance": ["3A63500000000", "100"]}}
+  {"command": "object.move", "on": ["3A63500000000"], "params": {"delta": [5, 5]}},
+  {"command": "object.measure", "params": {"distance": ["3A63500000000", "100"]}}
 ]}
 → completed[1].result: {"distance": 15, "from": [15, 15], "to": [15, 0]}
 cad_check {"path": "Plan.dxf"}
@@ -352,8 +352,8 @@ move a wall line in model space, without switching layouts:
 
 ```json
 cad_run {"path": "Plan.dxf", "basis": "k2m9", "steps": [
-  {"command": "text", "at": {"part": {"layout": "Layout1"}}, "params": {"at": [20, 15], "height": 5, "text": "Ground floor", "layer": "Titles"}},
-  {"command": "move", "on": ["101"], "params": {"delta": [0, -10]}}
+  {"command": "text.add", "at": {"part": {"layout": "Layout1"}}, "params": {"at": [20, 15], "height": 5, "text": "Ground floor", "layer": "Titles"}},
+  {"command": "object.move", "on": ["101"], "params": {"delta": [0, -10]}}
 ]}
 cad_inspect {"path": "Plan.dxf", "preview": true, "target": {"layout": "Layout1"}, "scale": 2}
 → preview: {"layout": "Layout1", "drew": "extents", "window": [-13.8, -14.05, 293.2, 229.95], "unitsPerPixel": 0.5, "width": 614, "height": 488, …}
@@ -374,16 +374,16 @@ cad_check {"path": "Site.dxf"}
 → {"diagnostics": []}
 ```
 
-A damaged database is repaired with [`audit`](/kits/cad/commands/audit/), as the diagnostic's fix
+A damaged database is repaired with [`audit`](/kits/cad/commands/file.audit/), as the diagnostic's fix
 says:
 
 ```json
 cad_check {"path": "Doors.dxf"}
 → {"diagnostics": [{"code": "cad.missing-block", "severity": "error", "target": {"path": "tables"},
     "message": "tables: 1 block reference to \"Lost Door\", which has no definition (AUDIT fixes it: created an empty block definition).",
-    "fix": {"command": "audit", "params": {"fix": true}}}]}
-cad_run {"path": "Doors.dxf", "steps": [{"command": "audit", "params": {"fix": true}}]}
-→ completed: [{command: "audit", result: {errors: 1, fixed: 1, issues: [...]}}]
+    "fix": {"command": "file.audit", "params": {"fix": true}}}]}
+cad_run {"path": "Doors.dxf", "steps": [{"command": "file.audit", "params": {"fix": true}}]}
+→ completed: [{command: "file.audit", result: {errors: 1, fixed: 1, issues: [...]}}]
 cad_check {"path": "Doors.dxf"}
 → {"diagnostics": []}
 ```
@@ -401,20 +401,20 @@ cad_check {"path": "Doors.dxf"}
   creation references with `ref`. Outside rereads preserve the editor state when its recipients
   still resolve.
 - **The current layer** is the drawing's: draw with `layer` rather than changing it.
-- **Results that count:** `move` answers `{moved: n}`, `erase` `{erased: n}` and `properties.set`
+- **Results that count:** `move` answers `{moved: n}`, `erase` `{erased: n}` and `object.setProperties`
   how many it changed; `changes` names which. A handle that names nothing is skipped, so check `n`.
-- **Rectangles and moves:** [`rectang`](/kits/cad/commands/rectang/) makes a closed polyline;
-  [`move`](/kits/cad/commands/move/) takes `delta: [dx, dy]` or `from` and `to`.
-- **`measure` is not `entities.measure`:** [`measure`](/kits/cad/commands/measure/) places points
+- **Rectangles and moves:** [`rectangle.add`](/kits/cad/commands/rectangle.add/) makes a closed polyline;
+  [`move`](/kits/cad/commands/object.move/) takes `delta: [dx, dy]` or `from` and `to`.
+- **`measure` is not `object.measure`:** [`measure`](/kits/cad/commands/point.measure/) places points
   at intervals along a curve, as in other CAD programs.
 - **No prompts:** commands that ask a person for answers in the editor take all their answers as
   parameters here; read the schema rather than expecting a prompt.
-- **Files:** commands that name a file ([`saveas`](/kits/cad/commands/saveas/),
-  [`exportpdf`](/kits/cad/commands/exportpdf/), [`insert`](/kits/cad/commands/insert/) of a file)
+- **Files:** commands that name a file ([`file.saveAs`](/kits/cad/commands/file.saveAs/),
+  [`file.exportPdf`](/kits/cad/commands/file.exportPdf/), [`insert`](/kits/cad/commands/block.insert/) of a file)
   are not yours to run: the person's host opens and saves drawings. Write a PDF, SVG or PNG with
   `cad_export`; paths are workspace-relative, and anything outside the workspace answers
   `not-allowed`.
-- **Undo:** your [`undo`](/kits/cad/commands/undo/) takes back your own steps only; the person's
+- **Undo:** your [`undo`](/kits/cad/commands/edit.undoMany/) takes back your own steps only; the person's
   stay.
 
 ## Checks
@@ -422,14 +422,14 @@ cad_check {"path": "Doors.dxf"}
 `cad_check` lists what is wrong with the drawing. Each diagnostic has a stable `code`, a `severity`
 (`error`, `warning` or `info`), a `message`, a `target` and, for some, a `fix`: a command step to
 run as it is. Act on the code, not on the message. A `fix` is a suggestion: run it only when it is
-what the person asked for. [`audit`](/kits/cad/commands/audit/) `{fix: true}` repairs every
+what the person asked for. [`audit`](/kits/cad/commands/file.audit/) `{fix: true}` repairs every
 database finding at once. Every code the kit reports is on the [checks page](/kits/cad/checks/).
 
 | Code | Severity | What to do |
 |---|---|---|
-| `cad.missing-block`, `cad.missing-linetype`, `cad.missing-reference`, `cad.block-cycle`, `cad.duplicate-handle`, `cad.missing-layer`, `cad.missing-text-style`, `cad.missing-table-entry`, `cad.dangling-reference` | error | The drawing database is damaged: run the `fix` ([`audit`](/kits/cad/commands/audit/) `{fix: true}`) |
+| `cad.missing-block`, `cad.missing-linetype`, `cad.missing-reference`, `cad.block-cycle`, `cad.duplicate-handle`, `cad.missing-layer`, `cad.missing-text-style`, `cad.missing-table-entry`, `cad.dangling-reference` | error | The drawing database is damaged: run the `fix` ([`audit`](/kits/cad/commands/file.audit/) `{fix: true}`) |
 | `cad.invalid-geometry` | error | A zero-length line or a circle without radius: `fix` erases it |
-| `cad.missing-current` | warning | The current layer or style is gone: [`audit`](/kits/cad/commands/audit/) `{fix: true}` or [`layer.current`](/kits/cad/commands/layer.current/) `{name}` |
+| `cad.missing-current` | warning | The current layer or style is gone: [`audit`](/kits/cad/commands/file.audit/) `{fix: true}` or [`layer.setCurrent`](/kits/cad/commands/layer.setCurrent/) `{name}` |
 | `cad.degenerate-polyline`, `cad.degenerate-hatch` | warning | Draws nothing: erase it or draw it again with real points |
 | `cad.unresolved-xref` | warning | The external reference has no file loaded; tell the person |
 | `cad.far-outside` | warning | A stray object far from the drawing; `fix` erases it (check it is not wanted first) |

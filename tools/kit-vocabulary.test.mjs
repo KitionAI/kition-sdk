@@ -45,7 +45,7 @@ describe('parseCatalogue', () => {
     const [command] = parseCatalogue(
       catalogue([
         '/** Create. */',
-        '"element.create": { elements: Array<{ kind: "a" | "b"; style?: { fill: string; "x}": number } }>; page?: string; box: [number, number]; map?: Record<string, Array<{ at: number }>> }',
+        '"element.add": { elements: Array<{ kind: "a" | "b"; style?: { fill: string; "x}": number } }>; page?: string; box: [number, number]; map?: Record<string, Array<{ at: number }>> }',
       ]),
     )
     expect(command.params.map((param) => param.name)).toEqual(['elements', 'page', 'box', 'map'])

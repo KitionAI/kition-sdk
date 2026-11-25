@@ -56,7 +56,7 @@ try {
     const reopened = await again.model()
     const read = await reopened.run(async (context) => {
       const outline = context.commands.run('outline.read', {})
-      const tasks = context.commands.run('tasks.list', {})
+      const tasks = context.commands.run('task.list', {})
       await context.sync()
       return { headings: outline.value.headings.map((heading) => heading.path.at(-1)), tasks: tasks.value.tasks.map(({ text, done }) => ({ text, done })) }
     })

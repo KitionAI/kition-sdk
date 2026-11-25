@@ -92,7 +92,7 @@ A `scene_run` step is `{command, params?, on?, at?}`:
   before the end of the last frame: the step runs at the frame that starts at or before that time.
   It matters to a command whose `x-khp-reads` lists `time`, one that keys, moves or renders at the
   current frame when you leave out its `frame` or `start`
-  ([`anim.insertKey`](/kits/scene/commands/anim.insertKey/), [`camera.move`](/kits/scene/commands/camera.move/),
+  ([`animation.insertKey`](/kits/scene/commands/animation.insertKey/), [`camera.move`](/kits/scene/commands/camera.move/),
   [`object.drop`](/kits/scene/commands/object.drop/), [`render.image`](/kits/scene/commands/render.image/),
   …).
 - `at.part` and a run's `target` name a part (a slide, a page); a 3D scene has none, so they are
@@ -243,7 +243,7 @@ others changed since is refused with `error.code: "conflict"` and nothing is run
   keying sets, the bounded numeric members of an object's or a material's `data`, the world's
   `color`, `strength` and `rotation`, the render settings but its `compositor`, a node's
   `location`, and new images are written directly. A raw `delete` of an object, a material
-  or a node group holds what `edit.delete`, `material.delete` or `nodes.removeGroup` holds.
+  or a node group holds what `edit.delete`, `material.delete` or `node.removeGroup` holds.
 - Numeric JSON members advertise their bounds in `scene_query`'s schema: material roughness,
   metallic, transmission and alpha cutoff are 0 to 1; render sizes and physics counts are
   bounded integers. Both a member `set` and a whole-register `set` refuse invalid values
@@ -432,8 +432,8 @@ with an `error` string. Automatic retry stops: correct the settings and run
 
 ### Airborne boids
 
-Use [`particles.add`](/kits/scene/commands/particles.add/) `{object, name, physics: "boids"}` to
-create a flock, or [`particles.set`](/kits/scene/commands/particles.set/) with `object`, the
+Use [`particle.add`](/kits/scene/commands/particle.add/) `{object, name, physics: "boids"}` to
+create a flock, or [`particle.set`](/kits/scene/commands/particle.set/) with `object`, the
 existing system's name or index (from 0) in `system`, and `physics: "boids"`. Existing emitters
 keep `physics: "newtonian"` until changed. Configure `boids` with `airSpeedMax` in m/s, `airAccMax`
 and `airAngularMax` from 0 to 1, and `airPersonalSpace` as a multiple of the particle size.
@@ -441,7 +441,7 @@ and `airAngularMax` from 0 to 1, and `airPersonalSpace` as a multiple of the par
 
 `boids.rules` replaces the whole rule list. Each entry has `kind: "goal" | "avoid" | "separate" |
 "flock"`; Goal and Avoid can name a target object with `target`. For example,
-[`particles.set`](/kits/scene/commands/particles.set/) `{object: "Emitter", system: "Flight",
+[`particle.set`](/kits/scene/commands/particle.set/) `{object: "Emitter", system: "Flight",
 physics: "boids", boids: {rules: [{kind: "goal", target: "Destination"}]}}` steers an existing
 emitter towards an object. Applicable rules are averaged; their order gives no priority. The
 default rules are Separate and Flock. Fuzzy evaluation and ground movement are not available.
@@ -577,14 +577,14 @@ and [`object.lookAt`](/kits/scene/commands/object.lookAt/) on the camera), then:
 
 ### Geometry-node spline types
 
-Use [`nodes.addNode`](/kits/scene/commands/nodes.addNode/) `{kind: "setSplineType", values:
+Use [`node.addNode`](/kits/scene/commands/node.addNode/) `{kind: "setSplineType", values:
 {splineType: "catmullRom"}}` to convert selected curves inside a geometry graph. The type setting
 accepts `poly`, `catmullRom`, `bezier` and `nurbs`; both geometry sockets are named `Curve`. Its
 Selection field is on the curve domain. `setNurbsOrder` and `setNurbsWeight` use `Curves` geometry
 sockets and have Order (curve domain, default 4) and Weight (point domain, default 1) fields. They
-appear in [`nodes.describe`](/kits/scene/commands/nodes.describe/) and in the editor's add menu. Use
-[`nodes.setValue`](/kits/scene/commands/nodes.setValue/) to edit their fields and settings, and
-[`nodes.link`](/kits/scene/commands/nodes.link/) to connect them to the graph output.
+appear in [`node.describe`](/kits/scene/commands/node.describe/) and in the editor's add menu. Use
+[`node.setValue`](/kits/scene/commands/node.setValue/) to edit their fields and settings, and
+[`node.link`](/kits/scene/commands/node.link/) to connect them to the graph output.
 
 Order is bounded at 16 and weight at 100000000. Coordinates, handles, radius and tilt on these two
 spline types are bounded in magnitude at 1000000000000; results must stay finite. Negative weights
@@ -601,11 +601,11 @@ The new scene has `Cube` (id 2) with material `Material`, `Light` and `Camera`.
 ```json
 scene_run {"path": "scene.kscene", "steps": [
   {"command": "edit.delete", "params": {"objects": "Cube"}},
-  {"command": "add.cube", "params": {"name": "Top", "location": [0, 0, 0.75], "scale": [1, 0.6, 0.04]}},
-  {"command": "add.cylinder", "params": {"name": "Leg 1", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [0.9, 0.5, 0.36]}},
-  {"command": "add.cylinder", "params": {"name": "Leg 2", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [-0.9, 0.5, 0.36]}},
-  {"command": "add.cylinder", "params": {"name": "Leg 3", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [0.9, -0.5, 0.36]}},
-  {"command": "add.cylinder", "params": {"name": "Leg 4", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [-0.9, -0.5, 0.36]}},
+  {"command": "object.addCube", "params": {"name": "Top", "location": [0, 0, 0.75], "scale": [1, 0.6, 0.04]}},
+  {"command": "object.addCylinder", "params": {"name": "Leg 1", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [0.9, 0.5, 0.36]}},
+  {"command": "object.addCylinder", "params": {"name": "Leg 2", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [-0.9, 0.5, 0.36]}},
+  {"command": "object.addCylinder", "params": {"name": "Leg 3", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [0.9, -0.5, 0.36]}},
+  {"command": "object.addCylinder", "params": {"name": "Leg 4", "radius": 0.04, "depth": 0.72, "vertices": 16, "location": [-0.9, -0.5, 0.36]}},
   {"command": "material.set", "params": {"material": "Material", "name": "Wood", "baseColor": "#8b5a2b", "roughness": 0.6}},
   {"command": "material.assign", "params": {"material": "Wood", "objects": ["Top", "Leg 1", "Leg 2", "Leg 3", "Leg 4"]}},
   {"command": "object.parent", "params": {"objects": ["Leg 1", "Leg 2", "Leg 3", "Leg 4"], "parent": "Top"}},
@@ -641,11 +641,11 @@ The camera turns (the step answers its new `rotation`), and the check finds noth
 scene_run {"path": "scene.kscene", "steps": [
   {"command": "material.new", "params": {"name": "Blue", "baseColor": "#2050ff", "assign": false}},
   {"command": "material.assign", "on": ["Cube", "Left", "Right"], "params": {"material": "Blue"}},
-  {"command": "anim.insertKey", "at": {"time": 2}, "params": {"objects": "Right", "properties": ["location"]}}
+  {"command": "animation.insertKey", "at": {"time": 2}, "params": {"objects": "Right", "properties": ["location"]}}
 ]}
 ```
 
-`material.assign` gives Blue to exactly the three objects `on` names, and `anim.insertKey` keys
+`material.assign` gives Blue to exactly the three objects `on` names, and `animation.insertKey` keys
 Right's location at 2 s, frame 49 of a scene that starts at frame 1 at 24 fps (it answers
 `"keys": 3`). The selection and the current frame are what they were before the run.
 
@@ -674,7 +674,7 @@ was not before. Without `elements`, the same run would be `mode.set {mode: "edit
   turns meshes outward in object mode; there is no need to enter edit mode first.
 - **Path-traced only:** depth of field and bokeh ([`camera.set`](/kits/scene/commands/camera.set/)),
   motion blur ([`render.set`](/kits/scene/commands/render.set/) `{motionBlur, shutter}`) and volumes
-  (a shader group: [`nodes.newGroup`](/kits/scene/commands/nodes.newGroup/) `{tree: "shader",
+  (a shader group: [`node.newGroup`](/kits/scene/commands/node.newGroup/) `{tree: "shader",
   material}` for a material, or `{tree: "shader", world: true}` for the world, with Volume
   Scatter, Volume Absorption or Principled Volume in the Material Output's Volume) show in
   path-traced renders ([`render.trace.start`](/kits/scene/commands/render.trace.start/)), not in
@@ -693,7 +693,7 @@ It reports zero scale, broken Geometry Nodes, empty or inside-out meshes, faces 
 mixed normals, image materials without UVs, no camera, no light, meshes out of the camera's view,
 and unused materials. Fixes use [`object.transform`](/kits/scene/commands/object.transform/),
 [`mesh.recalculateNormals`](/kits/scene/commands/mesh.recalculateNormals/),
-[`add.camera`](/kits/scene/commands/add.camera/), [`add.light`](/kits/scene/commands/add.light/),
+[`object.addCamera`](/kits/scene/commands/object.addCamera/), [`object.addLight`](/kits/scene/commands/object.addLight/),
 [`object.lookAt`](/kits/scene/commands/object.lookAt/), [`uv.smartProject`](/kits/scene/commands/uv.smartProject/)
 and [`material.delete`](/kits/scene/commands/material.delete/).
 

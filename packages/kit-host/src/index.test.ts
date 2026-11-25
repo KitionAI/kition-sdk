@@ -265,11 +265,11 @@ describe('mountKit', () => {
       shortcuts: [],
       handlers: handlers(),
     })
-    await connection.ai.run([{ command: 'table.records.create' }], true, { origin: 'system', originLabel: 'emailsync' })
-    await connection.ai.run([{ command: 'table.records.create' }], false, { origin: 'system' })
+    await connection.ai.run([{ command: 'record.add' }], true, { origin: 'system', originLabel: 'emailsync' })
+    await connection.ai.run([{ command: 'record.add' }], false, { origin: 'system' })
     expect(calls).toEqual([
-      { steps: [{ command: 'table.records.create' }], save: true, origin: 'system', originLabel: 'emailsync' },
-      { steps: [{ command: 'table.records.create' }], save: false, origin: 'system' },
+      { steps: [{ command: 'record.add' }], save: true, origin: 'system', originLabel: 'emailsync' },
+      { steps: [{ command: 'record.add' }], save: false, origin: 'system' },
     ])
     connection.close()
   })

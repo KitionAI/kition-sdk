@@ -1,8 +1,8 @@
 //! regressions/issue-agent-command-gate: every way an agent runs a command passes the gate
 //! `commands.execute` applies (KHP A28, A29, §10.6). Before, a `command` operation of `model.batch`
 //! went straight to the kit's `execute_as`: a command that names files, which `commands.execute`
-//! refuses and `commands.list` leaves out, ran from an agent's batch (a workspace
-//! audit ran film's `lut.export`, vector's `document.export` and layout's `file.saveACopy` this
+//! refuses and `command.list` leaves out, ran from an agent's batch (a workspace
+//! audit ran film's `lut.export`, vector's `file.export` and layout's `file.saveACopy` this
 //! way).
 
 use std::sync::Arc;
@@ -283,7 +283,7 @@ fn manifest_command_patterns_match_whole_ids() {
         ("*", "anything", true),
         ("a*b*c", "aXbYc", true),
         ("a*b*c", "aXbY", false),
-        ("*.export", "document.export", true),
+        ("*.export", "file.export", true),
         ("file.open", "file.opens", false),
     ] {
         assert_eq!(kition_kit::dispatch::pattern_matches(pattern, id), matches, "{pattern} {id}");

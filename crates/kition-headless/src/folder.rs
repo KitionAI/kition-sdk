@@ -55,7 +55,7 @@ impl HostFolder {
         Host::new(self.files.services(), Arc::new(Link(Arc::clone(&self.files))))
     }
 
-    /// A handle on the file `path` (relative to the folder) for `document.open` or `saveAs`:
+    /// A handle on the file `path` (relative to the folder) for `file.open` or `saveAs`:
     /// `read` and `write` on an existing file, `read`, `create` and `write` on a new one.
     pub fn file(&self, path: &str) -> Result<String, RpcError> {
         self.files.document(path, false, false).map(|stat| stat.handle).map_err(|error| file_error(&error))
@@ -66,7 +66,7 @@ impl HostFolder {
         self.files.document(path, true, false).map(|stat| stat.handle).map_err(|error| file_error(&error))
     }
 
-    /// A `create` handle on the new file `path`, for `document.export`.
+    /// A `create` handle on the new file `path`, for `file.export`.
     pub fn export(&self, path: &str) -> Result<String, RpcError> {
         self.files.export(path).map(|stat| stat.handle).map_err(|error| file_error(&error))
     }

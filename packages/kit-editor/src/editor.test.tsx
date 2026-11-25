@@ -519,15 +519,15 @@ describe('ToolRail', () => {
 
 describe('a plain shortcut the list of what can run calls disabled', () => {
   it('runs once the engine says it can, and never when the engine says no', async () => {
-    const commands = [{ ...command('edit.clear', ['Edit']), shortcut: 'Delete' } as KitCommand]
-    const engineSays = vi.fn(async (id: string) => id === 'edit.clear')
+    const commands = [{ ...command('edit.delete', ['Edit']), shortcut: 'Delete' } as KitCommand]
+    const engineSays = vi.fn(async (id: string) => id === 'edit.delete')
     const run = vi.fn(async () => null)
     const editor = { ...fakeEditor(store(), commands), enabled: () => false, enabledNow: engineSays, run }
     render(app(editor, null))
     const press = () => document.querySelector('.kui-app')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }))
     await act(async () => void press())
-    expect(engineSays).toHaveBeenCalledWith('edit.clear')
-    expect(run).toHaveBeenCalledWith('edit.clear', {})
+    expect(engineSays).toHaveBeenCalledWith('edit.delete')
+    expect(run).toHaveBeenCalledWith('edit.delete', {})
     engineSays.mockImplementation(async () => false)
     run.mockClear()
     await act(async () => void press())

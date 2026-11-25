@@ -47,7 +47,7 @@ your draft of the image and leave the file as it is; only the person merges or d
   as `[x, y, width, height]` in pixels. A type layer adds `text: { text, font, sizePt }`, its size
   in points.
 - [`select.rect`](/kits/photo/commands/select.rect/) `{ x, y, width, height }` makes a rectangular
-  selection in pixels; [`type.create`](/kits/photo/commands/type.create/) `{ x, y, … }` places text
+  selection in pixels; [`text.add`](/kits/photo/commands/text.add/) `{ x, y, … }` places text
   with `y` its baseline.
 - **Layer ids are stored in the image.** A layer keeps its `id` when the image is saved and
   opened again, in another session, and after a failed `photo_run` was rolled back: a `.psd` stores
@@ -109,7 +109,7 @@ a write holds:
 
 - a property by id ([`layer.setProps`](/kits/photo/commands/layer.setProps/)): only the
   properties it sets; a move, a paint or a rename of the layer does not refuse it;
-- pixels in an area (`edit.fill`, `edit.clear`, `paint.stroke`, and per-pixel adjustments): the destination pixels, the layer's kind, pixel-content data and effective locks, and the image's mode and depth. Bounded writes compare historical pixel bytes inside the destination and the canvas's effective clipping; paint outside that area can merge even within the same tile. Stroke bounds follow the resolved brush, dabs, symmetry and selection;
+- pixels in an area (`edit.fill`, `edit.delete`, `paint.stroke`, and per-pixel adjustments): the destination pixels, the layer's kind, pixel-content data and effective locks, and the image's mode and depth. Bounded writes compare historical pixel bytes inside the destination and the canvas's effective clipping; paint outside that area can merge even within the same tile. Stroke bounds follow the resolved brush, dabs, symmetry and selection;
 - inherited locks: the Image's `~inheritedLocks`, including changes caused by moving the
   edited layer into another group;
 - a filter on a layer: all its pixels, content data (including an object layer's source and
@@ -216,8 +216,8 @@ Agents cannot replay Last Filter, Transform Again or snapshot-based undo from un
 | New empty layer | [`layer.new.layer`](/kits/photo/commands/layer.new.layer/) `{ "name": "..." }` |
 | Rectangular selection | [`select.rect`](/kits/photo/commands/select.rect/) `{ x, y, width, height }` |
 | Fill the selection | [`edit.fill`](/kits/photo/commands/edit.fill/) `{ "color": "#rrggbb" }` |
-| Deselect | [`select.deselect`](/kits/photo/commands/select.deselect/) |
-| Type layer | [`type.create`](/kits/photo/commands/type.create/) `{ x, y, text, size, color }` |
+| Deselect | [`edit.deselectAll`](/kits/photo/commands/edit.deselectAll/) |
+| Type layer | [`text.add`](/kits/photo/commands/text.add/) `{ x, y, text, size, color }` |
 | Show a hidden layer | [`layer.showLayers`](/kits/photo/commands/layer.showLayers/) `{ "layer": id }` |
 | Delete a layer | [`layer.delete`](/kits/photo/commands/layer.delete/) `{ "layer": id }` |
 | Hand over a flat image | `photo_export { "path": "...", "format": "png", "to": "name.png" }` |
@@ -237,8 +237,8 @@ photo_run {
     { "command": "layer.new.layer", "params": { "name": "Badge" } },
     { "command": "select.rect", "params": { "x": 220, "y": 120, "width": 60, "height": 40 } },
     { "command": "edit.fill", "params": { "color": "#c0392b" } },
-    { "command": "select.deselect", "params": {} },
-    { "command": "type.create", "params": { "x": 40, "y": 170, "text": "Summer sale", "size": 20, "color": "#000000" } }
+    { "command": "edit.deselectAll", "params": {} },
+    { "command": "text.add", "params": { "x": 40, "y": 170, "text": "Summer sale", "size": 20, "color": "#000000" } }
   ]
 }
 ```
@@ -272,10 +272,10 @@ photo_run { "path": "hidden.psd", "steps": [{ "command": "layer.showLayers", "pa
 ## Pitfalls
 
 - **Select first.** [`edit.fill`](/kits/photo/commands/edit.fill/) fills the selection, or the whole
-  layer when nothing is selected. Deselect ([`select.deselect`](/kits/photo/commands/select.deselect/))
+  layer when nothing is selected. Deselect ([`edit.deselectAll`](/kits/photo/commands/edit.deselectAll/))
   after the fill so the next command doesn't act on it.
 - **New layers start empty.** Fill a new layer, or delete it.
-- **Text:** [`type.create`](/kits/photo/commands/type.create/) uses Inter unless you give `font`.
+- **Text:** [`text.add`](/kits/photo/commands/text.add/) uses Inter unless you give `font`.
 - **Ids after edits elsewhere:** a layer id you noted stays its layer's id, but someone may have
   deleted that layer or made new ones since. Inspect before acting on an id from an earlier
   conversation.

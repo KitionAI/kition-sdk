@@ -41,10 +41,10 @@ export function DrawingInsertGroup({ testId = 'drawing', label, merge, exclude, 
   const { t } = editor
   const disabled = !editor.enabled('drawing.insert')
   const insert = (params: Record<string, unknown>) => void editor.run('drawing.insert', params)
-  // A kit that draws shapes with the pointer (`draw.shape`) arms the shape for the next drag; a
+  // A kit that draws shapes with the pointer (`ink.shape`) arms the shape for the next drag; a
   // line drawn from one shape to another glues to both. Others insert it at their default place.
-  const draws = editor.byId.has('draw.shape')
-  const shape = (preset: string) => (draws ? void editor.run('draw.shape', { preset }) : insert({ geometry: { preset } }))
+  const draws = editor.byId.has('ink.shape')
+  const shape = (preset: string) => (draws ? void editor.run('ink.shape', { preset }) : insert({ geometry: { preset } }))
   return (
     <RibbonGroup label={label ?? t('drawingIllustrations')} icon={Shapes}>
       <RibbonMenu icon={Shapes} label={t('drawingShapes')} size="large" disabled={disabled} testId={`${testId}-shapes`} primary>

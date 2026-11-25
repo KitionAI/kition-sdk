@@ -8,8 +8,8 @@
 //! ```ignore
 //! const FILES: &[FileParam] = &[
 //!     FileParam::read("file.open", "path", &["kvector", "svg"]),
-//!     FileParam::write("document.save", "path", &[]),
-//!     FileParam::create("document.export", "path", &[]),
+//!     FileParam::write("file.save", "path", &[]),
+//!     FileParam::create("file.export", "path", &[]),
 //!     FileParam::folder("file.package", "folder"),
 //! ];
 //!
@@ -192,8 +192,8 @@ mod tests {
 
     #[test]
     fn check_finds_undeclared_files_and_stale_entries() {
-        let commands = vec![command("document.save", json!({ "path": { "type": "string" } }))];
-        let problems = check(&commands, &[FileParam::create("document.export", "path", &[])], &[("text.create", "path")]);
+        let commands = vec![command("file.save", json!({ "path": { "type": "string" } }))];
+        let problems = check(&commands, &[FileParam::create("file.export", "path", &[])], &[("text.add", "path")]);
         assert_eq!(problems.len(), 3, "{problems:#?}");
     }
 }

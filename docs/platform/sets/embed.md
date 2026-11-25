@@ -26,7 +26,7 @@ unchanged with a newer embed.
   (keep a replica for the object model, EM2), `ui` (1.1, EM10), `shortcuts` (1.6, EM28),
   `services` (1.7, EM29), `comments` (1.7, EM30), `timeoutMs`.
 - **EM2** The editor has `ready`, `save`, `on`, `setTheme`, `setLocale`,
-  `commands.list`, `commands.run`,
+  `command.list`, `commands.run`,
   `replicaVersion`, `modelPort` ([`KitObjectModel 1.0`](object-model.md), with the mount option
   `model`), and `destroy`, and emits `saved`, `changed`, `error`,
   `conflict` (a save refused because the file changed

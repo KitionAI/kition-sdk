@@ -30,14 +30,14 @@ async fn launches_initializes_and_serves_requests() {
     let described = kit.request("view.describe", json!({ "documentId": opened["documentId"] }), LIMIT).await.unwrap();
     assert!(described["summary"].is_string());
     // The kit writes the file through the host's files.*, and reopens it by its handle.
-    let saved = kit.request("document.save", json!({ "documentId": opened["documentId"] }), LIMIT).await.unwrap();
+    let saved = kit.request("file.save", json!({ "documentId": opened["documentId"] }), LIMIT).await.unwrap();
     assert!(saved["version"].is_string(), "{saved}");
     assert!(root.join("plan.grid").is_file());
     let again = kit.open("plan.grid", false, LIMIT).await.unwrap();
     assert_eq!(again["documentId"], opened["documentId"], "the same file is the same document");
     let outside = kit.open("../plan.grid", false, LIMIT).await.unwrap_err();
     assert_eq!(outside.reason(), Some("file_not_allowed"));
-    let refused = kit.request("document.activate", json!({ "documentId": "nope" }), LIMIT).await.unwrap_err();
+    let refused = kit.request("file.activate", json!({ "documentId": "nope" }), LIMIT).await.unwrap_err();
     assert_eq!(refused.reason(), Some("document_not_found"));
     kit.shutdown(LIMIT).await;
     let _ = std::fs::remove_dir_all(root);

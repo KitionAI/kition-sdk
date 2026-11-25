@@ -119,7 +119,7 @@ fn victim<'a>(commands: &'a [KitCommand], dispatchers: &[&str]) -> Option<&'a Ki
 /// when the gate was asked about the step and the call failed. It fails when it ran without
 /// asking, when it ran on after the gate refused, and when no step form reached the gate: then the
 /// kit gives the form in `dispatchers` (`wrap`), or lists the command in `not_dispatchers` with why
-/// it runs no commands (`("html.setSource", "the source is HTML; scripts in it run no kit
+/// it runs no commands (`("file.setSource", "the source is HTML; scripts in it run no kit
 /// commands")`). Entries of both lists must name commands of the kit; `not_dispatchers` only the
 /// heuristic's finds, so neither list can go stale.
 ///

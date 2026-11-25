@@ -61,7 +61,7 @@ test.beforeAll(async () => {
   installKits(path.join(base, 'kition'), ['table', 'note', 'sheet', 'vector'])
   model = await scriptedModel({
     'Append to the plan': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/plan.md', steps: [{ command: 'block.append', params: { markdown: APPENDED } }] } }, { say: 'Appended.' }],
-    'Draft the table': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', draft: true, steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: DRAFTED } } }] } }, { say: 'Drafted.' }],
+    'Draft the table': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', draft: true, steps: [{ command: 'record.add', params: { tableId: 1, values: { title: DRAFTED } } }] } }, { say: 'Drafted.' }],
     'Append after a restart': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/plan.md', steps: [{ command: 'block.append', params: { markdown: RESTARTED } }] } }, { say: 'Appended.' }],
     'Card edit': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/cards.md', steps: [{ command: 'block.append', params: { markdown: CARD_EDIT } }] } }, { say: 'Edited.' }],
     'Card draft one': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'notes/cards.md', draft: true, steps: [{ command: 'block.append', params: { markdown: DRAFT_ONE } }] } }, { say: 'Drafted.' }],

@@ -106,7 +106,7 @@ describe('commandGroups', () => {
     const groups = commandGroups(
       [
         command('insert', 'Block...', ['Insert', 'Block...']),
-        command('layout.new', 'New Layout', ['Insert', 'Layout']),
+        command('layout.add', 'New Layout', ['Insert', 'Layout']),
         command('xref', 'External Reference…', ['Insert', 'Reference…']),
         command('image', 'Image', ['Insert', 'Image']),
         command('other', 'Elsewhere', ['Format', 'Other']),
@@ -121,7 +121,7 @@ describe('commandGroups', () => {
 
   it('keeps a real group, even of one command, and groups commands with no second segment under the tab', () => {
     const groups = commandGroups(
-      [command('insert.table', 'Table', ['Insert', 'Tables']), command('insert.pivotTable', 'Pivot table', ['Insert', 'Tables']), command('insert.link', 'Link', ['Insert', 'Links']), command('insert.any', 'Anything', ['Insert'])],
+      [command('table.insert', 'Table', ['Insert', 'Tables']), command('pivot.insert', 'Pivot table', ['Insert', 'Tables']), command('link.insert', 'Link', ['Insert', 'Links']), command('insert.any', 'Anything', ['Insert'])],
       ['Insert'],
     )
     expect([...groups.keys()]).toEqual(['Tables', 'Links', 'Insert'])
@@ -132,20 +132,20 @@ describe('commandGroups', () => {
 describe('commandsOfGroup', () => {
   it("takes an engine group's commands, less those a hand-made group of the same name already draws", () => {
     const commands = [
-      command('insert.picture', 'Pictures', ['Insert', 'Illustrations']),
-      command('insert.shape', 'Shapes', ['Insert', 'Illustrations']),
-      command('insert.icons', 'Icons…', ['Insert', 'Illustrations']),
-      command('insert.link', 'Link', ['Insert', 'Links']),
+      command('image.insert', 'Pictures', ['Insert', 'Illustrations']),
+      command('shape.insert', 'Shapes', ['Insert', 'Illustrations']),
+      command('icon.insert', 'Icons…', ['Insert', 'Illustrations']),
+      command('link.insert', 'Link', ['Insert', 'Links']),
     ]
-    expect(commandsOfGroup(commands, 'Insert/Illustrations', ['Shapes', 'Text Box']).map((c) => c.id)).toEqual(['insert.picture', 'insert.icons'])
-    expect(commandsOfGroup(commands, 'Insert/Illustrations', ['icons']).map((c) => c.id)).toEqual(['insert.picture', 'insert.shape'])
+    expect(commandsOfGroup(commands, 'Insert/Illustrations', ['Shapes', 'Text Box']).map((c) => c.id)).toEqual(['image.insert', 'icon.insert'])
+    expect(commandsOfGroup(commands, 'Insert/Illustrations', ['icons']).map((c) => c.id)).toEqual(['image.insert', 'shape.insert'])
     expect(commandsOfGroup(commands, 'Insert/Nothing')).toEqual([])
   })
 })
 
 describe('commandIcon', () => {
   it('reads the words of a command id and title', () => {
-    expect(commandIcon({ id: 'insert.pivotTable', title: 'Pivot table' })).not.toBe(commandIcon({ id: 'insert.table', title: 'Table' }))
+    expect(commandIcon({ id: 'pivot.insert', title: 'Pivot table' })).not.toBe(commandIcon({ id: 'table.insert', title: 'Table' }))
     expect(commandIcon({ id: 'insert.sparklines', title: 'Sparklines' })).not.toBe(commandIcon({ id: 'insert.line', title: 'Line' }))
     expect(commandIcon({ id: 'insert', title: 'Block...' })).not.toBe(COMMAND_FALLBACK_ICON)
     expect(commandIcon({ id: 'insert.headerFooter', title: 'Header & Footer' })).not.toBe(COMMAND_FALLBACK_ICON)

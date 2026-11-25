@@ -68,7 +68,7 @@ on its own, implemented by one SDK package, and tested on its own.
 | [`KitObjectModel 1.0`](sets/object-model.md) | Read and edit a document from code, in a page or Node | `@kition/script` |
 | [`KitCollab 1.3`](sets/collab.md) | Co-editing over Kition Server; not applicable until Kition One's collaboration is redesigned | `@kition/sync` (protocol client and types only) |
 | [`KitExtensions 1.0`](sets/extensions.md) | Add commands and panels to kit editors | `@kition/extensions` |
-| [`KitText 1.0`](sets/text.md) | Index a document's words for search, also when they live outside the object model (PDF page text, text layers): `document.text`, the capability `document-text`, and the order a host reads words in | headless executables (`kition-headless`) |
+| [`KitText 1.0`](sets/text.md) | Index a document's words for search, also when they live outside the object model (PDF page text, text layers): `file.text`, the capability `document-text`, and the order a host reads words in | headless executables (`kition-headless`) |
 | [`KitDrawing 1.0`](sets/drawing.md) *(draft)* | Insert and edit shapes and text boxes the same way in every kit that holds drawing objects, by pointer or by command | inside every kit with drawing objects |
 
 The kits and the SDK are free in every form (embedded, single-user URL

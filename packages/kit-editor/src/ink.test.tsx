@@ -95,23 +95,23 @@ describe("ink controls", () => {
     expect(byTestId("i-select")?.getAttribute("aria-pressed")).toBe("true");
     expect((byTestId("i-color") as HTMLButtonElement).disabled).toBe(true);
     await click(byTestId("i-highlighter"));
-    expect(editor.run).toHaveBeenLastCalledWith("draw.highlighter", {});
+    expect(editor.run).toHaveBeenLastCalledWith("ink.highlighter", {});
     expect(byTestId("i-highlighter")?.getAttribute("aria-pressed")).toBe(
       "true",
     );
     await click(byTestId("i-weight"));
     await click(byTestId("i-weight-6"));
-    expect(editor.run).toHaveBeenLastCalledWith("draw.highlighter", {
+    expect(editor.run).toHaveBeenLastCalledWith("ink.highlighter", {
       width: 6,
     });
     await click(byTestId("i-color"));
     await click(byTestId("i-colors")?.querySelector("button") ?? null);
     expect(editor.run).toHaveBeenLastCalledWith(
-      "draw.highlighter",
+      "ink.highlighter",
       expect.objectContaining({ color: expect.stringMatching(/^#/) }),
     );
     await click(byTestId("i-eraser"));
-    expect(editor.run).toHaveBeenLastCalledWith("draw.eraser", {});
+    expect(editor.run).toHaveBeenLastCalledWith("ink.eraser", {});
   });
 
   it("switch an engine tool of the same id through the tools, and name the pens in Chinese", async () => {
@@ -128,10 +128,10 @@ describe("ink controls", () => {
     await render(editor, tools);
     await click(byTestId("i-pen"));
     expect(select).toHaveBeenCalledWith("pen");
-    expect(editor.run).not.toHaveBeenCalledWith("draw.pen", {});
+    expect(editor.run).not.toHaveBeenCalledWith("ink.pen", {});
     // A pen the engine has no tool for goes through its command.
     await click(byTestId("i-pencil"));
-    expect(editor.run).toHaveBeenLastCalledWith("draw.pencil", {});
+    expect(editor.run).toHaveBeenLastCalledWith("ink.pencil", {});
     expect(byTestId("i-highlighter")?.getAttribute("aria-label")).toBe(
       "荧光笔",
     );

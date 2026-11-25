@@ -69,7 +69,7 @@ async function fakeService() {
     switch (method) {
       case 'documents.get':
         return state()
-      case 'commands.list':
+      case 'command.list':
         return { commands: [{ id: 'page.clear', title: 'Clear', group: 'page', params: {}, mutates: true, enabled: true }] }
       case 'commands.execute':
         dirty = true

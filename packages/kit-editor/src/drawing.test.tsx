@@ -60,11 +60,11 @@ describe('drawing controls', () => {
 
   it('arm a shape for the next drag where the kit draws shapes with the pointer', () => {
     const editor = fakeEditor()
-    ;(editor as unknown as { byId: Map<string, unknown> }).byId = new Map([['draw.shape', { id: 'draw.shape' }]])
+    ;(editor as unknown as { byId: Map<string, unknown> }).byId = new Map([['ink.shape', { id: 'ink.shape' }]])
     render(editor, <DrawingInsertGroup testId="d" />)
     click(byTestId('d-shapes'))
     click(byTestId('d-shape-line'))
-    expect(editor.run).toHaveBeenLastCalledWith('draw.shape', { preset: 'line' })
+    expect(editor.run).toHaveBeenLastCalledWith('ink.shape', { preset: 'line' })
     expect(editor.run).not.toHaveBeenCalledWith('drawing.insert', expect.anything())
   })
 

@@ -53,8 +53,8 @@ with one-inch margins); it never replaces a file.
 - **Headings are paths** of their plain text from the top: `["Launch plan", "Tasks"]` is the
   `## Tasks` under `# Launch plan`. Use the path, or `line`, in `section.*`,
   [`block.append`](/kits/note/commands/block.append/),
-  [`tasks.list`](/kits/note/commands/tasks.list/) and
-  [`table.create`](/kits/note/commands/table.create/).
+  [`task.list`](/kits/note/commands/task.list/) and
+  [`table.add`](/kits/note/commands/table.add/).
 - **Tables count from 0** in the note, in document order (`table: 0` is the first). Inside a table,
   `row` and `column` count from 0 and **row 0 is the header**, so the first body row is `row: 1`.
   [`table.read`](/kits/note/commands/table.read/) answers the header and the body rows separately;
@@ -64,7 +64,7 @@ with one-inch margins); it never replaces a file.
 - **Ids** name the note's sections, tasks, tables, properties and links while the server holds it
   open: [`projection.read`](/kits/note/commands/projection.read/) lists them (`section:3`,
   `task:2`, `table:1`, `property:1`, `link:4`). `section.*`, `heading.setLevel`, `block.append`
-  and `tasks.list` take a section's id as `section` (`section.move` also `toSection`),
+  and `task.list` take a section's id as `section` (`section.move` also `toSection`),
   `task.toggle` a task's as `task`, instead of a heading path or line. They are objects of the
   object model too (`Section`, `Task`, `Table`, `Link`, `Property`), computed from the text and
   never stored: `note_query` reads them, and receipts and `others` name what changed by them (a
@@ -108,14 +108,14 @@ rests on. A run's later step is checked on the note as the run's earlier steps l
 | table number | `table.* {table}` | inserted or removed a table before it (`relocated`), or edited that table (`changed`; `table.deleteRow` and `table.moveRow` only the rows they delete or move, `table.align` only the column's alignment) | changed other tables or text |
 | occurrence | `text.findReplace {find, occurrence}`, `comment.add {quote, occurrence}`, `property.delete {occurrence}` | added or removed a match before it (`relocated`), or edited the match (`changed`) | changed text elsewhere |
 | name | `section.* {heading}`, `block.replace {blockId}`, `task.toggle {blockId}`, `property.* {key}` | renamed it away, gave the name to other text, or deleted it (`relocated`), or edited what the write replaces (`changed`) | moved it (the name finds the same text), or changed anything else |
-| nothing (the note's end) | `block.append`, `table.create` without `heading` or `line` | wrote at the end too (`changed`) | changed text before the end |
+| nothing (the note's end) | `block.append`, `table.add` without `heading` or `line` | wrote at the end too (`changed`) | changed text before the end |
 | the whole note | `note.write`, `file.setLineEndings` | changed anything in the note | changed only comments |
 | a comment thread's id | `comment.reply {thread}`, `comment.resolve {thread}` | deleted the thread (`deleted`); `comment.resolve` also when they resolved or reopened it (`changed`) | changed the note's text |
 | an object of the object model | `note_batch` `set` of a task's `checked` or a section's `level`, `delete` of a section | changed that field, or what the command it runs as rests on (as above) | changed anything else |
 | the step it takes back | `edit.undo`, `edit.redo` | changed what that step wrote: the note's text anywhere, or a comment thread's field it wrote (`changed`) | changed nothing the step wrote |
 
 A write that names a section (by heading path, line or id: `section.*`, `block.append`,
-`table.create` with `heading`) also rests on where it lands among the headings: the level of the
+`table.add` with `heading`) also rests on where it lands among the headings: the level of the
 heading that ends the section, and of the headings between its heading and where it writes. When
 another writer demotes the heading that ended it (the section now takes in the next one), promotes
 one inside it, or adds a subsection where the write lands, it is refused `changed`; a heading
@@ -133,7 +133,7 @@ Limits of these checks:
   is gone stays (`comment.threads` says `gone`), and `others` says so on the note's change
   (`comment thread … orphaned`). When the server has restarted, the threads are gone: a write
   naming one is refused `unknown`.
-- A write by no place (`block.append`, `table.create` at the note's end) after others changed the
+- A write by no place (`block.append`, `table.add` at the note's end) after others changed the
   note is compared on the note's text at your `basis`.
 - `edit.undo` and `edit.redo` hold the note's text whole: while the person edits the open note,
   any change of the text refuses your undo. Headless, another agent's step refuses your undo. A
@@ -220,7 +220,7 @@ the front matter says `status: review`, and the check finds nothing wrong.
 ## Pitfalls
 
 - **Lines move** when you insert text above them: read them again
-  ([`tasks.list`](/kits/note/commands/tasks.list/), [`text.find`](/kits/note/commands/text.find/))
+  ([`task.list`](/kits/note/commands/task.list/), [`text.find`](/kits/note/commands/text.find/))
   after an edit instead of adding up.
 - **Extending a list:** [`section.insert`](/kits/note/commands/section.insert/)
   `{position: "end"}` adds a new block, separated by a blank line, so a list item added that way

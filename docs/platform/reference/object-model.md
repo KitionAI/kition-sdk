@@ -135,7 +135,7 @@ const file = await openHeadless('<kition-note>/target/debug/kition-note', 'Revie
 })
 const doc = await file.model<Note, NoteCommands>()
 await doc.commands.run('text.insert', { at: 0, text: '# Review\n\n' })
-await file.save()                    // document.save
+await file.save()                    // file.save
 await file.shutdown()                // kit.shutdown; the process exits
 ```
 
@@ -144,11 +144,11 @@ await file.shutdown()                // kit.shutdown; the process exits
   or named pipe as `KITION_KIT_ENDPOINT`, `KITION_KIT_SURFACE=headless`),
   waits for its ready line, sends `kit.initialize` with the file's folder as
   the one workspace root (`options.root` to choose another), and opens the
-  file (`document.open`, with `create` when it is missing).
+  file (`file.open`, with `create` when it is missing).
 - `HeadlessKit.launch(binary, { root })` keeps the kit for several documents
   (`kit.open(path, { readOnly?, create? })`); `HeadlessKit.connect` takes an
   existing `KitProtocolConnection`.
-- A `HeadlessDocument` has `model(options?)`, `commands()` (`commands.list`),
+- A `HeadlessDocument` has `model(options?)`, `commands()` (`command.list`),
   `execute(command, params)` (`commands.execute`, outside the object model),
   `save()`, `saveAs(path, format?)`, `close(discardChanges?)`, and `state`
   (the last `document.didChangeState`).

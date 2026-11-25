@@ -11,14 +11,14 @@ import { RibbonMenu, useKitEditor, useKitTools } from "./editor";
 
 /**
  * The Draw tab's pens, shared by every kit that implements `KitDrawing 1.2`'s ink. Each kit has
- * the same commands for them (`draw.select`, `draw.pen`, `draw.pencil`, `draw.highlighter`,
- * `draw.eraser`, each pen taking `{color?, width?}`, and `draw.state` answering `{tool, color,
+ * the same commands for them (`ink.select`, `ink.pen`, `ink.pencil`, `ink.highlighter`,
+ * `ink.eraser`, each pen taking `{color?, width?}`, and `ink.state` answering `{tool, color,
  * width}`); a kit whose engine has a tool of the same id is switched through its tools, so its
  * tool rail and the ribbon agree. Drawing and erasing are the kit's pointer gestures, which run
  * `drawing.ink` and `drawing.erase`, as an agent does.
  */
 
-/** What `draw.state` answers. */
+/** What `ink.state` answers. */
 export type DrawState = { tool: string; color: string; width: number };
 
 /** The pens and tools, by command name. */
@@ -47,7 +47,7 @@ export function InkGroup({ testId = "ink" }: { testId?: string }) {
     ?.revision;
   const [state, setState] = useState<DrawState | null>(null);
   const refresh = useCallback(() => {
-    void editor.query<DrawState>("draw.state").then((next) => {
+    void editor.query<DrawState>("ink.state").then((next) => {
       if (next) setState(next);
     });
   }, [editor]);
@@ -76,7 +76,7 @@ export function InkGroup({ testId = "ink" }: { testId?: string }) {
     await editor.run(`draw.${pen}`, params);
     refresh();
   };
-  const disabled = !editor.enabled("draw.pen");
+  const disabled = !editor.enabled("ink.pen");
   return (
     <>
       <RibbonGroup label={t("inkTools")} icon={Pen}>

@@ -15,7 +15,7 @@ describe('kitModuleCommands', () => {
   it('keeps a command\'s output schema and answers null without one', () => {
     const outputSchema = { type: 'object', additionalProperties: true, properties: { id: { type: 'integer', required: true } } }
     const json = JSON.stringify([
-      { id: 'table.records.create', title: 'Create Record', menu: null, shortcut: null, mutates: true, enabled: true, schema: { tableId: { type: 'integer', required: true } }, outputSchema },
+      { id: 'record.add', title: 'Create Record', menu: null, shortcut: null, mutates: true, enabled: true, schema: { tableId: { type: 'integer', required: true } }, outputSchema },
       { id: 'edit.undo', title: 'Undo', menu: ['Edit'], shortcut: 'Cmd+Z', mutates: true, enabled: true },
     ])
     const [create, undo] = kitModuleCommands(json)

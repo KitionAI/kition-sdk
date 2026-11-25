@@ -43,7 +43,7 @@ export function deactivate(ctx) {}
 ```
 
 - `ctx.document` has `@kition/script`'s document API: `run`, `context`,
-  proxies with `load` and `sync()`, `batch`, `describe`, `commands.list`,
+  proxies with `load` and `sync()`, `batch`, `describe`, `command.list`,
   `enabled`, `run`, `on('changed')`, and `readOnly`.
 - `ctx.commands.register(id, handler)` handles a command the manifest
   contributes; the handler's answer goes back to the host.

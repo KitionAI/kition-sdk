@@ -76,7 +76,7 @@ it if your language likes them.
 | `documents.close` | `kit`, `documentId`, optional `discardChanges` | `{}` |
 | `documents.preview` | `kit`, `documentId`, optional `maxSize` | `{ mimeType, data }`, a base64 PNG |
 | `documents.check` | `kit`, `documentId` | `{ diagnostics }` |
-| `commands.list` | `kit`, optional `documentId`, optional `query` | `{ commands }` |
+| `command.list` | `kit`, optional `documentId`, optional `query` | `{ commands }` |
 | `commands.execute` | `kit`, `documentId`, `command`, `params`, `origin` (`user`, `agent` or `system`), optional `originLabel` | `{ changed, result, document }` |
 | `model.describe`, `model.batch` | `kit`, `documentId`, and the batch | as in the [object model](../platform/reference/object-model.md) |
 | `tools.list`, `tools.call` | as MCP's `tools/list` and `tools/call` | the kits' agent tools, for a host's own agent |

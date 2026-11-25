@@ -173,7 +173,7 @@ host                          kit
  | -- kit.initialize ---------> |   role=host, token, preferences
  | <----------- capabilities -- |
  | -- kit.initialized (notif) ->|
- | -- document.open ----------> |
+ | -- file.open ----------> |
  |... session...     |
  | -- kit.shutdown -----------> |   kit flushes and exits within 5 s
 ```
@@ -259,12 +259,12 @@ client passes for that agent's run (A29), and they expire when the run ends.
 
 | Method | Direction | Parameters | Result |
 | --- | --- | --- | --- |
-| `document.open` | request | `file` (a handle: `read`, plus `write` unless `readOnly`), optional `readOnly`, optional `create: { format }` (a handle on a file that does not exist yet, with `read`, `create` and `write`) | `DocumentState` |
-| `document.list` | request | none | `{ documents: DocumentState[] }` |
-| `document.activate` | request, host | `documentId` | `{}`; selects the active document |
-| `document.save` | request | `documentId` | `{ name, version }` |
+| `file.open` | request | `file` (a handle: `read`, plus `write` unless `readOnly`), optional `readOnly`, optional `create: { format }` (a handle on a file that does not exist yet, with `read`, `create` and `write`) | `DocumentState` |
+| `file.list` | request | none | `{ documents: DocumentState[] }` |
+| `file.activate` | request, host | `documentId` | `{}`; selects the active document |
+| `file.save` | request | `documentId` | `{ name, version }` |
 | `document.saveAs` | request | `documentId`, `file` (a `create` or `write` handle), optional `format` | `{ name, version }` |
-| `document.export` | request | `documentId`, `file` (a `create` handle), `format`, optional `options` | `{ name, version }` |
+| `file.export` | request | `documentId`, `file` (a `create` handle), `format`, optional `options` | `{ name, version }` |
 | `document.close` | request | `documentId`, optional `discardChanges` | `{}`; fails with `-32011 document_dirty` if dirty and not discarding |
 | `document.didChangeOnDisk` | notification, host to kit | `documentId` | The kit reloads, or reports a conflict (below) |
 | `document.reload` | request, host | `documentId` | `DocumentState`; reads the file again, dropping unsaved edits |
@@ -287,9 +287,9 @@ resolves it: `document.reload` takes the file and drops the edits,
 - The kit reads the document with `files.read` on its handle and saves it
   with staged `files.write` on the same handle, with the version it read as
   `expected` (FA9). `document.saveAs` (the document then lives in the new
-  file) and `document.export` (the engine's output for `format`, E16) write
+  file) and `file.export` (the engine's output for `format`, E16) write
   the same way. A `create` handle commits once and never
-  replaces a file (H5). A host names a document's new file (`document.open`
+  replaces a file (H5). A host names a document's new file (`file.open`
   with `create`, `saveAs` to a new file) with `create` and `write`: the first
   save commits the new file without `expected`, and the saves after it
   replace it with the version that commit answered. An export's handle has
@@ -313,7 +313,7 @@ host connection carries them; an agent client never serves them.
 | `files.list` | `handle` (a folder, `read`) | `{ files: stat[] }` |
 | `files.write` | `handle`, `data` (base64, at most 8 MiB), `offset`, optional `final`, optional `expected` | `{}`, or `{ version }` when `final` |
 | `files.create` | `suggestedName`, optional `mime`, optional `folder` (a handle), optional `documentId` (create beside that document) | stat of a new `create` handle |
-| `files.resolve` | `documentId`, or `file` (the document's handle, while `document.open` still runs), and `link` (the path as the document stores it) | stat of a `read` handle for the lent file, resolved against the document's folder and confined as H3 and LR2; for a kit that lists `links`, also for a target of the document's links (section 5.4). A path that passes every check and names no file fails `-32023 file_not_found`; one that fails a check fails `-32018 file_not_allowed`, whether it exists or not (section 10) |
+| `files.resolve` | `documentId`, or `file` (the document's handle, while `file.open` still runs), and `link` (the path as the document stores it) | stat of a `read` handle for the lent file, resolved against the document's folder and confined as H3 and LR2; for a kit that lists `links`, also for a target of the document's links (section 5.4). A path that passes every check and names no file fails `-32023 file_not_found`; one that fails a check fails `-32018 file_not_allowed`, whether it exists or not (section 10) |
 | `files.release` | `handles` | `{}` |
 | `files.print` | `data` (base64 PDF) and `title`, or `handle` and `title`; only with `hostServices` `files.print` | `{ printed }` |
 | `files.revoked` | notification, host to kit: `handles` | |
@@ -330,7 +330,7 @@ host connection carries them; an agent client never serves them.
 
 ### 5.2 What a host does
 
-- It mints a handle for every file it names to the kit (`document.open`,
+- It mints a handle for every file it names to the kit (`file.open`,
   `saveAs`, `export`, `file` command parameters, `files.resolve`), with
   exactly the rights the request needs, and refuses foreign, expired, and
   ungranted handles (`-32014 file_not_granted`).
@@ -340,8 +340,8 @@ host connection carries them; an agent client never serves them.
 
 ### 5.3 Files by handle only
 
-- `document.open`, `document.saveAs` and `document.export` take `{ file: handle }`;
-  `document.save`, `saveAs`, `export` and `document.didSave` answer `{ name, version }`, and
+- `file.open`, `document.saveAs` and `file.export` take `{ file: handle }`;
+  `file.save`, `saveAs`, `export` and `document.didSave` answer `{ name, version }`, and
   `DocumentState.name` names the document.
 - `kit.initialize` carries `hostServices`; there are no workspace roots.
 - The kit reads and writes only through `files.*` (section 5.1); a file the host did not
@@ -362,9 +362,9 @@ A kit that answers `document.links` lists the feature `document.links` in
 | `links.preview` | kit to host, `hostServices` `links.preview` | `documentId`, `link`, optional `view`, `width`, `height`, optional `scale`, optional `background` | `Image` plus `{ version, kit, name, area? }` (PV8) |
 | `links.targetChanged` | notification, host to kit, optional | `documentId`, `link`, `exists`, optional `version`, optional `path` | |
 
-- Retargeting is the command `links.retarget` (LK2), run with
+- Retargeting is the command `link.retarget` (LK2), run with
   `commands.execute` and origin `system`; a host saves the document
-  afterwards with `document.save` (LK8). It is exposed like every command.
+  afterwards with `file.save` (LK8). It is exposed like every command.
 - `files.resolve` serves link targets under LR1 to LR3: a target the
   document's links name (the last `document.links` answer, or a
   `links.resolve` answer), with an extension the manifest's `links.read`
@@ -394,13 +394,13 @@ when its engine keeps a replica (`open_with_replica`, the features
   `host/replicaRead` carries them as bytes; `fileStamp` is the file's
   version as `files.stat` answers it. A replica larger than the message
   limit (section 2) is answered `null` and the kit opens the file plainly.
-- **On open.** In `document.open`, a kit whose engine keeps a replica asks
+- **On open.** In `file.open`, a kit whose engine keeps a replica asks
   `replica.read` for the document's handle and follows UI-R1: the host
   answers the snapshot it keeps whatever its `fileStamp`; the kit opens the
   file with it, recording what the file changed since as one `import` change;
   a missing or unreadable snapshot is treated as none and never stops the
   file from opening.
-- **On save.** After `document.save` (and `document.saveAs`, for the new
+- **On save.** After `file.save` (and `document.saveAs`, for the new
   file's handle) committed, the kit writes the replica taken with the saved
   bytes under the version the commit answered (UI-R2); a failed
   `replica.write` never fails the save.
@@ -537,15 +537,15 @@ available" rather than as nothing changed.
 A kit whose words live outside its object model (PDF page text, text
 layers) lists the capability `document-text` in `kit.initialize`'s
 `capabilities.capabilities` and its manifest's `headless.capabilities` (K22),
-and answers `document.text` ([`KitText 1.0`](../sets/text.md)):
+and answers `file.text` ([`KitText 1.0`](../sets/text.md)):
 
 | Method | Capability | Parameters | Result |
 | --- | --- | --- | --- |
-| `document.text` | `document-text` | `documentId`, optional `limit` (Unicode scalar values, default `1048576`) | `{ text, truncated, parts? }`, `parts` as `[{ label, start, end }]` |
+| `file.text` | `document-text` | `documentId`, optional `limit` (Unicode scalar values, default `1048576`) | `{ text, truncated, parts? }`, `parts` as `[{ label, start, end }]` |
 
 It is read-only and has no side effects (T2); `text` has at most `limit`
 characters and `truncated` says whether there was more (T5). A host reads a
-document's words with `document.text`, else from the object model, else
+document's words with `file.text`, else from the object model, else
 from the file name (T7).
 
 ## 6. Commands
@@ -553,7 +553,7 @@ from the file name (T7).
 Commands are the single way to change a document. Every UI action in a kit
 maps to a command, so agents and people have the same abilities.
 
-### `commands.list` (request)
+### `command.list` (request)
 
 Parameters: optional `documentId`, optional `groups` (array of tool group ids
 from the manifest). On an `agent` connection the list leaves out what the
@@ -584,7 +584,7 @@ limits both id and name resolution. A name's deleted object refuses as
 
 Parameters: `documentId`, `command`, `params`, `origin` (`user`, `agent`,
 or `system`; `system` only from the host connection, for changes the host
-makes on the person's behalf, such as `links.retarget` after a rename, or a
+makes on the person's behalf, such as `link.retarget` after a rename, or a
 host feature importing mail into a table), and with `system` an optional
 `originLabel` naming the host feature (`emailsync`: 1 to 64 letters, digits,
 `-`, `_`, `.`; `host` when absent).
@@ -891,10 +891,10 @@ translates it:
 
 | Upstream concept | Kit Process Protocol |
 | --- | --- |
-| Engine command registry listing | `commands.list` |
+| Engine command registry listing | `command.list` |
 | `engine.execute` | `commands.execute` |
 | `ui.screenshot` / offscreen render | `view.screenshot` |
-| MCP server tools | Not used directly; the Kition runtime builds agent tools from `commands.list` |
+| MCP server tools | Not used directly; the Kition runtime builds agent tools from `command.list` |
 
 ## 14. Conformance Suite
 
@@ -924,28 +924,28 @@ feature or capability or keeps the replica they name, and are skipped otherwise:
     nothing answers `hits: []`, and the document's revision is unchanged.
 13. For a kit that lists the feature `document.links`: `document.links` of
     the fixture answers the links the kit's test states, comments excluded;
-    `links.retarget` with origin `system` changes only link spans and a
+    `link.retarget` with origin `system` changes only link spans and a
     second run answers `changed: 0`; the engine's reads of link targets go
     only through handles from `files.resolve` or `links.resolve`, and a
     target outside `links.read` is refused.
 14. For a kit whose engine keeps a replica (features `model.open` and
     `model.export`, section 5.5), with the suite serving `hostServices`
-    `replica`: `document.open` asks `replica.read` for the document's handle
+    `replica`: `file.open` asks `replica.read` for the document's handle
     and opens with it (the reopened document keeps the replica's `docId`
     and comment threads); with a stale one it opens with it too (the same
     `docId` and threads, the file's changes as one `import` change); with a
-    damaged or missing (`null`) replica it opens the file plainly; `document.save`, and `document.saveAs` for the new
+    damaged or missing (`null`) replica it opens the file plainly; `file.save`, and `document.saveAs` for the new
     file's handle, are followed by `replica.write` for that handle with the
     replica taken with the saved bytes and the committed version; a failing
     `replica.write` leaves the save successful; and against a host without
     `replica` in `hostServices` the kit sends no `replica.*` request (UI-R1,
     UI-R2).
 15. For a kit that lists the capability `document-text` (section 5b):
-    `document.text` of the fixture answers text within the default limit,
+    `file.text` of the fixture answers text within the default limit,
     with parts in order and inside the text; with a limit shorter than the
     text it answers the start of it, at most `limit` characters, and
     `truncated: true`; a negative `limit` is `-32602`; and the document's
-    state (`document.list`, `view.describe`) is unchanged ([`KitText 1.0`](../sets/text.md)
+    state (`file.list`, `view.describe`) is unchanged ([`KitText 1.0`](../sets/text.md)
     T2, T5, T6).
 
 The suite is the `kition-kit-conformance` command. A kit repository runs it in
@@ -967,7 +967,7 @@ Kits built on the Kition SDK get their executable from `kition-headless`
 and pass the suite without kit-specific protocol code.
 
 Besides the numbered checks it validates `kit.json` against the manifest
-schema and validates `kit.initialize`, `document.open`, `commands.list`,
+schema and validates `kit.initialize`, `file.open`, `command.list`,
 `view.describe`, and `view.screenshot` results against the protocol schema.
 
 A kit that claims the Agent-ready profile ([`KitAgent 1.4`](../sets/agent.md)

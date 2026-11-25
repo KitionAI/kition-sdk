@@ -366,7 +366,7 @@ export const DYNAMIC_CHECKS = {
   // are typed (KHP A28): its tests run kition-sdk's file-parameter lint (`kition_kit::files::check`).
   'agent-ready.schema-coverage': (source, probe) => {
     if (probe.error) return unchecked(`the headless kit did not answer: ${probe.error}`)
-    if (!Array.isArray(probe.commands)) return fail(`commands.list failed: ${probe.commandsError ?? 'no commands'}`)
+    if (!Array.isArray(probe.commands)) return fail(`command.list failed: ${probe.commandsError ?? 'no commands'}`)
     const commands = probe.commands
     const withoutSchema = commands.filter((command) => !command.params || typeof command.params.properties !== 'object' || command.params.properties === null)
     const keys = commands.flatMap((command) => Object.values(command.params?.properties ?? {}))
@@ -411,7 +411,7 @@ export const DYNAMIC_CHECKS = {
   // kition_kit::testing::check_commands, which the kit's tests must run.
   'agent-ready.command-descriptions': (source, probe) => {
     if (probe.error) return unchecked(`the headless kit did not answer: ${probe.error}`)
-    if (!Array.isArray(probe.commands)) return fail(`commands.list failed: ${probe.commandsError ?? 'no commands'}`)
+    if (!Array.isArray(probe.commands)) return fail(`command.list failed: ${probe.commandsError ?? 'no commands'}`)
     const commands = probe.commands
     if (!commands.length) return fail('no commands offered')
     const plain = (text) => String(text ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')

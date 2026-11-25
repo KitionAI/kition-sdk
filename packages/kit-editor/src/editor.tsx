@@ -1979,7 +1979,7 @@ export function PanelSection({ id, title, children, defaultOpen = true, actions,
   )
 }
 
-/** Bytes as base64, for commands that take a file's contents (`insert.picture {data}`). */
+/** Bytes as base64, for commands that take a file's contents (`image.insert {data}`). */
 export function base64(bytes: ArrayBuffer | Uint8Array) {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
   let text = ''

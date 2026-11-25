@@ -146,7 +146,7 @@ impl KitDocument for Grid {
             ..Default::default()
         });
         // A command whose top level takes keys its schema cannot name (any option name), as
-        // Photo's `tools.setBrush` takes any brush setting: it says so (`open_params`).
+        // Photo's `tool.setBrush` takes any brush setting: it says so (`open_params`).
         commands.push(KitCommand {
             id: "grid.setOptions".into(),
             title: "Set Options".into(),
@@ -937,7 +937,7 @@ fn a_hosts_change_joins_no_undo_history() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-/// `document.export` writes the manifest's export formats as new files and leaves the document as
+/// `file.export` writes the manifest's export formats as new files and leaves the document as
 /// it is (KHP A41); it never replaces a file, and a format the manifest does not export fails.
 #[test]
 fn exports_new_files_in_the_manifest_formats() {
@@ -1158,18 +1158,18 @@ fn an_unknown_command_suggests_the_command_its_words_are_keywords_of() {
     };
     let commands = [
         command("layer.select", "Select Layers", &[]),
-        command("keys.delete", "Delete Keyframes", &[]),
-        command("layer.create", "New Layer", &[]),
-        command("edit.clear", "Clear", &["delete layers", "remove layers"]),
+        command("keyframe.delete", "Delete Keyframes", &[]),
+        command("layer.add", "New Layer", &[]),
+        command("edit.delete", "Clear", &["delete layers", "remove layers"]),
     ];
     let offered: Vec<&KitCommand> = commands.iter().collect();
     let detail = unknown_command("layer.delete", &offered);
-    assert!(detail.starts_with("no command `layer.delete`; did you mean `edit.clear`, "), "{detail}");
+    assert!(detail.starts_with("no command `layer.delete`; did you mean `edit.delete`, "), "{detail}");
     let detail = unknown_command("layer.remove", &offered);
-    assert!(detail.contains("`edit.clear`"), "{detail}");
+    assert!(detail.contains("`edit.delete`"), "{detail}");
     let detail = unknown_command("layer.selct", &offered);
     assert!(detail.contains("did you mean `layer.select`"), "a keyword match needs every word: {detail}");
-    assert!(!detail.contains("edit.clear"), "{detail}");
+    assert!(!detail.contains("edit.delete"), "{detail}");
 }
 
 /// KHP A12: a replica opened with `model.open` under a file's own name is not that file. Opening
@@ -1228,7 +1228,7 @@ fn lists_the_kits_own_command_descriptions() {
 }
 
 /// cases/sdk.host.document-text: a kit whose manifest lists `document-text` answers
-/// `document.text` from [`KitDocument::text`] and says so in `kit.initialize`; any other kit has no
+/// `file.text` from [`KitDocument::text`] and says so in `kit.initialize`; any other kit has no
 /// such method.
 #[test]
 fn serves_document_text_only_for_a_kit_with_the_capability() {
@@ -1787,7 +1787,7 @@ fn a_kits_typed_failure_decides_the_error_code_over_its_wording() {
 #[test]
 fn marks_nested_object_members_their_types_and_a_name_spelling() {
     let command = kition_kit::KitCommand {
-        id: "particles.set".into(),
+        id: "particle.set".into(),
         title: "Set".into(),
         targets: Some("layer"),
         objects: &["rules[].target"],

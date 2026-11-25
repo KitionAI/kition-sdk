@@ -703,7 +703,7 @@ pub trait KitDocument: Sized {
     /// Records that the bytes from the last [`KitDocument::save`] reached the file.
     fn mark_saved(&mut self);
     /// The document exported as file bytes in `format`, an extension of the manifest's `exports`
-    /// (Kit Process Protocol `document.export`, KHP A41), for example `mp4` from a motion graphics
+    /// (Kit Process Protocol `file.export`, KHP A41), for example `mp4` from a motion graphics
     /// project. It must not change the document. The host writes the bytes to a new file. None
     /// by default: every format is an error.
     fn export(&self, format: &str, _options: &Value) -> Result<Vec<u8>, String> {
@@ -729,13 +729,13 @@ pub trait KitDocument: Sized {
         Err(format!("there is no output {id}"))
     }
     /// The document's words as plain text in reading order, at most `limit` Unicode scalar values
-    /// (`KitText 1.0`, the Kit Process Protocol's `document.text`). Build it with
+    /// (`KitText 1.0`, the Kit Process Protocol's `file.text`). Build it with
     /// [`text::TextBuilder`]. It must not change the document (neither revision nor dirty state)
     /// and holds no markup, formulas, hidden or deleted content. Served only for a kit whose
     /// manifest lists the capability [`text::CAPABILITY`]; [`testing::check_text`] proves it.
     /// None by default: an error.
     fn text(&self, _limit: usize) -> Result<text::DocumentText, String> {
-        Err("this kit does not answer document.text".into())
+        Err("this kit does not answer file.text".into())
     }
     /// Told once, right after the document is opened or created, how a host runs it (engine
     /// contract E22): with [`host::Hosting::files_only`] the engine reaches no file by path,

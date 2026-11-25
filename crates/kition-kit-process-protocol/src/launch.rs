@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn timeouts_follow_section_eleven() {
-        assert_eq!(request_timeout("document.open"), None);
+        assert_eq!(request_timeout("file.open"), None);
         assert_eq!(request_timeout("commands.execute"), None);
         assert_eq!(request_timeout("kit.initialize"), Some(INITIALIZE_TIMEOUT));
         assert_eq!(request_timeout("view.screenshot"), Some(REQUEST_TIMEOUT));

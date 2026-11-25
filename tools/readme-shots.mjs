@@ -150,8 +150,8 @@ async function kitSamples() {
 
   const table = (await openKitPackage(path.join(kitsDir, 'table-ui'))).create('Launch tracker.ktable')
   // A new file holds a starter table; this one has its own schema instead.
-  run(table, 'table.tables.delete', { tableId: 1, asOrigin: 'system:setup' })
-  const tableId = run(table, 'table.tables.create', {
+  run(table, 'table.delete', { tableId: 1, asOrigin: 'system:setup' })
+  const tableId = run(table, 'table.add', {
     title: 'Launch tracker',
     fields: [
       { title: 'Task', name: 'task', type: 'text', primary: true },
@@ -169,7 +169,7 @@ async function kitSamples() {
     ['Update the pricing page', 'To do', 'Leo Park', '2026-11-28', false],
     ['Publish the launch post', 'To do', 'Maya Chen', '2026-12-01', false],
   ]
-  for (const [task, status, owner, due, shipped] of rows) run(table, 'table.records.create', { tableId, values: { task, status, owner, due, shipped } })
+  for (const [task, status, owner, due, shipped] of rows) run(table, 'record.add', { tableId, values: { task, status, owner, due, shipped } })
   return { motion: motion.save(), table: table.save() }
 }
 

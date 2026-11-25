@@ -287,8 +287,8 @@ answer backlinks and rewrite links when files move.
   be cheap enough to call after every committed change (a proposed budget,
   not measured: under 5 ms for a document with 1,000 links on the
   conformance machine) and MUST NOT read target files.
-- **LK2 `links.retarget`.** An engine that stores links offers the command
-  `links.retarget { from, to }` (E18), where `from` and `to` are
+- **LK2 `link.retarget`.** An engine that stores links offers the command
+  `link.retarget { from, to }` (E18), where `from` and `to` are
   `{ path, docId? }` in the document-relative form. It rewrites every link
   whose target resolves to `from` (by path, by stored `docId`, or by a name
   that resolved to `from`) so it resolves to `to`, and nothing else:
@@ -332,7 +332,7 @@ answer backlinks and rewrite links when files move.
   the person (or an agent, A43) made in the host succeeded, the host:
   1. finds every document whose links resolve to the old path or folder
      (by path, name, or `docId`);
-  2. runs `links.retarget { from, to }` in each, with origin
+  2. runs `link.retarget { from, to }` in each, with origin
      `{ kind: "system", principal: <the person>, label: "Update links after rename" }`:
      in the open editor when the document is open (the host-to-kit request
      `links/retarget`), else headless (open, run, save atomically with the
@@ -358,7 +358,7 @@ answer backlinks and rewrite links when files move.
 - **LK12 Deletes.** Deleting a file rewrites nothing; links to it become
   broken (`exists: false`, LK6), and the kit's own checks report them.
 - **LK13 Undo.** A host SHOULD offer to undo a rename as one action: it
-  moves the file back and runs `links.retarget { from: to, to: from }` in
+  moves the file back and runs `link.retarget { from: to, to: from }` in
   every document it changed, which LK2 makes exact.
 
 ### 6.3 Values that change together
@@ -393,7 +393,7 @@ kit MUST NOT send a request for a capability it was not offered.
 - **A43** *(proposed)* A harness that offers file moves to an agent runs
   LK8 for them, logs every retarget (A10), and lists the changed files in
   the tool result as A30 does for created files.
-- `links.retarget` is an agent-facing command like any other, so an agent
+- `link.retarget` is an agent-facing command like any other, so an agent
   can repair a broken link itself when a check hints at it.
 
 See [`KitAgent 1.4`](agent.md) section 2.2.
@@ -406,7 +406,7 @@ See [`KitAgent 1.4`](agent.md) section 2.2.
 | Read a target | the link handle (FA18), read by the engine through `kition_kit::host` (LR6) | `files.read` on the link handle; `files.resolve` also resolves link targets (section 5.4 there) | the embed's handles (EM23) |
 | Report links | `links/changed` | `document.links { documentId }`, asked by the host | the page's own index, if any |
 | Backlinks | `links/backlinks`, `links/backlinksChanged` | `links.backlinks { documentId }` (optional) | EM26 `backlinks` |
-| Retarget | `links/retarget` (host to kit) | `commands.execute { command: "links.retarget", origin: "system" }` | EM27 `renamed` |
+| Retarget | `links/retarget` (host to kit) | `commands.execute { command: "link.retarget", origin: "system" }` | EM27 `renamed` |
 | Target changed | `links/targetChanged` | `links.targetChanged` (optional notification) | from the page's storage events |
 | Preview | `host/preview` | `links.preview` (optional, PV8) | EM25 `preview` |
 | Open a file | `host/open`, `document.view`, `document/reveal` | none: headless has no person | EM25 `open` |
@@ -503,8 +503,8 @@ passes these tests (see [conformance.md](../conformance.md#kitlinks-10)):
 
 | Who | Test | Rules |
 | --- | --- | --- |
-| Kits (page), `@kition/kit-dev-host` `checkLinks` | 1. A fixture with known links (paths, names, embeds, cards, a link inside a comment): `links/changed` lists exactly the expected set, comments excluded. 2. `links.retarget` for a file and for a folder: the saved bytes differ only in link spans; syntax, aliases, and suffixes are kept; a second run answers `changed: 0`. 3. Undo of the retarget restores the bytes. 4. Against a host without `preview-files`, `open-file`, `open-url`, or `links`, the kit opens, draws placeholders, and sends no request it was not offered. 5. No request carries an absolute path or a path above the workspace (`checkNoPaths`). 6. `host/open` and `host/openUrl` are sent only from a gesture | LK1–LK4, HC-P2, HC-P3, OP1, OP6, UI-K8 |
-| Kits (headless), `kition-kit-conformance` | `document.links` equals the page's `linksOf` for the same fixture; `links.retarget` run with origin `system` saves atomically; linked reads go only through link handles (check 13 of the Kit Process Protocol suite) | LK1, LK2, LK7, LR6 |
+| Kits (page), `@kition/kit-dev-host` `checkLinks` | 1. A fixture with known links (paths, names, embeds, cards, a link inside a comment): `links/changed` lists exactly the expected set, comments excluded. 2. `link.retarget` for a file and for a folder: the saved bytes differ only in link spans; syntax, aliases, and suffixes are kept; a second run answers `changed: 0`. 3. Undo of the retarget restores the bytes. 4. Against a host without `preview-files`, `open-file`, `open-url`, or `links`, the kit opens, draws placeholders, and sends no request it was not offered. 5. No request carries an absolute path or a path above the workspace (`checkNoPaths`). 6. `host/open` and `host/openUrl` are sent only from a gesture | LK1–LK4, HC-P2, HC-P3, OP1, OP6, UI-K8 |
+| Kits (headless), `kition-kit-conformance` | `document.links` equals the page's `linksOf` for the same fixture; `link.retarget` run with origin `system` saves atomically; linked reads go only through link handles (check 13 of the Kit Process Protocol suite) | LK1, LK2, LK7, LR6 |
 | Kits (manifest), `tools/check-manifest.mjs` | `links` declared when the capability is listed; `preview-files`, `open-file`, `open-url` listed when used | K18 |
 | Hosts (Chromium and WebKit) | Read refusals: the host's store, hidden paths, undeclared extensions, `..`, unlinked targets, all answered alike. The name resolution order of LR4. Previews: oversize answers `too-large`, a slow fixture `timeout`, the concurrency cap queues, `version` changes after a save and `links/targetChanged` arrives, no kit code runs on the host page's origin. Opening: no gesture refused, `view` reaches the opened kit, `create` makes a new file only. Web addresses: other schemes refused, confirmation shown, nothing returned but `opened`. Rename: an open document with unsaved edits keeps them and gains the retarget; a closed one is rewritten atomically; a conflict is reported, not overwritten; a read-only shared document is reported; Undo restores every file byte for byte | LR1–LR5, PV1–PV7, OP1–OP9, LK7–LK13, H15–H17 |
 | Embeds | EM25–EM27 with a fake storage: resolve, open, open-url, and preview callbacks; capabilities absent without them | EM25–EM27 |

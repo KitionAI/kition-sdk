@@ -182,7 +182,7 @@ Optional, for kits whose documents link other files (standard E17 to E19,
 | `linksOf()` | JSON list of links (`{ id, kind, target: { path?, name?, docId?, url? }, view?, at, text }`), every outgoing link in document order, comments excluded; never reads a target |
 | `areaOf(viewJson)` | `[x0, y0, x1, y1]` in document units for a link's `view`, or `null` |
 
-`links.retarget { from, to }` is an ordinary command (E18). Link targets are
+`link.retarget { from, to }` is an ordinary command (E18). Link targets are
 read like lent files, by the path the document stores; the binding answers
 those reads from the link handles the host granted, so a read of a target
 not resolved yet fails with `not-resolved` and the editor draws again once

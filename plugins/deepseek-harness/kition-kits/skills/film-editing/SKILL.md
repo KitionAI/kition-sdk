@@ -52,7 +52,7 @@ The object model's types are the project's `Project`, `Bin`, `Item`, `Sequence`,
   read. Keyframe `time`s are the document's and are there.
 - **Ids:** bins, items, tracks, clips, transitions, markers and captions have numeric ids, from
   one counter for the whole project, so each number names one thing. Commands answer the ids they
-  make ([`file.newColorMatte`](/kits/film/commands/file.newColorMatte/) → `{ "item": 8 }`,
+  make ([`item.newColorMatte`](/kits/film/commands/item.newColorMatte/) → `{ "item": 8 }`,
   [`timeline.place`](/kits/film/commands/timeline.place/) → `{ "clips": [9] }`). The file keeps
   them: they are the same after a save, a reopen, or another program rewriting the project.
   A write's `changes`, `others` and `conflicts` name a bin, item, track, clip or transition by the
@@ -72,13 +72,13 @@ The object model's types are the project's `Project`, `Bin`, `Item`, `Sequence`,
   | `frame`, `startFrame`, `durationFrames`, `deltaFrames`, `fadeInFrames`, … | frames of the sequence, from **0** | where the schema offers them |
   | `timecode` | `HH:MM:SS:FF` of the sequence | where the schema offers it |
   | a step's `at.time` | seconds | any step (see [Steps](#steps-on-and-at)) |
-  | a preview's `target.time`, `target.range`; caption word times | seconds | `film_inspect`, `captions.add` |
+  | a preview's `target.time`, `target.range`; caption word times | seconds | `film_inspect`, `caption.add` |
   | diagnostics and their fixes | ticks | pass them on unchanged |
 
   Use seconds where the schema offers them. A command whose optional `time` defaults to the
   playhead ([`timeline.razor`](/kits/film/commands/timeline.razor/),
-  [`markers.add`](/kits/film/commands/markers.add/),
-  [`effects.addKeyframe`](/kits/film/commands/effects.addKeyframe/), the mixer and multicam
+  [`marker.add`](/kits/film/commands/marker.add/),
+  [`effect.addKeyframe`](/kits/film/commands/effect.addKeyframe/), the mixer and multicam
   commands, …) takes seconds as the step's `at.time`. Some take ticks only: `sequence.closeGap`'s
   `time`, `timeline.move`'s `moves[].time`, `timeline.place`'s `sourceIn` and `duration`,
   `timeline.rateStretch`'s `delta`, the keyframe commands' `mediaTime` and `to`,
@@ -321,7 +321,7 @@ synchronization and editor-input paths still need comparison.
   caption is held, since its time is what names it. Moving, trimming, timing, merging, splitting
   or deleting captions use different holds. Timing, trim, move and add hold timing leaves and
   membership on participating tracks; merge, split and delete still hold broader caption data.
-  The owning track's lock is held for text edits. `markers.edit` holds the name, comment or colour it sets (the whole
+  The owning track's lock is held for text edits. `marker.edit` holds the name, comment or colour it sets (the whole
   marker when it sets a duration, its time); clearing the current marker is refused when it
   changed; clearing all markers when others changed any.
   A caption or a marker is followed by its id across others' saves: one added before it does not
@@ -420,14 +420,14 @@ effects to the frames that matter. Each command below is one undo step.
   "sfx": [<whoosh>, <whoosh 2>] }` centres a transition on every cut that lies on a beat (the
   effects and sounds used in turn) and lands each whoosh's peak on its cut. `effect: "cut"` keeps
   straight cuts and only adds the sounds.
-- **Transition parameters:** [`effects.list`](/kits/film/commands/effects.list/)
+- **Transition parameters:** [`effect.list`](/kits/film/commands/effect.list/)
   `{ "effect": "push" }` answers each parameter's type, range, choices and what it `accepts`.
   Amounts such as `motion_blur` take a number or `true` / `false`; `direction` takes its choice
   ("From East") or where the picture moves (`left`, `right`, `up`, `down`).
-- **Karaoke captions:** [`captions.add`](/kits/film/commands/captions.add/) `{ "words": [{ "text":
+- **Karaoke captions:** [`caption.add`](/kits/film/commands/caption.add/) `{ "words": [{ "text":
   "卡点", "start": 1.03, "end": 1.47 }, …] }` (sequence seconds) makes one caption over the words;
   burned in, the word being sung takes the track's
-  [`captions.setStyle`](/kits/film/commands/captions.setStyle/) `{ "highlightColor": "#ffd60a",
+  [`caption.setStyle`](/kits/film/commands/caption.setStyle/) `{ "highlightColor": "#ffd60a",
   "highlightScale": 1.2 }`. Give Chinese per word or per character, as you want it lit; lines break
   between words. For Chinese text call the host's `addFont` with a CJK font and set the track
   `font` first.
@@ -442,7 +442,7 @@ effects to the frames that matter. Each command below is one undo step.
 On a new project, `film_check` answers `film.empty-sequence` for `Sequence 01` (`sequence:7`).
 
 ```json
-film_run { "path": "edit.kfilm", "steps": [{ "command": "file.newColorMatte", "params": { "color": "#1f4e8c", "seconds": 2 } }] }
+film_run { "path": "edit.kfilm", "steps": [{ "command": "item.newColorMatte", "params": { "color": "#1f4e8c", "seconds": 2 } }] }
 ```
 
 It answers `{ "item": 8 }`. Place that item:

@@ -80,9 +80,9 @@ function bare(folder: string) {
 test.beforeAll(async () => {
   fs.mkdirSync(shots, { recursive: true })
   model = await scriptedModel({
-    'Add a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }],
-    'Add to the later table': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'later.ktable', steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }],
-    'Draft a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', draft: true, steps: [{ command: 'table.records.create', params: { tableId: 1, values: { title: DRAFTED } } }] } }, { say: 'Drafted.' }],
+    'Add a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', steps: [{ command: 'record.add', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }],
+    'Add to the later table': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'later.ktable', steps: [{ command: 'record.add', params: { tableId: 1, values: { title: ADDED } } }] } }, { say: 'Added.' }],
+    'Draft a record': [{ tool: 'mcp__kition__kit_run', arguments: { path: 'tasks.ktable', draft: true, steps: [{ command: 'record.add', params: { tableId: 1, values: { title: DRAFTED } } }] } }, { say: 'Drafted.' }],
   })
   base = scratch('desktop')
   const workspace = path.join(base, 'home/Documents/deepseek-harness/default-workspace')

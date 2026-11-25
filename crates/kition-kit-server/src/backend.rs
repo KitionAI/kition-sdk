@@ -140,7 +140,7 @@ pub struct OpenRequest<'a> {
     /// The file's handle.
     pub file: &'a str,
     pub read_only: bool,
-    /// `document.open` `create`: the format and options of a new document in the file.
+    /// `file.open` `create`: the format and options of a new document in the file.
     pub create: Option<(&'a str, Option<&'a Map<String, Value>>)>,
 }
 
@@ -250,7 +250,7 @@ pub trait KitBackend: Send + 'static {
     fn close(&mut self, id: &str, discard_changes: bool) -> Result<(), RpcError>;
 
     fn commands(&mut self, id: Option<&str>) -> Result<Vec<CommandSummary>, RpcError>;
-    /// What `commands.list` answers on an agent's connection: [`KitBackend::commands`] less what
+    /// What `command.list` answers on an agent's connection: [`KitBackend::commands`] less what
     /// the kit keeps from the agent (its manifest's `agent.include` and `agent.exclude`).
     fn agent_commands(&mut self, id: Option<&str>) -> Result<Vec<CommandSummary>, RpcError> {
         self.commands(id)
@@ -276,11 +276,11 @@ pub trait KitBackend: Send + 'static {
         Err(RpcError::new(RpcError::METHOD_NOT_FOUND, "method not found: document.check"))
     }
 
-    /// `document.text` (`KitText 1.0`): the document's words, at most `limit` Unicode scalar
+    /// `file.text` (`KitText 1.0`): the document's words, at most `limit` Unicode scalar
     /// values, as `{ text, truncated, parts? }`. Read-only. A kit that serves it lists the
     /// capability `document-text`; by default there is no such method.
     fn text(&mut self, _id: &str, _limit: u64) -> Result<Value, RpcError> {
-        Err(RpcError::new(RpcError::METHOD_NOT_FOUND, "method not found: document.text"))
+        Err(RpcError::new(RpcError::METHOD_NOT_FOUND, "method not found: file.text"))
     }
 
     /// `model.*` methods, the object model (`KitObjectModel 1.0`): `model.describe` and

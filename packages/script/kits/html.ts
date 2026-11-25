@@ -22,14 +22,14 @@ export interface Page extends ModelObject {
 /** Every command of kit.html, by id, with its parameters. */
 export interface HtmlCommands extends CommandMap {
   /** Replace HTML. Replaces the whole page with `source` (an HTML document, at most 8 MiB) as one undo step; answers `changed: false` when the source is already the same. The only way to edit the page. Params: {"source":string}. Changes the document. */
-  "html.setSource": { source?: string }
+  "file.setSource": { source?: string }
   /** Click preview. Clicks the rendered page at `x`, `y` (CSS pixels from the page's top-left) so its scripts react, without changing the saved source; answers whether the rendered page changed. Params: {"x":number,"y":number}. */
-  "html.click": { x?: number; y?: number }
+  "preview.click": { x?: number; y?: number }
   /** Advance preview time. Runs the page's timers and animations forward by `millis` milliseconds (a whole number), without changing the saved source; answers whether the rendered page changed. Params: {"millis":int}. */
-  "html.advance": { millis?: number }
-  /** Undo. Takes back the caller's last `html.setSource` (the person's or, with `scope: "agent"`, the agent's) without touching the other's edits. Params: { scope?: "person" | "agent" }. Changes the document. */
+  "preview.advance": { millis?: number }
+  /** Undo. Takes back the caller's last `file.setSource` (the person's or, with `scope: "agent"`, the agent's) without touching the other's edits. Params: { scope?: "person" | "agent" }. Changes the document. */
   "edit.undo": { scope?: "person" | "agent" }
-  /** Redo. Applies again the `html.setSource` the caller's last undo took back, in the same scope as `edit.undo`. Params: { scope?: "person" | "agent" }. Changes the document. */
+  /** Redo. Applies again the `file.setSource` the caller's last undo took back, in the same scope as `edit.undo`. Params: { scope?: "person" | "agent" }. Changes the document. */
   "edit.redo": { scope?: "person" | "agent" }
 }
 

@@ -96,7 +96,7 @@ your draft of the document and leave the file as it is; only the person merges o
 - New paragraph at the caret: [`text.newParagraph`](/kits/doc/commands/text.newParagraph/).
 - Text at the caret: [`text.insert`](/kits/doc/commands/text.insert/) `{ "text": "..." }`.
 - Bold the selection: [`format.bold`](/kits/doc/commands/format.bold/).
-- Table at the caret: [`insert.table`](/kits/doc/commands/insert.table/) `{ "rows": 2, "cols": 2 }`.
+- Table at the caret: [`table.insert`](/kits/doc/commands/table.insert/) `{ "rows": 2, "cols": 2 }`.
 
 ## Example 1: bold a word and add a sentence
 
@@ -127,7 +127,7 @@ doc_run {
   "steps": [
     { "command": "select.range", "params": { "anchor": { "block": 2, "off": 34 }, "focus": { "block": 2, "off": 34 } } },
     { "command": "text.newParagraph", "params": {} },
-    { "command": "insert.table", "params": { "rows": 2, "cols": 2 } },
+    { "command": "table.insert", "params": { "rows": 2, "cols": 2 } },
     { "command": "select.range", "params": { "anchor": { "story": "body", "path": [3, 0, 0, 0], "off": 0 }, "focus": { "story": "body", "path": [3, 0, 0, 0], "off": 0 } } },
     { "command": "text.insert", "params": { "text": "Region" } },
     { "command": "select.range", "params": { "anchor": { "story": "body", "path": [3, 0, 1, 0], "off": 0 }, "focus": { "story": "body", "path": [3, 0, 1, 0], "off": 0 } } },
@@ -136,7 +136,7 @@ doc_run {
 }
 ```
 
-[`insert.table`](/kits/doc/commands/insert.table/) answers `{ "table": [3] }`: the table is block 3,
+[`table.insert`](/kits/doc/commands/table.insert/) answers `{ "table": [3] }`: the table is block 3,
 and the empty paragraph the caret was in follows it as block 4. Cell paths are
 `[3, row, cell, 0]`. Afterwards `doc_check` may report `doc.font-substituted` (info) for the new
 cells' theme font; that is expected.
@@ -180,8 +180,8 @@ else (`others` says what). What a write rests on:
 - **A step with `on`**: a character command (`format.*`, `font.*`) holds the formats the named
   paragraphs' characters carry (typing in them applies; a word of them bolded refuses); a
   paragraph command (`para.*`) holds their paragraph properties.
-- **`para.text`** (by `index`): the paragraph at that index, its characters, and the formatting
-  of its last character (the new text takes it). **`para.insert`** (`after`/`before`): the
+- **`paragraph.text`** (by `index`): the paragraph at that index, its characters, and the formatting
+  of its last character (the new text takes it). **`paragraph.insert`** (`after`/`before`): the
   paragraph's place and properties, and what Enter reads at its end: whether it is empty, what
   AutoCorrect does to its last word, its last character's formatting, its style's `next`.
 - **A style by name** (`style`, `basedOn`, `next`): that style (a change of another style applies).
@@ -231,7 +231,7 @@ What each family of commands rests on besides what its step names:
 | `references`, `mailings` | every paragraph's text and properties and the document |
 | `review` | the tracked-change commands: the document's revisions and comments; the comment commands: the comments; Track Changes and Restrict Editing: the settings |
 | `comment` | the comments |
-| `layout`, and the commands that find the selection's section (`design.pageBorders`, `arrange.align`, `arrange.position`, `table.autofit`, `table.fromText`, `table.quick`, `table.draw`, `insert.header`, `insert.footer`, `insert.removeHeader`, `hf.position`) | the last section's properties, the selected paragraphs' properties, and the section breaks from the selection to the end of its section |
+| `layout`, and the commands that find the selection's section (`page.borders`, `arrange.align`, `arrange.position`, `table.autofit`, `table.fromText`, `table.quick`, `table.draw`, `header.insert`, `footer.insert`, `header.remove`, `headerFooter.position`) | the last section's properties, the selected paragraphs' properties, and the section breaks from the selection to the end of its section |
 | `arrange`, `shape`, `picture` on the selected drawing object | the object (`arrange`: where it is and how it wraps; `shape.effects`: its look; the other `shape` commands only that it is there); `picture`: the media; and the drawing objects and pictures of the selected paragraphs as a whole, so another program's rotation, resize or crop of one refuses |
 | `design` | the page colour and the watermark: the settings; the paragraph spacing: the styles; the others: the whole document's content |
 | `styles` | the style it names, else all styles |
@@ -299,5 +299,5 @@ only when it is what the person asked for. Every code the kit reports is on the
   it unless asked.
 - `doc.tracked-changes` (info): if `settings.trackChanges` is on, your edits become tracked
   revisions, and this code reports them. Its `fix`
-  [`review.acceptAll`](/kits/doc/commands/review.acceptAll/) accepts every revision, so run it only
+  [`change.acceptAll`](/kits/doc/commands/change.acceptAll/) accepts every revision, so run it only
   when the person asked for that.

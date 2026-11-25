@@ -41,7 +41,7 @@ draft tools.
 
 - **One id space.** Every layer and every page has a numeric id (`12`, `6368281153765377`): the
   `id` inspect lists, the `id`/`ids`/`parent` commands take, the `id` a command such as
-  [`node.create`](/kits/design/commands/node.create/) answers, the id `design_query` and `design_batch` answer
+  [`node.add`](/kits/design/commands/node.add/) answers, the id `design_query` and `design_batch` answer
   and take, and the id receipts, `others` and `conflicts` name (JSON integers there too).
   Ids stay the same when layers are renamed, moved or reordered, when pages are moved, and
   when the file is saved and opened again. Never guess one: an unknown id fails with `no such node`.
@@ -103,7 +103,7 @@ the call. A command that falls back to those inputs needs the corresponding cont
   (`pages[].index`, [`page.select`](/kits/design/commands/page.select/) and `page.go` `{index}`). `pageId`
   never changes.
 - **Coordinates** are pixels, `x` growing right and `y` growing down. `x` and `y` of
-  [`node.create`](/kits/design/commands/node.create/), [`text.create`](/kits/design/commands/text.create/) and
+  [`node.add`](/kits/design/commands/node.add/), [`text.add`](/kits/design/commands/text.add/) and
   [`node.set`](/kits/design/commands/node.set/) are **relative to the parent frame** (groups don't count).
   [`select.area`](/kits/design/commands/select.area/), a preview's `area` and its `bounds` are in **page
   coordinates**. `rotation` is in degrees, `opacity` runs from 0 to 1.
@@ -156,7 +156,7 @@ successful write as proof that the entire document stayed unchanged.
 | `instance.place`, `instance.swapAt`, `library.place`, `library.swapAt` | The engine's actual drop/pick, consumed source/target subtrees and parent placement. `covers` replays the shared resolver against known previous facts, including a library placement's default view point and reused local main. |
 | `tool.place` with `tool` or coordinates | The pointer-down parent pick (the click-sized shape's top-left corner), parent geometry/layout and the geometry/order of siblings a frame or section encloses. Unrelated opacity edits apply. |
 | Connector creation/reattachment | Object endpoints and their transforms, including existing endpoints on reattachment. Coordinate endpoints remain coordinates. |
-| `style.update` | Written style fields, with typed name resolution. |
+| `style.set` | Written style fields, with typed name resolution. |
 | Prototype/variable values | Referenced destinations, aliases and parsed expression variable/mode objects; resource alias chains and default-mode order. Dynamic expression names are replayed against previous names. |
 | Text formatting, search/replace, layout, boolean/flatten/outline and page duplicate/delete | Traversed text or layer subtrees, membership and consumed geometry. Text ranges conservatively hold whole text records. |
 | Annotation categories and image presets | The saved record selected by id/name; category creation/removal conservatively holds the category list. Comment message indexes hold their thread's body/order. |
@@ -255,7 +255,7 @@ then its label:
 
 ```json
 design_run {"path": "app.kdesign", "basis": "qx7a", "steps": [
-  {"command": "node.create", "params": {"type": "frame", "parent": 2, "x": 40, "y": 280, "width": 160, "height": 44,
+  {"command": "node.add", "params": {"type": "frame", "parent": 2, "x": 40, "y": 280, "width": 160, "height": 44,
     "name": "Button", "props": {"fill": "#5645D4", "cornerRadius": 8}}}
 ]}
 ```
@@ -265,7 +265,7 @@ Then, by its id:
 
 ```json
 design_run {"path": "app.kdesign", "basis": "r2kd", "steps": [
-  {"command": "text.create", "params": {"text": "Get started", "x": 0, "y": 0, "parent": 6368281153765377,
+  {"command": "text.add", "params": {"text": "Get started", "x": 0, "y": 0, "parent": 6368281153765377,
     "props": {"fontSize": 16, "fill": "#FFFFFF"}}},
   {"command": "layout.add", "on": [6368281153765377], "params": {"direction": "horizontal"}},
   {"command": "node.set", "on": [6368281153765377],
@@ -285,7 +285,7 @@ to it, and rename the rectangle `Box` (id 3) on `Home`:
 ```json
 design_run {"path": "app.kdesign", "basis": "m4c1", "target": {"pageId": 7}, "steps": [
   {"command": "node.set", "on": [9], "params": {"props": {"fill": "#FF0000"}}},
-  {"command": "node.create", "params": {"type": "ellipse", "parent": 9, "x": 280, "y": 8, "width": 24, "height": 24, "name": "Badge"}},
+  {"command": "node.add", "params": {"type": "ellipse", "parent": 9, "x": 280, "y": 8, "width": 24, "height": 24, "name": "Badge"}},
   {"command": "arrange.roundToPixels"},
   {"command": "node.set", "at": {"part": {"pageId": 1}}, "params": {"ids": [3], "props": {"name": "Hero"}}}
 ]}

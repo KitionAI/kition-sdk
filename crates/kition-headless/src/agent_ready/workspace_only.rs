@@ -137,7 +137,7 @@ async fn sweep(
             let _ = run(command.to_owned(), step.get("params").cloned().unwrap_or_else(|| json!({}))).await;
         }
     }
-    match kit.request("commands.list", json!({ "documentId": id }), LIMIT).await {
+    match kit.request("command.list", json!({ "documentId": id }), LIMIT).await {
         Ok(listed) => {
             for command in listed["commands"].as_array().into_iter().flatten().filter_map(|command| command["id"].as_str()) {
                 if !options.skip.iter().any(|(skipped, _)| *skipped == command) {
@@ -145,10 +145,10 @@ async fn sweep(
                 }
             }
         }
-        Err(error) => problems.push(format!("commands.list failed: {error}")),
+        Err(error) => problems.push(format!("command.list failed: {error}")),
     }
-    if let Err(error) = kit.request("document.save", json!({ "documentId": id }), LIMIT).await {
-        problems.push(format!("document.save failed: {error}"));
+    if let Err(error) = kit.request("file.save", json!({ "documentId": id }), LIMIT).await {
+        problems.push(format!("file.save failed: {error}"));
     }
     let left = files(&private);
     kit.shutdown(Duration::from_secs(5)).await;

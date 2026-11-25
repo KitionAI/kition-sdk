@@ -77,8 +77,8 @@ your draft of the project and leave the file as it is; only the person merges or
   | Time | Base |
   |---|---|
   | a step's `at.time` | comp seconds, always |
-  | `time` of [`prop.set`](/kits/motion/commands/prop.set/), [`prop.addKey`](/kits/motion/commands/prop.addKey/), [`keys.set`](/kits/motion/commands/keys.set/) (and its `newTime`), [`keys.select`](/kits/motion/commands/keys.select/)'s `keys[].time`, [`keys.applyEase`](/kits/motion/commands/keys.applyEase/)'s `from` and `to` | layer seconds, or comp seconds with `timeBase: "comp"` |
-  | `time` of [`keys.setEase`](/kits/motion/commands/keys.setEase/) and [`keys.setSpatialTangents`](/kits/motion/commands/keys.setSpatialTangents/) | layer seconds only |
+  | `time` of [`prop.set`](/kits/motion/commands/prop.set/), [`prop.addKey`](/kits/motion/commands/prop.addKey/), [`keyframe.set`](/kits/motion/commands/keyframe.set/) (and its `newTime`), [`keyframe.select`](/kits/motion/commands/keyframe.select/)'s `keys[].time`, [`keyframe.applyEase`](/kits/motion/commands/keyframe.applyEase/)'s `from` and `to` | layer seconds, or comp seconds with `timeBase: "comp"` |
+  | `time` of [`keyframe.setEase`](/kits/motion/commands/keyframe.setEase/) and [`keyframe.setSpatialTangents`](/kits/motion/commands/keyframe.setSpatialTangents/) | layer seconds only |
   | `time` of [`prop.get`](/kits/motion/commands/prop.get/) and [`layer.tree`](/kits/motion/commands/layer.tree/); `in`, `out` and `start` of [`layer.timing`](/kits/motion/commands/layer.timing/); `start` and `frame` of the presets below; a preview's `target.time` and `target.range` | comp seconds |
   | the `times` of `details.info.layers[].animated` | comp seconds |
   | a key `prop.get` answers | `time` and `layerTime` in layer seconds, `compTime` in comp seconds |
@@ -159,7 +159,7 @@ to that same field refuses `changed`, so an absolute value cannot silently erase
   step reads depends on the command: [`layer.rename`](/kits/motion/commands/layer.rename/) the
   name; `prop.set` of a property with no keys that property alone, wherever the layer is (an
   opacity set after a layer was added above applies); `prop.set` of an animated property,
-  `prop.addKey` and `keys.set` the key at the time it writes, followed by that time across
+  `prop.addKey` and `keyframe.set` the key at the time it writes, followed by that time across
   others' saves (another key added, moved or changed does not refuse it), and where the layer
   starts in time and its stretch, not its place in the stack. With
   `selected: true`, a property named by `prop` (its uid) or by a path with `#n` in it, or Position
@@ -179,12 +179,12 @@ to that same field refuses `changed`, so an absolute value cannot silently erase
   that layer's opacity is refused as `changed`. A time with no layer named checks which layers were
   alive at that time, replayed from their In and Out points: a layer moved next to the time does
   not refuse it.
-- **A comp marker** edited by `markers.set` holds the marker it names: by `at`, the marker at that
+- **A comp marker** edited by `marker.set` holds the marker it names: by `at`, the marker at that
   time (a marker added before or after it does not refuse it; a change of that marker does, as
   `changed`); by `index`, the marker at that index (a marker added before it refuses it, since the
-  index then names another marker). A new marker (`comp.addMarker`, `markers.set {new: true}`) and
+  index then names another marker). A new marker (`comp.addMarker`, `marker.set {new: true}`) and
   the other marker commands hold the comp's markers. A layer added or edited refuses none of them.
-  A layer marker edited by `markers.set` holds that marker the same way and the marker lock; by
+  A layer marker edited by `marker.set` holds that marker the same way and the marker lock; by
   `at` (or setting its `time`) also the layer's start and stretch, through which a comp time is
   converted to the layer time it is stored in; by `index` alone neither. `layer.addMarker` holds
   that layer's markers, marker lock and stretch, and its start time. None depends on the stack.
@@ -201,7 +201,7 @@ A direct key move holds keys currently between its source and requested destinat
 they can clamp the move. An inserted blocking key refuses it; a key beyond the destination
 does not. Historical removals of blocking keys are not covered by this declaration.
 
-`keys.set` holds the nearest key it actually edits as well as the requested time. A sampled
+`keyframe.set` holds the nearest key it actually edits as well as the requested time. A sampled
 `prop.addKey` and `prop.set` between keys hold both interval endpoints, including their easing.
 Key selection holds every selected entry; subsequent delete/move/transform holds that selection
 and the layer's time mapping. `layer.timing` holds the layer's start, In and Out, which it shifts
@@ -291,14 +291,14 @@ A `motion_run` step is `{ "command", "params"?, "on"?, "at"? }`:
   exactly these. `on` takes ids: a stack position (`1`, `"#1"`) is refused, and so is a layer of
   another comp, which the error names with its comp.
 - **Keyframes have no ids.** Commands that act on the selected keyframes
-  ([`keys.easyEase`](/kits/motion/commands/keys.easyEase/), `keys.move`, `keys.delete`, …) need
-  them selected by [`keys.select`](/kits/motion/commands/keys.select/)
+  ([`keyframe.easyEase`](/kits/motion/commands/keyframe.easyEase/), `keyframe.move`, `keyframe.delete`, …) need
+  them selected by [`keyframe.select`](/kits/motion/commands/keyframe.select/)
   `{keys: [{layer, path, time}]}` in an earlier step of the same run; `on` keeps the keyframes
   selected on the layers it names.
 - After the run, and after a failed run is rolled back, the comp open in the editor, every
   comp's current time and the selections are what they were before it. A command you give its
   `layers`, `layer`, `comp`, `time` or `frame` leaves them as they were even inside the run,
-  unless moving them is its work (`comp.open`, `time.set`, `layer.select`, `keys.select`, …) or it
+  unless moving them is its work (`comp.open`, `time.set`, `layer.select`, `keyframe.select`, …) or it
   made a layer or a comp: what a step makes is selected (a new comp is open) for the next steps
   of the same run, so a step without `layer` or `on` acts on it.
 
@@ -375,10 +375,10 @@ frames of the comp.
 
 ### Easing
 
-[`keys.applyEase`](/kits/motion/commands/keys.applyEase/) `{layer, path, preset | bezier:
+[`keyframe.applyEase`](/kits/motion/commands/keyframe.applyEase/) `{layer, path, preset | bezier:
 [x1,y1,x2,y2], from?, to? (layer s)}` eases every segment between consecutive keys of one property.
 Curves are CSS `cubic-bezier` values turned into exact keyframe speed and influence.
-[`keys.easePresets`](/kits/motion/commands/keys.easePresets/) lists them.
+[`keyframe.easePresets`](/kits/motion/commands/keyframe.easePresets/) lists them.
 
 | Preset | Curve | Use |
 |---|---|---|
@@ -573,8 +573,8 @@ A layer that never shows:
 ```json
 motion_check {"path": "Outro.kmotion"}
 → {"diagnostics": [{"code": "motion.zero-duration", "severity": "warning", "target": {"path": "comp:1/layer:4"},
-    "fix": {"command": "edit.clear", "params": {"comp": 1, "layers": [4]}}}]}
-motion_run {"path": "Outro.kmotion", "steps": [{"command": "edit.clear", "params": {"comp": 1, "layers": [4]}}]}
+    "fix": {"command": "edit.delete", "params": {"comp": 1, "layers": [4]}}}]}
+motion_run {"path": "Outro.kmotion", "steps": [{"command": "edit.delete", "params": {"comp": 1, "layers": [4]}}]}
 motion_check {"path": "Outro.kmotion"}
 → {"diagnostics": []}
 ```
@@ -657,8 +657,8 @@ only when it is what the person asked for. Every code the kit reports is on the
 
 | Code | Severity | What to do |
 |---|---|---|
-| `motion.missing-footage` | error | The footage's file is gone: ask the person for it, or remove the layers that use it ([`edit.clear`](/kits/motion/commands/edit.clear/) `{comp, layers}`) |
-| `motion.missing-source` | error | `fix` removes the layer whose item is gone ([`edit.clear`](/kits/motion/commands/edit.clear/) `{comp, layers}`) |
+| `motion.missing-footage` | error | The footage's file is gone: ask the person for it, or remove the layers that use it ([`edit.delete`](/kits/motion/commands/edit.delete/) `{comp, layers}`) |
+| `motion.missing-source` | error | `fix` removes the layer whose item is gone ([`edit.delete`](/kits/motion/commands/edit.delete/) `{comp, layers}`) |
 | `motion.missing-parent` | error | `fix` unparents it ([`layer.setParent`](/kits/motion/commands/layer.setParent/) `{comp, layers, parent: null, compensate: false}`) |
 | `motion.missing-matte` | error | `fix` drops the matte ([`layer.setTrackMatte`](/kits/motion/commands/layer.setTrackMatte/) `{comp, layer, matte: null}`) |
 | `motion.zero-duration` | warning | `fix` removes the layer; or give it a real out point |

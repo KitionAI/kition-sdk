@@ -247,7 +247,7 @@ fn schemas<B: KitBackend>(package: &Package, kit: &mut B, workspace: &Workspace)
     let before = read(&file)?;
     let mut id = open(kit, workspace, basic)?;
     // What the agent's connection lists (the manifest's `agent.include` and `agent.exclude`).
-    let listed = kit.agent_commands(Some(&id)).map_err(|e| vec![format!("commands.list failed: {}", e.message)])?;
+    let listed = kit.agent_commands(Some(&id)).map_err(|e| vec![format!("command.list failed: {}", e.message)])?;
     let mut failures = Vec::new();
     if listed.is_empty() {
         failures.push("no commands are listed".into());

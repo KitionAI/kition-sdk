@@ -82,7 +82,7 @@ pub struct KitInfo {
     /// its native format, as Slide edits `.pptx` beside `.kslide`).
     pub saves: Vec<String>,
     /// The extensions it exports to (`kit.json` `exports`), written as new files by
-    /// `document.export` through [`KitDocument::export`].
+    /// `file.export` through [`KitDocument::export`].
     pub exports: Vec<String>,
     /// Commands whose file parameters are safe: the engine reads them through lent files or
     /// writes them to memory.
@@ -99,7 +99,7 @@ pub struct KitInfo {
     pub volatile: Vec<String>,
     /// The platform capabilities of the executable (`kit.json` `headless.capabilities`), which
     /// `kit.initialize` answers in `capabilities.capabilities`. With
-    /// [`kition_kit::text::CAPABILITY`] the kit serves `document.text` through
+    /// [`kition_kit::text::CAPABILITY`] the kit serves `file.text` through
     /// [`KitDocument::text`].
     pub capabilities: Vec<String>,
     /// The commands the manifest offers the agent (`agent.include`, `*` matching any run of
@@ -196,7 +196,7 @@ const FILE_PARAMS: &[&str] = &["path", "paths", "folder", "dir", "directory", "o
 
 /// The largest screenshot side.
 const MAX_SCREENSHOT: u32 = 4096;
-/// New documents' size when `document.open` with `create` gives none.
+/// New documents' size when `file.open` with `create` gives none.
 const DEFAULT_SIZE: (u32, u32) = (1920, 1080);
 
 struct Open<D> {
@@ -209,7 +209,7 @@ struct Open<D> {
     /// never writes one, so it can never stand in for the file (KHP A12).
     file: Option<String>,
     read_only: bool,
-    /// Created by `document.open` with `create` and not saved yet.
+    /// Created by `file.open` with `create` and not saved yet.
     unsaved: bool,
     /// The file's version as last read or written here: a save replaces only this version.
     version: Option<String>,
@@ -1459,7 +1459,7 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
 
     fn text(&mut self, id: &str, limit: u64) -> Result<Value, RpcError> {
         if !self.kit.has(kition_kit::text::CAPABILITY) {
-            return Err(RpcError::new(RpcError::METHOD_NOT_FOUND, format!("{} does not answer document.text", self.kit.id)));
+            return Err(RpcError::new(RpcError::METHOD_NOT_FOUND, format!("{} does not answer file.text", self.kit.id)));
         }
         let index = self.position(id)?;
         let open = self.docs.get(index).ok_or_else(|| RpcError::kit(ErrorReason::DocumentNotFound))?;

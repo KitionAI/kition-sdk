@@ -155,7 +155,7 @@ fn check_check<D: KitDocument>(doc: &D, when: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Checks [`KitDocument::text`] (`KitText 1.0`, `document.text`) on an open document, for a kit
+/// Checks [`KitDocument::text`] (`KitText 1.0`, `file.text`) on an open document, for a kit
 /// that lists the capability `document-text`, and answers the full text so the kit's test can
 /// compare it with what the fixture says:
 ///
@@ -199,7 +199,7 @@ pub fn check_text<D: KitDocument>(doc: &D) -> Result<crate::text::DocumentText, 
     Ok(full)
 }
 
-/// One `document.text` answer is within its limit and its parts within its text.
+/// One `file.text` answer is within its limit and its parts within its text.
 pub fn check_text_answer(answer: &crate::text::DocumentText, limit: usize) -> Result<(), String> {
     let length = answer.text.chars().count();
     if length > limit {
@@ -1224,7 +1224,7 @@ mod file_parameter_tests {
         let commands = [
             command("file.projectManager", json!({ "destination": { "type": "string", "required": true }, "wait": { "type": "boolean" } })),
             command("content.update", json!({ "page": { "type": "integer" }, "image": { "type": "string", "description": "The image file path." } })),
-            command("html.setSource", json!({ "source": { "type": "string", "notFile": true, "description": "The HTML source." } })),
+            command("file.setSource", json!({ "source": { "type": "string", "notFile": true, "description": "The HTML source." } })),
             command("lut.import", json!({ "path": { "type": "file", "access": "read", "accept": ["cube"] }, "name": { "type": "string" } })),
             command("prefs.folder", json!({ "folder": { "type": "string" } })),
             command("text.set", json!({ "text": { "type": "string" }, "mode": { "type": "string", "enum": ["file", "path"] } })),

@@ -203,7 +203,7 @@ export interface Media extends ModelObject {
 
 /** Every command of kit.doc, by id, with its parameters. */
 export interface DocCommands extends CommandMap {
-  /** Type Text. Types text at the caret, replacing the selection, with the formatting at the caret; use para.insert or para.text to write whole paragraphs by index. Params: {"text": string}. Reads the selection, mode. Changes the document. */
+  /** Type Text. Types text at the caret, replacing the selection, with the formatting at the caret; use paragraph.insert or paragraph.text to write whole paragraphs by index. Params: {"text": string}. Reads the selection, mode. Changes the document. */
   "text.insert": { /** read by the command beside its listed parameters */ raw?: boolean; text?: string }
   /** New Paragraph. Splits the paragraph at the caret into two (Enter); the new paragraph takes the style's next style. Params: {}. Reads the selection, mode. Changes the document. */
   "text.newParagraph": Record<string, never>
@@ -259,12 +259,12 @@ export interface DocCommands extends CommandMap {
   "caret.pageUp": { extend?: boolean }
   /** Page Down. Moves the caret down by one screen; extend grows the selection. Params: {"extend"?: bool}. Reads the selection. */
   "caret.pageDown": { extend?: boolean }
-  /** Set Caret. Puts the caret at a position (a document position, as document.selection answers) or at a point on a page, optionally extending the selection. Params: {"pos": Pos, "extend"?: bool} | {"page": n, "x": pt, "y": pt}. */
-  "caret.set": { /** in one of several forms of the parameters */ extend?: boolean; /** in one of several forms of the parameters */ page?: number; /** a position as document.selection answers */ pos?: { off?: number; path?: Array<number>; story?: Json }; /** read by the command beside its listed parameters */ story?: Json; /** points; in one of several forms of the parameters */ x?: number; /** points; in one of several forms of the parameters */ y?: number }
+  /** Set Caret. Puts the caret at a position (a document position, as file.selection answers) or at a point on a page, optionally extending the selection. Params: {"pos": Pos, "extend"?: bool} | {"page": n, "x": pt, "y": pt}. */
+  "caret.set": { /** in one of several forms of the parameters */ extend?: boolean; /** in one of several forms of the parameters */ page?: number; /** a position as file.selection answers */ pos?: { off?: number; path?: Array<number>; story?: Json }; /** read by the command beside its listed parameters */ story?: Json; /** points; in one of several forms of the parameters */ x?: number; /** points; in one of several forms of the parameters */ y?: number }
   /** Select All. Selects the whole body of the document (Ctrl+A). Params: {}. Reads the selection. */
-  "select.all": Record<string, never>
-  /** Select Range. Selects from an anchor position to a focus position (positions as document.selection answers). Params: {"anchor": Pos, "focus": Pos}. */
-  "select.range": { /** a position as document.selection answers */ anchor?: { off?: number; path?: Array<number>; story?: string }; /** a position as document.selection answers */ focus?: { off?: number; path?: Array<number>; story?: string } }
+  "edit.selectAll": Record<string, never>
+  /** Select Range. Selects from an anchor position to a focus position (positions as file.selection answers). Params: {"anchor": Pos, "focus": Pos}. */
+  "select.range": { /** a position as file.selection answers */ anchor?: { off?: number; path?: Array<number>; story?: string }; /** a position as file.selection answers */ focus?: { off?: number; path?: Array<number>; story?: string } }
   /** Select Word. Selects the word at the caret. Params: {}. Reads the selection. */
   "select.word": Record<string, never>
   /** Select Sentence. Selects the sentence at the caret. Params: {}. Reads the selection. */
@@ -278,7 +278,7 @@ export interface DocCommands extends CommandMap {
   /** Collapse Selection. Collapses the selection to the caret. Params: {}. Reads the selection. */
   "select.collapse": { /** read by the command beside its listed parameters */ end?: boolean }
   /** Column Selection. Makes a rectangular (column) selection between two positions or two page points, as Alt+drag does. Params: {"anchor": Pos, "focus": Pos} | {"from": {"page": n, "x": pt, "y": pt}, "to": {"page": n, "x": pt, "y": pt}, "story"?: StoryRef} | {"on"?: bool} (no corners: toggle column selection mode, where the arrow keys extend the block). Reads the selection. */
-  "select.column": { /** a position as document.selection answers */ anchor?: { off?: number; path?: Array<number>; story?: string }; /** a position as document.selection answers */ focus?: { off?: number; path?: Array<number>; story?: string }; /** in one of several forms of the parameters */ from?: { page?: number; x?: number; y?: number }; /** in one of several forms of the parameters */ on?: boolean; /** StoryRef; in one of several forms of the parameters */ story?: Json; /** in one of several forms of the parameters */ to?: { page?: number; x?: number; y?: number } }
+  "select.column": { /** a position as file.selection answers */ anchor?: { off?: number; path?: Array<number>; story?: string }; /** a position as file.selection answers */ focus?: { off?: number; path?: Array<number>; story?: string }; /** in one of several forms of the parameters */ from?: { page?: number; x?: number; y?: number }; /** in one of several forms of the parameters */ on?: boolean; /** StoryRef; in one of several forms of the parameters */ story?: Json; /** in one of several forms of the parameters */ to?: { page?: number; x?: number; y?: number } }
   /** Undo. Undoes the last step of the caller's own scope (an agent undoes its own edits, not the person's). Params: {"scope"?: "person"|"agent"}. Reads the selection. Changes the document. */
   "edit.undo": { scope?: "person" | "agent" }
   /** Redo. Redoes the last undone step of the caller's own scope. Params: {"scope"?: "person"|"agent"}. Reads the selection. Changes the document. */
@@ -317,8 +317,8 @@ export interface DocCommands extends CommandMap {
   "edit.replace": { /** read by the command beside its listed parameters */ matchCase?: boolean; /** read by the command beside its listed parameters */ regex?: boolean; text?: string; /** read by the command beside its listed parameters */ wholeWord?: boolean; with?: string }
   /** Replace All. Replaces every occurrence of a text in the document (case, whole-word or regex options) and answers how many changed. Params: {"text": string, "with": string, "matchCase"?: bool, "wholeWord"?: bool, "regex"?: bool}. Reads the selection. Changes the document. */
   "edit.replaceAll": { matchCase?: boolean; regex?: boolean; text?: string; wholeWord?: boolean; with?: string }
-  /** Go To. Moves the caret to a page (numbered from 1), a bookmark, or a body paragraph or table by its document.inspect index (from 0). Params: {"page"?: n (from 1), "bookmark"?: string, "paragraph"?: n (document.inspect block index from 0)}. Reads the selection. */
-  "edit.goto": { bookmark?: string; /** from 1 */ page?: number; /** document.inspect block index from 0 */ paragraph?: number }
+  /** Go To. Moves the caret to a page (numbered from 1), a bookmark, or a body paragraph or table by its file.inspect index (from 0). Params: {"page"?: n (from 1), "bookmark"?: string, "paragraph"?: n (file.inspect block index from 0)}. Reads the selection. */
+  "edit.goto": { bookmark?: string; /** from 1 */ page?: number; /** file.inspect block index from 0 */ paragraph?: number }
   /** Format Painter. Picks up the selection's formatting for pasting onto other text; sticky keeps it for several pastes. Params: {"sticky"?: bool}. Reads the selection. */
   "edit.formatPainter": { sticky?: boolean }
   /** Copy Formatting. Copies the selection's character and paragraph formatting. Params: {}. Reads the selection. */
@@ -362,17 +362,17 @@ export interface DocCommands extends CommandMap {
   /** Engrave. Toggles the engrave text effect on the selection. Params: {}. Reads the selection. Changes the document. */
   "format.engrave": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Font. Sets the font family of the selection. Params: {"name": string}. Reads the selection. Changes the document. */
-  "format.font": { name?: string }
+  "format.fontName": { name?: string }
   /** Font Size. Sets the font size in points of the selection. Params: {"size": number}. Reads the selection. Changes the document. */
-  "format.size": { size?: number }
+  "format.fontSize": { size?: number }
   /** Increase Font Size. Steps the selection's font size up to the next size in the size list. Params: {}. Reads the selection, mode. Changes the document. */
-  "format.growFont": Record<string, never>
+  "format.increaseFontSize": Record<string, never>
   /** Decrease Font Size. Steps the selection's font size down to the previous size in the size list. Params: {}. Reads the selection, mode. Changes the document. */
-  "format.shrinkFont": Record<string, never>
+  "format.decreaseFontSize": Record<string, never>
   /** Grow Font 1 Point. Makes the selection's font one point larger. Params: {}. Reads the selection, mode. Changes the document. */
-  "format.growFont1": Record<string, never>
+  "format.increaseFontSizeByOne": Record<string, never>
   /** Shrink Font 1 Point. Makes the selection's font one point smaller. Params: {}. Reads the selection, mode. Changes the document. */
-  "format.shrinkFont1": Record<string, never>
+  "format.decreaseFontSizeByOne": Record<string, never>
   /** Font Color. Sets the text colour of the selection as RRGGBB hex, or auto. Params: {"color": "RRGGBB" | "auto"}. Reads the selection. Changes the document. */
   "format.color": { color?: "RRGGBB" | "auto" }
   /** Text Highlight Color. Highlights the selection with a highlighter colour (yellow, brightGreen, turquoise...), or removes it with none. Params: {"color": "yellow|brightGreen|turquoise|pink|blue|red|darkBlue|teal|green|violet|darkRed|darkYellow|gray50|gray25|black|none"}. Reads the selection. Changes the document. */
@@ -400,119 +400,119 @@ export interface DocCommands extends CommandMap {
   /** Formatting at Selection. Answers the character and paragraph formatting at the selection (font, size, bold, italic, style, alignment...), as the ribbon shows it. Params: {}. Reads the selection. */
   "format.state": Record<string, never>
   /** Align Left. Aligns the selected paragraphs to the left. Params: {}. Reads the selection. Changes the document. */
-  "para.alignLeft": Record<string, never>
+  "format.alignLeft": Record<string, never>
   /** Center. Centres the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.alignCenter": Record<string, never>
+  "format.alignCenter": Record<string, never>
   /** Align Right. Aligns the selected paragraphs to the right. Params: {}. Reads the selection. Changes the document. */
-  "para.alignRight": Record<string, never>
+  "format.alignRight": Record<string, never>
   /** Justify. Justifies the selected paragraphs between the margins. Params: {}. Reads the selection. Changes the document. */
-  "para.justify": { /** read by the command beside its listed parameters */ jc?: string }
+  "format.justify": { /** read by the command beside its listed parameters */ jc?: string }
   /** Distributed. Distributes the characters of the selected paragraphs evenly across the line. Params: {}. Reads the selection. Changes the document. */
-  "para.distribute": Record<string, never>
+  "paragraph.distribute": Record<string, never>
   /** Alignment. Sets the alignment of the selected paragraphs by name, as seen on the page (left, center, right, justify, distribute) or in reading order (start, end). Params: {"value": "left|center|right|justify|distribute (as seen on the page) | start|end (reading direction)"}. Reads the selection. Changes the document. */
-  "para.align": { /** read by the command beside its listed parameters */ jc?: string; value?: "left" | "center" | "right" | "justify" | "distribute (as seen on the page)" | "start" | "end (reading direction)" }
+  "paragraph.align": { /** read by the command beside its listed parameters */ jc?: string; value?: "left" | "center" | "right" | "justify" | "distribute (as seen on the page)" | "start" | "end (reading direction)" }
   /** Right-to-Left Text Direction. Makes the selected paragraphs right to left (true) or left to right (false). Params: {"value"?: bool (false = left to right)}. Reads the selection. Changes the document. */
-  "para.rtl": { /** false = left to right */ value?: boolean }
+  "paragraph.rtl": { /** false = left to right */ value?: boolean }
   /** Left-to-Right Text Direction. Makes the selected paragraphs left to right (true) or right to left (false). Params: {"value"?: bool (false = right to left)}. Reads the selection. Changes the document. */
-  "para.ltr": { /** false = right to left */ value?: boolean }
+  "paragraph.ltr": { /** false = right to left */ value?: boolean }
   /** Increase Indent. Increases the left indent of the selected paragraphs by one step. Params: {}. Reads the selection. Changes the document. */
-  "para.indent": Record<string, never>
+  "paragraph.indent": Record<string, never>
   /** Decrease Indent. Decreases the left indent of the selected paragraphs by one step. Params: {}. Reads the selection. Changes the document. */
-  "para.outdent": Record<string, never>
+  "paragraph.outdent": Record<string, never>
   /** Hanging Indent. Adds a hanging indent to the selected paragraphs, or increases it. Params: {}. Reads the selection. Changes the document. */
-  "para.hangingIndent": Record<string, never>
+  "paragraph.hangingIndent": Record<string, never>
   /** Reduce Hanging Indent. Reduces the hanging indent of the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.removeHanging": Record<string, never>
+  "paragraph.removeHanging": Record<string, never>
   /** Indents. Sets the left, right and first-line indents of the selected paragraphs in points (a negative first line is hanging). Params: {"left"?: pt, "right"?: pt, "firstLine"?: pt (negative = hanging)}. Reads the selection. Changes the document. */
-  "para.indents": { /** points; negative = hanging */ firstLine?: number; /** points */ left?: number; /** points */ right?: number }
+  "paragraph.indents": { /** points; negative = hanging */ firstLine?: number; /** points */ left?: number; /** points */ right?: number }
   /** Line and Paragraph Spacing. Sets the line spacing of the selected paragraphs as a multiple, as at least some points, or as exactly some points. Params: {"value": number (multiple) } | {"atLeast": pt} | {"exactly": pt}. Reads the selection. Changes the document. */
-  "para.lineSpacing": { /** points; in one of several forms of the parameters */ atLeast?: number; /** points; in one of several forms of the parameters */ exactly?: number; /** multiple; in one of several forms of the parameters */ value?: number }
+  "paragraph.lineSpacing": { /** points; in one of several forms of the parameters */ atLeast?: number; /** points; in one of several forms of the parameters */ exactly?: number; /** multiple; in one of several forms of the parameters */ value?: number }
   /** Single Spacing. Sets single line spacing on the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.single": Record<string, never>
+  "paragraph.single": Record<string, never>
   /** Double Spacing. Sets double line spacing on the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.double": Record<string, never>
+  "paragraph.double": Record<string, never>
   /** 1.5 Line Spacing. Sets 1.5 line spacing on the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.oneAndHalf": Record<string, never>
+  "paragraph.oneAndHalf": Record<string, never>
   /** Paragraph Spacing. Sets the space before and after the selected paragraphs in points. Params: {"before"?: pt, "after"?: pt}. Reads the selection. Changes the document. */
-  "para.spacing": { /** points */ after?: number; /** points */ before?: number }
+  "paragraph.spacing": { /** points */ after?: number; /** points */ before?: number }
   /** Add Space Before Paragraph. Adds 12 points of space before the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.addSpaceBefore": Record<string, never>
+  "paragraph.addSpaceBefore": Record<string, never>
   /** Remove Space After Paragraph. Removes the space after the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.removeSpaceAfter": Record<string, never>
-  /** Apply Style. Applies a paragraph style (by name or id, such as Heading 1 or Quote) to the selected paragraphs; styles.list names them. Params: {"style": string (name or id)}. Reads the selection, mode. Changes the document. */
-  "para.style": { /** name or id */ style?: string }
+  "paragraph.removeSpaceAfter": Record<string, never>
+  /** Apply Style. Applies a paragraph style (by name or id, such as Heading 1 or Quote) to the selected paragraphs; style.list names them. Params: {"style": string (name or id)}. Reads the selection, mode. Changes the document. */
+  "paragraph.style": { /** name or id */ style?: string }
   /** Normal Style. Applies the Normal style to the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.normal": { /** read by the command beside its listed parameters */ style?: string }
+  "paragraph.normal": { /** read by the command beside its listed parameters */ style?: string }
   /** Heading 1. Applies the Heading 1 style to the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.heading1": { /** read by the command beside its listed parameters */ style?: string }
+  "paragraph.heading1": { /** read by the command beside its listed parameters */ style?: string }
   /** Heading 2. Applies the Heading 2 style to the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.heading2": { /** read by the command beside its listed parameters */ style?: string }
+  "paragraph.heading2": { /** read by the command beside its listed parameters */ style?: string }
   /** Heading 3. Applies the Heading 3 style to the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.heading3": { /** read by the command beside its listed parameters */ style?: string }
+  "paragraph.heading3": { /** read by the command beside its listed parameters */ style?: string }
   /** Bullets. Makes the selected paragraphs a bulleted list (with a bullet kind or character), or removes the bullets with off. Params: {"kind"?: "bullet" | single char, "off"?: bool}. Reads the selection. Changes the document. */
-  "para.bullets": { /** "bullet", or a single bullet character */ kind?: string; off?: boolean }
+  "paragraph.bullets": { /** "bullet", or a single bullet character */ kind?: string; off?: boolean }
   /** Numbering. Makes the selected paragraphs a numbered list in a format (1., 1), A., a., i., outline), or removes numbering with off. Params: {"kind"?: "numbered|numberedParen|upperLetter|lowerLetter|lowerRoman|outline", "off"?: bool}. Reads the selection. Changes the document. */
-  "para.numbering": { kind?: "numbered" | "numberedParen" | "upperLetter" | "lowerLetter" | "lowerRoman" | "outline"; off?: boolean }
+  "paragraph.numbering": { kind?: "numbered" | "numberedParen" | "upperLetter" | "lowerLetter" | "lowerRoman" | "outline"; off?: boolean }
   /** Multilevel List. Applies a multilevel list (legal or outline numbering) to the selected paragraphs. Params: {"kind"?: "legal|outline"}. Reads the selection. Changes the document. */
-  "para.multilevel": { kind?: "legal" | "outline"; /** read by the command beside its listed parameters */ off?: boolean }
+  "paragraph.multilevel": { kind?: "legal" | "outline"; /** read by the command beside its listed parameters */ off?: boolean }
   /** Change List Level. Sets the list level (0 to 8) of the selected list paragraphs. Params: {"level": 0-8}. Reads the selection. Changes the document. */
-  "para.listLevel": { /** 0 to 8 */ level?: number }
+  "paragraph.listLevel": { /** 0 to 8 */ level?: number }
   /** Restart at 1. Restarts the numbering of the list at the caret from 1. Params: {}. Reads the selection. Changes the document. */
-  "para.restartNumbering": Record<string, never>
+  "paragraph.restartNumbering": Record<string, never>
   /** Shading. Sets the background shading of the selected paragraphs as RRGGBB, or removes it with null. Params: {"color": "RRGGBB" | null}. Reads the selection. Changes the document. */
-  "para.shading": { color?: Json }
+  "paragraph.shading": { color?: Json }
   /** Borders. Applies a paragraph border (bottom, top, box, inside, none...) to the selected paragraphs, with width and colour. Params: {"kind": "bottom|top|left|right|none|all|outside|inside|horizontalLine", "width"?: pt, "color"?: "RRGGBB", "style"?: "single|double|dotted|dashed|thick|triple|dotDash|wave", "sides"?: Sides} where Sides = {"top"|"left"|"bottom"|"right"|"between": {"style"?, "width"?: pt, "color"?: "RRGGBB"} | null}: exactly these sides (others off), instead of `kind`. Reads the selection. Changes the document. */
-  "para.borders": { /** like RRGGBB */ color?: string; kind?: "bottom" | "top" | "left" | "right" | "none" | "all" | "outside" | "inside" | "horizontalLine"; /** borders per side */ sides?: { bottom?: { color?: string; style?: string; width?: number }; left?: { color?: string; style?: string; width?: number }; right?: { color?: string; style?: string; width?: number }; top?: { color?: string; style?: string; width?: number } }; style?: "single" | "double" | "dotted" | "dashed" | "thick" | "triple" | "dotDash" | "wave"; /** points */ width?: number }
+  "paragraph.borders": { /** like RRGGBB */ color?: string; kind?: "bottom" | "top" | "left" | "right" | "none" | "all" | "outside" | "inside" | "horizontalLine"; /** borders per side */ sides?: { bottom?: { color?: string; style?: string; width?: number }; left?: { color?: string; style?: string; width?: number }; right?: { color?: string; style?: string; width?: number }; top?: { color?: string; style?: string; width?: number } }; style?: "single" | "double" | "dotted" | "dashed" | "thick" | "triple" | "dotDash" | "wave"; /** points */ width?: number }
   /** Sort. Sorts the selected paragraphs alphabetically, ascending or descending. Params: {"descending"?: bool}. Reads the selection. Changes the document. */
-  "para.sort": { descending?: boolean }
+  "paragraph.sort": { descending?: boolean }
   /** Keep with Next. Toggles keep-with-next on the selected paragraphs so they stay on the page with the following one. Params: {}. Reads the selection. Changes the document. */
-  "para.keepNext": { /** read by the command beside its listed parameters */ value?: boolean }
+  "paragraph.keepNext": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Keep Lines Together. Toggles keeping all lines of the selected paragraphs on one page. Params: {}. Reads the selection. Changes the document. */
-  "para.keepLines": { /** read by the command beside its listed parameters */ value?: boolean }
+  "paragraph.keepLines": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Page Break Before. Toggles a page break before the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.pageBreakBefore": { /** read by the command beside its listed parameters */ value?: boolean }
+  "paragraph.pageBreakBefore": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Widow/Orphan Control. Toggles widow and orphan control on the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.widowControl": { /** read by the command beside its listed parameters */ value?: boolean }
+  "paragraph.widowControl": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Asian Typography. Sets East Asian typography options of the selected paragraphs: line-breaking rules, word wrap and punctuation compression. Params: {"kinsoku"?: bool (East Asian line-breaking rules), "wordWrap"?: bool (false: Latin words may break at any character), "overflowPunct"?: bool (hanging punctuation), "topLinePunct"?: bool (compress punctuation at the start of a line), "autoSpaceDE"?: bool (space between Asian and Latin text), "autoSpaceDN"?: bool (space between Asian text and numbers)} ? flags left out stay as they are; returns the flags at the caret. Reads the selection. Changes the document. */
-  "para.asianTypography": { /** space between Asian and Latin text */ autoSpaceDE?: boolean; /** space between Asian text and numbers */ autoSpaceDN?: boolean; /** East Asian line-breaking rules */ kinsoku?: boolean; /** hanging punctuation */ overflowPunct?: boolean; /** compress punctuation at the start of a line */ topLinePunct?: boolean; /** false: Latin words may break at any character */ wordWrap?: boolean }
+  "paragraph.asianTypography": { /** space between Asian and Latin text */ autoSpaceDE?: boolean; /** space between Asian text and numbers */ autoSpaceDN?: boolean; /** East Asian line-breaking rules */ kinsoku?: boolean; /** hanging punctuation */ overflowPunct?: boolean; /** compress punctuation at the start of a line */ topLinePunct?: boolean; /** false: Latin words may break at any character */ wordWrap?: boolean }
   /** Tabs. Replaces, sets or clears tab stops (position, alignment, leader) of the selected paragraphs. Params: {"tabs"?: [TabStop] (replace the direct stops), "set"?: [TabStop], "clear"?: [pt], "clearAll"?: bool, "default"?: pt} where TabStop = {"pos": pt, "align"?: "left|center|right|decimal|bar", "leader"?: "none|dot|hyphen|underscore|middleDot"}. Reads the selection. Changes the document. */
-  "para.tabs": { clear?: Array<number>; clearAll?: boolean; /** points */ default?: number; /** [TabStop] */ set?: Array<Json>; /** [TabStop] (replace the direct stops); replace the direct stops */ tabs?: Array<Json> }
+  "paragraph.tabs": { clear?: Array<number>; clearAll?: boolean; /** points */ default?: number; /** [TabStop] */ set?: Array<Json>; /** [TabStop] (replace the direct stops); replace the direct stops */ tabs?: Array<Json> }
   /** Outline Level. Steps the outline level of the selected paragraphs. Params: {}. Reads the selection. Changes the document. */
-  "para.outlineLevel": { /** read by the command beside its listed parameters */ level?: number }
+  "paragraph.outlineLevel": { /** read by the command beside its listed parameters */ level?: number }
   /** Set Paragraph Formatting. Sets several paragraph properties of the selected paragraphs in one call (alignment, indents, spacing, line spacing, keep options...). Params: {"props": ParaProps}. Reads the selection. Changes the document. */
-  "para.set": { /** paragraph properties as para.dialog answers them (alignment, indents, spacing...); colours (shading, border colors) are "RRGGBB" */ props?: { [key: string]: Json } }
-  /** Paragraph Settings. Answers a paragraph's formatting as the Paragraph dialog shows it: the caret's paragraph, or the one at path. props is in the form para.set takes; direct holds only the paragraph's own settings. Params: {"path"?: [n] (default: the caret's paragraph), "story"?: Story} ? {"props": the paragraph's formatting as para.set takes it, "direct": its own (not inherited) settings, "anchor", "focus"}. Reads the selection. */
-  "para.dialog": { /** default: the caret's paragraph */ path?: Array<number>; /** Story */ story?: Json }
+  "paragraph.set": { /** paragraph properties as paragraph.dialog answers them (alignment, indents, spacing...); colours (shading, border colors) are "RRGGBB" */ props?: { [key: string]: Json } }
+  /** Paragraph Settings. Answers a paragraph's formatting as the Paragraph dialog shows it: the caret's paragraph, or the one at path. props is in the form paragraph.set takes; direct holds only the paragraph's own settings. Params: {"path"?: [n] (default: the caret's paragraph), "story"?: Story} ? {"props": the paragraph's formatting as paragraph.set takes it, "direct": its own (not inherited) settings, "anchor", "focus"}. Reads the selection. */
+  "paragraph.dialog": { /** default: the caret's paragraph */ path?: Array<number>; /** Story */ story?: Json }
   /** Create a Style. Creates a new paragraph style, based on another style or on the selection's formatting. Params: {"name": string, "basedOn"?: string, "fromSelection"?: bool}. Reads the selection. Changes the document. */
-  "styles.create": { basedOn?: string; fromSelection?: boolean; name?: string }
+  "style.add": { basedOn?: string; fromSelection?: boolean; name?: string }
   /** Modify Style. Changes a style's character or paragraph properties, its name or its next style; every paragraph using it changes. Params: {"style": string, "chr"?: CharProps, "para"?: ParaProps, "name"?: string, "next"?: string}. Changes the document. */
-  "styles.modify": { /** character properties as format.state answers them (font, size, bold, italic, color...); colours are "RRGGBB" (color also "auto") */ chr?: { [key: string]: Json }; name?: string; next?: string; /** paragraph properties as para.dialog answers them (alignment, indents, spacing...); colours (shading, border colors) are "RRGGBB" */ para?: { [key: string]: Json }; style?: string }
+  "style.set": { /** character properties as format.state answers them (font, size, bold, italic, color...); colours are "RRGGBB" (color also "auto") */ chr?: { [key: string]: Json }; name?: string; next?: string; /** paragraph properties as paragraph.dialog answers them (alignment, indents, spacing...); colours (shading, border colors) are "RRGGBB" */ para?: { [key: string]: Json }; style?: string }
   /** Update Style to Match Selection. Updates a style (default: the selection's) to match the selection's formatting. Params: {"style"?: string}. Reads the selection. Changes the document. */
-  "styles.updateToMatch": { style?: string }
+  "style.updateToMatch": { style?: string }
   /** Delete Style. Deletes a custom style; paragraphs that used it fall back to its base style. Params: {"style": string (name or id; custom styles only)}. Changes the document. */
-  "styles.delete": { /** name or id; custom styles only */ style?: string }
+  "style.delete": { /** name or id; custom styles only */ style?: string }
   /** Manage Styles. Lists the document's styles with their id, name, type and whether they show in the gallery, sorted as recommended or alphabetically. Params: {"sort"?: "recommended|alphabetical"} ? [{id, name, type: "paragraph|character|linked|table", builtIn, inGallery, hidden, basedOn, priority, format}]. Reads the selection. */
-  "styles.manage": { sort?: "recommended" | "alphabetical" }
+  "style.manage": { sort?: "recommended" | "alphabetical" }
   /** Show or Hide Style. Shows or hides a style in the Styles gallery and the style lists. Params: {"style": string, "gallery"?: bool (Styles gallery, w:qFormat), "hidden"?: bool (hidden from style lists, w:semiHidden)}. Changes the document. */
-  "styles.setVisibility": { /** Styles gallery, w:qFormat */ gallery?: boolean; /** hidden from style lists, w:semiHidden */ hidden?: boolean; style?: string }
+  "style.setVisibility": { /** Styles gallery, w:qFormat */ gallery?: boolean; /** hidden from style lists, w:semiHidden */ hidden?: boolean; style?: string }
   /** Styles. Lists the styles shown in the Styles gallery with their names and ids. Params: {}. Reads the selection. */
-  "styles.list": Record<string, never>
+  "style.list": Record<string, never>
   /** Styles Pane. Shows or hides the Styles pane in the editor. Params: {}. Reads the selection. */
-  "styles.pane": Record<string, never>
+  "style.pane": Record<string, never>
   /** Apply Styles. Opens the Apply Styles box in the editor, or applies a style by name when given. Params: {"style"?: string (name or id)}. Reads the selection. */
-  "styles.apply": { /** name or id */ style?: string }
+  "style.apply": { /** name or id */ style?: string }
   /** Add to Style Gallery. Adds the selection's style to the Styles gallery. Params: {}. Changes the document. */
-  "styles.addToGallery": { /** read by the command beside its listed parameters */ style?: string; /** read by the command beside its listed parameters */ value?: boolean }
+  "style.addToGallery": { /** read by the command beside its listed parameters */ style?: string; /** read by the command beside its listed parameters */ value?: boolean }
   /** Define New Multilevel List. Defines a new multilevel list (number format, text, start, indents per level) and applies it to the selected paragraphs; a number format it can't draw is refused. Params: {"levels": [{"format"?: "decimal|upperRoman|lowerRoman|upperLetter|lowerLetter|ordinal|cardinalText|ordinalText|decimalZero|bullet|none|chineseCounting|chineseCountingThousand|chineseLegalSimplified|decimalEnclosedCircle|decimalEnclosedCircleChinese|ideographDigital" (other formats are refused), "text"?: "%1.%2." (%n = level n's number; the bullet character for bullet), "start"?: n, "restartAfter"?: 0-8 (0 = never; omit = the level above), "style"?: paragraph style linked to the level | null, "align"?: "left|center|right", "alignedAt"?: pt, "indentAt"?: pt, "follow"?: "tab|space|nothing", "tabAt"?: pt | null, "font"?: string | null, "bold"?: bool, "italic"?: bool, "color"?: "RRGGBB" | null, "legal"?: bool}, ...] (index = level, up to 9; fields left out keep the base list's), "num"?: list id to change in place (default: a new list), "apply"?: bool (default true: number the selected paragraphs), "name"?: string}. Reads the selection. Changes the document. */
   "list.define": { /** default true: number the selected paragraphs */ apply?: boolean; /** [{"format"?: "decimal|upperRoman|lowerRoman|upperLetter|lowerLetter|ordinal|cardinalText|ordinalText|decimalZero|bullet|none|chineseCounting|chineseCountingThousand|chineseLegalSimplified|decimalEnclosedCircle|decimalEnclosedCircleChinese|ideographDigital" (other formats are refused), "text"?: "%1.%2." (%n = level n's number; the bullet character for bullet), "start"?: n, "restartAfter"?: 0-8 (0 = never; omit = the level above), "style"?: paragraph style linked to the level | null, "align"?: "left|center|right", "alignedAt"?: pt, "indentAt"?: pt, "follow"?: "tab|space|nothing", "tabAt"?: pt | null, "font"?: string | null, "bold"?: bool, "italic"?: bool, "color"?: "RRGGBB" | null, "legal"?: bool}, ...] (index = level, up to 9; fields left out keep the base list's); other formats are refused; %n = level n's number; the bullet character for bullet; 0 = never; omit = the level above; index = level, up to 9; fields left out keep the base list's */ levels?: Array<Json>; name?: string; /** list id to change in place (default: a new list) */ num?: number }
   /** List Definition. Answers a list's definition (each level's format, text and indents); default: the list at the caret. Params: {"num"?: list id (default: the caret's list)} ? {"num", "levels": [as list.define]}. Reads the selection. */
   "list.get": { /** list id (default: the caret's list) */ num?: number }
   /** Style Inspector. Shows or hides the Style Inspector pane in the editor. Params: {"value"?: bool (show/hide the pane)}. Reads the selection. */
-  "styles.inspector": { /** show/hide the pane */ value?: boolean }
+  "style.inspector": { /** show/hide the pane */ value?: boolean }
   /** Inspect Styles at Selection. Answers the formatting layers at the selection: paragraph style, direct paragraph formatting, character style and direct character formatting. Params: {}. Reads the selection. */
-  "styles.inspect": Record<string, never>
+  "style.inspect": Record<string, never>
   /** Clear Formatting Level. Clears one formatting layer at the selection (paragraph style, paragraph formatting, character style or character formatting). Params: {"level": "paragraphStyle|paragraphFormatting|characterStyle|characterFormatting"}. Reads the selection. Changes the document. */
-  "styles.inspectorClear": { level?: "paragraphStyle" | "paragraphFormatting" | "characterStyle" | "characterFormatting" }
+  "style.inspectorClear": { level?: "paragraphStyle" | "paragraphFormatting" | "characterStyle" | "characterFormatting" }
   /** Show/Hide ?. Shows or hides formatting marks (paragraph marks, spaces, tabs) in the editor. Params: {}. Reads the selection. */
   "view.marks": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Print Layout. Switches the editor to Print Layout, showing pages as they print. Params: {}. Reads the selection. */
@@ -562,57 +562,57 @@ export interface DocCommands extends CommandMap {
   /** View State. Answers the editor's view settings: view mode, zoom, panes, marks, ruler and gridlines. Params: {}. Reads the selection. */
   "view.state": Record<string, never>
   /** Page Break. Inserts a page break at the caret so the following text starts on a new page. Params: {}. Reads the selection. Changes the document. */
-  "insert.pageBreak": Record<string, never>
+  "page.insertBreak": Record<string, never>
   /** Blank Page. Inserts an empty page at the caret. Params: {}. Reads the selection. Changes the document. */
-  "insert.blankPage": Record<string, never>
+  "page.insertBlank": Record<string, never>
   /** Cover Page. Inserts a one-page cover at the start of the document with a title, subtitle, author and, when given, a date (no date otherwise); title, subtitle and author default to the document's Title, Subject and Author properties. The caret stays where it was. Params: {"title"?: string, "subtitle"?: string, "author"?: string, "date"?: string}. Reads the selection. Changes the document. */
-  "insert.coverPage": { author?: string; date?: string; subtitle?: string; title?: string }
+  "page.insertCover": { author?: string; date?: string; subtitle?: string; title?: string }
   /** Table. Inserts a table with the given rows and columns at the caret, optionally with a table style; the caret moves into its first cell. Params: {"rows": n, "cols": n, "style"?: string}. Reads the selection. Changes the document. */
-  "insert.table": { cols?: number; rows?: number; style?: string }
+  "table.insert": { cols?: number; rows?: number; style?: string }
   /** Pictures. Inserts a picture from a path or base64 data at the caret, with a width in points and alternative text. Params: {"path"?: string, "data"?: base64, "width"?: pt, "alt"?: string}. Reads the selection. Changes the document. */
-  "insert.picture": { alt?: string; /** the picture's bytes in base64 */ data?: string; path?: Json; /** points */ width?: number }
+  "image.insert": { alt?: string; /** the picture's bytes in base64 */ data?: string; path?: Json; /** points */ width?: number }
   /** Shapes. Inserts a floating shape (rectangle, ellipse, triangle, arrow, star...) at the caret with a size, fill and text. Params: {"kind": "rectangle|roundedRectangle|ellipse|triangle|diamond|line|arrow|star|heart", "width"?: pt, "height"?: pt, "fill"?: "RRGGBB", "stroke"?: "RRGGBB"}. Reads the selection. Changes the document. */
-  "insert.shape": { /** like RRGGBB */ fill?: string; /** points */ height?: number; kind?: "rectangle" | "roundedRectangle" | "ellipse" | "triangle" | "diamond" | "line" | "arrow" | "star" | "heart"; /** like RRGGBB */ stroke?: string; /** points */ width?: number }
+  "shape.insert": { /** like RRGGBB */ fill?: string; /** points */ height?: number; kind?: "rectangle" | "roundedRectangle" | "ellipse" | "triangle" | "diamond" | "line" | "arrow" | "star" | "heart"; /** like RRGGBB */ stroke?: string; /** points */ width?: number }
   /** Text Box. Inserts a floating text box at the caret with text and a size. Params: {"text"?: string, "width"?: pt, "height"?: pt}. Reads the selection. Changes the document. */
-  "insert.textBox": { /** points */ height?: number; text?: string; /** points */ width?: number }
+  "textBox.insert": { /** points */ height?: number; text?: string; /** points */ width?: number }
   /** Link. Turns the selection into a hyperlink to a URL, or inserts linked text at the caret. Params: {"url": string, "text"?: string}. Reads the selection. Changes the document. */
-  "insert.link": { text?: string; url?: string }
+  "link.insert": { text?: string; url?: string }
   /** Remove Hyperlink. Removes the hyperlink at the caret or selection, keeping its text. Params: {}. Reads the selection. Changes the document. */
-  "insert.removeLink": { /** read by the command beside its listed parameters */ text?: string; /** read by the command beside its listed parameters */ url?: string }
+  "link.remove": { /** read by the command beside its listed parameters */ text?: string; /** read by the command beside its listed parameters */ url?: string }
   /** Bookmark. Adds a named bookmark at the selection, for edit.goto and cross-references. Params: {"name": string}. Reads the selection. Changes the document. */
-  "insert.bookmark": { name?: string }
+  "bookmark.insert": { name?: string }
   /** Header. Sets the header of the current section from text or a preset layout. Params: {"text"?: string, "preset"?: "blank|blankThree|title"}. Reads the selection. Changes the document. */
-  "insert.header": { preset?: "blank" | "blankThree" | "title"; text?: string }
+  "header.insert": { preset?: "blank" | "blankThree" | "title"; text?: string }
   /** Footer. Sets the footer of the current section from text or a preset layout. Params: {"text"?: string, "preset"?: "blank|blankThree|pageNumber"}. Reads the selection. Changes the document. */
-  "insert.footer": { preset?: "blank" | "blankThree" | "pageNumber"; text?: string }
+  "footer.insert": { preset?: "blank" | "blankThree" | "pageNumber"; text?: string }
   /** Page Number. Inserts a page number field at the top or bottom of the page or at the caret, aligned left, centre or right (at the caret: the caret's paragraph, when align is given), optionally as Page x of y. Params: {"position"?: "top|bottom|current", "align"?: "left|center|right", "format"?: "x of y"}. Reads the selection. Changes the document. */
-  "insert.pageNumber": { align?: "left" | "center" | "right"; /** like x of y */ format?: string; position?: "top" | "bottom" | "current" }
+  "pageNumber.insert": { align?: "left" | "center" | "right"; /** like x of y */ format?: string; position?: "top" | "bottom" | "current" }
   /** Edit Header. Moves the caret into the header of the current section for editing. Params: {}. Reads the selection. Changes the document. */
-  "insert.editHeader": Record<string, never>
+  "header.edit": Record<string, never>
   /** Edit Footer. Moves the caret into the footer of the current section for editing. Params: {}. Reads the selection. Changes the document. */
-  "insert.editFooter": Record<string, never>
+  "footer.edit": Record<string, never>
   /** Close Header and Footer. Leaves the header, footer or note and returns the caret to where it was in the body (after a note's reference mark). Params: {}. Reads the selection. */
-  "insert.closeHeader": Record<string, never>
+  "header.close": Record<string, never>
   /** Remove Header. Removes the header of the current section. Params: {}. Reads the selection. Changes the document. */
-  "insert.removeHeader": Record<string, never>
+  "header.remove": Record<string, never>
   /** Remove Footer. Removes the footer of the current section. Params: {}. Reads the selection. Changes the document. */
-  "insert.removeFooter": Record<string, never>
+  "footer.remove": Record<string, never>
   /** Date & Time. Inserts the current date or time at the caret in a format, as fixed text or as a field that updates. Params: {"format"?: "M/d/yyyy", "update"?: bool}. Reads the selection. Changes the document. */
-  "insert.dateTime": { /** like M/d/yyyy */ format?: string; update?: boolean }
+  "field.insertDateTime": { /** like M/d/yyyy */ format?: string; update?: boolean }
   /** Symbol. Inserts a character at the caret, optionally in its own symbol font. Params: {"char": string, "font"?: family (the symbol's own font)}. Reads the selection. Changes the document. */
-  "insert.symbol": { char?: string; /** the symbol's own font */ font?: string }
+  "symbol.insert": { char?: string; /** the symbol's own font */ font?: string }
   /** Field. Inserts a field code (PAGE, DATE, REF...) at the caret with an optional result text. Params: {"instr": string, "result"?: string}. Reads the selection. Changes the document. */
-  "insert.field": { instr?: string; result?: string }
+  "field.insert": { instr?: string; result?: string }
   /** Drop Cap. Makes the first letter of the paragraph at the caret a drop cap over a number of lines (0 removes it). Params: {"lines"?: n (0 = none)}. Reads the selection. Changes the document. */
-  "insert.dropCap": { /** 0 = none */ lines?: number }
+  "dropCap.set": { /** 0 = none */ lines?: number }
   /** Horizontal Line. Inserts a horizontal line paragraph at the caret. Params: {}. Reads the selection. Changes the document. */
-  "insert.horizontalLine": Record<string, never>
+  "horizontalLine.insert": Record<string, never>
   /** Art text. Inserts decorative art text, optionally warped by a preset. Params: {"text"?: string, "warp"?: preset (textArchUp, textWave1, textInflate...)}. Reads the selection. Changes the document. */
-  "insert.artText": { text?: string; warp?: Json }
+  "artText.insert": { text?: string; warp?: Json }
   /** Text from File. Inserts the text of a file at the caret. Params: {"path": string}. Reads the selection. Changes the document. */
-  "insert.textFromFile": { path?: Json; /** read by the command beside its listed parameters */ text?: string }
+  "text.insertFromFile": { path?: Json; /** read by the command beside its listed parameters */ text?: string }
   /** Equation. Inserts an equation at the caret from linear format, LaTeX or a built-in equation (Pythagoras, quadratic...), and puts the caret in it. Params: {"linear"?: string, "latex"?: string, "builtin"?: "pythagoras|area|quadratic|binomial|expansion|euler|derivative|taylor|gaussian|fourier|trig1|trig2|normal|bayes", "display"?: bool, "edit"?: bool (default true)}. Reads the selection. Changes the document. */
-  "insert.equation": { builtin?: "pythagoras" | "area" | "quadratic" | "binomial" | "expansion" | "euler" | "derivative" | "taylor" | "gaussian" | "fourier" | "trig1" | "trig2" | "normal" | "bayes"; display?: boolean; /** default true */ edit?: boolean; /** read by the command beside its listed parameters */ id?: string; latex?: string; linear?: string }
+  "equation.insert": { builtin?: "pythagoras" | "area" | "quadratic" | "binomial" | "expansion" | "euler" | "derivative" | "taylor" | "gaussian" | "fourier" | "trig1" | "trig2" | "normal" | "bayes"; display?: boolean; /** default true */ edit?: boolean; /** read by the command beside its listed parameters */ id?: string; latex?: string; linear?: string }
   /** Edit Equation. Puts the caret into the equation at the selection, optionally at a position inside it. Params: {"pos"?: {"path": [[node, child]...], "off": n}}. Reads the selection. */
   "equation.edit": { pos?: { off?: number; path?: Array<Json> } }
   /** Leave Equation. Leaves the equation, putting the caret after it (or before it). Params: {"before"?: bool}. Reads the selection. */
@@ -654,31 +654,31 @@ export interface DocCommands extends CommandMap {
   /** Change Structure. Applies an action to the structure at the equation caret (add a row, change a delimiter...), as equation.structureActions lists. Params: {"action": string (see equation.structureActions), "level"?: n}. Reads the selection, mode. Changes the document. */
   "equation.structure": { /** see equation.structureActions */ action?: string; level?: number }
   /** Margins. Sets the page margins of the current section from a preset or in points per side. Params: {"preset"?: "normal|narrow|moderate|wide|mirrored|office2003", "top"?: pt, "bottom"?: pt, "left"?: pt, "right"?: pt, "gutter"?: pt}. Reads the selection. Changes the document. */
-  "layout.margins": { /** points */ bottom?: number; /** points */ gutter?: number; /** points */ left?: number; preset?: "normal" | "narrow" | "moderate" | "wide" | "mirrored" | "office2003"; /** points */ right?: number; /** points */ top?: number }
+  "page.margins": { /** points */ bottom?: number; /** points */ gutter?: number; /** points */ left?: number; preset?: "normal" | "narrow" | "moderate" | "wide" | "mirrored" | "office2003"; /** points */ right?: number; /** points */ top?: number }
   /** Orientation. Sets the current section's page orientation to portrait or landscape. Params: {"value": "portrait|landscape"}. Reads the selection. Changes the document. */
-  "layout.orientation": { value?: "portrait" | "landscape" }
+  "page.orientation": { value?: "portrait" | "landscape" }
   /** Size. Sets the current section's paper size: by name (Letter, A4...), keeping the orientation, or as a width and height in points, kept as given (wider than tall is landscape). Params: {"name"?: "Letter|Legal|A4|..." (keeps the orientation), "width"?: pt, "height"?: pt (as given: wider than tall is landscape)}. Reads the selection. Changes the document. */
-  "layout.size": { /** points; as given: wider than tall is landscape */ height?: number; /** for example Letter, Legal, A4; keeps the orientation */ name?: string; /** points */ width?: number }
+  "page.size": { /** points; as given: wider than tall is landscape */ height?: number; /** for example Letter, Legal, A4; keeps the orientation */ name?: string; /** points */ width?: number }
   /** Columns. Sets the number of text columns (1 to 12) of the current section, with spacing, a separator line or set widths. Params: {"count": 1-12, "space"?: pt, "separator"?: bool, "preset"?: "left|right", "widths"?: [[width pt, space after pt], ...] (unequal columns; sets the count), "apply"?: "section|document|forward"}. Reads the selection. Changes the document. */
-  "layout.columns": { apply?: "section" | "document" | "forward"; /** 1 to 12 */ count?: number; preset?: "left" | "right"; separator?: boolean; /** points */ space?: number; /** [[width pt, space after pt], ...] (unequal columns; sets the count); unequal columns; sets the count */ widths?: Array<Json> }
+  "page.columns": { apply?: "section" | "document" | "forward"; /** 1 to 12 */ count?: number; preset?: "left" | "right"; separator?: boolean; /** points */ space?: number; /** [[width pt, space after pt], ...] (unequal columns; sets the count); unequal columns; sets the count */ widths?: Array<Json> }
   /** Breaks. Inserts a page, column or text-wrapping break, or a section break (next page, continuous, even or odd page), at the caret. Params: {"kind": "page|column|textWrapping|nextPage|continuous|evenPage|oddPage"}. Reads the selection. Changes the document. */
-  "layout.break": { kind?: "page" | "column" | "textWrapping" | "nextPage" | "continuous" | "evenPage" | "oddPage" }
+  "page.break": { kind?: "page" | "column" | "textWrapping" | "nextPage" | "continuous" | "evenPage" | "oddPage" }
   /** Line Numbers. Turns line numbers in the margin off, continuous, or restarting each page or section. Params: {"value": "none|continuous|restartPage|restartSection"}. Reads the selection. Changes the document. */
-  "layout.lineNumbers": { value?: "none" | "continuous" | "restartPage" | "restartSection" }
+  "page.lineNumbers": { value?: "none" | "continuous" | "restartPage" | "restartSection" }
   /** Hyphenation. Toggles automatic hyphenation for the document. Params: {}. Changes the document. */
-  "layout.hyphenation": { /** read by the command beside its listed parameters */ value?: boolean }
-  /** Page Setup. Changes the current section's page setup in one call: only the fields given (size, orientation, margins, columns, vertical alignment...) change, the others keep their values. Params: {"section"?: SectionProps (the fields to change, as layout.section answers them; the others are kept)}. Reads the selection. Changes the document. */
-  "layout.pageSetup": { /** the section fields to change, named as layout.section answers them (pageW, marginLeft, valign...); fields not given are kept, unknown ones are refused */ section?: { [key: string]: Json } }
+  "page.hyphenation": { /** read by the command beside its listed parameters */ value?: boolean }
+  /** Page Setup. Changes the current section's page setup in one call: only the fields given (size, orientation, margins, columns, vertical alignment...) change, the others keep their values. Params: {"section"?: SectionProps (the fields to change, as page.section answers them; the others are kept)}. Reads the selection. Changes the document. */
+  "page.pageSetup": { /** the section fields to change, named as page.section answers them (pageW, marginLeft, valign...); fields not given are kept, unknown ones are refused */ section?: { [key: string]: Json } }
   /** Vertical Alignment. Sets the current section's vertical alignment of text on its pages: top, center or bottom. Params: {"value": "top|center|bottom"}. Reads the selection. Changes the document. */
-  "layout.verticalAlign": { value?: "top" | "center" | "bottom" }
+  "page.verticalAlign": { value?: "top" | "center" | "bottom" }
   /** Different First Page. Toggles a different header and footer on the first page of the current section. Params: {}. Reads the selection. Changes the document. */
-  "layout.differentFirstPage": { /** read by the command beside its listed parameters */ value?: boolean }
+  "page.differentFirstPage": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Different Odd & Even Pages. Toggles different headers and footers on odd and even pages. Params: {}. Changes the document. */
-  "layout.differentOddEven": { /** read by the command beside its listed parameters */ value?: boolean }
+  "page.differentOddEven": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Format Page Numbers. Sets the page number format (1, i, I, a, A) and starting number of the current section. Params: {"format"?: "decimal|lowerRoman|upperRoman|lowerLetter|upperLetter", "start"?: n}. Reads the selection. Changes the document. */
-  "layout.pageNumberFormat": { format?: "decimal" | "lowerRoman" | "upperRoman" | "lowerLetter" | "upperLetter"; start?: number }
+  "page.pageNumberFormat": { format?: "decimal" | "lowerRoman" | "upperRoman" | "lowerLetter" | "upperLetter"; start?: number }
   /** Section Properties. Answers the current section's page properties: size, orientation, margins, columns and header settings. Params: {}. Reads the selection. */
-  "layout.section": Record<string, never>
+  "page.section": Record<string, never>
   /** Insert Above. Inserts a row above the row at the caret in its table. Params: {}. Reads the selection. Changes the document. */
   "table.insertRowAbove": Record<string, never>
   /** Insert Below. Inserts a row below the row at the caret in its table. Params: {}. Reads the selection. Changes the document. */
@@ -744,9 +744,9 @@ export interface DocCommands extends CommandMap {
   /** Quick Tables. Inserts a ready-made table (calendar, tabular list or matrix) at the caret. Params: {"kind"?: "calendar|tabular|matrix"}. Reads the selection. Changes the document. */
   "table.quick": { kind?: "calendar" | "tabular" | "matrix" }
   /** New Table Style. Creates a table style with formatting for the whole table and its regions (header row, last row, banded rows...). Params: {"name": string, "basedOn"?: string, "wholeTable"?: Region, "headerRow"?: Region, "lastRow"?: Region (total row), "firstColumn"?: Region, "lastColumn"?: Region, "bandedRows"?: Region, "bandedColumns"?: Region, "bandSize"?: n (rows per band), "para"?: ParaProps, "apply"?: bool} where Region = {"borders"?: bool | null (true: single lines, false: none, null: inherit), "borderColor"?: "RRGGBB", "borderWidth"?: pt, "fill"?: "RRGGBB" | null, "bold"?: bool, "italic"?: bool, "color"?: "RRGGBB" | null, "size"?: pt, "font"?: string}. Reads the selection. Changes the document. */
-  "table.newStyle": { apply?: boolean; /** rows per band */ bandSize?: number; /** a table style region's shortcuts */ bandedColumns?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ bandedRows?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; basedOn?: string; /** a table style region's shortcuts */ firstColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ headerRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; name?: string; /** paragraph properties as para.dialog answers them (alignment, indents, spacing...); colours (shading, border colors) are "RRGGBB"; as in Word, a paragraph style that sets a property itself (Normal included) wins over the table style's */ para?: { [key: string]: Json }; /** a table style region's shortcuts */ wholeTable?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number } }
+  "table.newStyle": { apply?: boolean; /** rows per band */ bandSize?: number; /** a table style region's shortcuts */ bandedColumns?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ bandedRows?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; basedOn?: string; /** a table style region's shortcuts */ firstColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ headerRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; name?: string; /** paragraph properties as paragraph.dialog answers them (alignment, indents, spacing...); colours (shading, border colors) are "RRGGBB"; as in Word, a paragraph style that sets a property itself (Normal included) wins over the table style's */ para?: { [key: string]: Json }; /** a table style region's shortcuts */ wholeTable?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number } }
   /** Modify Table Style. Changes a table style's name, base style or region formatting; default: the current table's style. Params: {"style"?: string (default: the current table's), "name"?: string, "basedOn"?: string, "wholeTable"?: Region, "headerRow"?: Region, "lastRow"?: Region (total row), "firstColumn"?: Region, "lastColumn"?: Region, "bandedRows"?: Region, "bandedColumns"?: Region, "bandSize"?: n (rows per band), "para"?: ParaProps, "apply"?: bool} where Region = {"borders"?: bool | null (true: single lines, false: none, null: inherit), "borderColor"?: "RRGGBB", "borderWidth"?: pt, "fill"?: "RRGGBB" | null, "bold"?: bool, "italic"?: bool, "color"?: "RRGGBB" | null, "size"?: pt, "font"?: string}. Reads the selection. Changes the document. */
-  "table.modifyStyle": { apply?: boolean; /** rows per band */ bandSize?: number; /** a table style region's shortcuts */ bandedColumns?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ bandedRows?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; basedOn?: string; /** a table style region's shortcuts */ firstColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ headerRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; name?: string; /** paragraph properties as para.dialog answers them (alignment, indents, spacing...) */ para?: { [key: string]: Json }; /** default: the current table's */ style?: string; /** a table style region's shortcuts */ wholeTable?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number } }
+  "table.setStyle": { apply?: boolean; /** rows per band */ bandSize?: number; /** a table style region's shortcuts */ bandedColumns?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ bandedRows?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; basedOn?: string; /** a table style region's shortcuts */ firstColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ headerRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastColumn?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; /** a table style region's shortcuts */ lastRow?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number }; name?: string; /** paragraph properties as paragraph.dialog answers them (alignment, indents, spacing...) */ para?: { [key: string]: Json }; /** default: the current table's */ style?: string; /** a table style region's shortcuts */ wholeTable?: { bold?: boolean; borderColor?: Json; borderWidth?: number; borders?: Json; color?: Json; fill?: Json; font?: string; italic?: boolean; size?: number } }
   /** Delete Table Style. Deletes a custom table style; default: the current table's style. Params: {"style"?: string (default: the current table's)}. Reads the selection. Changes the document. */
   "table.deleteStyle": { /** default: the current table's */ style?: string }
   /** Draw Table. Draws a table or a cell border as a pen stroke between two points on a page. Params: {"page": n, "x0": pt, "y0": pt, "x1": pt, "y1": pt, "story"?: StoryRef} (a pen stroke in page points, 0-based page: a rectangle at least 12 pt each way outside any table inserts a one-cell table of that size at the paragraph under its start; a straight vertical or horizontal line inside a table splits the cells it crosses there. In the app the button turns the pen on.). Reads the selection. Changes the document. */
@@ -754,21 +754,21 @@ export interface DocCommands extends CommandMap {
   /** Eraser. Removes the border between two cells within 4 points of a point on a page, merging them. Params: {"page": n, "x": pt, "y": pt} (removes the border between two cells within 4 pt of the point by merging them. In the app the button turns the eraser on.). Reads the selection. Changes the document. */
   "table.eraser": { page?: number; /** points */ x?: number; /** points */ y?: number }
   /** New Comment. Adds a comment with text on the selection (or the word at the caret). Params: {"text": string}. Reads the selection. Changes the document. */
-  "review.newComment": { text?: string }
+  "comment.new": { text?: string }
   /** Reply. Replies to a comment by its id. Params: {"id": n, "text": string}. Changes the document. */
-  "review.reply": { id?: number; text?: string }
+  "comment.replyCurrent": { id?: number; text?: string }
   /** Edit Comment. Replaces the text of a comment by its id. Params: {"id": n, "text": string}. Changes the document. */
-  "review.editComment": { id?: number; text?: string }
+  "comment.edit": { id?: number; text?: string }
   /** Delete. Deletes a comment by id, the comment at the caret, or all comments. Params: {"id"?: n, "all"?: bool}. Reads the selection. Changes the document. */
-  "review.deleteComment": { all?: boolean; id?: number }
+  "comment.deleteCurrent": { all?: boolean; id?: number }
   /** Resolve. Marks the comment at the caret as resolved. Params: {}. Reads the selection. Changes the document. */
-  "review.resolveComment": { /** read by the command beside its listed parameters */ id?: number; /** read by the command beside its listed parameters */ value?: boolean }
+  "comment.resolveCurrent": { /** read by the command beside its listed parameters */ id?: number; /** read by the command beside its listed parameters */ value?: boolean }
   /** Next. Moves to the next comment and answers it. Params: {}. Reads the selection. */
-  "review.nextComment": Record<string, never>
+  "comment.next": Record<string, never>
   /** Previous. Moves to the previous comment and answers it. Params: {}. Reads the selection. */
-  "review.previousComment": Record<string, never>
+  "comment.previous": Record<string, never>
   /** Show Comments. Lists the document's comments with their ids, authors, text and the text they are on. Params: {}. Reads the selection. */
-  "review.comments": Record<string, never>
+  "comment.pane": Record<string, never>
   /** Comment Threads. Lists the comment threads with their ids, anchors (object, range, quote, page position), comments and resolved state. Params: {} ? [{id, anchor: {object, field?, range?, quote?, place?: {page, x, y, height}}, resolved, comments: [{id, author, name, body, created}]}]. Reads the selection. */
   "comment.threads": Record<string, never>
   /** Add Comment. Starts a comment thread on the selection with text and an author. Params: {"text": string, "author"?: string (principal id), "name"?: string, "created"?: string (ISO 8601 UTC)} ? {thread, threadId} (on the selection, or the word at the caret). Reads the selection. Changes the document. */
@@ -782,43 +782,43 @@ export interface DocCommands extends CommandMap {
   /** Go to Comment. Moves the caret to a comment thread's anchor. Params: {"thread": string}. Reads the selection. */
   "comment.goto": { /** read by the command beside its listed parameters */ bookmark?: string; /** read by the command beside its listed parameters */ page?: number; /** read by the command beside its listed parameters */ paragraph?: number; thread?: string }
   /** Track Changes. Turns Track Changes on or off; without value it toggles. Tracked edits are kept as revisions to accept or reject. Params: {"value"?: bool (omit to toggle)}. Changes the document. */
-  "review.trackChanges": { /** omit to toggle */ value?: boolean }
+  "change.track": { /** omit to toggle */ value?: boolean }
   /** Accept All Changes. Accepts every tracked change in the document. Params: {}. Reads the selection. Changes the document. */
-  "review.acceptAll": Record<string, never>
+  "change.acceptAll": Record<string, never>
   /** Reject All Changes. Rejects every tracked change in the document. Params: {}. Reads the selection. Changes the document. */
-  "review.rejectAll": Record<string, never>
+  "change.rejectAll": Record<string, never>
   /** Accept. Accepts the tracked change at the caret or in the selection. Params: {}. Reads the selection. Changes the document. */
-  "review.accept": Record<string, never>
+  "change.accept": Record<string, never>
   /** Reject. Rejects the tracked change at the caret or in the selection. Params: {}. Reads the selection. Changes the document. */
-  "review.reject": Record<string, never>
+  "change.reject": Record<string, never>
   /** Next Change. Moves to the next tracked change and answers it. Params: {}. Reads the selection. */
-  "review.nextChange": Record<string, never>
+  "change.next": Record<string, never>
   /** Previous Change. Moves to the previous tracked change and answers it. Params: {}. Reads the selection. */
-  "review.previousChange": Record<string, never>
+  "change.previous": Record<string, never>
   /** Display for Review. Steps how revisions display in the editor (simple, all markup, no markup, original). Params: {}. Reads the selection. */
-  "review.markup": { /** read by the command beside its listed parameters */ value?: string }
+  "change.markup": { /** read by the command beside its listed parameters */ value?: string }
   /** Track Changes Options. Sets which revisions show in the editor (comments, ink, insertions and deletions, formatting, balloons). Params: {"comments"?: bool, "ink"?: bool, "insertionsDeletions"?: bool, "formatting"?: bool, "balloons"?: "revisions|inline|commentsAndFormatting", "insertMark"?: "underline|doubleUnderline|bold|italic|strikethrough|colorOnly|none", "insertColor"?: "byAuthor" | "RRGGBB", "deleteMark"?: "strikethrough|doubleStrikethrough|hidden|caret|hash|underline|colorOnly", "deleteColor"?: "byAuthor" | "RRGGBB", "changedLines"?: "outside|left|right|none", "changedLinesColor"?: "auto" | "RRGGBB", "trackFormatting"?: bool} ? the options (omit all to read them). Reads the selection. */
-  "review.trackingOptions": { balloons?: "revisions" | "inline" | "commentsAndFormatting"; changedLines?: "outside" | "left" | "right" | "none"; changedLinesColor?: "auto" | "RRGGBB"; comments?: boolean; deleteColor?: "byAuthor" | "RRGGBB"; deleteMark?: "strikethrough" | "doubleStrikethrough" | "hidden" | "caret" | "hash" | "underline" | "colorOnly"; formatting?: boolean; ink?: boolean; insertColor?: "byAuthor" | "RRGGBB"; insertMark?: "underline" | "doubleUnderline" | "bold" | "italic" | "strikethrough" | "colorOnly" | "none"; insertionsDeletions?: boolean; trackFormatting?: boolean }
+  "change.options": { balloons?: "revisions" | "inline" | "commentsAndFormatting"; changedLines?: "outside" | "left" | "right" | "none"; changedLinesColor?: "auto" | "RRGGBB"; comments?: boolean; deleteColor?: "byAuthor" | "RRGGBB"; deleteMark?: "strikethrough" | "doubleStrikethrough" | "hidden" | "caret" | "hash" | "underline" | "colorOnly"; formatting?: boolean; ink?: boolean; insertColor?: "byAuthor" | "RRGGBB"; insertMark?: "underline" | "doubleUnderline" | "bold" | "italic" | "strikethrough" | "colorOnly" | "none"; insertionsDeletions?: boolean; trackFormatting?: boolean }
   /** Word Count. Answers the document's (or selection's) pages, words, characters, paragraphs and lines, optionally counting text boxes; each Chinese or Japanese character counts as a word, as in Word. Params: {"includeTextBoxes"?: bool}. Reads the selection. */
-  "review.wordCount": { includeTextBoxes?: boolean }
+  "file.wordCount": { includeTextBoxes?: boolean }
   /** Reviewing Pane. Lists the tracked changes with their kind, author, date and text. Params: {}. Reads the selection. */
-  "review.changes": { /** read by the command beside its listed parameters */ description?: string; /** read by the command beside its listed parameters */ props?: { [key: string]: Json } }
+  "change.list": { /** read by the command beside its listed parameters */ description?: string; /** read by the command beside its listed parameters */ props?: { [key: string]: Json } }
   /** Spelling & Grammar. Answers the first spelling or grammar issue from the caret onward, with suggestions; changes nothing. Params: {}. Reads the selection. */
-  "review.spelling": Record<string, never>
+  "spelling.check": Record<string, never>
   /** Proofing Issues. Lists every spelling and grammar issue in the document with its position and suggestions. Params: {}. Reads the selection. */
-  "review.issues": Record<string, never>
+  "spelling.issues": Record<string, never>
   /** Spelling Suggestions. Answers spelling suggestions for the word at the caret or at a position. Params: {"pos"?: Pos}. Reads the selection. */
-  "review.suggestions": { /** a position as document.selection answers (or {"block", "off"?} in the body) */ pos?: { off?: number; path?: Array<number>; story?: Json } }
+  "spelling.suggestions": { /** a position as file.selection answers (or {"block", "off"?} in the body) */ pos?: { off?: number; path?: Array<number>; story?: Json } }
   /** Add to Dictionary. Adds a word (default: the word at the caret) to the dictionary so it is no longer flagged. Params: {"word"?: string}. Reads the selection. */
-  "review.addToDictionary": { word?: string }
+  "spelling.addToDictionary": { word?: string }
   /** Ignore All. Ignores every occurrence of the flagged word at the caret in this document. Params: {}. Reads the selection. */
-  "review.ignoreAll": { /** read by the command beside its listed parameters */ word?: string }
+  "spelling.ignoreAll": { /** read by the command beside its listed parameters */ word?: string }
   /** Change. Replaces the flagged word at the caret with a suggestion text. Params: {"text": string}. Reads the selection. Changes the document. */
-  "review.applySuggestion": { text?: string }
+  "spelling.applySuggestion": { text?: string }
   /** Check Spelling as You Type. Toggles checking spelling as you type in the editor. Params: {}. Reads the selection. */
-  "review.proofing": { /** read by the command beside its listed parameters */ value?: boolean }
+  "spelling.proofing": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Thesaurus. Answers synonyms for the word at the caret. Params: {}. Reads the selection. */
-  "review.thesaurus": { /** read by the command beside its listed parameters */ word?: string }
+  "spelling.thesaurus": { /** read by the command beside its listed parameters */ word?: string }
   /** Caret for Presence. Answers the caret and selection as object-model positions (object, field, offset), for showing it to collaborators. Params: {} ? {caret: {object, field, offset} | null, anchor: {object, field, offset} | null, selection: [object], page: n} (the caret, the selection's other end when something is selected, and the paragraphs it covers, as replica positions and object ids; null and [] before the document has a replica). Reads the selection. */
   "presence.caret": Record<string, never>
   /** Locate Carets. Answers page positions for given object-model caret positions, for drawing collaborators' carets. Params: {"places": [{"caret": {object, field, offset}, "anchor"?: {object, field, offset}}]} ? [{caret: {page, x, y, height} | null, rects: [{page, x, y, width, height}]}] (each person's caret and selection in this view, in page points; null and [] for what this view does not show). Reads the selection. */
@@ -855,150 +855,150 @@ export interface DocCommands extends CommandMap {
   "file.options": Record<string, never>
   /** User Name. Sets the user name recorded as the author of new tracked changes and comments. Params: {"name": string (author of new tracked changes and comments)}. Reads the selection. */
   "file.setAuthor": { /** author of new tracked changes and comments */ name?: string }
-  /** Inspect Document. Answers the document's structure: pages, sections, paragraphs by index with their styles and short text, the selection and counts; with text true it includes each paragraph's full text. Use document.text for all the text. Params: {"text"?: bool}. Reads the selection. */
-  "document.inspect": { text?: boolean }
+  /** Inspect Document. Answers the document's structure: pages, sections, paragraphs by index with their styles and short text, the selection and counts; with text true it includes each paragraph's full text. Use file.text for all the text. Params: {"text"?: bool}. Reads the selection. */
+  "file.inspect": { text?: boolean }
   /** Document Text. Answers the document's whole body text as plain text, one paragraph per line; read this before editing, since inspect alone shows little content. Params: {}. */
-  "document.text": { /** read by the command beside its listed parameters */ story?: Json }
-  /** Paragraph Details. Answers one paragraph's details by its path (index from document.inspect): text, runs with formatting, style and paragraph properties. Params: {"path": [n], "story"?: Story}. */
-  "document.paragraph": { path?: Array<number>; /** "body", or {"part": n} for a header, footer, note, comment or text box story */ story?: Json }
+  "file.text": { /** read by the command beside its listed parameters */ story?: Json }
+  /** Paragraph Details. Answers one paragraph's details by its path (index from file.inspect): text, runs with formatting, style and paragraph properties. Params: {"path": [n], "story"?: Story}. */
+  "file.paragraph": { path?: Array<number>; /** "body", or {"part": n} for a header, footer, note, comment or text box story */ story?: Json }
   /** Selection. Answers the selection: its anchor and focus positions, the selected text and the formatting there. Params: {}. Reads the selection. */
-  "document.selection": Record<string, never>
+  "file.selection": Record<string, never>
   /** Layout Summary. Answers a summary of the laid-out pages: page count, size and which paragraphs fall on each page. Params: {}. Reads the selection. */
-  "document.layout": Record<string, never>
+  "file.layout": Record<string, never>
   /** Replace Document Text. Replaces the whole body with the given plain text, one paragraph per line, in the Normal style. Params: {"text": string}. Changes the document. */
-  "document.setText": { text?: string }
-  /** Insert Paragraph. Inserts a new paragraph with text after or before the paragraph at an index (as document.inspect numbers them), keeping the neighbouring style. Params: {"after"?: n, "before"?: n, "text": string}  (n: a paragraph's index, as document.inspect lists it). Changes the document. */
-  "para.insert": { after?: number; before?: number; text?: string }
+  "file.setText": { text?: string }
+  /** Insert Paragraph. Inserts a new paragraph with text after or before the paragraph at an index (as file.inspect numbers them), keeping the neighbouring style. Params: {"after"?: n, "before"?: n, "text": string}  (n: a paragraph's index, as file.inspect lists it). Changes the document. */
+  "paragraph.insert": { after?: number; before?: number; text?: string }
   /** Set Paragraph Text. Replaces the text of the paragraph at an index, keeping its style and paragraph formatting. Params: {"index": n, "text": string}  (the paragraph's text replaced, its style kept). Reads the selection. Changes the document. */
-  "para.text": { index?: number; text?: string }
+  "paragraph.text": { index?: number; text?: string }
   /** Themes. Applies a document theme by name, changing theme colours and fonts. Params: {"name": string}. Changes the document. */
-  "design.theme": { name?: string }
+  "theme.set": { name?: string }
   /** Fonts. Sets the theme's heading and body fonts. Params: {"heading": string, "body"?: string}. Changes the document. */
-  "design.themeFonts": { body?: string; heading?: string }
+  "theme.fonts": { body?: string; heading?: string }
   /** Colors. Steps the theme's colour palette to the next one. Params: {}. Changes the document. */
-  "design.themeColors": { /** read by the command beside its listed parameters */ name?: string }
+  "theme.colors": { /** read by the command beside its listed parameters */ name?: string }
   /** Style Set. Applies a style set (basic, lines, shaded, casual, centered, minimalist, title) that restyles headings and body text. Params: {"name": "default|basic|lines|shaded|casual|centered|minimalist|title"}. Changes the document. */
-  "design.styleSet": { name?: "default" | "basic" | "lines" | "shaded" | "casual" | "centered" | "minimalist" | "title" }
+  "theme.styleSet": { name?: "default" | "basic" | "lines" | "shaded" | "casual" | "centered" | "minimalist" | "title" }
   /** Paragraph Spacing. Applies a document-wide paragraph spacing preset (none, compact, tight, open, relaxed, double). Params: {"value": "default|none|compact|tight|open|relaxed|double"}. Changes the document. */
-  "design.paragraphSpacing": { value?: "default" | "none" | "compact" | "tight" | "open" | "relaxed" | "double" }
+  "theme.paragraphSpacing": { value?: "default" | "none" | "compact" | "tight" | "open" | "relaxed" | "double" }
   /** Watermark. Adds a text watermark (diagonal or horizontal, with colour) behind every page, or removes it. Params: {"text"?: string, "remove"?: bool, "diagonal"?: bool, "color"?: "RRGGBB"}. Changes the document. */
-  "design.watermark": { /** like RRGGBB */ color?: string; diagonal?: boolean; remove?: boolean; text?: string }
+  "page.watermark": { /** like RRGGBB */ color?: string; diagonal?: boolean; remove?: boolean; text?: string }
   /** Page Color. Sets the page background colour as RRGGBB, or removes it with null. Params: {"color": "RRGGBB" | null}. Changes the document. */
-  "design.pageColor": { color?: Json }
+  "page.color": { color?: Json }
   /** Page Borders. Puts a border around every page (box with width, colour and line style), or removes it. Params: {"kind"?: "box|none", "width"?: pt, "color"?: "RRGGBB", "style"?: "single|double|dotted|dashed|thick|triple|dotDash|wave", "sides"?: {"top"|"left"|"bottom"|"right": {"style"?, "width"?: pt, "color"?: "RRGGBB"} | null} (exactly these sides, instead of `kind`), "applyTo"?: "section|document"}. Reads the selection. Changes the document. */
-  "design.pageBorders": { applyTo?: "section" | "document"; /** like RRGGBB */ color?: string; kind?: "box" | "none"; /** exactly these sides, instead of `kind` */ sides?: { [key: string]: Json }; style?: "single" | "double" | "dotted" | "dashed" | "thick" | "triple" | "dotDash" | "wave"; /** points */ width?: number }
+  "page.borders": { applyTo?: "section" | "document"; /** like RRGGBB */ color?: string; kind?: "box" | "none"; /** exactly these sides, instead of `kind` */ sides?: { [key: string]: Json }; style?: "single" | "double" | "dotted" | "dashed" | "thick" | "triple" | "dotDash" | "wave"; /** points */ width?: number }
   /** Set as Default. Makes the current theme and style set the default for new documents. Params: {}. Reads the selection. */
-  "design.setDefault": Record<string, never>
+  "theme.setDefault": Record<string, never>
   /** Theme List. Lists the available document themes. Params: {}. Reads the selection. */
-  "design.themes": Record<string, never>
+  "theme.list": Record<string, never>
   /** Table of Contents. Inserts a table of contents at the caret built from headings down to a level, with a title. Params: {"levels"?: 1-9, "title"?: string}. Reads the selection. Changes the document. */
-  "references.toc": { /** heading levels to include, 1 to 9 (default 3) */ levels?: number; title?: string }
+  "toc.insert": { /** heading levels to include, 1 to 9 (default 3) */ levels?: number; title?: string }
   /** Update Table. Rebuilds the table of contents from the current headings and page numbers. Params: {}. Reads the selection. Changes the document. */
-  "references.updateToc": Record<string, never>
+  "toc.update": Record<string, never>
   /** Remove Table of Contents. Removes the table of contents. Params: {}. Reads the selection. Changes the document. */
-  "references.removeToc": Record<string, never>
+  "toc.remove": Record<string, never>
   /** Add Text. Sets the table-of-contents level of the paragraphs at the selection (0 keeps them out). Params: {"level": 0 (do not show) | 1-9}. Reads the selection. Changes the document. */
-  "references.addText": { /** 0 (left out) or 1 to 9 */ level?: number }
-  /** Insert Footnote. Inserts a footnote reference at the caret with the note's text; with text the caret stays after the reference, without it goes into the note (insert.closeHeader returns to the reference). Params: {"text"?: string} (with text the caret stays in the body after the reference; without, it goes into the note, and insert.closeHeader brings it back). Reads the selection. Changes the document. */
-  "references.footnote": { text?: string }
-  /** Insert Endnote. Inserts an endnote reference at the caret with the note's text; with text the caret stays after the reference, without it goes into the note (insert.closeHeader returns to the reference). Params: {"text"?: string} (with text the caret stays in the body after the reference; without, it goes into the note, and insert.closeHeader brings it back). Reads the selection. Changes the document. */
-  "references.endnote": { text?: string }
+  "toc.addText": { /** 0 (left out) or 1 to 9 */ level?: number }
+  /** Insert Footnote. Inserts a footnote reference at the caret with the note's text; with text the caret stays after the reference, without it goes into the note (header.close returns to the reference). Params: {"text"?: string} (with text the caret stays in the body after the reference; without, it goes into the note, and header.close brings it back). Reads the selection. Changes the document. */
+  "footnote.insert": { text?: string }
+  /** Insert Endnote. Inserts an endnote reference at the caret with the note's text; with text the caret stays after the reference, without it goes into the note (header.close returns to the reference). Params: {"text"?: string} (with text the caret stays in the body after the reference; without, it goes into the note, and header.close brings it back). Reads the selection. Changes the document. */
+  "endnote.insert": { text?: string }
   /** Next Footnote. Moves to the next footnote reference and answers it. Params: {}. Reads the selection. */
-  "references.nextFootnote": Record<string, never>
+  "footnote.next": Record<string, never>
   /** Show Notes. Lists the footnotes and endnotes with their numbers and text. Params: {}. Reads the selection. */
-  "references.notes": Record<string, never>
+  "footnote.show": Record<string, never>
   /** Insert Caption. Inserts a numbered caption (Figure, Table, Equation) with text at the caret or below the selected object. Params: {"label"?: "Figure|Table|Equation", "text"?: string}. Reads the selection. Changes the document. */
-  "references.caption": { label?: "Figure" | "Table" | "Equation"; text?: string }
+  "caption.insert": { label?: "Figure" | "Table" | "Equation"; text?: string }
   /** Update Field. Updates the fields in the selection (or the whole document): page numbers, dates, cross-references, tables of contents. Params: {}. Reads the selection. Changes the document. */
-  "references.updateFields": Record<string, never>
+  "field.updateAll": Record<string, never>
   /** Start Mail Merge. Starts a mail merge of a kind (letters, emails, envelopes, labels, directory) or turns it off with normal. Params: {"kind": "letters|emails|envelopes|labels|directory|normal"}. Reads the selection. */
-  "mailings.start": { kind?: "letters" | "emails" | "envelopes" | "labels" | "directory" | "normal" }
+  "mailMerge.start": { kind?: "letters" | "emails" | "envelopes" | "labels" | "directory" | "normal" }
   /** Select Recipients. Sets the mail merge recipients from CSV text, a file, or rows, with their field names. Params: {"csv"?: string, "path"?: string, "rows"?: [{field: value}] | [[value]], "fields"?: [string] (column order; required with array rows)}. Reads the selection. */
-  "mailings.recipients": { csv?: string; /** column order; required with array rows */ fields?: Array<string>; path?: Json; /** [{field: value}] or [[value]] */ rows?: Array<Json> }
+  "mailMerge.recipients": { csv?: string; /** column order; required with array rows */ fields?: Array<string>; path?: Json; /** [{field: value}] or [[value]] */ rows?: Array<Json> }
   /** Edit Recipient List. Replaces the mail merge recipient rows or fields. Params: {"rows"?: [{field: value}] | [[value]], "fields"?: [string]}. Reads the selection. */
-  "mailings.editRecipients": { /** read by the command beside its listed parameters */ csv?: string; fields?: Array<string>; path?: Json; /** [{field: value}] or [[value]] */ rows?: Array<Json> }
+  "mailMerge.editRecipients": { /** read by the command beside its listed parameters */ csv?: string; fields?: Array<string>; path?: Json; /** [{field: value}] or [[value]] */ rows?: Array<Json> }
   /** Insert Merge Field. Inserts a merge field for a recipient field at the caret. Params: {"field": string}. Reads the selection. Changes the document. */
-  "mailings.insertField": { field?: string; /** read by the command beside its listed parameters */ instr?: string; /** read by the command beside its listed parameters */ result?: string }
+  "mailMerge.insertField": { field?: string; /** read by the command beside its listed parameters */ instr?: string; /** read by the command beside its listed parameters */ result?: string }
   /** Address Block. Inserts an address block merge field at the caret. Params: {}. Reads the selection. Changes the document. */
-  "mailings.addressBlock": Record<string, never>
+  "mailMerge.addressBlock": Record<string, never>
   /** Greeting Line. Inserts a greeting line merge field at the caret. Params: {}. Reads the selection. Changes the document. */
-  "mailings.greetingLine": Record<string, never>
+  "mailMerge.greetingLine": Record<string, never>
   /** Rules. Inserts a merge rule field (IF, SKIPIF, NEXT, MERGEREC) at the caret. Params: {"rule": "IF|SKIPIF|NEXT|MERGEREC", "field"?, "value"?, "then"?, "else"?}. Reads the selection. Changes the document. */
-  "mailings.rules": { /** text otherwise */ else?: string; /** merge field name */ field?: string; rule?: "IF" | "SKIPIF" | "NEXT" | "MERGEREC"; /** text when the comparison holds */ then?: string; /** value to compare with */ value?: string }
+  "mailMerge.rules": { /** text otherwise */ else?: string; /** merge field name */ field?: string; rule?: "IF" | "SKIPIF" | "NEXT" | "MERGEREC"; /** text when the comparison holds */ then?: string; /** value to compare with */ value?: string }
   /** Match Fields. Answers how the document's merge fields match the recipient fields. Params: {}. Reads the selection. */
-  "mailings.matchFields": Record<string, never>
+  "mailMerge.matchFields": Record<string, never>
   /** Highlight Merge Fields. Toggles highlighting of merge fields in the editor. Params: {}. Reads the selection. */
-  "mailings.highlightFields": { /** read by the command beside its listed parameters */ color?: string; /** read by the command beside its listed parameters */ value?: boolean }
+  "mailMerge.highlightFields": { /** read by the command beside its listed parameters */ color?: string; /** read by the command beside its listed parameters */ value?: boolean }
   /** Preview Results. Toggles previewing the merge results with a recipient's data in place of the fields. Params: {}. Changes the document. */
-  "mailings.preview": { /** read by the command beside its listed parameters */ value?: boolean }
+  "mailMerge.preview": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Next Record. Shows the next recipient's data in the merge preview. Params: {}. Changes the document. */
-  "mailings.next": Record<string, never>
+  "mailMerge.next": Record<string, never>
   /** Previous Record. Shows the previous recipient's data in the merge preview. Params: {}. Changes the document. */
-  "mailings.previous": Record<string, never>
+  "mailMerge.previous": Record<string, never>
   /** Find Recipient. Moves the merge preview to a recipient. Params: {}. Changes the document. */
-  "mailings.findRecipient": { /** read by the command beside its listed parameters */ text?: string }
+  "mailMerge.findRecipient": { /** read by the command beside its listed parameters */ text?: string }
   /** Check for Errors. Checks the merge for missing fields or recipients and answers the problems. Params: {}. Reads the selection. */
-  "mailings.checkErrors": Record<string, never>
+  "mailMerge.checkErrors": Record<string, never>
   /** Finish & Merge. Merges the document with every recipient (or a range of records) into one merged document, optionally saved to a path. Params: {"path"?: string (save the merged document), "from"?: n, "to"?: n}. Changes the document. */
-  "mailings.finish": { from?: number; /** save the merged document */ path?: Json; to?: number }
+  "mailMerge.finish": { from?: number; /** save the merged document */ path?: Json; to?: number }
   /** Envelopes. Turns the document into an envelope with a delivery and a return address and a size. Params: {"delivery": string, "return"?: string, "size"?: "Envelope #10|Envelope DL"}. Changes the document. */
-  "mailings.envelopes": { delivery?: string; return?: string; size?: "Envelope #10" | "Envelope DL" }
+  "mailMerge.envelopes": { delivery?: string; return?: string; size?: "Envelope #10" | "Envelope DL" }
   /** Labels. Turns the document into a sheet of labels with text or the recipients, in rows and columns. Params: {"text"?: string, "rows"?: n, "cols"?: n, "fromRecipients"?: bool}. Changes the document. */
-  "mailings.labels": { cols?: number; fromRecipients?: boolean; rows?: number; text?: string }
+  "mailMerge.labels": { cols?: number; fromRecipients?: boolean; rows?: number; text?: string }
   /** Manage Sources. Adds or removes a bibliography source and answers the source list. Params: {"add"?: Source, "remove"?: tag} ? list. Changes the document. */
-  "references.sources": { /** a bibliography source */ add?: { author?: string; city?: string; journal?: string; kind?: string; publisher?: string; tag?: string; title?: string; url?: string; volume?: string; year?: string }; /** tag of the source to remove */ remove?: string }
+  "citation.sources": { /** a bibliography source */ add?: { author?: string; city?: string; journal?: string; kind?: string; publisher?: string; tag?: string; title?: string; url?: string; volume?: string; year?: string }; /** tag of the source to remove */ remove?: string }
   /** Insert Citation. Inserts a citation of a source (by tag, adding the source when given) at the caret, with pages. Params: {"tag"?: string, "source"?: Source (added if new), "pages"?: string}. Reads the selection. Changes the document. */
-  "references.citation": { pages?: string; /** a bibliography source */ source?: { author?: string; city?: string; journal?: string; kind?: string; publisher?: string; tag?: string; title?: string; url?: string; volume?: string; year?: string }; tag?: string }
+  "citation.insert": { pages?: string; /** a bibliography source */ source?: { author?: string; city?: string; journal?: string; kind?: string; publisher?: string; tag?: string; title?: string; url?: string; volume?: string; year?: string }; tag?: string }
   /** Style. Sets the citation and bibliography style (APA, MLA, Chicago, IEEE). Params: {"style": "APA|MLA|Chicago|IEEE"}. Reads the selection. Changes the document. */
-  "references.citationStyle": { style?: "APA" | "MLA" | "Chicago" | "IEEE" }
+  "citation.style": { style?: "APA" | "MLA" | "Chicago" | "IEEE" }
   /** Bibliography. Inserts a bibliography of the cited sources at the caret with a title. Params: {"title"?: string}. Reads the selection. Changes the document. */
-  "references.bibliography": { title?: string }
+  "bibliography.insert": { title?: string }
   /** Insert Table of Figures. Inserts a table of figures (or tables, or equations) built from captions at the caret. Params: {"label"?: "Figure|Table|Equation"}. Reads the selection. Changes the document. */
-  "references.tableOfFigures": { label?: "Figure" | "Table" | "Equation" }
+  "tableOfFigures.insert": { label?: "Figure" | "Table" | "Equation" }
   /** Update Table. Rebuilds the table of figures from the current captions. Params: {}. Reads the selection. Changes the document. */
-  "references.updateFigures": Record<string, never>
+  "tableOfFigures.update": Record<string, never>
   /** Mark Entry. Marks the selection (or a given entry text) as an index entry. Params: {"entry"?: string}. Reads the selection. Changes the document. */
-  "references.markEntry": { entry?: string }
+  "index.markEntry": { entry?: string }
   /** Insert Index. Inserts an index of the marked entries at the caret. Params: {}. Reads the selection. Changes the document. */
-  "references.index": Record<string, never>
+  "index.insert": Record<string, never>
   /** Update Index. Rebuilds the index from the marked entries. Params: {}. Reads the selection. Changes the document. */
-  "references.updateIndex": Record<string, never>
+  "index.update": Record<string, never>
   /** Mark Citation. Marks the selection (or a given text) as a citation for the table of authorities. Params: {"entry"?: string}. Reads the selection. Changes the document. */
-  "references.markCitation": { entry?: string }
+  "tableOfAuthorities.markCitation": { entry?: string }
   /** Insert Table of Authorities. Inserts a table of authorities from the marked citations at the caret. Params: {}. Reads the selection. Changes the document. */
-  "references.tableOfAuthorities": Record<string, never>
+  "tableOfAuthorities.insert": Record<string, never>
   /** Cross-reference. Inserts a cross-reference to a heading, bookmark, figure or table, showing its text, number or page. Params: {"to": "heading|bookmark|figure|table", "target": string (text / name / number), "show"?: "text|page|number|aboveBelow"} or {} to list targets. Reads the selection. Changes the document. */
-  "insert.crossReference": { show?: "text" | "page" | "number" | "aboveBelow"; /** text / name / number */ target?: string; to?: "heading" | "bookmark" | "figure" | "table" }
+  "crossReference.insert": { show?: "text" | "page" | "number" | "aboveBelow"; /** text / name / number */ target?: string; to?: "heading" | "bookmark" | "figure" | "table" }
   /** Footnote and Endnote. Sets footnote and endnote number formats, starting numbers and placement. Params: {"footnoteFormat"?: "decimal|lowerRoman|upperRoman|lowerLetter|upperLetter", "endnoteFormat"?: ...}. Changes the document. */
-  "references.noteOptions": { endnoteFormat?: "decimal" | "lowerRoman" | "upperRoman" | "lowerLetter" | "upperLetter"; footnoteFormat?: "decimal" | "lowerRoman" | "upperRoman" | "lowerLetter" | "upperLetter" }
+  "footnote.options": { endnoteFormat?: "decimal" | "lowerRoman" | "upperRoman" | "lowerLetter" | "upperLetter"; footnoteFormat?: "decimal" | "lowerRoman" | "upperRoman" | "lowerLetter" | "upperLetter" }
   /** Researcher. Opens the Researcher pane in the editor. Params: {}. Reads the selection. */
-  "references.researcher": Record<string, never>
+  "research.open": Record<string, never>
   /** Size. Sets the selected picture's width and height in points or a scale percentage, keeping the aspect ratio when asked. Params: {"width"?: pt, "height"?: pt, "lockAspect"?: bool, "scale"?: percent}. Reads the selection. Changes the document. */
-  "picture.size": { /** points */ height?: number; lockAspect?: boolean; /** percent */ scale?: number; /** points */ width?: number }
+  "image.size": { /** points */ height?: number; lockAspect?: boolean; /** percent */ scale?: number; /** points */ width?: number }
   /** Crop. Crops the selected picture by fractions (0 to 0.45) of its width and height from each side. Params: {"left"?, "top"?, "right"?, "bottom"? (fractions 0?0.45)}. Reads the selection. Changes the document. */
-  "picture.crop": { /** fractions 0?0.45 */ bottom?: number; left?: number; right?: number; top?: number }
+  "image.crop": { /** fractions 0?0.45 */ bottom?: number; left?: number; right?: number; top?: number }
   /** Alt Text. Sets the alternative text of the selected picture. Params: {"text": string} (the selected picture, chart or diagram). Reads the selection. Changes the document. */
-  "picture.altText": { text?: string }
+  "image.altText": { text?: string }
   /** Corrections. Adjusts the selected picture's brightness, contrast and sharpness (-100 to 100). Params: {"brightness"?: -100..100, "contrast"?: -100..100, "sharpen"?: -100..100}. Reads the selection. Changes the document. */
-  "picture.corrections": { /** -100 to 100 */ brightness?: number; /** -100 to 100 */ contrast?: number; /** -100 to 100 */ sharpen?: number }
+  "image.corrections": { /** -100 to 100 */ brightness?: number; /** -100 to 100 */ contrast?: number; /** -100 to 100 */ sharpen?: number }
   /** Color. Recolours the selected picture (grayscale, sepia, washout, black and white, saturation, tint). Params: {"mode": "grayscale|sepia|washout|blackAndWhite|saturation|tint", "saturation"?: 0..400}. Reads the selection. Changes the document. */
-  "picture.color": { mode?: "grayscale" | "sepia" | "washout" | "blackAndWhite" | "saturation" | "tint"; /** 0 to 400 */ saturation?: number }
+  "image.color": { mode?: "grayscale" | "sepia" | "washout" | "blackAndWhite" | "saturation" | "tint"; /** 0 to 400 */ saturation?: number }
   /** Artistic Effects. Applies an artistic effect (blur, sharpen, invert, posterize, pixelate) to the selected picture. Params: {"effect": "blur|sharpen|invert|posterize|pixelate"}. Reads the selection. Changes the document. */
-  "picture.effects": { effect?: "blur" | "sharpen" | "invert" | "posterize" | "pixelate" }
+  "image.effects": { effect?: "blur" | "sharpen" | "invert" | "posterize" | "pixelate" }
   /** Transparency. Sets the selected picture's transparency from 0 to 100 percent. Params: {"percent": 0..100}. Reads the selection. Changes the document. */
-  "picture.transparency": { /** 0 to 100 */ percent?: number }
+  "image.transparency": { /** 0 to 100 */ percent?: number }
   /** Remove Background. Removes the selected picture's background colour within a tolerance. Params: {"tolerance"?: 0..255}. Reads the selection. Changes the document. */
-  "picture.removeBackground": { /** 0 to 255 */ tolerance?: number }
+  "image.removeBackground": { /** 0 to 255 */ tolerance?: number }
   /** Compress Pictures. Downsamples the selected picture to at most a number of pixels to make the file smaller. Params: {"maxPixels"?: n}. Reads the selection. Changes the document. */
-  "picture.compress": { maxPixels?: number }
+  "image.compress": { maxPixels?: number }
   /** Reset Picture. Removes every adjustment from the selected picture. Params: {}. Reads the selection. Changes the document. */
-  "picture.reset": Record<string, never>
+  "image.reset": Record<string, never>
   /** Change Picture. Replaces the selected picture's image from a path or base64 data, keeping its size and position. Params: {"path"?: string, "data"?: base64}. Reads the selection. Changes the document. */
-  "picture.change": { /** the new picture's bytes in base64 */ data?: string; path?: Json }
+  "image.change": { /** the new picture's bytes in base64 */ data?: string; path?: Json }
   /** Picture Styles. Applies a picture style (simple frame, thick frame, rounded, soft edge, shadow) to the selected picture. Params: {"style": "simpleFrame|thickFrame|rounded|softEdge|shadow"}. Reads the selection. Changes the document. */
-  "picture.style": { style?: "simpleFrame" | "thickFrame" | "rounded" | "softEdge" | "shadow" }
+  "image.style": { style?: "simpleFrame" | "thickFrame" | "rounded" | "softEdge" | "shadow" }
   /** Picture Border. Sets the border colour and width of the selected picture. Params: {"color"?: "RRGGBB", "width"?: px}. Reads the selection. Changes the document. */
-  "picture.border": { /** like RRGGBB */ color?: string; /** pixels */ width?: number }
+  "image.border": { /** like RRGGBB */ color?: string; /** pixels */ width?: number }
   /** Rotate. Rotates the selected object 90 degrees right or left, or flips it vertically or horizontally. Params: {"direction": "right|left|flipVertical|flipHorizontal"}  (turns 90? or mirrors the selected picture, shape or text box; its pixels are kept). Reads the selection. Changes the document. */
   "arrange.rotate": { direction?: "right" | "left" | "flipVertical" | "flipHorizontal" }
   /** Rotation. Sets the exact clockwise rotation of the selected object in degrees, with optional flips. Params: {"degrees": number, "flipH"?: bool, "flipV"?: bool}  (the exact angle, clockwise, of the selected picture, shape or text box; normalised to 0?360). Reads the selection. Changes the document. */
@@ -1024,7 +1024,7 @@ export interface DocCommands extends CommandMap {
   /** Ungroup. Splits the selected group back into its objects. Params: {}. Reads the selection. Changes the document. */
   "arrange.ungroup": Record<string, never>
   /** Add Object to Selection. Adds an object (by position or Selection Pane index) to the object selection. Params: {"pos"?: Pos, "index"?: n, "objects"?: [Pos | n]}  (n: its Selection Pane index; with no object selected yet, the first one becomes the selection). Reads the selection. */
-  "select.addObject": { index?: number; /** [Pos | n] */ objects?: Array<Json>; /** a position as document.selection answers (or {"block", "off"?} in the body) */ pos?: { off?: number; path?: Array<number>; story?: Json } }
+  "select.addObject": { index?: number; /** [Pos | n] */ objects?: Array<Json>; /** a position as file.selection answers (or {"block", "off"?} in the body) */ pos?: { off?: number; path?: Array<number>; story?: Json } }
   /** Select Objects. Selects an object by its Selection Pane index, or every object. Params: {"index"?: n}. Reads the selection. */
   "select.objects": { index?: number }
   /** Shape Fill. Sets the selected shape's fill colour as RRGGBB, or removes the fill with null. Params: {"color": "RRGGBB" | null}. Reads the selection. Changes the document. */
@@ -1058,29 +1058,29 @@ export interface DocCommands extends CommandMap {
   /** Arrange Drawing Objects. Moves floating drawing objects to the front, back, or one step in the stacking order. Params: {"ids": [id], "order": "front"|"back"|"forward"|"backward"} (floating objects; an inline one has no place in the stack). Acts on `ids`. Changes the document. */
   "drawing.arrange": { ids?: Array<number>; order?: "front" | "back" | "forward" | "backward" }
   /** Chart. Inserts a chart (column, bar, line, pie...) with categories and series values at the caret. Params: {"type"?: "column"|"stackedColumn"|"percentColumn"|"bar"|"stackedBar"|"percentBar"|"line"|"lineMarkers"|"stackedLine"|"area"|"stackedArea"|"pie"|"doughnut"|"scatter"|"radar", "title"?: text|null, "categories"?, "series"?: [{name, values, color?}], "legend"?, "dataLabels"?, "gridlines"?, "xTitle"?, "yTitle"?, "width"?: pt, "height"?: pt} (in line at the caret, which stays after it; without data, Word's sample data). Reads the selection. Changes the document. */
-  "insert.chart": { categories?: Json; dataLabels?: Json; gridlines?: Json; /** points */ height?: number; /** read by the command beside its listed parameters */ kind?: string; legend?: Json; /** [{name, values, color?}] */ series?: Array<{ color?: string; name?: string; values?: Json }>; /** text|null */ title?: Json; type?: "column" | "stackedColumn" | "percentColumn" | "bar" | "stackedBar" | "percentBar" | "line" | "lineMarkers" | "stackedLine" | "area" | "stackedArea" | "pie" | "doughnut" | "scatter" | "radar"; /** points */ width?: number; xTitle?: Json; yTitle?: Json }
+  "chart.insert": { categories?: Json; dataLabels?: Json; gridlines?: Json; /** points */ height?: number; /** read by the command beside its listed parameters */ kind?: string; legend?: Json; /** [{name, values, color?}] */ series?: Array<{ color?: string; name?: string; values?: Json }>; /** text|null */ title?: Json; type?: "column" | "stackedColumn" | "percentColumn" | "bar" | "stackedBar" | "percentBar" | "line" | "lineMarkers" | "stackedLine" | "area" | "stackedArea" | "pie" | "doughnut" | "scatter" | "radar"; /** points */ width?: number; xTitle?: Json; yTitle?: Json }
   /** Change Chart. Changes a chart by id: kind, title, legend, data labels, gridlines, axis titles and series. Params: {"id", "kind"?, "title"?: text|null, "legend"?: "top"|"bottom"|"left"|"right"|"topRight"|null, "dataLabels"?, "gridlines"?, "xTitle"?, "yTitle"?, "categories"?, "series"?: [{name, values, color?}]}. Reads the selection. Changes the document. */
   "drawing.chart": { categories?: Array<Json>; /** read by the command beside its listed parameters */ dataLabelPosition?: string; dataLabels?: boolean; gridlines?: boolean; /** an id */ id?: Json; /** read by the command beside its listed parameters */ ids?: Array<Json>; /** chart type */ kind?: string; legend?: Json; /** [{name, values, color?}] */ series?: Array<{ color?: string; name?: string; values?: Json }>; /** read by the command beside its listed parameters */ seriesFormat?: { [key: string]: Json }; title?: Json; /** read by the command beside its listed parameters */ xAxis?: { [key: string]: Json }; xTitle?: Json; /** read by the command beside its listed parameters */ yAxis?: { [key: string]: Json }; yTitle?: Json }
   /** Select. Switches the editor back to selecting objects from an ink tool. Params: {}. Reads the selection. */
-  "draw.select": Record<string, never>
+  "ink.select": Record<string, never>
   /** Draw Shape. Selects a shape preset to draw next in the editor, or none. Params: {"preset": DrawingML preset | null}. Reads the selection. */
-  "draw.shape": { preset?: Json }
+  "ink.shape": { preset?: Json }
   /** Eraser. Selects the ink eraser in the editor, or with a point deletes the ink stroke there. Params: {"page"?: n, "x"?: pt, "y"?: pt}  (no point: use the eraser; a point: delete the ink stroke there). Reads the selection. */
-  "draw.eraser": { page?: number; /** points */ x?: number; /** points */ y?: number }
+  "ink.eraser": { page?: number; /** points */ x?: number; /** points */ y?: number }
   /** Pen. Selects the pen ink tool in the editor with a colour and width. Params: {"color"?: "RRGGBB", "width"?: pt}. Reads the selection. */
-  "draw.pen": { /** like RRGGBB */ color?: string; /** points */ width?: number }
+  "ink.pen": { /** like RRGGBB */ color?: string; /** points */ width?: number }
   /** Pencil. Selects the pencil ink tool in the editor with a colour and width. Params: {"color"?: "RRGGBB", "width"?: pt}. Reads the selection. */
-  "draw.pencil": { /** like RRGGBB */ color?: string; /** points */ width?: number }
+  "ink.pencil": { /** like RRGGBB */ color?: string; /** points */ width?: number }
   /** Highlighter. Selects the highlighter ink tool in the editor with a colour and width. Params: {"color"?: "RRGGBB", "width"?: pt}. Reads the selection. */
-  "draw.highlighter": { /** like RRGGBB */ color?: string; /** points */ width?: number }
+  "ink.highlighter": { /** like RRGGBB */ color?: string; /** points */ width?: number }
   /** Draw State. Answers the editor's current ink tool, colour and width. Params: {}. Reads the selection. */
-  "draw.state": { /** read by the command beside its listed parameters */ page?: number; /** read by the command beside its listed parameters */ x?: number; /** read by the command beside its listed parameters */ y?: number }
+  "ink.state": { /** read by the command beside its listed parameters */ page?: number; /** read by the command beside its listed parameters */ x?: number; /** read by the command beside its listed parameters */ y?: number }
   /** Draw Ink. Draws one ink stroke through points on a page (page points, at most 5000) with a tool, colour and width. Params: {"page": n, "points": [[x, y], ...] (page points, at most 5000), "tool"?: "pen|pencil|highlighter", "color"?: "RRGGBB", "width"?: pt}. Reads the selection. Changes the document. */
-  "draw.stroke": { /** like RRGGBB */ color?: string; page?: number; /** page points, at most 5000 */ points?: Array<Array<number>>; tool?: "pen" | "pencil" | "highlighter"; /** points */ width?: number }
+  "ink.stroke": { /** like RRGGBB */ color?: string; page?: number; /** page points, at most 5000 */ points?: Array<Array<number>>; tool?: "pen" | "pencil" | "highlighter"; /** points */ width?: number }
   /** Erase Ink. Deletes the ink stroke at a point on a page. Params: {"page": n, "x": pt, "y": pt}. Reads the selection. Changes the document. */
-  "draw.erase": { page?: number; /** points */ x?: number; /** points */ y?: number }
+  "ink.erase": { page?: number; /** points */ x?: number; /** points */ y?: number }
   /** Hide Ink. Hides or shows ink in the editor. Params: {"value"?: bool}. Reads the selection. */
-  "review.hideInk": { value?: boolean }
+  "ink.hide": { value?: boolean }
   /** Draw Ink Strokes. Adds ink strokes (pen, pencil or highlighter) through points in page points. Params: {"strokes": [{"tool"?: "pen"|"pencil"|"highlighter", "color"?, "width"?: pt, "points": [[x, y, pressure?], ...]}], "placement"?: {"page"}} (page points; members left out take the current pen). Reads the selection. Changes the document. */
   "drawing.ink": { /** read by the command beside its listed parameters */ page?: number; placement?: { page?: number }; /** [{"tool"?: "pen"|"pencil"|"highlighter", "color"?, "width"?: pt, "points": [[x, y, pressure?], ...]}] */ strokes?: Array<{ color?: string; points?: Array<Json>; tool?: "pen" | "pencil" | "highlighter"; width?: number }> }
   /** Erase Ink. Deletes the ink strokes a path or a circle touches. Params: {"path": [[x, y], ...] | "x", "y", "radius"?: pt, "placement"?: {"page"}} (deletes the strokes the path touches). Reads the selection. Changes the document. */
@@ -1088,21 +1088,21 @@ export interface DocCommands extends CommandMap {
   /** Repeat. Repeats the last editing action (F4) at the caret or selection. Params: {}. Reads the selection. */
   "edit.repeat": Record<string, never>
   /** Record Macro. Starts recording commands into a named macro; calling it again stops and saves the recording. Params: {"name"?: string} (call again to stop). Reads the selection. */
-  "tools.recordMacro": { name?: string }
+  "macro.record": { name?: string }
   /** Macros. Runs, defines or deletes a macro (a named list of command steps) and answers the macro list. Params: {"run"?: name, "define"?: {"name": string, "steps": [{"command", "params"}]}, "delete"?: name}. Reads the selection. */
-  "tools.macros": { /** {"name": string, "steps": [{"command", "params"}]} */ define?: { name?: string; steps?: Array<{ command?: Json; params?: Json }> }; delete?: string; run?: string }
+  "macro.list": { /** {"name": string, "steps": [{"command", "params"}]} */ define?: { name?: string; steps?: Array<{ command?: Json; params?: Json }> }; delete?: string; run?: string }
   /** AutoCorrect Options. Turns AutoCorrect on or off, or adds a replacement (from, to), and answers the AutoCorrect list. Params: {"enabled"?: bool, "add"?: {"from": string, "to": string}}. Reads the selection. */
-  "tools.autocorrect": { add?: { from?: string; to?: string }; enabled?: boolean }
+  "autocorrect.options": { add?: { from?: string; to?: string }; enabled?: boolean }
   /** Compare. Compares the document with a revised version (a file or text) and marks the differences as tracked changes. Params: {"path"?: string, "text"?: string (revised version)}. Changes the document. */
-  "review.compare": { path?: Json; /** revised version */ text?: string }
+  "file.compare": { path?: Json; /** revised version */ text?: string }
   /** Combine. Combines another document's tracked changes and comments into this one. Params: {"path"?: string}. Reads the selection. Changes the document. */
-  "review.combine": { path?: Json }
+  "file.combine": { path?: Json }
   /** Check Accessibility. Answers accessibility issues in the document (missing alt text, heading order, table headers...) with where they are. Params: {}. Reads the selection. */
   "file.accessibility": Record<string, never>
   /** Inspect Document. Removes chosen kinds of hidden content (comments, revisions, properties, hidden text, headers) and answers what was found. Params: {"remove"?: ["comments", "revisions", "properties", "hidden", "headers"]}. Reads the selection. Changes the document. */
-  "file.inspect": { remove?: Array<string> }
+  "file.removeHiddenContent": { remove?: Array<string> }
   /** Restrict Editing. Restricts editing to read only, comments, tracked changes or forms, or removes the restriction. Params: {"mode": "none|readOnly|comments|trackedChanges|forms"}. Changes the document. */
-  "review.restrict": { mode?: "none" | "readOnly" | "comments" | "trackedChanges" | "forms" }
+  "file.restrictEditing": { mode?: "none" | "readOnly" | "comments" | "trackedChanges" | "forms" }
   /** Protect Document. Marks the document as protected in a mode (read only, comments, tracked changes), or unprotects it. Params: {"mode": "none|readOnly|comments|trackedChanges"}. Changes the document. */
   "file.protect": { mode?: "none" | "readOnly" | "comments" | "trackedChanges" }
   /** Version History. Saves a labelled version of the document or restores an earlier one, and answers the version list. Params: {"save"?: label, "restore"?: index}. Reads the selection. Changes the document. */
@@ -1120,47 +1120,47 @@ export interface DocCommands extends CommandMap {
   /** Share. Answers how to share the document. Params: {}. Reads the selection. */
   "file.share": Record<string, never>
   /** Quick Parts. Saves the selection as a named building block, inserts one, or deletes one, and answers the list. Params: {"save"?: name (from the selection), "insert"?: name, "delete"?: name} ? list. Reads the selection. Changes the document. */
-  "insert.quickParts": { delete?: string; insert?: string; /** from the selection */ save?: string }
+  "quickPart.insert": { delete?: string; insert?: string; /** from the selection */ save?: string }
   /** AutoText. Saves the selection as an AutoText entry or inserts one by name. Params: {"save"?: name, "insert"?: name}. Reads the selection. Changes the document. */
-  "insert.autoText": { insert?: string; save?: string }
+  "autoText.insert": { insert?: string; save?: string }
   /** Document Property. Inserts a document property (Title, Author, Subject...) as a field at the caret. Params: {"name": "Title|Author|Subject|Keywords|Comments|Category"}. Reads the selection. Changes the document. */
-  "insert.docProperty": { name?: "Title" | "Author" | "Subject" | "Keywords" | "Comments" | "Category" }
+  "field.insertDocProperty": { name?: "Title" | "Author" | "Subject" | "Keywords" | "Comments" | "Category" }
   /** Signature Line. Inserts a signature line with the signer's name and title at the caret. Params: {"signer"?: string, "title"?: string}. Reads the selection. Changes the document. */
-  "insert.signatureLine": { signer?: string; title?: string }
+  "signatureLine.insert": { signer?: string; title?: string }
   /** Object. Inserts the contents of a file as an object at the caret. Params: {"path": string}. Reads the selection. Changes the document. */
-  "insert.object": { path?: Json }
+  "object.insert": { path?: Json }
   /** Spreadsheet Table. Inserts a table from CSV text at the caret. Params: {"csv"?: string}. Reads the selection. Changes the document. */
-  "insert.spreadsheet": { csv?: string }
+  "spreadsheet.insert": { csv?: string }
   /** Link to Previous. Toggles linking the current section's header (or footer) to the previous section's. Params: {"footer"?: bool}. Reads the selection. Changes the document. */
-  "layout.linkToPrevious": { footer?: boolean }
+  "page.linkToPrevious": { footer?: boolean }
   /** Next Section. Moves to the header or footer of the next section. Params: {}. Reads the selection. */
-  "hf.next": Record<string, never>
+  "headerFooter.next": Record<string, never>
   /** Previous Section. Moves to the header or footer of the previous section. Params: {}. Reads the selection. */
-  "hf.previous": Record<string, never>
+  "headerFooter.previous": Record<string, never>
   /** Header/Footer Position. Sets the distance of the header and footer from the page edge in points. Params: {"header"?: pt, "footer"?: pt}. Reads the selection. Changes the document. */
-  "hf.position": { /** points */ footer?: number; /** points */ header?: number }
+  "headerFooter.position": { /** points */ footer?: number; /** points */ header?: number }
   /** Cell Margins. Sets the default cell margins of the table at the caret in points. Params: {"top"?, "left"?, "bottom"?, "right"? (pt)}. Reads the selection. Changes the document. */
   "table.cellMargins": { bottom?: number; left?: number; /** pt */ right?: number; top?: number }
   /** Border Painter. Toggles the border painter tool in the editor. Params: {}. Reads the selection. Changes the document. */
   "table.borderPainter": { /** read by the command beside its listed parameters */ color?: string; /** read by the command beside its listed parameters */ kind?: string; /** read by the command beside its listed parameters */ width?: number }
   /** Set Numbering Value. Sets the number of the list item at the caret, renumbering the items after it. Params: {"value": n}. Reads the selection. Changes the document. */
-  "para.setNumberingValue": { value?: number }
+  "paragraph.setNumberingValue": { value?: number }
   /** Define New Bullet. Defines a bullet character and applies it to the selected list paragraphs. Params: {"char": string}. Reads the selection. Changes the document. */
-  "para.defineBullet": { char?: string }
+  "paragraph.defineBullet": { char?: string }
   /** Define New Number Format. Defines a number format (decimal, Roman, letters), number text and start, and applies it to the selected list. Params: {"format": "decimal|upperRoman|lowerLetter...", "text"?: "%1.", "start"?: n}. Reads the selection. Changes the document. */
-  "para.defineNumber": { /** for example decimal, upperRoman */ format?: string; start?: number; /** like %1. */ text?: string }
+  "paragraph.defineNumber": { /** for example decimal, upperRoman */ format?: string; start?: number; /** like %1. */ text?: string }
   /** Language. Sets the proofing language of the selection, or marks it not to be proofed. Params: {"lang": "en-US|en-GB|fr-FR|...", "noProof"?: bool}. Reads the selection, mode. Changes the document. */
-  "review.language": { /** for example en-US, en-GB, fr-FR */ lang?: string; noProof?: boolean }
+  "spelling.language": { /** for example en-US, en-GB, fr-FR */ lang?: string; noProof?: boolean }
   /** Show Markup. Toggles showing revision markup in the editor. Params: {}. Reads the selection. */
-  "review.showMarkup": { /** read by the command beside its listed parameters */ value?: boolean }
+  "change.showMarkup": { /** read by the command beside its listed parameters */ value?: boolean }
   /** Editor. Answers the Editor pane's summary of spelling, grammar and refinement issues. Params: {}. Reads the selection. */
-  "review.editor": Record<string, never>
+  "spelling.editor": Record<string, never>
   /** Select Text with Similar Formatting. Selects all text with the same formatting as the selection. Params: {}. Reads the selection. */
   "select.similar": Record<string, never>
   /** Extend Selection. Turns on extend mode in the editor, so caret moves grow the selection. Params: {}. Reads the selection. */
   "select.extend": { /** read by the command beside its listed parameters */ extend?: boolean }
   /** Effects. Steps the theme's effects to the next preset. Params: {}. Changes the document. */
-  "design.effects": { /** read by the command beside its listed parameters */ name?: string }
+  "theme.effects": { /** read by the command beside its listed parameters */ name?: string }
   /** Focused Reading. Switches the editor to focused reading: Read Mode with Focus. Params: {}. Reads the selection. */
   "view.immersive": Record<string, never>
   /** Vertical. Sets page movement in the editor to vertical scrolling. Params: {}. Reads the selection. */
@@ -1168,7 +1168,7 @@ export interface DocCommands extends CommandMap {
   /** Side to Side. Sets page movement in the editor to side-to-side. Params: {}. Reads the selection. */
   "view.sideToSide": Record<string, never>
   /** Read Aloud. Starts reading the document aloud from the caret, optionally skipping citations. Params: {"skipCitations"?: bool}. Reads the selection. */
-  "review.readAloud": { skipCitations?: boolean }
+  "readAloud.open": { skipCitations?: boolean }
   /** Play/Pause. Pauses or resumes reading aloud. Params: {}. Reads the selection. */
   "readAloud.playPause": { /** read by the command beside its listed parameters */ skipCitations?: boolean }
   /** Next Sentence. Moves reading aloud to the next sentence. Params: {}. Reads the selection. */

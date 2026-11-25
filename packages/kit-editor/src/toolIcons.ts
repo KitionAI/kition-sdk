@@ -334,7 +334,7 @@ export function commandIcon(command: { id: string; title?: string | null }): Ico
   const split = (text: string) => text.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[._-]/g, ' ').toLowerCase()
   const verb = split(command.id.split('.').pop() ?? '').split(' ')[0]
   const first = (command.title ?? '').trim().split(/\s+/)[0]?.toLowerCase() ?? ''
-  // `insert.pivotTable` reads as "insert pivot table".
+  // `pivot.insert` reads as "insert pivot table".
   const words = `${split(command.id)} ${(command.title ?? '').toLowerCase()}`
   // A command that makes something shows what it makes (New Camera, a camera), not a row of pluses.
   if (CREATES.test(verb) || CREATES.test(first)) {

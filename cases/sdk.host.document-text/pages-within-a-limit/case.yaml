@@ -2,7 +2,7 @@ format: 1
 id: sdk.host.document-text/pages-within-a-limit
 feature: sdk.host.document-text
 intent: >-
-  A kit whose manifest lists the capability document-text answers document.text through
+  A kit whose manifest lists the capability document-text answers file.text through
   kition-headless with its pages joined by newlines and labelled as parts, cut at the limit in
   Unicode scalar values with truncated set, and unchanged documents; a kit without the capability
   has no such method; check_text names a kit that changes the document, ignores the limit, never

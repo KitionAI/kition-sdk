@@ -259,9 +259,9 @@ export class HeadlessDocument {
     return new ModelDocument<Root, C>(headlessBackend(this, parsed), options.origin)
   }
 
-  /** `commands.list` for this document. */
+  /** `command.list` for this document. */
   async commands(): Promise<KitCommandInfo[]> {
-    const answer = await this.request<{ commands: KitCommandInfo[] }>('commands.list')
+    const answer = await this.request<{ commands: KitCommandInfo[] }>('command.list')
     return answer.commands
   }
 

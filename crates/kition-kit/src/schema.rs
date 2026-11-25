@@ -115,7 +115,7 @@ fn convert_object(body: &str, one_of_several_forms: bool, schema: &mut Map<Strin
     let mut precise = 0;
     for entry in split_top(body, ',') {
         let entry = entry.trim();
-        // `…` (or `...`, or `…the options of document.export`): more keys, said for people, not one.
+        // `…` (or `...`, or `…the options of file.export`): more keys, said for people, not one.
         if entry.is_empty() || entry.starts_with('…') || entry.starts_with("...") {
             continue;
         }
@@ -1244,7 +1244,7 @@ mod tests {
             "{name?|title?: text}",
             "{to?: [x,y] | delta: [dx,dy]}",
             "{a, …}",
-            "{a, …the options of document.export}",
+            "{a, …the options of file.export}",
             "{}",
             "",
         ] {
@@ -1562,7 +1562,7 @@ mod tests {
 
     #[test]
     fn alternative_objects_declare_every_form_s_keys() {
-        // `markers.filterColors`: either form is a valid call, so refuse_unknown must not refuse
+        // `marker.filterColors`: either form is a valid call, so refuse_unknown must not refuse
         // the second one's keys.
         let schema = convert(r##"{"hidden":[label]}|{"color":label,"visible":bool?}"##);
         for key in ["hidden", "color", "visible"] {
@@ -1570,8 +1570,8 @@ mod tests {
             assert!(schema[key].get("required").is_none(), "{key} belongs to one form only");
         }
         assert_eq!(schema["visible"]["type"], "boolean");
-        assert_eq!(refuse_unknown("markers.filterColors", &schema, &json!({ "color": "red", "visible": false })), Ok(()));
-        assert!(refuse_unknown("markers.filterColors", &schema, &json!({ "colour": "red" })).is_err());
+        assert_eq!(refuse_unknown("marker.filterColors", &schema, &json!({ "color": "red", "visible": false })), Ok(()));
+        assert!(refuse_unknown("marker.filterColors", &schema, &json!({ "colour": "red" })).is_err());
     }
 
     #[test]

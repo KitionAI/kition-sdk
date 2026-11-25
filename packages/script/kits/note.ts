@@ -154,9 +154,9 @@ export interface NoteCommands extends CommandMap {
   /** Read a table. Answers one table (`table`, from 0) as its header, body rows, column alignment and lines; without `table` it answers how many tables the note has and where each is. Params: { table?: number } (without table: how many tables there are). */
   "table.read": { /** The table's index in the note, from 0 (document order). */ table?: number }
   /** List links, tags and block ids. Lists the note's wikilinks, Markdown links, embeds, images, URLs, tags and block ids with their line and, for links, whether the target exists; `kinds` limits the list. Params: { kinds?: ("wikilink" | "markdown" | "embed" | "image" | "url" | "tag" | "blockId")[] }. */
-  "links.list": { /** Only these kinds; all by default. */ kinds?: Array<"wikilink" | "markdown" | "embed" | "image" | "url" | "tag" | "blockId"> }
+  "link.list": { /** Only these kinds; all by default. */ kinds?: Array<"wikilink" | "markdown" | "embed" | "image" | "url" | "tag" | "blockId"> }
   /** List tasks. Lists the task items (`- [ ]`, `- [x]`) with line, text, done and block id, in the whole note or one section. Use it to get the line `task.toggle` takes. Params: { heading?: string[], line?: number, section?: string } (all tasks by default). */
-  "tasks.list": { /** The heading's path from the top, each element a heading's plain text, for example ["Plan", "Risks"]; or give line. */ heading?: Array<string>; /** The heading's line, from 1, instead of heading. */ line?: number; /** The section's id from outline.read ("section:3"), instead of heading or line: it names the same section after a rename or a move, for as long as the note stays open. */ section?: string }
+  "task.list": { /** The heading's path from the top, each element a heading's plain text, for example ["Plan", "Risks"]; or give line. */ heading?: Array<string>; /** The heading's line, from 1, instead of heading. */ line?: number; /** The section's id from outline.read ("section:3"), instead of heading or line: it names the same section after a rename or a move, for as long as the note stays open. */ section?: string }
   /** Find text. Finds text (or a regular expression with `regex: true`) in the note's body (the front matter is not searched: read properties with `property.list`) and answers each match's `from`, `to`, line and text. The way to get text positions for `text.insert`, `text.replace` and `comment.add`. Params: { find: string, regex?: boolean, caseSensitive?: boolean, unit?: "scalar" | "utf16", limit?: number }. */
   "text.find": { /** Match case. */ caseSensitive?: boolean; /** The text, or a regular expression with regex. */ find: string; /** The most matches to answer (default 100). */ limit?: number; /** Read find as a regular expression (Rust syntax). */ regex?: boolean; /** How positions are counted: Unicode characters (scalar, the default), or UTF-16 code units as the editor counts them. */ unit?: "scalar" | "utf16" }
   /** Read the page layout. Answers how the note prints on `letter` or `a4` pages: the page count, where each block lands (page, x, y, width, height in points), blocks too wide for the column, and what the pages cannot draw. Use it to check page breaks before exporting a PDF. Params: { pageSize?: "letter" | "a4", page?: number } (every page by default). */
@@ -193,8 +193,8 @@ export interface NoteCommands extends CommandMap {
   "block.append": { /** The heading's path from the top, each element a heading's plain text, for example ["Plan", "Risks"]; or give line. */ heading?: Array<string>; /** The heading's line, from 1, instead of heading. */ line?: number; /** The Markdown to add as a block of its own. */ markdown: string; /** The section's id from outline.read ("section:3"), instead of heading or line: it names the same section after a rename or a move, for as long as the note stays open. */ section?: string }
   /** Set a block id. Gives a block a block id (`^id`) so links and `block.*` commands can reach it: the block ending on `line`, or the one already carrying `blockId` (renaming its id). Params: { line?: number, blockId?: string, occurrence?: number, id: string }. Changes the document. */
   "block.setId": { /** The block's current id, instead of line. */ blockId?: string; /** The new id: letters, digits and hyphens, without the caret. */ id: string; /** The block's last line, from 1. */ line?: number; /** Which of the blocks with that id, from 1. */ occurrence?: number }
-  /** Check or uncheck a task. Checks or unchecks the task at `line` (from 1) or carrying `blockId`; `done` sets it, otherwise it flips. Answers whether it is checked now. Get lines from `tasks.list`. Params: { line?: number, blockId?: string, task?: string, done?: boolean }. Changes the document. */
-  "task.toggle": { /** The task's block id, instead of line. */ blockId?: string; /** Checked or not; flips it by default. */ done?: boolean; /** The task's line, from 1. */ line?: number; /** The task's id from tasks.list ("task:2"), instead of line or blockId. */ task?: string }
+  /** Check or uncheck a task. Checks or unchecks the task at `line` (from 1) or carrying `blockId`; `done` sets it, otherwise it flips. Answers whether it is checked now. Get lines from `task.list`. Params: { line?: number, blockId?: string, task?: string, done?: boolean }. Changes the document. */
+  "task.toggle": { /** The task's block id, instead of line. */ blockId?: string; /** Checked or not; flips it by default. */ done?: boolean; /** The task's line, from 1. */ line?: number; /** The task's id from task.list ("task:2"), instead of line or blockId. */ task?: string }
   /** Set a property. Sets a front-matter property to a string, number, boolean, null or list of strings in the key's own writing style, adding the property (and the front matter) when it is missing. Params: { key: string, value: string | number | boolean | null | string[] }. Changes the document. */
   "property.set": { /** A top-level property key. */ key: string; /** A string, number, boolean, null, or a list of strings. */ value: Json }
   /** Delete a property. Deletes the front-matter property `key` and its lines; `occurrence` picks one when the key is written more than once. Params: { key: string, occurrence?: number }. Changes the document. */
@@ -202,7 +202,7 @@ export interface NoteCommands extends CommandMap {
   /** Rename a property. Renames the front-matter property `key` to `to`, changing only the key and keeping its value and place. Params: { key: string, to: string }. Changes the document. */
   "property.rename": { /** The property's key now. */ key: string; /** The new key. */ to: string }
   /** Insert a table. Inserts a new table of `columns` columns (with optional header cells and `rows` empty body rows) before a line, at a section position, or at the end of the note, and answers its table index. Params: { line?: number, heading?: string[], position?: "before" | "after" | "start" | "end", columns: number, rows?: number, header?: string[] } (the end of the note by default). Changes the document. */
-  "table.create": { /** How many columns. */ columns: number; /** The header cells. */ header?: Array<string>; /** Or a heading's path, with position. */ heading?: Array<string>; /** Insert before this line, from 1. */ line?: number; /** Where, relative to the heading's section; end by default. */ position?: "before" | "after" | "start" | "end"; /** How many empty body rows (default 1). */ rows?: number }
+  "table.add": { /** How many columns. */ columns: number; /** The header cells. */ header?: Array<string>; /** Or a heading's path, with position. */ heading?: Array<string>; /** Insert before this line, from 1. */ line?: number; /** Where, relative to the heading's section; end by default. */ position?: "before" | "after" | "start" | "end"; /** How many empty body rows (default 1). */ rows?: number }
   /** Set a table cell. Sets one cell's text: `table` and `column` count from 0, `row` 0 is the header and body rows count from 1. Pass `expected` with the current text so a stale cell fails. Params: { table: number, row: number, column: number, text: string, expected?: string }. Changes the document. */
   "table.setCell": { /** The column, from 0. */ column: number; /** The cell's text now; the command is refused when it differs. */ expected?: string; /** The row, 0 for the header row. */ row: number; /** The table's index in the note, from 0 (document order). */ table: number; /** The cell's new text (inline Markdown, one line). */ text: string }
   /** Insert a table row. Inserts a body row before body row `at` (1 is the first; one past the last appends) with optional `cells`. Params: { table: number, at: number, cells?: string[] }. Changes the document. */
@@ -223,10 +223,10 @@ export interface NoteCommands extends CommandMap {
   "table.format": { /** The table's index in the note, from 0 (document order). */ table: number }
   /** Insert a link. Inserts a link to `destination` at a text position, as a wikilink or a Markdown link, with optional display text, or as an embed with `embed: true`. Params: { at: number, unit?: "scalar" | "utf16", destination: string, text?: string, style?: "wikilink" | "markdown", embed?: boolean }. Changes the document. */
   "link.insert": { /** Where to insert. */ at: number; /** What the link points at, as the note writes it: Plan, Plan#Risks, docs/plan.md. */ destination: string; /** Embed it (![[...]]) instead of linking. */ embed?: boolean; /** [[wikilink]] or [text](markdown). */ style?: "wikilink" | "markdown"; /** The text shown (a wikilink's alias). */ text?: string; /** How positions are counted: Unicode characters (scalar, the default), or UTF-16 code units as the editor counts them. */ unit?: "scalar" | "utf16" }
-  /** Change a link. Changes the destination (and the text, when given) of the `index`-th link on `line`, as `links.list` numbers them; nothing else of the link changes. Params: { line: number, index: number, destination: string, text?: string }. Changes the document. */
+  /** Change a link. Changes the destination (and the text, when given) of the `index`-th link on `line`, as `link.list` numbers them; nothing else of the link changes. Params: { line: number, index: number, destination: string, text?: string }. Changes the document. */
   "link.update": { /** The new destination. */ destination: string; /** Which link of the line, from 0. */ index: number; /** The link's line, from 1. */ line: number; /** The new text shown. */ text?: string }
   /** Retarget links to a renamed file. Rewrites every link and embed to the file `from` so it points at `to`, as after a rename, and answers how many it rewrote; the host runs it. Params: { from: string, to: string }. Changes the document. */
-  "links.retarget": { /** The old link destination, for example Plan or docs/plan.md. */ from: string; /** The new one. */ to: string }
+  "link.retarget": { /** The old link destination, for example Plan or docs/plan.md. */ from: string; /** The new one. */ to: string }
   /** Add a comment. Starts a comment thread anchored to a text range (`from`/`to`), the `occurrence`-th match of `quote`, a heading, or the whole note without an anchor, and answers the thread's and the comment's ids. Comments are kept beside the note, never written into the file. Params: { body: string, from?: number, to?: number, unit?: "scalar" | "utf16", quote?: string, occurrence?: number, heading?: string[], line?: number, author?: string, name?: string, created?: string } (the whole note without an anchor). Changes the document. */
   "comment.add": { /** The caller's own principal id (the default); the editor's person passes theirs, and another is refused. */ author?: string; /** The comment's text. */ body: string; /** When, ISO 8601 UTC; now by default. */ created?: string; /** Where the commented range starts. */ from?: number; /** Or a heading's path: comments on the heading. */ heading?: Array<string>; /** Or the heading's line, from 1. */ line?: number; /** The author's display name. */ name?: string; /** Which occurrence of quote, from 1. */ occurrence?: number; /** Or the text to comment on; its first occurrence unless occurrence is given. */ quote?: string; /** Where it ends (exclusive). */ to?: number; /** How positions are counted: Unicode characters (scalar, the default), or UTF-16 code units as the editor counts them. */ unit?: "scalar" | "utf16" }
   /** Reply to a comment. Adds a reply to the comment thread `thread` and answers the new comment's id. Params: { thread: string, body: string, author?: string, name?: string, created?: string }. Acts on `thread`. Changes the document. */
@@ -240,9 +240,9 @@ export interface NoteCommands extends CommandMap {
   /** Set the line endings. Sets the file's line endings to LF or CRLF and whether it starts with a byte order mark; the text is otherwise unchanged. Answers the line style the file has now. Params: { eol: "lf" | "crlf", bom?: boolean }. Changes the document. */
   "file.setLineEndings": { /** Write a UTF-8 byte order mark; unchanged by default. */ bom?: boolean; /** LF or CRLF for every line. */ eol: "lf" | "crlf" }
   /** Read the selection. Answers the editor's selection: anchor and focus positions, the selected text, the caret's line and column, the line's text before it, and where the caret is drawn. Params: {}. */
-  "selection.get": Record<string, never>
+  "select.get": Record<string, never>
   /** Set the selection. Sets the editor's selection by anchor and focus positions, selects a line, puts the caret at a line and column, or at a point of the document. Params: { anchor?: number, focus?: number, line?: number, column?: number, x?: number, y?: number }. */
-  "selection.set": { /** Where the selection starts, in Unicode characters; or give line, or x and y. */ anchor?: number; /** With line: the column, from 1, in Unicode characters (at most the line's end). */ column?: number; /** Where it ends (the caret); anchor by default. */ focus?: number; /** Or a line, from 1: selects it, or with column puts the caret there. */ line?: number; /** Or a point of the document (with y), in document pixels: the caret goes there. */ x?: number; /** With x: the point's y, in document pixels. */ y?: number }
+  "select.set": { /** Where the selection starts, in Unicode characters; or give line, or x and y. */ anchor?: number; /** With line: the column, from 1, in Unicode characters (at most the line's end). */ column?: number; /** Where it ends (the caret); anchor by default. */ focus?: number; /** Or a line, from 1: selects it, or with column puts the caret there. */ line?: number; /** Or a point of the document (with y), in document pixels: the caret goes there. */ x?: number; /** With x: the point's y, in document pixels. */ y?: number }
   /** Select All. Selects the whole note in the editor. Params: {}. */
   "edit.selectAll": Record<string, never>
   /** Cut. Removes the editor's selection from the note and answers its text for the clipboard. Params: {}. Changes the document. */
@@ -252,17 +252,17 @@ export interface NoteCommands extends CommandMap {
   /** Where the code blocks are drawn. Answers where the editor draws each fenced code block between `top` and `bottom`, with its language, for its copy and language controls. Params: { top?: number, bottom?: number }. */
   "code.blocks": { /** Only tables above this document height. */ bottom?: number; /** Only tables below this document height. */ top?: number }
   /** The Mermaid diagrams to draw and where. Answers the Mermaid diagrams and HTML blocks the editor still has to size, those drawn between `top` and `bottom` with their boxes, and the column width. Params: { top?: number, bottom?: number }. */
-  "diagrams.view": { /** Only tables above this document height. */ bottom?: number; /** Only tables below this document height. */ top?: number }
+  "diagram.view": { /** Only tables above this document height. */ bottom?: number; /** Only tables below this document height. */ top?: number }
   /** A Mermaid diagram's drawn size. Gives the editor a Mermaid diagram's or HTML block's drawn size, by its source, so the page reserves that space; answers whether the size changed. Params: { source: string, width: number, height: number }. */
   "diagram.set": { /** Its drawn height in document pixels. */ height: number; /** The diagram's source: the code between its fences. */ source: string; /** Its drawn width in document pixels. */ width: number }
   /** The front matter as a properties block. Answers the front matter as the editor's properties block (each row's key, kind, values and position), or null when the note shows none. Params: {}. */
-  "properties.view": Record<string, never>
+  "property.view": Record<string, never>
   /** The pictures the note draws that are not loaded. Answers the pictures the note draws that the editor has not loaded yet, and those drawn now, by name. Params: {}. */
   "image.wanted": Record<string, never>
   /** Hand the note a picture's bytes. Hands the editor a picture's bytes (`data`, base64) by name so the note draws it; bytes that are not a picture record it as missing. Params: { name: string, data: string }. */
   "image.set": { /** Its bytes, base64. */ data: string; /** The picture's name as the note writes it. */ name: string }
   /** Replace the selection. Replaces the editor's selection with `text`; with `paste: true` it is pasted text, and an address pasted over a selection links it. Params: { text: string, paste?: boolean }. Changes the document. */
-  "selection.replace": { /** Plain text the person pasted: an address over a selection links it. */ paste?: boolean; /** The text that replaces the selection. */ text: string }
+  "select.replace": { /** Plain text the person pasted: an address over a selection links it. */ paste?: boolean; /** The text that replaces the selection. */ text: string }
   /** Fit the page to the visible width. Sets the page to the editor's visible width (and height) so lines wrap to it; answers whether that changed and the page's width. Params: { width: number, height?: number }. */
   "view.width": { /** The visible height in document pixels: the room below the note is half of it. */ height?: number; /** The visible width in document pixels. */ width: number }
   /** Paint the note in the host's color scheme. Paints the note with the light or the dark palette, as the host's color scheme is; nothing moves. Answers whether that changed. Params: { scheme: 'light' | 'dark' }. */
@@ -270,7 +270,7 @@ export interface NoteCommands extends CommandMap {
   /** The pointer left the note: nothing is hovered. Tells the editor the pointer left the note, so no heading or item is drawn hovered. Params: {}. */
   "view.hoverOut": Record<string, never>
   /** Where a character is drawn. Answers where the character at text position `at` is drawn on the page (x, top and height, in document pixels). Params: { at: number }. */
-  "selection.where": { /** The character, from 0, in Unicode characters. */ at: number }
+  "select.where": { /** The character, from 0, in Unicode characters. */ at: number }
   /** What block a point of the page is in. Answers whether the page point `x`, `y` is in a callout, and whether the caret is in that callout too. Params: { x: number, y: number }. */
   "view.blockAt": { /** Across, in document pixels. */ x: number; /** Down, in document pixels. */ y: number }
   /** Fold the properties block to its heading, or open it. Folds the properties block to its heading line in the editor, or opens it again; writes nothing and answers whether it is folded now. Params: {}. */
@@ -282,7 +282,7 @@ export interface NoteCommands extends CommandMap {
   /** Clear formatting. Removes bold, italic, strikethrough, highlight, inline code and inline math marks from the lines the editor's selection covers. Params: {}. Changes the document. */
   "format.clear": Record<string, never>
   /** A macOS Control editing key. Runs a macOS Control editing key (`key`, for example `a`, `e`, `k`, `t`, `o`) or Page Up and Page Down on the editor's caret, as macOS text fields do. Params: { key: string, shift?: boolean }. Changes the document. */
-  "selection.controlKey": { /** The letter (a, e, b, f, p, n, v, d, h, k, o, or t), or pageUp or pageDown. */ key: string; /** With Shift (Page Up and Page Down extend the selection). */ shift?: boolean }
+  "select.controlKey": { /** The letter (a, e, b, f, p, n, v, d, h, k, o, or t), or pageUp or pageDown. */ key: string; /** With Shift (Page Up and Page Down extend the selection). */ shift?: boolean }
   /** Bold. Toggles bold (`**...**`) on the editor's selection, or on the word at the caret. Params: {}. Changes the document. */
   "format.bold": Record<string, never>
   /** Italic. Toggles italic (`*...*`) on the editor's selection, or on the word at the caret. Params: {}. Changes the document. */
@@ -352,29 +352,29 @@ export interface NoteCommands extends CommandMap {
   /** Trim Trailing Spaces. Removes trailing spaces and tabs from the lines the editor's selection covers. Params: {}. Changes the document. */
   "edit.trimWhitespace": Record<string, never>
   /** Wikilink. Wraps the editor's selection in a wikilink (`[[...]]`), or inserts an empty one to type a note name into. Params: {}. Changes the document. */
-  "insert.wikilink": Record<string, never>
+  "wikilink.insert": Record<string, never>
   /** Embed. Wraps the editor's selection in an embed (`![[...]]`), or inserts an empty one. Params: {}. Changes the document. */
-  "insert.embed": Record<string, never>
+  "embed.insert": Record<string, never>
   /** Image. Inserts a Markdown image (`![...]()`) at the editor's caret, the selection as its alt text. Params: {}. Changes the document. */
-  "insert.image": Record<string, never>
+  "image.insert": Record<string, never>
   /** Tag. Inserts a tag sign (`#`) before the editor's selection to type a tag into. Params: {}. Changes the document. */
-  "insert.tag": Record<string, never>
+  "tag.insert": Record<string, never>
   /** Table. Inserts an empty two-column table (header, delimiter and one body row) at the editor's caret. Params: {}. Changes the document. */
-  "insert.table": Record<string, never>
+  "table.insert": Record<string, never>
   /** Math Block. Puts the lines the editor's selection covers between `$$` fences, or inserts an empty math block. Params: {}. Changes the document. */
-  "insert.mathBlock": Record<string, never>
+  "mathBlock.insert": Record<string, never>
   /** Callout. Puts the lines the editor's selection covers in a note callout (`> [!NOTE]`), or inserts a new one with a title and contents. Params: {}. Changes the document. */
-  "insert.callout": Record<string, never>
+  "callout.insert": Record<string, never>
   /** Footnote. Inserts a footnote reference at the editor's caret and its definition at the end of the note, the caret there. Params: {}. Changes the document. */
-  "insert.footnote": Record<string, never>
+  "footnote.insert": Record<string, never>
   /** Date. Puts today's local date (YYYY-MM-DD) in place of the editor's selection. Params: { utcOffset?: number }. Changes the document. */
-  "insert.date": { /** Minutes local time is ahead of UTC (negative behind); the page's time zone by default. */ utcOffset?: number }
+  "date.insert": { /** Minutes local time is ahead of UTC (negative behind); the page's time zone by default. */ utcOffset?: number }
   /** Date and Time. Puts the current local date and time (YYYY-MM-DD HH:mm) in place of the editor's selection. Params: { utcOffset?: number }. Changes the document. */
-  "insert.timestamp": { /** Minutes local time is ahead of UTC (negative behind); the page's time zone by default. */ utcOffset?: number }
+  "timestamp.insert": { /** Minutes local time is ahead of UTC (negative behind); the page's time zone by default. */ utcOffset?: number }
   /** Code Block. Puts the lines the editor's selection covers between ``` fences, or inserts an empty code block. Params: {}. Changes the document. */
-  "insert.codeBlock": Record<string, never>
+  "codeBlock.insert": Record<string, never>
   /** Horizontal Rule. Inserts a horizontal rule (`---`) at the editor's caret. Params: {}. Changes the document. */
-  "insert.rule": Record<string, never>
+  "rule.insert": Record<string, never>
   /** Undo. Takes back the caller's last edit (the person's or, with `scope: "agent"`, the agent's) without touching the other's edits; answers whether there was one. Params: { scope?: "person" | "agent" }. Changes the document. */
   "edit.undo": { /** Whose last step to undo: the person's or the agent's. By default the scope of whoever runs it (an agent undoes only its own steps). */ scope?: "person" | "agent" }
   /** Redo. Applies again the edit the caller's last undo took back, in the same scope as `edit.undo`; answers whether there was one. Params: { scope?: "person" | "agent" }. Changes the document. */

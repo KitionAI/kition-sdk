@@ -1,6 +1,6 @@
 ---
 name: board-editing
-description: "Create, inspect, edit and check a board (.kboard) with the Kition Board kit's tools: shapes, sticky notes, text, connectors, frames, mind maps, templates, layout, pages, and more; `element.create` adds elements. Use when the user asks to make, read, change, review or fix .kboard files in this project."
+description: "Create, inspect, edit and check a board (.kboard) with the Kition Board kit's tools: shapes, sticky notes, text, connectors, frames, mind maps, templates, layout, pages, and more; `element.add` adds elements. Use when the user asks to make, read, change, review or fix .kboard files in this project."
 ---
 
 <!-- Generated from kition-board agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
@@ -53,7 +53,7 @@ name it.
   `board_inspect` (pages: `details.pages[].id`), `board_query`, `board_batch`, every command, a
   step's `on` and every receipt use alike, and the file keeps: an id from an earlier call names the
   same page or element after a rename, a move, a save and a reopen. Get element ids from
-  `board_query` or from a command's answer: [`element.create`](/kits/board/commands/element.create/)
+  `board_query` or from a command's answer: [`element.add`](/kits/board/commands/element.add/)
   answers `{"created": [id, …]}` in the order you gave the elements.
 - **Pages:** `board_inspect` lists each page as `{"id", "name", "elements", "area"}`; `area` is the
   page's document area (`x`, `y`, `width`, `height` in board units), what a preview of the page
@@ -87,14 +87,14 @@ elements every time, with the ids earlier answers gave you.
   element parameter (`id`, `ids`, `groupIds`, `node` or `root`: `board_commands` with `detail`
   marks it as the command's `targets`); do not give that parameter as well. A command with one
   `id` takes one `on` item. A board has no selection, so a command without such a parameter
-  (`page.rename`, `frame.create`, `connector.create`) takes no `on`: give its ids in its
+  (`page.rename`, `frame.add`, `connector.add`) takes no `on`: give its ids in its
   parameters.
-- The commands that make content (`element.create`, `frame.create`, `stroke.create`,
-  `connector.create`, `template.insert`, `card.create`, `image.insert`, `element.paste`) and
+- The commands that make content (`element.add`, `frame.add`, `stroke.add`,
+  `connector.add`, `template.insert`, `card.add`, `image.insert`, `edit.paste`) and
   `file.export` act on the run's page (`target`, `at.part`) or their `page`; without either, on the
   page an editor shows. Name the page.
 - A command never changes the page an editor shows, also when it fails, except `page.activate` and
-  `page.create` with `"activate": true`: after them, the later steps of the same run that name no
+  `page.add` with `"activate": true`: after them, the later steps of the same run that name no
   page land on that page ("make a page, then fill it"). After the call the editor is as it was: the
   next call starts again from the person's page.
 - Element ids name their page: a step on elements needs no `target`.
@@ -143,24 +143,24 @@ selection or viewport. The agent must name the page explicitly where required.
 
 | Commands | What the write rests on |
 |---|---|
-| `element.style`, `element.update` | The fields supplied, plus kind and lock. A new parent: its kind (and, for a frame or group given a parent, its page's hierarchy: it must not be inside it); a key: key uniqueness. |
+| `element.style`, `element.set` | The fields supplied, plus kind and lock. A new parent: its kind (and, for a frame or group given a parent, its page's hierarchy: it must not be inside it); a key: key uniqueness. |
 | `element.setText`, `text.mark`, `connector.setLabel` | Text, kind and lock; label position only when supplied. |
 | `connector.setWaypoints`, `card.setTarget`, `image.setAlt`, `element.lock` | The replaced value (waypoints, card, alt, locked), kind and lock. |
 | `element.move` by delta | The subtree's positions, free endpoints and points, kinds and locks; a carried member's `parent`. A lone element's container is not read (coordinates are world coordinates). Several selected leaves need no parents either; when a selected container can carry another selection, their ancestry determines the roots. A container's move holds its page's hierarchy. |
 | Move `to`, resize, rotate, align, distribute, stack | Above, plus the selected roots' `~bounds` (a group's members', a connector's ends and their targets). A selected child carried by a selected frame does not independently set its alignment delta. Resize writes position and size (a text's font size when several scale); one box resized holds its box and lock only (what it holds stays where it is, so a locked child does not refuse it). Rotation about each element's own centre holds its rotation (a stroke's points, a connector's route), not where it is; a group or frame turns as one about its own centre, holding its members' boxes and bounds; about the selection, the bounds, position and size. Frames and cards have no rotation: they only move. Arranging leaves out a connector bound at both ends without bends (it follows its elements). |
 | Move with `reparent: true` | Above, plus each root's parent and that parent's kind, and the frame under each destination centre: `covers`/`covered` replay the same smallest-frame query execution uses (a destination frame's own fields are not read). This is the Board's point-addressed write; there is no general pick command. |
-| `connector.create`, `connector.bind` | An end element's `~bounds`, position and rotation (the edge an end faces turns with it); bind: the connector's lock, the end replaced and the other end (its binding, and without an anchor its target's box). |
-| `element.group`, `frame.create` | Members' kind, lock and parent, and their ancestors' (which are roots, the common parent). They do not hold the global structure. Where the new group or frame goes in the list follows its first member. |
-| `element.delete`, `element.duplicate`, `clipboard.copy` | Every field of each element and of what it holds; the board's structure for a container. |
-| `element.ungroup` | Every field of the group (it goes), its members' lock and `parent` (written), its page's hierarchy. A locked member refuses ungrouping. |
+| `connector.add`, `connector.bind` | An end element's `~bounds`, position and rotation (the edge an end faces turns with it); bind: the connector's lock, the end replaced and the other end (its binding, and without an anchor its target's box). |
+| `arrange.group`, `frame.add` | Members' kind, lock and parent, and their ancestors' (which are roots, the common parent). They do not hold the global structure. Where the new group or frame goes in the list follows its first member. |
+| `element.delete`, `element.duplicate`, `edit.copy` | Every field of each element and of what it holds; the board's structure for a container. |
+| `arrange.ungroup` | Every field of the group (it goes), its members' lock and `parent` (written), its page's hierarchy. A locked member refuses ungrouping. |
 | `frame.fit` | The frame's box and lock, its direct members' bounds and parents, its page's hierarchy. |
 | `element.reorder` | `front`/`back`: that each element is there (several: their order among themselves). `forward`/`backward`: each element's index and the neighbour it passes (a window of two). A container moves with what it holds: its members' places and parents, and its page's hierarchy. |
 | `page.rename` | Page name only; list position is irrelevant. |
-| `page.create`, `page.move` | Explicit insertion/destination gaps in the list before source removal; one step (`placement`) holds the page and the neighbour it passes; default page naming holds the page count. See the deletion-location defect below. |
+| `page.add`, `page.move` | Explicit insertion/destination gaps in the list before source removal; one step (`placement`) holds the page and the neighbour it passes; default page naming holds the page count. See the deletion-location defect below. |
 | `page.delete`, `page.duplicate` | The page's element list (and name, for a delete and a copy named by default) and every field of each element on it. |
 | `layout.mindmap`, `mindmap.*` | Every map node's shape style, box, rotation, direction, collapse, side, stroke and lock; every branch's lock and its overwritten ends and settings; the board's map structure (effective topology and branch order, without containment). addChild/addSibling also hold the container of the node the new branch is copied from. Unrelated node text with a fixed box can change. |
-| `links.retarget` | Matching workspace target paths, replayed card by card; card view metadata may change independently. |
-| `element.paste` | The destination page; without `at`, each payload ref naming an element of this board (a live source on the page offsets the copies); each connector end bound to an element outside the payload, by its box and rotation. With `at`, source refs are not read or held: deletion of the copied source can merge with a paste at the explicit position. |
+| `link.retarget` | Matching workspace target paths, replayed card by card; card view metadata may change independently. |
+| `edit.paste` | The destination page; without `at`, each payload ref naming an element of this board (a live source on the page offsets the copies); each connector end bound to an element outside the payload, by its box and rotation. With `at`, source refs are not read or held: deletion of the copied source can merge with a paste at the explicit position. |
 | Create, template, stroke, card, image | Destination existence, a referenced parent's kind, key uniqueness where used; content geometry for default placement. |
 | `edit.undo`, `edit.redo` | Nothing: the step undone or redone is the caller's own; another writer's later change of the same object is not checked. The pinned kition-sdk cannot say which objects a scope's next step touches (`waiting_for_sdk_…` in `bindings/wasm/tests/undo_premises.rs`). In the headless file path an agent's history does not outlive its call. |
 
@@ -194,7 +194,7 @@ is required. Representative command receipts and saved-file diffs agree on all 1
   45 necessary refusals, 0 false refusals, 0 wrong writes and 0 kit failures; insertion and move
   changes before empty page gaps refuse as they should.
 - An SDK reread loses the list positions of unnamed deletions. Observe named pages A, B,
-  C, D, E; another writer deletes A; a stale `page.create {name:"Agent",at:1}` applies after B
+  C, D, E; another writer deletes A; a stale `page.add {name:"Agent",at:1}` applies after B
   instead of holding the observed gap between A and B. A stale `page.move {page:C,to:1}` also
   applies at the wrong destination. `gaps12` keeps these failing scenarios; insertion,
   removal and movement strictly after the destination gap pass. The kit's empty
@@ -423,7 +423,7 @@ are refused.
    (`on`, or the command's own id parameter); take new ids from the answer. Pass the last
    `revision` as `basis`.
 4. `board_check`, then fix what it reports. Most diagnostics carry a `fix`
-   ([`connector.create`](/kits/board/commands/connector.create/),
+   ([`connector.add`](/kits/board/commands/connector.add/),
    [`frame.fit`](/kits/board/commands/frame.fit/), …): run it with the ids it names.
 5. `board_inspect` again to confirm the result in the preview.
 
@@ -435,7 +435,7 @@ lists the frame `Sprint` (`01a18a90-…e169c1`, at 0,0, 640 × 320) holding flow
 
 ```json
 board_run {"path": "plan.kboard", "steps": [
-  {"command": "element.create", "params": {"elements": [{"kind": "shape", "shapeStyle": "flow-node",
+  {"command": "element.add", "params": {"elements": [{"kind": "shape", "shapeStyle": "flow-node",
     "parent": "01a18a90-f63d-74f3-bebb-52aee9e169c1", "position": [780, 120], "size": [160, 80], "text": "Ship"}]}}
 ]}
 board_check {"path": "plan.kboard"}
@@ -446,7 +446,7 @@ reaches outside `Sprint`, with fixes. Run them with the new id:
 
 ```json
 board_run {"path": "plan.kboard", "steps": [
-  {"command": "connector.create", "params": {"from": {"element": "01a18a90-f63e-7428-86a6-6e459211c5e1", "anchor": [1, 0.5]},
+  {"command": "connector.add", "params": {"from": {"element": "01a18a90-f63e-7428-86a6-6e459211c5e1", "anchor": [1, 0.5]},
     "to": {"element": "01a18a95-a876-7716-b136-47cc59a663c6", "anchor": [0, 0.5]}}},
   {"command": "frame.fit", "params": {"id": "01a18a90-f63d-74f3-bebb-52aee9e169c1"}}
 ]}
@@ -460,7 +460,7 @@ The check then finds nothing wrong.
 ```json
 board_create {"path": "ideas.kboard"}
 board_run {"path": "ideas.kboard", "steps": [
-  {"command": "element.create", "params": {"elements": [{"kind": "shape", "shapeStyle": "mind-node", "position": [0, 0], "text": "Launch"}]}}
+  {"command": "element.add", "params": {"elements": [{"kind": "shape", "shapeStyle": "mind-node", "position": [0, 0], "text": "Launch"}]}}
 ]}
 ```
 
@@ -487,7 +487,7 @@ well` and rename `Sprint`, without showing either page:
 
 ```json
 board_run {"path": "retro.kboard", "basis": "dio0", "target": {"page": "01a1cef6-5add-739b-9664-509d775221f1"}, "steps": [
-  {"command": "element.create", "params": {"elements": [{"kind": "shape", "shapeStyle": "sticky",
+  {"command": "element.add", "params": {"elements": [{"kind": "shape", "shapeStyle": "sticky",
     "parent": "01a1cef6-5adf-70ae-a855-bed7df6b4dd8", "position": [260, 80], "size": [160, 120], "text": "Wins"}]}},
   {"command": "element.setText", "on": ["01a1cef6-5ade-703b-9d65-4d56573cbb49"], "params": {"text": "Sprint 12"}}
 ]}
@@ -541,7 +541,7 @@ only when it is what the person asked for. Every code the kit reports is on the
 - `board.outside-frame` (warning): an element reaches outside the frame that holds it. Run
   [`frame.fit`](/kits/board/commands/frame.fit/) `{id}` on the frame, or move the element.
 - `board.disconnected-node` (warning): a flow node has no connector. Connect it with
-  [`connector.create`](/kits/board/commands/connector.create/).
+  [`connector.add`](/kits/board/commands/connector.add/).
 - `board.overlap` (warning) and `board.connector-crosses-node` (info): elements overlap, or a
   connector crosses a node. Move them apart.
 - `board.label-overflow` (warning): a label does not fit its box. Shorten it or enlarge the shape.

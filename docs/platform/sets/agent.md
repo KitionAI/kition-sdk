@@ -225,7 +225,7 @@ and a harness that moves files keeps those links working
   or renames to an agent runs LK8 for them (the host retargets every linking
   document with origin `system`), logs every retarget (A10), and lists the
   changed files in the tool result as `files: [{ path, version, created:
-  false }]`, as A30 does for created files. `links.retarget` is an
+  false }]`, as A30 does for created files. `link.retarget` is an
   agent-facing command like any other, so an agent can also repair a broken
   link itself.
 
@@ -716,10 +716,10 @@ them yet.
   `path` (for create) and `to` (for export) into `create` handles (A29), picks
   an unused name when the file exists, and never replaces a file (FA7, H5).
   Long exports run stepped (E8) and report `kit.progress`; the result lists
-  the files written (A30). Headless, `<prefix>_create` is `document.open`
-  with `create: { format }` on the `create` handle, or `document.open` of the
-  template and `document.saveAs` to the handle, followed by `document.save`;
-  `<prefix>_export` is `document.export`, whose bytes the engine hands back
+  the files written (A30). Headless, `<prefix>_create` is `file.open`
+  with `create: { format }` on the `create` handle, or `file.open` of the
+  template and `document.saveAs` to the handle, followed by `file.save`;
+  `<prefix>_export` is `file.export`, whose bytes the engine hands back
   as outputs (E16). The Kition SDK's `kition-headless` implements both from
   `KitDocument::create` and `KitDocument::save`, so a kit declares its
   formats and, for multi-file or long exports, an E16 output command.

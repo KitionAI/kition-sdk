@@ -44,9 +44,9 @@ has no `pdf_export`.
   growing right and `y` growing down: `"at": [72, 60]` is one inch from the left and 60 points from
   the top. `rect` is `[x0, y0, x1, y1]` in the same space.
 - **Lists give numbers:** links, comments, fields and figures are addressed by what their list
-  command answers. Run [`link_list`](/kits/pdf/commands/link_list/),
-  [`comment_list`](/kits/pdf/commands/comment_list/), [`form_fields`](/kits/pdf/commands/form_fields/)
-  (by `name`) or [`accessibility_figures`](/kits/pdf/commands/accessibility_figures/) first, then
+  command answers. Run [`link.list`](/kits/pdf/commands/link.list/),
+  [`comment.list`](/kits/pdf/commands/comment.list/), [`form.listFields`](/kits/pdf/commands/form.listFields/)
+  (by `name`) or [`accessibility.listFigures`](/kits/pdf/commands/accessibility.listFigures/) first, then
   use the `index` (counted from 1), `name` or `id` it gave. Don't guess a number.
 - The host's document is the open file, so leave out a command's `doc` parameter.
 - Diagnostics' `target` has the page (counted from 1) and a `path`, such as
@@ -59,8 +59,8 @@ has no `pdf_export`.
 | Type | Tool id | Fields |
 |---|---|---|
 | `Page` (in the root's `pages`, in order) | `page:<id>` | `label` (only when the file labels its pages), `width`, `height`, `rotation`, `boxes`, `comments`, `links` |
-| `Comment` (in its page's `comments`) | its `/NM`, as `comment_list` gives it | `type`, `contents`, `author`, `modified`, `rect` (page space, as stored), `color`, `fill`, `opacity`, `width`, `locked`, `status`, `marked`, `replyTo`, `state`, `index` (its place among the page's annotations) |
-| `Link` (in its page's `links`) | its `/NM` | `index` (its place among the page's annotations, as `link_list` numbers it), `rect`, `url`, `toPage` (the page's tool id), `other` (another action), `visible`, `color`, `width`, `highlight` |
+| `Comment` (in its page's `comments`) | its `/NM`, as `comment.list` gives it | `type`, `contents`, `author`, `modified`, `rect` (page space, as stored), `color`, `fill`, `opacity`, `width`, `locked`, `status`, `marked`, `replyTo`, `state`, `index` (its place among the page's annotations) |
+| `Link` (in its page's `links`) | its `/NM` | `index` (its place among the page's annotations, as `link.list` numbers it), `rect`, `url`, `toPage` (the page's tool id), `other` (another action), `visible`, `color`, `width`, `highlight` |
 | `Field` (in the root's `fields`) | `field:<id>` | `name` (fully qualified), `type`, `value`, `default`, `flags`, `maxLength`, `options`, `tooltip`, `appearance`, `align`, `actions`, `widgets` |
 | `Bookmark` (in the root's `bookmarks`, its children in `children`) | `bookmark:<id>` | `title`, `page` (the page's tool id), `open` |
 
@@ -110,35 +110,35 @@ value. A change to a different, unused field still merges.
 
 | Write | Rests on |
 |---|---|
-| Comments by `id`: `comment_edit`, `comment_set_status`, `comment_mark`, `comment_lock`, `comment_reply`, `comment_delete` | The comment identity, written fields and consumed inputs (contents assignment holds old contents and subtype; new text in a text box also holds its `rect` and `width`, which it refits), for `move`/`rect` its page's geometry; a reply, status or check also the `rect` (and `color`) it copies |
+| Comments by `id`: `comment.edit`, `comment.setStatus`, `comment.mark`, `comment.lock`, `comment.reply`, `comment.delete` | The comment identity, written fields and consumed inputs (contents assignment holds old contents and subtype; new text in a text box also holds its `rect` and `width`, which it refits), for `move`/`rect` its page's geometry; a reply, status or check also the `rect` (and `color`) it copies |
 | The same by `page` and `index` | The page at that number, the comment at that index, and where the comments and links before it on the page are (the index counts every annotation): one of them gone or come refuses `relocated` |
-| `comment_add`, `page_add_text`, `fill_sign_add`, `measure_scale` | The page and its geometry (size, rotation, boxes); `comment_add` that finds text: the page's text; a highlight (or other mark of text) by quads: the content under them |
-| `measure_distance`, `measure_perimeter`, `measure_area` | The page, its geometry and its scales (`/VP`, which the reading uses) |
-| `redact_mark` | By `rect`: the page, its geometry and **the content under the rectangle** (the text lines and images it touches). Finding text: the text of `pages` (every page without). `whole_pages`: the pages' geometry |
-| Pages by number: `page_rotate`, `page_delete`, `page_duplicate`, `page_set_box`, `page_insert_blank`, `page_number` | The page at each number (another page there refuses `relocated`) and what is read: `rotation` (and size with `orientation`), the geometry for boxes, the pages either side of an insertion (and the page before's size for a blank page without one); `page_number` holds the targets and label-restoration boundary |
-| `page_move` | The pages moved and the pages either side of where they go. `to` counts **in the list without the moved pages**: `{ "pages": [1], "to": 2 }` puts page 1 between pages 2 and 3 |
-| `doc_header_footer`, `doc_watermark`, `doc_background` | The pages named (all when none) and their geometry; a header or footer with `<<n>>` every page (it is the number of pages) |
-| `doc_remove_marks` | The kit's header, footer, watermark and background marks on every page |
-| Links: `link_edit`, `link_delete` by `page` and `index` | The page, the link identity at that index, the fields replaced (a URL or destination replaces the action), the annotations before it; geometry conversion for `rect` holds the page geometry; `to_page`: that page |
-| `link_add` | The page and its geometry; `to_page`: that page |
-| `links_from_urls` | The URL candidates and rectangles it will link and existing link rectangles; a blank appended page with no new candidates merges |
-| `links_remove` | Nothing: it removes every link there is |
-| Bookmarks: `bookmark_add` | The target page, the bookmarks along `parent` and the siblings either side of `position` (one put before them refuses `relocated`; one put after does not) |
-| Form fields by name: `form_fill`, `form_reset`, `form_set_props`, `form_delete_field`, `form_set_script`, `form_set_actions` | The field and written or consumed inputs: a fill its replaced `value`, `type`, relevant flag bits, `maxLength`, relevant choice `options`, `actions` and widget appearance inputs; a reset `value`, `default` and widgets (no `fields`: every field); fills and resets also the calculated fields, their definitions, unwritten source values, formats and calculation order; the properties set (a new `rect` also the page's geometry, a new `name` free); an action going to a page that page |
-| `form_add_field` | The page and its geometry; a `name` free; no name: every field's name (the new one is made free of them); a radio `group`: that field's identity and type |
-| `form_tab_order` | `order`: the pages (all when none) and the `/Tabs` mode replaced, without widget geometry. `field` with `move`: the field and the annotation order of the widgets on its page |
-| `form_detect_fields` | The pages' content and geometry, the widgets there and every field's name |
-| `ocr_recognize` | With default `skip_text_pages:true`, whether each page remains textual; otherwise the page's geometry, drawing streams and resources |
-| `js_run` | Every field, the number of pages, the document's scripts and information |
-| `js_set_document_script` | The document's scripts |
-| Page content by index: `content_update`, `content_delete`, `image_edit`, `text_edit`, `object_move` | The page; the item at the index with what its list shows of its own content, including the added item's actual drawing stream and an image's pixels (no item has an id: a change of the same item refuses, the rest of the page does not); geometry where a rectangle or offset is turned into page space; `text_edit` also the coincident text it removes with the selection |
-| `accessibility_set_alt` | The figure identity, Figure role and replaced `alt`: `figure` is **the number `accessibility_figures` gives**, not a place in its list; page geometry is not held for an alt assignment; `decorative` also consumes its page's content |
-| `accessibility_fix`, `doc_initial_view` | How the document opens (page mode and layout, viewer preferences, language, the page it opens at); `title` also the document's information; `tab-order` the pages |
-| `comments_hide`, `fill_sign_date_format`, `js_enabled`, `doc_create`, `doc_revisions` | Nothing of the document (a view setting, a preference, another document, a read) |
-| `redact_apply` | The selected marks, their pages' geometry and the content and annotations covered by them; no `pages`: all marks, including marks added by others |
-| `doc_flatten` | The selected comments and/or widgets, their order, emitted placement and normal appearances (stored widget values or border settings do not replace an existing `/AP`); unrelated page content, document properties and field tooltips merge |
-| `bookmark_from_structure` | The tagged headings' levels, titles and destination pages |
-| `redact_clear`, `doc_protect`, `doc_unprotect`, `doc_remove_hidden`, `pdfa_convert`, `doc_compare_mark`, `edit.undo`, `edit.redo` | `redact_clear`: every redaction mark. The rest: the whole document; any change by others refuses |
+| `comment.add`, `page.addText`, `fillSign.add`, `measure.setScale` | The page and its geometry (size, rotation, boxes); `comment.add` that finds text: the page's text; a highlight (or other mark of text) by quads: the content under them |
+| `measure.distance`, `measure.perimeter`, `measure.area` | The page, its geometry and its scales (`/VP`, which the reading uses) |
+| `redaction.mark` | By `rect`: the page, its geometry and **the content under the rectangle** (the text lines and images it touches). Finding text: the text of `pages` (every page without). `whole_pages`: the pages' geometry |
+| Pages by number: `page.rotate`, `page.delete`, `page.duplicate`, `page.setBox`, `page.insertBlank`, `page.number` | The page at each number (another page there refuses `relocated`) and what is read: `rotation` (and size with `orientation`), the geometry for boxes, the pages either side of an insertion (and the page before's size for a blank page without one); `page.number` holds the targets and label-restoration boundary |
+| `page.move` | The pages moved and the pages either side of where they go. `to` counts **in the list without the moved pages**: `{ "pages": [1], "to": 2 }` puts page 1 between pages 2 and 3 |
+| `file.setHeaderFooter`, `file.setWatermark`, `file.setBackground` | The pages named (all when none) and their geometry; a header or footer with `<<n>>` every page (it is the number of pages) |
+| `file.removeMarks` | The kit's header, footer, watermark and background marks on every page |
+| Links: `link.edit`, `link.delete` by `page` and `index` | The page, the link identity at that index, the fields replaced (a URL or destination replaces the action), the annotations before it; geometry conversion for `rect` holds the page geometry; `to_page`: that page |
+| `link.add` | The page and its geometry; `to_page`: that page |
+| `link.addFromUrls` | The URL candidates and rectangles it will link and existing link rectangles; a blank appended page with no new candidates merges |
+| `link.removeAll` | Nothing: it removes every link there is |
+| Bookmarks: `bookmark.add` | The target page, the bookmarks along `parent` and the siblings either side of `position` (one put before them refuses `relocated`; one put after does not) |
+| Form fields by name: `form.fill`, `form.reset`, `form.setProps`, `form.deleteField`, `form.setScript`, `form.setActions` | The field and written or consumed inputs: a fill its replaced `value`, `type`, relevant flag bits, `maxLength`, relevant choice `options`, `actions` and widget appearance inputs; a reset `value`, `default` and widgets (no `fields`: every field); fills and resets also the calculated fields, their definitions, unwritten source values, formats and calculation order; the properties set (a new `rect` also the page's geometry, a new `name` free); an action going to a page that page |
+| `form.addField` | The page and its geometry; a `name` free; no name: every field's name (the new one is made free of them); a radio `group`: that field's identity and type |
+| `form.setTabOrder` | `order`: the pages (all when none) and the `/Tabs` mode replaced, without widget geometry. `field` with `move`: the field and the annotation order of the widgets on its page |
+| `form.detectFields` | The pages' content and geometry, the widgets there and every field's name |
+| `ocr.recognize` | With default `skip_text_pages:true`, whether each page remains textual; otherwise the page's geometry, drawing streams and resources |
+| `script.run` | Every field, the number of pages, the document's scripts and information |
+| `script.set` | The document's scripts |
+| Page content by index: `content.set`, `content.delete`, `image.edit`, `text.edit`, `object.move` | The page; the item at the index with what its list shows of its own content, including the added item's actual drawing stream and an image's pixels (no item has an id: a change of the same item refuses, the rest of the page does not); geometry where a rectangle or offset is turned into page space; `text.edit` also the coincident text it removes with the selection |
+| `accessibility.setAlt` | The figure identity, Figure role and replaced `alt`: `figure` is **the number `accessibility.listFigures` gives**, not a place in its list; page geometry is not held for an alt assignment; `decorative` also consumes its page's content |
+| `accessibility.fix`, `file.setInitialView` | How the document opens (page mode and layout, viewer preferences, language, the page it opens at); `title` also the document's information; `tab-order` the pages |
+| `comment.hide`, `fillSign.setDateFormat`, `script.enabled`, `file.new`, `file.listRevisions` | Nothing of the document (a view setting, a preference, another document, a read) |
+| `redaction.apply` | The selected marks, their pages' geometry and the content and annotations covered by them; no `pages`: all marks, including marks added by others |
+| `file.flatten` | The selected comments and/or widgets, their order, emitted placement and normal appearances (stored widget values or border settings do not replace an existing `/AP`); unrelated page content, document properties and field tooltips merge |
+| `bookmark.addFromStructure` | The tagged headings' levels, titles and destination pages |
+| `redaction.clear`, `file.protect`, `file.unprotect`, `file.removeHidden`, `pdfa.convert`, `file.compareMark`, `edit.undo`, `edit.redo` | `redaction.clear`: every redaction mark. The rest: the whole document; any change by others refuses |
 
 Where the guard is blind or coarse:
 
@@ -163,31 +163,31 @@ Where the guard is blind or coarse:
 ## Workflow
 
 1. `pdf_inspect` for the pages and the preview. It does **not** answer the text: read it with
-   [`text_extract`](/kits/pdf/commands/text_extract/), in reading order, per page.
+   [`text.extract`](/kits/pdf/commands/text.extract/), in reading order, per page.
 2. Find the command: `pdf_commands { "query": "rotate page" }`. Use specific words (`fill form`,
    `delete link`). Use the exact id it returns and follow its parameter schema; never guess a
    command id.
 3. `pdf_run` a few steps at a time. A run saves when it succeeds.
 4. `pdf_check`, then fix what it reports.
-5. `pdf_inspect` again, and [`text_extract`](/kits/pdf/commands/text_extract/) on the pages you
+5. `pdf_inspect` again, and [`text.extract`](/kits/pdf/commands/text.extract/) on the pages you
    changed, to confirm.
 
 ## Common tasks
 
 | Need | Command and parameters |
 |---|---|
-| Read text | [`text_extract`](/kits/pdf/commands/text_extract/) `{ "pages": [1] }` |
-| Rotate pages | [`page_rotate`](/kits/pdf/commands/page_rotate/) `{ "pages": [1], "degrees": 90 }` |
-| Place text on a page | [`page_add_text`](/kits/pdf/commands/page_add_text/) `{ "page": 1, "at": [x, y], "text": "..." }` |
-| List and fill form fields | [`form_fields`](/kits/pdf/commands/form_fields/), then [`form_fill`](/kits/pdf/commands/form_fill/) `{ "values": { "<field name>": "..." } }` |
-| List and delete links | [`link_list`](/kits/pdf/commands/link_list/), then [`link_delete`](/kits/pdf/commands/link_delete/) `{ "page": 1, "index": 1 }` |
-| List comments | [`comment_list`](/kits/pdf/commands/comment_list/) |
-| Alternative text for a figure | [`accessibility_figures`](/kits/pdf/commands/accessibility_figures/), then [`accessibility_set_alt`](/kits/pdf/commands/accessibility_set_alt/) `{ "figure": 1, "alt": "..." }` |
+| Read text | [`text.extract`](/kits/pdf/commands/text.extract/) `{ "pages": [1] }` |
+| Rotate pages | [`page.rotate`](/kits/pdf/commands/page.rotate/) `{ "pages": [1], "degrees": 90 }` |
+| Place text on a page | [`page.addText`](/kits/pdf/commands/page.addText/) `{ "page": 1, "at": [x, y], "text": "..." }` |
+| List and fill form fields | [`form.listFields`](/kits/pdf/commands/form.listFields/), then [`form.fill`](/kits/pdf/commands/form.fill/) `{ "values": { "<field name>": "..." } }` |
+| List and delete links | [`link.list`](/kits/pdf/commands/link.list/), then [`link.delete`](/kits/pdf/commands/link.delete/) `{ "page": 1, "index": 1 }` |
+| List comments | [`comment.list`](/kits/pdf/commands/comment.list/) |
+| Alternative text for a figure | [`accessibility.listFigures`](/kits/pdf/commands/accessibility.listFigures/), then [`accessibility.setAlt`](/kits/pdf/commands/accessibility.setAlt/) `{ "figure": 1, "alt": "..." }` |
 
 ## Example 1: rotate a page and add a title
 
 ```json
-pdf_run { "path": "report.pdf", "steps": [{ "command": "page_rotate", "params": { "pages": [1], "degrees": 90 } }] }
+pdf_run { "path": "report.pdf", "steps": [{ "command": "page.rotate", "params": { "pages": [1], "degrees": 90 } }] }
 ```
 
 It answers `"rotated": 1`, and `pdf_inspect` then reports page 1 as 792 × 612. On an upright copy:
@@ -195,46 +195,46 @@ It answers `"rotated": 1`, and `pdf_inspect` then reports page 1 as 792 × 612. 
 ```json
 pdf_run {
   "path": "report.pdf",
-  "steps": [{ "command": "page_add_text", "params": { "page": 1, "at": [72, 60], "text": "Quarterly report", "size": 24, "bold": true } }]
+  "steps": [{ "command": "page.addText", "params": { "page": 1, "at": [72, 60], "text": "Quarterly report", "size": 24, "bold": true } }]
 }
 ```
 
-Then `pdf_run` with `{ "command": "text_extract", "params": { "pages": [1] } }` answers
+Then `pdf_run` with `{ "command": "text.extract", "params": { "pages": [1] } }` answers
 `{ "pages": [{ "page": 1, "text": "Quarterly report" }] }`.
 
 ## Example 2: fill a required field and remove a dead link
 
 `pdf_check` on a form answers
 `{ "code": "pdf.required-field-empty", "message": "The required field \"name\" is empty.", "target": { "page": 1, "path": "field:name" } }`.
-[`form_fields`](/kits/pdf/commands/form_fields/) confirms the field is
+[`form.listFields`](/kits/pdf/commands/form.listFields/) confirms the field is
 `{ "name": "name", "type": "text", "required": true, "value": null }`.
 
 ```json
-pdf_run { "path": "form.pdf", "steps": [{ "command": "form_fill", "params": { "values": { "name": "Ada Lovelace" } } }] }
+pdf_run { "path": "form.pdf", "steps": [{ "command": "form.fill", "params": { "values": { "name": "Ada Lovelace" } } }] }
 ```
 
 It answers `"filled": 1`, and `pdf_check` no longer reports the field.
 
 On a file where `pdf_check` answers `pdf.broken-link` with
-`"fix": { "command": "link_delete", "params": { "page": 1, "index": 1 } }`, run that fix:
+`"fix": { "command": "link.delete", "params": { "page": 1, "index": 1 } }`, run that fix:
 
 ```json
-pdf_run { "path": "link.pdf", "steps": [{ "command": "link_delete", "params": { "page": 1, "index": 1 } }] }
+pdf_run { "path": "link.pdf", "steps": [{ "command": "link.delete", "params": { "page": 1, "index": 1 } }] }
 ```
 
 `pdf_check` then reports no error.
 
 ## Pitfalls
 
-- **Text is placed, not flowed.** [`page_add_text`](/kits/pdf/commands/page_add_text/) adds a text
+- **Text is placed, not flowed.** [`page.addText`](/kits/pdf/commands/page.addText/) adds a text
   object at a position; it does not reflow the page. Check the preview for overlaps after you add
   text.
-- **Comments or page content:** [`page_add_text`](/kits/pdf/commands/page_add_text/) writes page
+- **Comments or page content:** [`page.addText`](/kits/pdf/commands/page.addText/) writes page
   content; comments (sticky notes, highlights) are separate annotations that
-  [`comment_list`](/kits/pdf/commands/comment_list/) shows.
-- **Forms:** set values with [`form_fill`](/kits/pdf/commands/form_fill/)
+  [`comment.list`](/kits/pdf/commands/comment.list/) shows.
+- **Forms:** set values with [`form.fill`](/kits/pdf/commands/form.fill/)
   `{ "values": { "<field name>": "..." } }`, using the names
-  [`form_fields`](/kits/pdf/commands/form_fields/) gives.
+  [`form.listFields`](/kits/pdf/commands/form.listFields/) gives.
 
 ## Checks
 
@@ -244,7 +244,7 @@ run as it is. Act on the code, not on the message. A `fix` is a suggestion: run 
 what the person asked for. Every code the kit reports is on the [checks page](/kits/pdf/checks/).
 
 - `pdf.broken-link` (error): a link goes to a page or destination the file does not have. Its `fix`
-  is [`link_delete`](/kits/pdf/commands/link_delete/) with the link's page and number.
+  is [`link.delete`](/kits/pdf/commands/link.delete/) with the link's page and number.
 - `pdf.required-field-empty`, `pdf.invalid-choice`, `pdf.text-too-long` (warnings): a required
   field left empty, a choice outside the field's list, and text over the field's maximum length.
 - `pdf.font-not-embedded`: as info, it names one of the standard 14 fonts (Helvetica, Times,

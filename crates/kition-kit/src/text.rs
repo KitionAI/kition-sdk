@@ -1,5 +1,5 @@
 //! A document's words as plain text, for hosts that index them (`KitText 1.0`, the Kit Process
-//! Protocol's `document.text`; platform `docs/platform/sets/text.md`).
+//! Protocol's `file.text`; platform `docs/platform/sets/text.md`).
 //!
 //! A kit whose words live outside its object model (PDF page text, text layers, CAD `TEXT`)
 //! answers [`crate::KitDocument::text`] and lists the capability [`CAPABILITY`] in its manifest's
@@ -22,16 +22,16 @@
 use serde::{Deserialize, Serialize};
 
 /// The capability a kit lists in `kit.json`'s `headless.capabilities` (and `kit.initialize`
-/// answers in `capabilities.capabilities`) when it answers `document.text`.
+/// answers in `capabilities.capabilities`) when it answers `file.text`.
 pub const CAPABILITY: &str = "document-text";
 
 /// The Kit Process Protocol method.
-pub const METHOD: &str = "document.text";
+pub const METHOD: &str = "file.text";
 
 /// The `limit` a request without one means: 1 MiB of Unicode scalar values.
 pub const DEFAULT_LIMIT: usize = 1_048_576;
 
-/// What `document.text` answers.
+/// What `file.text` answers.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentText {
     /// The words in reading order, plain text, blocks separated by newlines. At most `limit`

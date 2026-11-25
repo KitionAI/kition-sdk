@@ -26,7 +26,7 @@ const CASES: &[Case] = &[Case {
     fixture: "Notes.md",
     command: "text.insert",
     params: || json!({ "at": 0, "text": "# Agenda\n\n" }),
-    file_command: ("document.save", || json!({ "path": "elsewhere.md" })),
+    file_command: ("file.save", || json!({ "path": "elsewhere.md" })),
 }];
 
 /// A kit's executable to test, or why there is none.

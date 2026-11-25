@@ -438,7 +438,7 @@ async fn request<B: KitBackend>(
             after.shutdown = true;
             Ok(json!({}))
         }
-        "document.open" => {
+        "file.open" => {
             let open: p::DocumentOpenParams = reply::params(params)?;
             let info = with_backend(shared, move |b| {
                 let create = open.create.as_ref().map(|create| (create.format.as_str(), create.options.as_ref()));
@@ -448,16 +448,16 @@ async fn request<B: KitBackend>(
             after.notifications.push(state_notification(&info));
             Ok(state(&info))
         }
-        "document.list" => {
+        "file.list" => {
             let documents = with_backend(shared, |b| Ok(b.documents())).await?;
             Ok(json!({ "documents": documents.iter().map(state).collect::<Vec<_>>() }))
         }
-        "document.activate" => {
+        "file.activate" => {
             let target: p::DocumentRef = reply::params(params)?;
             with_backend(shared, move |b| b.activate(&target.document_id)).await?;
             Ok(json!({}))
         }
-        "document.save" => {
+        "file.save" => {
             let target: p::DocumentRef = reply::params(params)?;
             let (info, written) = with_backend(shared, move |b| b.save(&target.document_id, None, None)).await?;
             Ok(saved(&info, &written, after))
@@ -467,7 +467,7 @@ async fn request<B: KitBackend>(
             let (info, written) = with_backend(shared, move |b| b.save(&save.document_id, Some(&save.file), save.format.as_deref())).await?;
             Ok(saved(&info, &written, after))
         }
-        "document.export" => {
+        "file.export" => {
             let export: p::DocumentExportParams = reply::params(params)?;
             let written = with_backend(shared, move |b| b.export(&export.document_id, &export.file, &export.format, export.options.as_ref())).await?;
             Ok(json!({ "name": written.name, "version": written.version }))
@@ -483,7 +483,7 @@ async fn request<B: KitBackend>(
             with_backend(shared, move |b| b.close(&close.document_id, close.discard_changes == Some(true))).await?;
             Ok(json!({}))
         }
-        "commands.list" => {
+        "command.list" => {
             let list: p::CommandsListParams = reply::params(params)?;
             let commands =
                 with_backend(
@@ -590,7 +590,7 @@ async fn request<B: KitBackend>(
             })
             .await
         }
-        "document.text" => {
+        "file.text" => {
             let request: p::DocumentTextParams = reply::params(params)?;
             let limit = request.limit.unwrap_or(p::DOCUMENT_TEXT_LIMIT);
             with_backend(shared, move |b| b.text(&request.document_id, limit)).await

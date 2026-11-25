@@ -8,7 +8,7 @@ describe('commandIcon', () => {
     expect(commandIcon({ id: 'layer.mergeDown' })).toBe(MergeIcon)
     expect(commandIcon({ id: 'table.delete', title: 'Delete Table' })).toBe(TrashIcon)
     expect(commandIcon({ id: 'file.exportPdf' })).toBe(FileOutputIcon)
-    expect(commandIcon({ id: 'html.click' })).toBe(MousePointerClickIcon)
+    expect(commandIcon({ id: 'preview.click' })).toBe(MousePointerClickIcon)
   })
 
   it('shows what a creating command makes', () => {
