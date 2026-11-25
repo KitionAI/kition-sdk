@@ -66,7 +66,7 @@ has no `pdf_export`.
 | `Bookmark` (in the root's `bookmarks`, its children in `children`) | `bookmark:<id>` | `title`, `page` (the page's tool id), `open` |
 
 The objects are read-only through `pdf_batch`: write with commands. Receipts (`changes`) and
-`others` name these objects. A comment's id is also what `comment_*` commands take as `id`;
+`others` name these objects. A comment's id is also what `comment.*` commands take as `id`;
 links, fields and bookmarks are addressed as their commands say (page and index, name, path).
 
 Ids that survive another program's save:
@@ -115,13 +115,13 @@ value. A change to a different, unused field still merges.
 | The same by `page` and `index` | The page at that number, the comment at that index, and where the comments and links before it on the page are (the index counts every annotation): one of them gone or come refuses `relocated` |
 | `comment.add`, `page.addText`, `fillSign.add`, `measure.setScale` | The page and its geometry (size, rotation, boxes); `comment.add` that finds text: the page's text; a highlight (or other mark of text) by quads: the content under them |
 | `measure.distance`, `measure.perimeter`, `measure.area` | The page, its geometry and its scales (`/VP`, which the reading uses) |
-| `redaction.mark` | By `rect`: the page, its geometry and **the content under the rectangle** (the text lines and images it touches). Finding text: the text of `pages` (every page without). `whole_pages`: the pages' geometry |
+| `redaction.mark` | By `rect`: the page, its geometry and **the content under the rectangle** (the text lines and images it touches). Finding text: the text of `pages` (every page without). `wholePages`: the pages' geometry |
 | Pages by number: `page.rotate`, `page.delete`, `page.duplicate`, `page.setBox`, `page.insertBlank`, `page.number` | The page at each number (another page there refuses `relocated`) and what is read: `rotation` (and size with `orientation`), the geometry for boxes, the pages either side of an insertion (and the page before's size for a blank page without one); `page.number` holds the targets and label-restoration boundary |
 | `page.move` | The pages moved and the pages either side of where they go. `to` counts **in the list without the moved pages**: `{ "pages": [1], "to": 2 }` puts page 1 between pages 2 and 3 |
 | `file.setHeaderFooter`, `file.setWatermark`, `file.setBackground` | The pages named (all when none) and their geometry; a header or footer with `<<n>>` every page (it is the number of pages) |
 | `file.removeMarks` | The kit's header, footer, watermark and background marks on every page |
-| Links: `link.edit`, `link.delete` by `page` and `index` | The page, the link identity at that index, the fields replaced (a URL or destination replaces the action), the annotations before it; geometry conversion for `rect` holds the page geometry; `to_page`: that page |
-| `link.add` | The page and its geometry; `to_page`: that page |
+| Links: `link.edit`, `link.delete` by `page` and `index` | The page, the link identity at that index, the fields replaced (a URL or destination replaces the action), the annotations before it; geometry conversion for `rect` holds the page geometry; `toPage`: that page |
+| `link.add` | The page and its geometry; `toPage`: that page |
 | `link.addFromUrls` | The URL candidates and rectangles it will link and existing link rectangles; a blank appended page with no new candidates merges |
 | `link.removeAll` | Nothing: it removes every link there is |
 | Bookmarks: `bookmark.add` | The target page, the bookmarks along `parent` and the siblings either side of `position` (one put before them refuses `relocated`; one put after does not) |
@@ -129,7 +129,7 @@ value. A change to a different, unused field still merges.
 | `form.addField` | The page and its geometry; a `name` free; no name: every field's name (the new one is made free of them); a radio `group`: that field's identity and type |
 | `form.setTabOrder` | `order`: the pages (all when none) and the `/Tabs` mode replaced, without widget geometry. `field` with `move`: the field and the annotation order of the widgets on its page |
 | `form.detectFields` | The pages' content and geometry, the widgets there and every field's name |
-| `ocr.recognize` | With default `skip_text_pages:true`, whether each page remains textual; otherwise the page's geometry, drawing streams and resources |
+| `ocr.recognize` | With default `skipTextPages:true`, whether each page remains textual; otherwise the page's geometry, drawing streams and resources |
 | `script.run` | Every field, the number of pages, the document's scripts and information |
 | `script.set` | The document's scripts |
 | Page content by index: `content.set`, `content.delete`, `image.edit`, `text.edit`, `object.move` | The page; the item at the index with what its list shows of its own content, including the added item's actual drawing stream and an image's pixels (no item has an id: a change of the same item refuses, the rest of the page does not); geometry where a rectangle or offset is turned into page space; `text.edit` also the coincident text it removes with the selection |
