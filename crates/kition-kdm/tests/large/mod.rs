@@ -32,7 +32,7 @@ pub fn schema() -> Arc<Schema> {
                 "types": {
                     "Book": { "fields": { "title": { "kind": "string", "optional": true } } },
                     "Record": { "fields": { "cells": { "kind": "map" }, "order": { "kind": "number", "optional": true } } },
-                    "Sheet": { "fields": { "cells": { "kind": "map", "of": "Cell" }, "name": { "kind": "string", "optional": true } } },
+                    "Sheet": { "fields": { "cells": { "kind": "map" }, "name": { "kind": "string", "optional": true } } },
                     "Row": { "fields": { "index": { "kind": "integer", "optional": true } } },
                     "Column": { "fields": { "index": { "kind": "integer", "optional": true } } },
                     "Cell": { "fields": {
@@ -184,7 +184,7 @@ pub fn table(records: usize, fields: usize, mixed: bool) -> Built {
     }
 }
 
-/// A sheet of `rows` × `columns` cells: one `Sheet` whose `cells` map holds each cell's id under
+/// A sheet of `rows` x `columns` cells: one `Sheet` whose `cells` map holds each cell's id under
 /// `<row id>:<column id>`, a `Row` and a `Column` object for each, and one `Cell` object per cell
 /// with its address, input, key and style.
 pub fn sheet(rows: usize, columns: usize) -> Built {
