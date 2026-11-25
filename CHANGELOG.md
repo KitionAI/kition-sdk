@@ -10,6 +10,12 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   origin) instead of the objects alone; `KitSession::merge_changes` answers `(scope, damage)` and
   the engine member `mergeChanges` adds `scope` to `{ damage, summary }`. A kit with an undo history
   of its own records the merge there, not in the agent's (sdk.model.draft-merge/undo-scope).
+  The kit's repair of a merged or restored state is part of that change and undo step
+  (`Replica::merge_changes_repaired`; one Undo gives back the exact state before), and
+  `undo_depth`, `redo_depth` and `in_undo_group` tell a kit with undo labels of its own how many
+  steps a scope holds (a `model/batch` is one) (sdk.model.draft-merge/repair-in-step). An agent's
+  reply shows an id the kit chose as a tool id only under a member that holds references
+  (regressions/issue-reply-chosen-ids).
   `collaboration.merge` in `kit.json` is optional and not read (regressions/issue-manifest-merge-optional).
   The release's packed-worker smoke runs kit-editor's typing kit in Chromium again: open, type,
   save, reopen with the stored snapshot, a draft merged and a checkpoint restored through

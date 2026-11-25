@@ -1101,6 +1101,26 @@ impl Replica {
         !self.undo.get(scope).undo.is_empty()
     }
 
+    /// How many undo steps `scope` holds: one per transaction of the scope, or per undo group
+    /// ([`Replica::begin_undo_group`]) however many transactions joined it. A kit that keeps an
+    /// undo label of its own per step keeps as many labels as this answers (a `model/batch` is one
+    /// group: its commands and raw writes make one step, so one label), dropping or adding labels
+    /// after each command, batch, merge, undo and redo.
+    pub fn undo_depth(&self, scope: UndoScope) -> usize {
+        self.undo.get(scope).undo.len()
+    }
+
+    /// How many redo steps `scope` holds, like [`Replica::undo_depth`].
+    pub fn redo_depth(&self, scope: UndoScope) -> usize {
+        self.undo.get(scope).redo.len()
+    }
+
+    /// Whether an undo group is open ([`Replica::begin_undo_group`], a `model/batch` while it runs):
+    /// a transaction of a scope that already has a step in the group joins it instead of adding one.
+    pub fn in_undo_group(&self) -> bool {
+        self.grouping
+    }
+
     /// Whether [`Replica::redo_in`] has an undone transaction of `scope` to redo.
     pub fn can_redo_in(&self, scope: UndoScope) -> bool {
         !self.undo.get(scope).redo.is_empty()
@@ -1346,6 +1366,20 @@ impl Replica {
     /// ([`KdmError::NewerSchema`]), and operations the schema refuses, checked as
     /// [`Replica::import_changes`] checks them. A refused merge changes nothing.
     pub fn merge_changes(&mut self, changes: &[u8], origin: &Origin) -> Result<DraftMerge> {
+        self.merge_changes_repaired(changes, origin, |_, _| Ok(()))
+    }
+
+    /// [`Replica::merge_changes`] with the kit's repair of the merged state in the same change:
+    /// `repair` runs in a transaction on the merged state with the objects the merge changed, and
+    /// its writes join the merge's one change and one undo step (data model 6.6, D9), so one undo
+    /// gives back the exact state before the merge and one redo the exact repaired state. A
+    /// repair that fails refuses the merge, which then changes nothing.
+    pub fn merge_changes_repaired(
+        &mut self,
+        changes: &[u8],
+        origin: &Origin,
+        repair: impl FnOnce(&mut Tx<'_>, &BTreeSet<ObjectId>) -> Result<()>,
+    ) -> Result<DraftMerge> {
         let (base, ops) = self.draft_ops(changes)?;
         if ops.is_empty() {
             return Ok(DraftMerge::default());
@@ -1370,6 +1404,30 @@ impl Replica {
         if let Err(error) = read::check_projected_storage(&self.store, &schema) {
             self.store.revert(&applied, &schema);
             return Err(error);
+        }
+        let merged = changes_of(&applied).objects().clone();
+        let repaired = {
+            let mut tx = Tx::new(&self.store, &schema);
+            repair(&mut tx, &merged).map(|()| tx.finish())
+        };
+        let mut applied = applied;
+        match repaired {
+            Ok(ops) if ops.iter().any(|op| matches!(op, Op::SchemaVersion { .. })) => {
+                self.store.revert(&applied, &schema);
+                return Err(raise_refused(origin));
+            }
+            Ok(ops) if !ops.is_empty() => match self.store.apply_all(ops, &schema) {
+                Ok(more) => applied.extend(more),
+                Err(error) => {
+                    self.store.revert(&applied, &schema);
+                    return Err(applying_failed(error));
+                }
+            },
+            Ok(_) => {}
+            Err(error) => {
+                self.store.revert(&applied, &schema);
+                return Err(error);
+            }
         }
         let changes = changes_of(&applied);
         let objects = changes.objects().clone();

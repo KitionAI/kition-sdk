@@ -347,6 +347,21 @@ fn a_session_batch_edits_the_view_and_undoes_as_one_step() {
     assert!(!document.0.can_undo_in(UndoScope::Agent));
 }
 
+/// A kit that keeps an undo label of its own per step keeps as many as the session's
+/// `undo_depth`: a batch, the commands in it included, is one step.
+#[test]
+fn a_session_batch_is_one_step_of_the_undo_depth() {
+    let mut document = open();
+    assert_eq!(document.0.undo_depth(UndoScope::Agent), 0);
+    model::session_batch(&mut document, &add_notes(), false).unwrap();
+    assert_eq!((document.0.undo_depth(UndoScope::Agent), document.0.undo_depth(UndoScope::Person)), (1, 0));
+    assert!(!document.0.in_undo_group());
+    model::session_batch(&mut document, &add_notes(), false).unwrap();
+    assert_eq!(document.0.undo_depth(UndoScope::Agent), 2);
+    assert!(document.0.undo_in(UndoScope::Agent).unwrap().0);
+    assert_eq!((document.0.undo_depth(UndoScope::Agent), document.0.redo_depth(UndoScope::Agent)), (1, 1));
+}
+
 #[test]
 fn a_session_batch_refuses_writes_when_read_only_and_describes_commands() {
     let mut document = open();

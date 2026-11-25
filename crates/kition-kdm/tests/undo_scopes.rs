@@ -184,3 +184,23 @@ fn next_history_step_exposes_fields_without_changing_state_or_history() {
     assert!(replica.redo_in(UndoScope::Agent).unwrap().is_done());
     assert_eq!(replica.undo_touches_in(UndoScope::Agent), touches);
 }
+
+/// A kit that keeps an undo label of its own per step keeps as many as `undo_depth` answers: an
+/// undo group (a `model/batch`) is one step however many transactions joined it.
+#[test]
+fn undo_depth_counts_steps_and_a_group_is_one() {
+    let (mut replica, page, shape) = replica();
+    let start = replica.undo_depth(UndoScope::Person);
+    assert!(!replica.in_undo_group());
+    replica.begin_undo_group().unwrap();
+    assert!(replica.in_undo_group());
+    append(&mut replica, &person(), &shape, "a");
+    set_title(&mut replica, &person(), &page, "T");
+    assert_eq!(replica.undo_depth(UndoScope::Person), start + 1);
+    replica.end_undo_group();
+    assert!(!replica.in_undo_group());
+    append(&mut replica, &agent(), &shape, "b");
+    assert_eq!((replica.undo_depth(UndoScope::Person), replica.undo_depth(UndoScope::Agent)), (start + 1, 1));
+    assert!(replica.undo().unwrap().is_done());
+    assert_eq!((replica.undo_depth(UndoScope::Person), replica.redo_depth(UndoScope::Person)), (start, 1));
+}

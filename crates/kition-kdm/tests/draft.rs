@@ -253,3 +253,38 @@ fn the_comparison_lists_created_changed_and_deleted_objects_and_texts() {
     assert_eq!(summary.to_json()["created"][0]["type"], "Shape");
     assert!(diff_states(&live.state_json().expect("state"), &live.state_json().expect("state")).is_empty());
 }
+
+/// The kit's repair of a merged state is part of the merge's one change and undo step (data model
+/// 6.6, D9): one undo gives back the exact state before the merge, one redo the exact repaired
+/// state; a repair that fails refuses the merge, which changes nothing.
+#[test]
+fn a_merges_repair_joins_its_change_and_undo_step() {
+    let mut live = Replica::create(schema(), DocId::new(), actor(1)).unwrap();
+    let (page, shape) = page_with_shape(&mut live);
+    let mut draft = live.fork(actor(2)).unwrap();
+    let base = draft.version();
+    draft.transact(&agent(), |tx| tx.set(&shape, "x", json!(500))).unwrap();
+    let before = live.state_json().unwrap();
+    let merged = live
+        .merge_changes_repaired(&draft.export_changes(&base).unwrap(), &agent(), |tx, changed| {
+            assert!(changed.contains(&shape));
+            // The kit keeps x at most 100.
+            tx.set(&shape, "x", json!(100))
+        })
+        .unwrap();
+    assert_eq!(merged.scope, Some(UndoScope::Person));
+    assert_eq!(live.get(&shape, "x").unwrap(), json!(100));
+    let repaired = live.state_json().unwrap();
+    assert!(live.undo().unwrap().is_done());
+    assert_eq!(live.state_json().unwrap(), before, "one undo: the exact state before the merge");
+    assert!(live.redo().unwrap().is_done());
+    assert_eq!(live.state_json().unwrap(), repaired, "one redo: the exact repaired state");
+
+    let mut other = live.fork(actor(3)).unwrap();
+    let since = other.version();
+    other.transact(&agent(), |tx| tx.set(&page, "title", json!("Draft"))).unwrap();
+    let version = live.version();
+    let refused = live.merge_changes_repaired(&other.export_changes(&since).unwrap(), &agent(), |_, _| Err(KdmError::Engine("refused".into())));
+    assert!(refused.is_err());
+    assert_eq!((live.version(), live.state_json().unwrap()), (version, repaired));
+}

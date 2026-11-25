@@ -1,0 +1,22 @@
+format: 1
+id: sdk.model.draft-merge/repair-in-step
+feature: sdk.model.draft-merge
+intent: >-
+  The kit's repair of a merged draft's state, or of a restored state, is part of that one change
+  and undo step (data model 6.6, D9): one Undo gives back the exact state before (state hash equal),
+  one Redo the exact repaired state, and a repair that fails refuses the merge. Before, the repair
+  was a separate `system` change after the merge, so Undo left it in place (Kition Note: a thread
+  the merge emptied was deleted by the repair and Undo could not bring it back). A kit that keeps
+  an undo label per step reads `undo_depth(scope)`: a `model/batch`, its commands included, is one
+  step (Kition Scene's labels drifted one per command).
+layer: gate
+source: { kind: issue, from: kition-note and kition-slide draft merges, kition-scene undo labels, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: draft, filter: a_merges_repair_joins_its_change_and_undo_step }
+  - cargo-test: { package: kition-kdm, test: undo_scopes, filter: undo_depth_counts_steps_and_a_group_is_one }
+  - cargo-test: { package: kition-kit, test: session, filter: repair_is_part_of_its_undo_step }
+  - cargo-test: { package: kition-kit, test: model, filter: a_session_batch_is_one_step_of_the_undo_depth }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"
