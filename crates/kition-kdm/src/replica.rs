@@ -10,6 +10,7 @@ use crate::content::{self, ContentVersion};
 use crate::ids::new_lineage;
 use crate::read;
 use crate::store::op::{Change, Op, inverse_all};
+use crate::store::scalar::Scalar;
 use crate::store::transform::{edits_any, exclude, inverse_with_places, sequences_of, through};
 use crate::store::{Field, Store};
 use crate::{ActorId, Changes, DocId, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
@@ -334,13 +335,14 @@ impl Replica {
     /// minimum schema version (rule M20) is newer than `schema`'s, and ([`KdmError::Encoding`])
     /// bytes that are not content.
     pub fn load(schema: Arc<Schema>, bytes: &[u8], actor: ActorId) -> Result<Self> {
-        let value = content::parse(bytes, "KDM content")?;
-        if value.get("changes").is_some() {
+        let read = content::read(bytes, "KDM content", &schema)?;
+        if read.top.as_ref().is_some_and(|top| top.contains_key("changes")) {
             return Err(KdmError::Encoding("not a snapshot: these are changes only (load a snapshot or content)".into()));
         }
-        let content = content::decode_value(value)?;
-        let store = Self::checked_store(&schema, &content)?;
-        let (lineage, seq, author) = match content.version {
+        let content = content::decode(read)?;
+        let version = content.version;
+        let store = Self::checked_store(&schema, content)?;
+        let (lineage, seq, author) = match version {
             Some(version) => (version.lineage, version.seq, version.author_schema_version.and_then(|author| u32::try_from(author).ok())),
             None => (new_lineage(), 0, None),
         };
@@ -350,14 +352,14 @@ impl Replica {
     }
 
     /// The store of `content`, checked against `schema`.
-    fn checked_store(schema: &Schema, content: &content::Content) -> Result<Store> {
+    fn checked_store(schema: &Schema, content: content::Content) -> Result<Store> {
         if content.kit != schema.kit {
             return Err(KdmError::Schema(format!("the document belongs to \"{}\", not `{}`", content.kit, schema.kit)));
         }
         if content.schema_version > u64::from(schema.schema_version) {
             return Err(KdmError::NewerSchema { found: content.schema_version, reads: schema.schema_version });
         }
-        let store = Store::from_content(content, schema)?;
+        let store = Store::from_content(content)?;
         read::check_projected_storage(&store, schema)?;
         Ok(store)
     }
@@ -463,13 +465,13 @@ impl Replica {
 
     /// One key of a map field, or `null`.
     pub fn map_get(&self, id: &ObjectId, field: &str, key: &str) -> Result<Value> {
-        Ok(read::map(&self.store, &self.schema, id, field)?.and_then(|entries| entries.get(key)).cloned().unwrap_or(Value::Null))
+        Ok(read::map(&self.store, &self.schema, id, field)?.and_then(|entries| entries.get_text(key)).map_or(Value::Null, Scalar::to_value))
     }
 
     /// A map field's keys and values, sorted by key (code point order, as in the canonical state).
     pub fn map_entries(&self, id: &ObjectId, field: &str) -> Result<Vec<(String, Value)>> {
         Ok(read::map(&self.store, &self.schema, id, field)?
-            .map(|entries| entries.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
+            .map(|entries| entries.iter().map(|(key, value)| (key.to_text(), value.to_value())).collect())
             .unwrap_or_default())
     }
 
@@ -551,17 +553,21 @@ impl Replica {
     /// version above this replica's schema are [`KdmError::NewerSchema`]. A refused import changes
     /// nothing.
     pub fn import_changes(&mut self, bytes: &[u8]) -> Result<BTreeSet<ObjectId>> {
-        let value = content::parse(bytes, "KDM changes")?;
-        let doc_id = value.get("docId").and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("not KDM changes: no `docId`".into()))?;
+        // A snapshot's objects are read straight into store objects (never a JSON tree of them).
+        let schema = Arc::clone(&self.schema);
+        let read = content::read(bytes, "KDM changes", &schema)?;
+        let top = read.top.as_ref();
+        let doc_id = top.and_then(|top| top.get("docId")).and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("not KDM changes: no `docId`".into()))?;
         let doc_id = DocId::parse(doc_id)?;
         if doc_id != self.store.doc_id {
             return Err(KdmError::WrongDocument { expected: self.store.doc_id.to_string(), found: doc_id.to_string() });
         }
-        if value.get("changes").is_some() {
-            return self.import_change_list(&value);
+        if top.is_some_and(|top| top.contains_key("changes")) {
+            let content::Read { top, .. } = read;
+            return self.import_change_list(&Value::Object(top.unwrap_or_default()));
         }
-        if value.get("objects").is_some() {
-            return self.import_snapshot(value);
+        if read.objects.is_some() {
+            return self.import_snapshot(read);
         }
         Err(KdmError::Encoding("not KDM changes: neither changes nor a snapshot".into()))
     }
@@ -681,8 +687,8 @@ impl Replica {
         Ok(objects)
     }
 
-    fn import_snapshot(&mut self, value: Value) -> Result<BTreeSet<ObjectId>> {
-        let content = content::decode_value(value)?;
+    fn import_snapshot(&mut self, read: content::Read) -> Result<BTreeSet<ObjectId>> {
+        let content = content::decode(read)?;
         let Some(version) = content.version else { return Err(KdmError::Stale("content without a version continues no line of changes".into())) };
         let fresh = self.seq == 0 && self.log.entries.is_empty();
         if !(fresh || (version.lineage == self.lineage && version.seq >= self.seq)) {
@@ -691,7 +697,7 @@ impl Replica {
         if version.lineage == self.lineage && version.seq == self.seq {
             return Ok(BTreeSet::new());
         }
-        let store = Self::checked_store(&self.schema, &content)?;
+        let store = Self::checked_store(&self.schema, content)?;
         let mut changed = BTreeSet::new();
         for (id, object) in self.store.objects() {
             if store.object(id) != Some(object) {
@@ -731,14 +737,14 @@ impl Replica {
     /// ([`Replica::content_snapshot`] is).
     pub fn snapshot(&self) -> Result<Vec<u8>> {
         let version = ContentVersion { lineage: self.lineage, seq: self.seq, author_schema_version: self.author_schema.map(u64::from) };
-        content::encode(&self.store.to_content(Some(version)))
+        content::write(&self.store, Some(version))
     }
 
     /// The document's **content**: what a kit writes into a person's file (data model 7.4). It
     /// depends on the state alone: a document saved again unchanged is the same bytes, and so is
     /// the same state saved by anyone.
     pub fn content_snapshot(&self) -> Result<Vec<u8>> {
-        content::encode(&self.store.to_content(None))
+        content::write(&self.store, None)
     }
 
     /// Undoes the person's last transaction on this replica (the `person` scope, M12a). Changes
@@ -807,7 +813,7 @@ impl Replica {
                         match &fitted {
                             Op::MapSet { id, field, key, .. } => {
                                 let now = match self.store.field(id, field) {
-                                    Some(Field::Map(entries)) => entries.get(key).cloned(),
+                                    Some(Field::Map(entries)) => entries.get_text(key).map(Scalar::to_value),
                                     _ => None,
                                 };
                                 kept_changes.insert_map_write(id, field, key, now);
@@ -925,15 +931,19 @@ impl Replica {
         match op {
             Op::Set { id, field, was, .. } => match self.store.field(id, field) {
                 None => was.is_null(),
-                Some(Field::Value(value)) => value == was,
+                Some(Field::Value(value)) => value.is(was),
                 Some(_) => false,
             },
             Op::MapSet { id, field, key, was, .. } => {
                 let now = match self.store.field(id, field) {
-                    Some(Field::Map(entries)) => entries.get(key),
+                    Some(Field::Map(entries)) => entries.get_text(key),
                     _ => None,
                 };
-                now == was.as_ref()
+                match (now, was) {
+                    (None, None) => true,
+                    (Some(now), Some(was)) => now.is(was),
+                    _ => false,
+                }
             }
             _ => true,
         }

@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-kdm-large-documents
+feature: sdk.model.plain-store
+intent: >-
+  Loading, holding and saving a large document costs about the content, with small constants:
+  Replica::load streams the bytes into the store (no JSON tree of the document or of an object;
+  every rule of data model 7.4 still checked), a map entry holding a short string, a number or an id
+  is a 24-byte key and a 24-byte value without allocations of its own, objects are shared between a
+  replica and its forks until one writes them, and a save writes the store into one buffer. Loading
+  holds at most 1.3 times the store it makes, saving at most 1.3 times the bytes it writes. Before,
+  Kition Table's 100,000 x 50 fixture (462.6 MB of content) ran a page's engine out of memory: the
+  reader built two JSON trees of the document before the store, and the store held each cell as a
+  JSON value under its own copy of the field id.
+layer: gate
+source: { kind: issue, from: Kition Table test:perf on the plain KDM (kit CI run 45576572332), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: large_map_memory }
+  - cargo-test: { package: kition-kdm, test: large_objects_memory }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 300
+since: "2026-11-25"

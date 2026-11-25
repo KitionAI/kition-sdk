@@ -284,6 +284,13 @@ These rules bound the work performed by kit engines.
   built for `wasm32-unknown-unknown`).
 - **P5** A save writes the document's content; the host stores one snapshot
   per replica write, replaced atomically (Kit UI protocol section 7).
+  Loading and saving cost about the content: `Replica::load` reads the bytes
+  straight into the store, and `content_snapshot` and `snapshot` write the
+  store into one buffer. A map entry holding a short string, a number or an
+  id costs 48 bytes, a small object about 200, and a fork shares every object
+  until one side writes it. Kition Table's 100,000 records of 50 cells load
+  in about a second into about the content's size (330 MB for 330 MB of
+  content; `crates/kition-kdm/tests/large_documents.rs`).
 
 ## Command schemas from kit command notation
 

@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde_json::{Map, Value};
 
+use crate::store::scalar::Entries;
 use crate::store::text::Text;
 use crate::store::tree::Tree;
 use crate::store::{Field, Store};
@@ -17,10 +18,10 @@ pub(crate) fn check_projected_storage(store: &Store, schema: &Schema) -> Result<
         return Ok(());
     }
     for (id, object) in store.objects() {
-        let Some(def) = schema.types.get(&*object.ty) else { continue };
+        let Some(def) = schema.types.get(&**object.ty()) else { continue };
         if def.projected {
             return Err(KdmError::InvalidValue {
-                ty: object.ty.to_string(),
+                ty: object.ty().to_string(),
                 field: "$type".into(),
                 reason: "projected objects are computed by the kit, never stored".into(),
             });
@@ -31,7 +32,7 @@ pub(crate) fn check_projected_storage(store: &Store, schema: &Schema) -> Result<
             }
             if store.field(id, field).is_some() {
                 return Err(KdmError::InvalidValue {
-                    ty: object.ty.to_string(),
+                    ty: object.ty().to_string(),
                     field: field.clone(),
                     reason: "projected membership is computed by the kit, never stored".into(),
                 });
@@ -42,7 +43,7 @@ pub(crate) fn check_projected_storage(store: &Store, schema: &Schema) -> Result<
 }
 
 pub(crate) fn object_type(store: &Store, id: &ObjectId) -> Result<String> {
-    store.object(id).map(|object| object.ty.to_string()).ok_or_else(|| KdmError::NotFound(id.to_string()))
+    store.object(id).map(|object| object.ty().to_string()).ok_or_else(|| KdmError::NotFound(id.to_string()))
 }
 
 /// The error for a field that holds another kind than the schema declares (written outside the
@@ -60,8 +61,8 @@ pub(crate) fn wrong_kind(ty: &str, field: &str, kind: FieldKind) -> KdmError {
 /// nothing there: the field reads as empty.
 fn container<'a>(store: &'a Store, schema: &Schema, id: &ObjectId, field: &str, kind: FieldKind) -> Result<Option<&'a Field>> {
     let object = store.object(id).ok_or_else(|| KdmError::NotFound(id.to_string()))?;
-    if schema.field(&object.ty, field)?.kind != kind {
-        return Err(wrong_kind(&object.ty, field, kind));
+    if schema.field(object.ty(), field)?.kind != kind {
+        return Err(wrong_kind(object.ty(), field, kind));
     }
     Ok(object.get(field))
 }
@@ -100,7 +101,7 @@ pub(crate) fn runs_of(text: &Text, def: &FieldDef) -> Vec<TextRun> {
 pub(crate) fn list<'a>(store: &'a Store, schema: &Schema, id: &ObjectId, field: &str) -> Result<&'a [ObjectId]> {
     match container(store, schema, id, field, FieldKind::List)? {
         None => Ok(&[]),
-        Some(Field::List(items)) => Ok(items),
+        Some(Field::List(items)) => Ok(items.as_slice()),
         Some(_) => Err(wrong_container(id, field)),
     }
 }
@@ -113,28 +114,32 @@ pub(crate) fn tree<'a>(store: &'a Store, schema: &Schema, id: &ObjectId, field: 
     }
 }
 
-pub(crate) fn map<'a>(store: &'a Store, schema: &Schema, id: &ObjectId, field: &str) -> Result<Option<&'a BTreeMap<String, Value>>> {
+pub(crate) fn map<'a>(store: &'a Store, schema: &Schema, id: &ObjectId, field: &str) -> Result<Option<&'a Entries>> {
     match container(store, schema, id, field, FieldKind::Map)? {
         None => Ok(None),
-        Some(Field::Map(entries)) => Ok(Some(entries)),
+        Some(Field::Map(entries)) => Ok(Some(&**entries)),
         Some(_) => Err(wrong_container(id, field)),
     }
 }
 
 pub(crate) fn register(store: &Store, schema: &Schema, id: &ObjectId, field: &str) -> Result<Value> {
     let object = store.object(id).ok_or_else(|| KdmError::NotFound(id.to_string()))?;
-    if schema.field(&object.ty, field)?.kind.is_container() {
-        return Err(KdmError::InvalidValue { ty: object.ty.to_string(), field: field.to_owned(), reason: "is a container; read it with its accessor".into() });
+    if schema.field(object.ty(), field)?.kind.is_container() {
+        return Err(KdmError::InvalidValue {
+            ty: object.ty().to_string(),
+            field: field.to_owned(),
+            reason: "is a container; read it with its accessor".into(),
+        });
     }
     Ok(match object.get(field) {
-        Some(Field::Value(value)) => value.clone(),
+        Some(Field::Value(value)) => value.to_value(),
         _ => Value::Null,
     })
 }
 
 /// Ids of the objects of type `ty`, sorted. One pass over every object of the document.
 pub(crate) fn objects_of_type(store: &Store, ty: &str) -> Vec<ObjectId> {
-    let mut ids: Vec<ObjectId> = store.objects().filter(|(_, object)| &*object.ty == ty).map(|(id, _)| id.clone()).collect();
+    let mut ids: Vec<ObjectId> = store.objects().filter(|(_, object)| &**object.ty() == ty).map(|(id, _)| id.clone()).collect();
     ids.sort();
     ids
 }
@@ -143,7 +148,7 @@ pub(crate) fn objects_of_type(store: &Store, ty: &str) -> Vec<ObjectId> {
 pub(crate) fn objects_by_type(store: &Store) -> HashMap<String, Vec<ObjectId>> {
     let mut groups: HashMap<String, Vec<ObjectId>> = HashMap::new();
     for (id, object) in store.objects() {
-        groups.entry(object.ty.to_string()).or_default().push(id.clone());
+        groups.entry(object.ty().to_string()).or_default().push(id.clone());
     }
     for ids in groups.values_mut() {
         ids.sort();
@@ -179,7 +184,7 @@ pub(crate) fn field_json(store: &Store, schema: &Schema, id: &ObjectId, name: &s
         FieldKind::List => Value::Array(list(store, schema, id, name)?.iter().map(|item| Value::String(item.to_string())).collect()),
         FieldKind::Tree => tree(store, schema, id, name)?.map_or(Value::Array(Vec::new()), |tree| tree_json(store, tree)),
         FieldKind::Map => Value::Object(
-            map(store, schema, id, name)?.map(|entries| entries.iter().map(|(key, value)| (key.clone(), value.clone())).collect()).unwrap_or_default(),
+            map(store, schema, id, name)?.map(|entries| entries.iter().map(|(key, value)| (key.to_text(), value.to_value())).collect()).unwrap_or_default(),
         ),
         _ => register(store, schema, id, name)?,
     })
