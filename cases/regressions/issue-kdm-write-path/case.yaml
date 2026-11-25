@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-kdm-write-path
+feature: sdk.model.plain-store
+intent: >-
+  Many small transactions, each writing one key of one growing map and making one object (a kit's import building a sheet), cost the same each however large the map grows, and a transaction writing one key of a 200,000-entry map copies neither the map nor its object, also beside a draft that shares the objects (it copies once, on the first write). examples/write_path.rs measures the write path in release (Kition Sheet saw its import slow down between 74e9a1c and 628dbac; the KDM's part is linear and about a fifth to two fifths slower an operation).
+layer: gate
+source: { kind: issue, from: Kition Sheet perf_scale import timings, kition-sdk 74e9a1c and 628dbac, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: write_costs }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 300
+since: "2026-11-25"

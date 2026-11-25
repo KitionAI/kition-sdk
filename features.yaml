@@ -160,8 +160,8 @@ features:
     dimension: [data-safety, function, performance]
     priority: P0
     status: has
-    paths: [crates/kition-kdm/src/store/**, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/content.rs, crates/kition-kdm/src/ids.rs, crates/kition-kdm/tests/versions.rs, crates/kition-kdm/tests/large/**, crates/kition-kdm/tests/large_map_memory.rs, crates/kition-kdm/tests/large_objects_memory.rs, crates/kition-kdm/tests/large_documents.rs, crates/kition-kdm/src/tool_ids.rs, crates/kition-kdm/tests/reply_costs.rs, crates/kition-kit/src/session/web.rs]
-    cases: [sdk.model.plain-store/ordered-changes, regressions/issue-kdm-undo-trimmed-log, regressions/issue-kdm-undo-tree-places, regressions/issue-kdm-import-schema-checks, regressions/issue-kdm-linear-costs, regressions/issue-kdm-undo-after-undo, regressions/issue-kdm-redo-order, regressions/issue-kdm-large-documents, regressions/issue-kdm-reply-costs]
+    paths: [crates/kition-kdm/src/store/**, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/content.rs, crates/kition-kdm/src/ids.rs, crates/kition-kdm/tests/versions.rs, crates/kition-kdm/tests/large/**, crates/kition-kdm/tests/large_map_memory.rs, crates/kition-kdm/tests/large_objects_memory.rs, crates/kition-kdm/tests/large_documents.rs, crates/kition-kdm/src/tool_ids.rs, crates/kition-kdm/tests/reply_costs.rs, crates/kition-kdm/tests/write_costs.rs, crates/kition-kdm/examples/write_path.rs, crates/kition-kit/src/session/web.rs]
+    cases: [sdk.model.plain-store/ordered-changes, regressions/issue-kdm-undo-trimmed-log, regressions/issue-kdm-undo-tree-places, regressions/issue-kdm-import-schema-checks, regressions/issue-kdm-linear-costs, regressions/issue-kdm-undo-after-undo, regressions/issue-kdm-redo-order, regressions/issue-kdm-large-documents, regressions/issue-kdm-reply-costs, regressions/issue-kdm-write-path]
     since: "2026-11-24"
   - id: sdk.model.undo-outcome
     title: An undo or a redo answers which steps it took off its stack, the steps passed over and the one taken back, each by its footprint
