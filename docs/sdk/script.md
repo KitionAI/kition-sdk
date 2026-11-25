@@ -10,7 +10,6 @@ The same script runs in three places:
 | A page with an embedded editor | `editor.document()` on an editor mounted with `model: true` (`@kition/embed`; the editor's own engine and undo history) |
 | Node, in process | `@kition/script/node`: the kit's WebAssembly engine loaded in Node |
 | Node, headless executable | `openHeadless(binary, file)`: the kit's native engine, through the Kits Service ([headless.md](headless.md), [hosts.md](hosts.md)); it starts the `kition-kits` program (`KITION_KITS`, else `kition-kits` on the `PATH`), or the one its `executable` option names |
-| A co-edited room | `openRoom(...)`: a replica on a `kition-sync/1` server |
 
 ```ts
 import { openHeadless } from '@kition/script/node'

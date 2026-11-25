@@ -172,7 +172,7 @@ the same fixtures; `@kition/script` is the scripting library over them
   `tree.*` on the writable owner) is allowed, and so are writes to a writable
   object held by a read-only one. Loads answer read-only content as any
   other. Commands still go through the kit, and the kit's own transactions
-  (import, its commands, merge repair) write it. The marks change nothing in
+  (import, its commands) write it. The marks change nothing in
   the stored document: adding or removing them needs no new schema version
   (M20), and a document reads the same under a schema with or without them.
 - **OM9** *Tool ids.* A kit whose own tools name objects by ids of its own
@@ -190,8 +190,7 @@ the same fixtures; `@kition/script` is the scripting library over them
 
   `field` is a `readOnly` `integer` or `string` field of the type holding
   the id the kit gives the object: only the kit writes it (when it reads a
-  file, in its commands, and in its merge repair for what a batch or a
-  collaborator created); make it `optional` so a batch can create the type.
+  file, in its commands, and for what a batch created); make it `optional` so a batch can create the type.
   `prefix` (default empty: ASCII letters, digits, `_`, `-`, `:`, `/`, a
   letter first, at most 32) comes before the value: `item:10`. `parent` is a
   type with a `toolId` whose objects hold this type's in a `list`, `tree`, or

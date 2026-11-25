@@ -29,11 +29,10 @@ The engine contract is specified member by member in
   resolution-independent engine (vectors, text, pages) renders at the
   requested scale so zoomed views stay sharp; below 1:1 both reduce exactly.
 - **E4** `save` MUST NOT mark the document saved; `markSaved` does, after
-  the host wrote the bytes. `prepareSave` (`KitDocument::prepare_save`,
-  optional, nothing by default) is the engine's step before `save`, with the
-  document writable: a kit whose file holds its KDM replica seals the live
-  replica there (data model 7.3), and `save` then writes the sealed content.
-  It MUST NOT change the document's content or mark it saved.
+  the host wrote the bytes. `save` changes nothing in the document. A kit whose
+  file holds its KDM document writes `content_snapshot()` there (data model
+  7.3), which depends on the state alone: a document saved again unchanged is
+  the same bytes.
 - **E5** Files a document refers to (media, linked images, fonts) MUST be
   read only through `kition_kit::host` (lent files), in ranges for large
   files. An engine MUST NOT read the filesystem or network directly.
@@ -203,26 +202,39 @@ engine keeps a materialised view of its KDM document and
   undo, redo, and imports still patch the view from the replica;
 - **E13** imports files into a new document with `create_with` and exports
   files from the KDM state;
-- **E14** runs a deterministic validation after merges and records repairs
-  as transactions with origin `system`, including `tree_dedupe` for every
-  tree field ([`KitModel`](../sets/model.md) M10b);
+- **E14** keeps the document within the kit's rules with `KitModel::validate`:
+  after an import, an undo, a redo or a draft's merge, the session runs it over
+  the objects that changed, in a `system` transaction labelled `repair` that is
+  no undo step, and it gives the same writes for the same state (dropping a
+  list entry of a deleted object, say); a file changed outside reaches the
+  replica as one `write_state` change;
 - **E14a** runs `edit.undo` and `edit.redo` in an undo scope ([`KitModel 1.1`](../sets/model.md)
   M12a): the one their optional `scope` parameter names (`"person"` or `"agent"`), else
   the scope of the origin they run as (`executeAs` as `agent`: the agent's). `undo()`,
   `redo()`, `canUndo()`, `canRedo()`, and `inspect()`'s `canUndo` and `canRedo` are the
   person's. `kition_kit::session::history_scope(params, origin)` reads the scope and
   `KitSessionDocument::undo_in` and `redo_in` run it (a kit that keeps its own state
-  current in `undo` and `redo` overrides them too); `@kition/kit-engine` does both.
+  current in `undo` and `redo` overrides them too).
 
 Contract 1 members stay available, so 1.1 hosts keep working. The engine's
 class adds the session members: `version()`, `exportChanges(since)`,
 `importChanges(bytes)`, `snapshot()`, `undo()`, `redo()`, `canUndo()`,
 `canRedo()`, `executeAs(command, params, origin)`, and the static
 `openWithReplica(name, bytes, snapshot, blobs)`; kits whose documents carry
-media add `blobs()`, `addBlobs(bytes)`, and `blobsSince(since)`. An engine
-SHOULD add `schemaVersion()` (the schema version its replica reads) and
+media add `blobs()`, `addBlobs(bytes)`, and `blobsSince(since)`. The object
+model is `modelDescribe()` and `modelBatch(request)` (JSON text in and out).
+A draft's changes are compared with the document by `compareChanges(changes)`
+(the `StateDiff` merging them would make; nothing changes) and taken in by
+`mergeChanges(changes, origin)` (one person undo step; answers
+`{ damage, summary }`; refuses, with the KDM's message, a draft that changed a
+field the document also changed since). `restoreState(snapshot, origin)` writes
+a checkpoint's state over the document as one change (Kit UI protocol
+`replica/restore`), and `changesSince(since)` answers a write's receipt,
+`{ changes }`, or `{ changes: null, unavailable }` when the replica's log does
+not hold `since`. `origin` is the KDM commit form `[kind, principal, label]`.
+An engine SHOULD add `schemaVersion()` (the schema version its replica reads) and
 `authorSchemaVersion()` (the newest one its changes were written under, or
-`null`; rule M5a), which `export_kit_session!` and `kitEngineClass` provide:
+`null`; rule M5a). `export_kit_session!` provides every one of these:
 an editor reads them when a document opens and after imports, and tells its
 host of a newer one (Kit UI protocol `document/schema`, section 7f).
 `contractVersion()` answers 1 or 2: an engine built for contract 1 hosts
@@ -232,12 +244,8 @@ members.
 The reference implementation is `kition_kit::session` (`KitModel`,
 `KitSession`, `export_kit_session!`; feature `session`); a kit whose engine
 keeps its own session type exports the same members by hand. A TypeScript
-engine (`engine.runtime` `ts-worker`) implements the same class:
-`@kition/kit-engine` in the Kition SDK types it (`KitEngineDocument`,
-`KitEngineClass`) and makes it from a `KitModel` over an `@kition/kdm` replica
-(`kitEngineClass`, `KitSession`), the TypeScript twin of the Rust session; a model whose
-files do not hold their replica (Markdown) adds `openReplica`, which opens the stored replica and
-takes what the file adds as a `system` import change, as Rust kits do in `open_with_replica`. Word, Slide,
+engine (`engine.runtime` `ts-worker`) implements contract 1. The KDM writes only in
+Rust: `@kition/kdm` reads replicas. Word, Slide,
 Sheet, Photo, Vector, Motion, CAD, PDF, and Film implement contract 2, and
 Kition and `@kition/embed` host them through the Kit UI protocol's `replica`
 capability. Table, a default kit Kition hosts itself, exchanges changes
@@ -260,24 +268,19 @@ These rules bound the work performed by kit engines.
   objects. Larger edits split into several transactions or run as an import.
   A larger transaction that only writes register fields and keys of map
   fields of existing objects (a table's column cleared, pasted, or filled)
-  is the exception in `kition-kdm`: its undo and redo write back values the
-  replica noted when it committed, and cost about what it wrote, never the
-  document's history ([undo across remote edits](../undo-across-remote-edits.md)).
-  Any other transaction's undo is the CRDT engine's, which reads the history
-  since the step. The undo of a group that holds such a transaction also
-  reads what the group wrote, before and after, to pass over a group whose
-  changes came to nothing ([`KitModel`](../sets/model.md) M12).
+  is the exception: it costs no more to undo than it wrote. Undo and redo
+  take back a step's inverse operations, carried over the changes in the log
+  since the step that wrote the same text or list field, and cost about what
+  the step wrote plus those changes, never the document's whole history ([undo across remote edits](../undo-across-remote-edits.md)).
+  The undo of a group also reads what the group wrote, before and after, to
+  pass over a group whose changes came to nothing ([`KitModel`](../sets/model.md) M12).
 - **P4** Bulk work MUST run inside the engine's WebAssembly module. Driving
   the KDM object by object across the JavaScript boundary is several times
   slower than the same work inside the module. Every Rust kit runs the KDM
   inside its WebAssembly engine (`kition-kit`'s `session`, over `kition-kdm`
   built for `wasm32-unknown-unknown`).
-- **P5** A save MUST write only the changes since the last save (the commit
-  log), never the whole document; a full snapshot (M16) is written only when
-  the change log is compacted. A full snapshot of a large document costs a
-  noticeable pause on every save, and the saved snapshot plus commit log is what a replica that
-  crashed after committing and before pushing recovers from (the
-  convergence suite's `crash` scenario, [levels](levels.md)).
+- **P5** A save writes the document's content; the host stores one snapshot
+  per replica write, replaced atomically (Kit UI protocol section 7).
 
 ## Command schemas from kit command notation
 

@@ -19,11 +19,9 @@ What a host that runs kit engines guarantees. `@kition/embed` implements it for 
   handle ([`KitLinks 1.0`](../sets/links.md) LR1, FA18).
 - **H4** A host MUST save in place atomically (temporary file, then rename)
   and MUST call `markSaved` only after the write succeeded and only if the
-  document did not change meanwhile. It MUST call the engine's `prepareSave`
-  (when the engine has one) right before every `save`, and a host that keeps
-  the document's history store takes the replica's `snapshot` after `save`,
-  so the store holds the seal the file is rooted at (data model 7.3); the
-  seal then syncs like any change.
+  document did not change meanwhile. A host that keeps the document's
+  history takes the replica's `snapshot` together with the saved bytes (Kit
+  UI protocol UI-R2, UI-R6).
 - **H5** A host MUST write exports, and every file a kit creates
   (`files/create`), as new files only, choosing an unused name, and MUST
   refuse a write that would replace an existing file through an export or a

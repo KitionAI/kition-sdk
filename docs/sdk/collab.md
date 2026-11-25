@@ -1,5 +1,12 @@
 # Co-editing: Kition Cloud and Kition Server for integrators
 
+> **Not applicable until Kition One's collaboration is redesigned.** A Kition document is a plain
+> model whose changes apply in one order ([data model](../platform/data-model.md)), and the SDK connects no kit replica
+> to a room: `@kition/embed`, `@kition/script` and the kit editors do not co-edit. `@kition/sync`
+> keeps the protocol's client and types (`SyncClient`, leases, the save state machine, open
+> tokens) and `kition-sync-protocol` its Rust types. The text below describes co-editing over a
+> merging model and is the starting point for Kition One's design.
+
 People in your web app co-edit a kit document through **Kition Server**, the sync server for the
 open protocol `kition-sync/1` ([sync protocol](../platform/reference/sync-protocol.md),
 [`KitCollab`](../platform/sets/collab.md)). You never write your own sync server: Kition hosts it

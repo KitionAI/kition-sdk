@@ -48,8 +48,8 @@ mkdir -p public/kits && tar -xzf kits/kition-note-<v>.tgz -C public/kits   # →
   (default 600), and optional `--memory-limit-mib` (Linux/macOS; refused elsewhere).
   See [process controls](../sdk/process-control.md) for save/restart behaviour, FIFO calls,
   progress, cancellation and the remaining platform limits.
-- **Dependencies.** `@kition/script` depends on `@kition/kdm` and `@kition/sync`
-  (both in the bundle) and `loro-crdt` (public npm). `@kition/embed` has no
+- **Dependencies.** `@kition/script` depends on `@kition/kdm` (in the
+  bundle). `@kition/embed` has no
   dependencies. `@kition/embed-server` depends on `@kition/sync` and
   `@kition/embed`.
 

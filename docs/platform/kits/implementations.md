@@ -27,21 +27,25 @@ How the Kition desktop client implements each part:
 ## Kit Data Model
 
 
-The KDM has two implementations in the Kition SDK: Rust, `crates/kition-kdm`
-(over `loro` 1.16.2), and TypeScript, `packages/kdm` (`@kition/kdm`, over
-`loro-crdt` 1.16.4). They produce byte-identical canonical state for the same
-changes and schema, proven by fixtures in both directions: a Rust-made
-document (`packages/kdm/test/fixtures/rust-page.*`) read by TypeScript, and
-a TypeScript-made one (`crates/kition-kdm/tests/fixtures/ts-page.*`) read by
-Rust. Shallow snapshots (M16a) are proven the same way
-(`rust-shallow.*`, `ts-shallow.*`).
+The KDM writer is Rust, `crates/kition-kdm`: a plain object store whose
+transactions become changes applied in one order, with undo, drafts and the
+content encoding ([data model](../data-model.md)). Every kit engine, headless
+executable and host process writes through it. TypeScript, `packages/kdm`
+(`@kition/kdm`), only reads: `Replica.load` opens content or a snapshot,
+`importChanges` applies a change list in order (refusing one that does not
+follow its version, `stale`), and the reads (`get`, `text`, `textDelta`,
+`list`, `mapEntries`, `tree`, `objectsOfType`, `stateJson`) answer what the
+Rust replica answers; `Version` is the same `(lineage, seq)` of 24 bytes. The
+canonical content fixtures Rust writes (`crates/kition-kdm/tests/fixtures/content/`)
+are what the TypeScript reader checks, so both read one state from the same
+bytes.
 
 ## Verify
 
 Every kit answers `check()` (A21) and lists its diagnostic codes in
 `agent/checks.json`.
 
-The Rust reference for diagnostics (A21) is `kition_kit::diagnostics` and `KitDocument::check` (the export macro adds `check()` to the JavaScript class, answering `{ "diagnostics": [...] }` as JSON), checked by `kition_kit::testing::check_contract`; a TypeScript engine's `KitModel` adds `check(view, replica)` and `kitEngineClass` serves it.
+The Rust reference for diagnostics (A21) is `kition_kit::diagnostics` and `KitDocument::check` (the export macro adds `check()` to the JavaScript class, answering `{ "diagnostics": [...] }` as JSON), checked by `kition_kit::testing::check_contract`.
 
 ## Licence issuing (Kition Console)
 

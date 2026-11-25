@@ -1,10 +1,17 @@
 # Open sync protocol
 
+> **Not applicable until Kition One's collaboration is redesigned.** A Kition document is a plain
+> model whose changes apply in one order ([data model](../data-model.md)), and the SDK connects no kit replica
+> to a room: `@kition/embed`, `@kition/script` and the kit editors do not co-edit. `@kition/sync`
+> keeps the protocol's client and types (`SyncClient`, leases, the save state machine, open
+> tokens) and `kition-sync-protocol` its Rust types. The text below describes co-editing over a
+> merging model and is the starting point for Kition One's design.
+
 | | |
 | --- | --- |
 | Protocol | `kition-sync/1` |
 | Version | 1 |
-| Part of | [Kition kit platform](../index.md) edition 2026.11, L6 Collaboration ([`KitModel 1.0`](../sets/model.md)) |
+| Part of | [Kition kit platform](../index.md) edition 2026.11 ([`KitModel 1.0`](../sets/model.md)) |
 | Rust types | `kition-sync-protocol` (crates/kition-sync-protocol (Kition SDK: `crates/kition-sync-protocol`)) |
 | Client library | `@kition/sync` (packages/sync (Kition SDK: `packages/sync`)) |
 | License | Apache-2.0 |

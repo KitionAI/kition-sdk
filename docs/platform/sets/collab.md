@@ -1,5 +1,12 @@
 # `KitCollab 1.3`: co-editing
 
+> **Not applicable until Kition One's collaboration is redesigned.** A Kition document is a plain
+> model whose changes apply in one order ([data model](../data-model.md)), and the SDK connects no kit replica
+> to a room: `@kition/embed`, `@kition/script` and the kit editors do not co-edit. `@kition/sync`
+> keeps the protocol's client and types (`SyncClient`, leases, the save state machine, open
+> tokens) and `kition-sync-protocol` its Rust types. The text below describes co-editing over a
+> merging model and is the starting point for Kition One's design.
+
 For integrators who let people co-edit kit documents, comment on them, and
 sync them across their devices. The client is `@kition/sync`; the server is
 Kition Server, over the open sync protocol `kition-sync/1`
@@ -12,7 +19,7 @@ described in RFC 2119.
 
 | Version | Adds |
 | --- | --- |
-| `KitCollab 1.0` | Shared editing over `kition-sync/1` with presence, per-author undo (M12), leases (M21), and conflict objects (M22) |
+| `KitCollab 1.0` | Shared editing over `kition-sync/1` with presence, per-author undo (M12) and leases (M21) |
 | `KitCollab 1.1` | Comments (M23), the `commenter` role, and member administration (sync protocol 1.6) |
 | `KitCollab 1.2` | Sync across a person's devices (sync protocol 1.9, section 3b): the document list (`rooms/list`, `rooms/changed`), private rooms, and the "sync all my documents" account setting (off by default), under rule CS4 |
 | `KitCollab 1.3` | Tenant rooms for integrators' products: tenant tokens, CS5 to CS7 (section 4) |
@@ -150,6 +157,5 @@ The rules of section 4 apply unchanged.
 
 A server conforms when it passes the sync protocol's rules
 ([sync protocol reference](../reference/sync-protocol.md) section 10) for
-the versions it lists; a kit conforms when it passes the convergence suite
-([kit levels](../kits/levels.md), L6). See
+the versions it lists. Kit conformance for co-editing is defined with Kition One's design. See
 [conformance.md](../conformance.md).

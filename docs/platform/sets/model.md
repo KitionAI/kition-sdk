@@ -9,33 +9,33 @@ representation; both implementations retain them in model describe.
 extends numeric limits to `json` fields. Bounds on the field require
 a numeric JSON value; `members: { roughness: { minimum: 0, maximum: 1 } }`
 instead constrains present immediate numeric members of an object value.
-Members stay optional and other members unrestricted. Rust and TypeScript
-validate whole-value writes and writes through a JSON path against the same
+Members stay optional and other members unrestricted. The KDM
+validates whole-value writes and writes through a JSON path against the same
 definition, atomically. These are schema metadata, with no stored-format or
 schema-version change. Explicit Rust `FieldDef` literals add `members`.
 
-The core every other set builds on: a kit's document as typed, replicated objects whose every change is a transaction that can be exported, merged with concurrent changes, and undone per author.
+The core every other set builds on: a kit's document as typed objects whose every change is a transaction, applied in one order, exported to the replicas that follow it, and undone per author.
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be read as described in RFC 2119.
 
 | Version | Adds |
 | --- | --- |
-| `KitModel 1.0` | The schema, identity, transactions and origins, per-replica undo, exchange, snapshots, shallow replicas, schema evolution, comments |
+| `KitModel 1.0` | The schema, identity, transactions and origins, per-replica undo, exchange, snapshots, schema evolution, comments |
 | `KitModel 1.1` | Undo scopes (M12a): on one replica, a person's undo and an agent's undo each take back only their own steps |
 
 ## Three kinds of change
 
-| Kind | What it is | Replicated | Undoable |
+| Kind | What it is | Exported as a change | Undoable |
 | --- | --- | --- | --- |
 | **Command** | A named intent with a parameter schema (`slide.duplicate`). Resolves its targets and emits one transaction | No (its label is recorded with the transaction) | Through its transaction |
 | **Transaction** | The atomic group of KDM operations a command produces, with an origin | Yes | Yes, as one step |
-| **View operation** | Selection, caret, scroll, zoom, active tool, panel state | No; selection and caret MAY travel as presence, and are reported to the host as [`KitPointer 1.0`](pointer.md) selections | No |
+| **View operation** | Selection, caret, scroll, zoom, active tool, panel state | No; selection and caret are reported to the host as [`KitPointer 1.0`](pointer.md) selections | No |
 
 - **M1** Every change to persistent document state MUST be a transaction:
   typing, dragging, inking, menus, scripts, extensions, imports, and agents.
 - **M2** View operations MUST NOT be stored in the KDM.
 - **M3** A command MUST resolve every target to object ids before it emits
-  operations; replaying a command name against another replica's selection
+  operations; replaying a command name against another session's selection
   is not a valid change.
 
 ## Schema
@@ -55,17 +55,17 @@ A kit on the KDM ships `model/schema.json`:
 }
 ```
 
-| Field kind | Holds | Merge |
-| --- | --- | --- |
-| `string`, `number`, `integer`, `boolean` | One value | Last writer wins per field |
-| `enum` | One of `values` | Last writer wins |
-| `json` | Any JSON value, replaced whole | Last writer wins; use it for coupled values (a transform) |
-| `blob` | `{ hash, mime, size }` naming content-addressed bytes | Last writer wins |
-| `ref` | The id of an object of type `of` | Last writer wins; a dangling reference is a validation state |
-| `text` | Unicode text, with the `marks` it declares (rich-text runs) | Sequence merge; concurrent insertions are all kept; marks per M19 |
-| `list` | Ordered ids of objects of type `of`, with moves | Sequence merge; a concurrent move never duplicates an item |
-| `tree` | Movable tree of nodes naming objects of type `of` | Concurrent moves never form a cycle |
-| `map` | String keys to JSON values | Last writer wins per key |
+| Field kind | Holds |
+| --- | --- |
+| `string`, `number`, `integer`, `boolean` | One value |
+| `enum` | One of `values` |
+| `json` | Any JSON value, replaced whole; use it for coupled values (a transform) |
+| `blob` | `{ hash, mime, size }` naming content-addressed bytes |
+| `ref` | The id of an object of type `of`; a dangling reference is a validation state |
+| `text` | Unicode text, with the `marks` it declares (rich-text runs, M19) |
+| `list` | Ordered ids of objects of type `of`, with moves |
+| `tree` | Nodes in order under parents, each naming one object of type `of` (M10b) |
+| `map` | String keys to JSON values |
 
 - **M4** `kdm` MUST be `1`. Type and field names starting with `$` are
   reserved: a schema that declares one is refused. `ref`, `list`, and `tree` MUST name a declared type in `of`, and
@@ -95,32 +95,30 @@ A kit on the KDM ships `model/schema.json`:
   italic), `before`, `both`, or `none` (links, anchors); it is required, and
   `expand` is the mark definition's only key. Only `text` fields take
   `marks`. A mark key is not empty, does not start with `$`, holds no `:`,
-  and is not `__proto__`; one key has one `expand` across the whole schema
-  (implementations configure the engine per document, not per field). A
-  schema that breaks any of these is refused.
+  and is not `__proto__`; one key has one `expand` across the whole schema.
+  A schema that breaks any of these is refused.
 - **M4a** A `ref`, `list`, or `tree` target that exists MUST have the type
   named by `of`; a missing target is allowed (a dangling reference is a
   validation state).
 - **M5** `schemaVersion` MUST increase when the schema changes. Replicas
   preserve fields they do not know. A document records the `kdm` version and,
-  in `meta.schemaVersion`, the schema version it was **created** with; later
-  transactions under newer schemas do not change it, except a migration that
-  raises it (M20). A replica MUST refuse to load a document of another `kdm`
-  version or one whose minimum schema version (M20) is newer than its
-  schema; M20 also checks imported changes. Reads MUST
-  tolerate objects of undeclared types (read as their `$type` only); objects
-  written under an older schema read the container fields a newer schema
-  added as empty. A container field cannot be added to existing objects:
-  replicas that each created it concurrently would keep only one of the
-  containers and drop the other side's edits. Evolve a schema with a new type,
-  or a `ref` to a new object, instead.
+  in `meta.schemaVersion`, its minimum schema version (M20): the version it
+  was created with, raised only by a migration. A replica MUST refuse to load
+  a document of another `kdm` version or one whose minimum schema version is
+  newer than its schema; M20 also checks imported changes. Reads MUST
+  tolerate objects of undeclared types (read as their `$type` only). A new
+  schema version MAY add fields of any kind to existing types: an object
+  that does not hold a field reads it as empty (`null` for a register, an
+  empty text, list, map or tree), and a container field is made by its first
+  write.
 - **M5a** Author schema version: every commit records, after its origin,
   the schema version of the replica that made it: the commit message is
   `[kind, principal, label, schemaVersion]` (`Origin::encode_commit` and
   `Origin::decode_commit`, `encodeCommit` and `decodeCommit` in
-  TypeScript); messages written before this rule have three elements and
-  name none. `author_schema_version()` (`authorSchemaVersion()`) answers
-  the newest one among a replica's changes. A replica holding changes
+  TypeScript), carried in each change and never in a file.
+  `author_schema_version()` (`authorSchemaVersion()` on an engine) answers
+  the newest one among the changes a replica applied in its session, or the
+  one its snapshot records. A replica holding changes
   written under a newer schema than its own keeps working: it preserves what
   it does not know (M5), and objects of types its schema lacks read as their
   `$type` only and refuse writes (`unknown-type`), so edits are blocked only
@@ -128,8 +126,7 @@ A kit on the KDM ships `model/schema.json`:
   offers the update, in a notice that does not block editing; an embedded
   kit's editor reports it to its host (Kit UI protocol `document/schema`). When a newer kit's migration raised the minimum schema
   version (M20), the import is refused instead: the host keeps the document
-  read-only, as it last read it, until the kit is updated. Nothing is lost:
-  the room keeps every change.
+  read-only, as it last read it, until the kit is updated.
 - **M6** Check a schema with `cargo run -p kition-kdm --example check-schema -- model/schema.json`.
 
 ## Identity
@@ -138,27 +135,18 @@ A kit on the KDM ships `model/schema.json`:
   or moved. Implementations generate a UUID v7 and accept any UUID when
   loading.
 - **M7a** A copy of a document under a new `docId` is a new document:
-  `copy_as_new_document(doc_id, actor)` (`copyAsNewDocument` in TypeScript)
-  answers a replica of `doc_id` with the same objects, ids and values and no
-  history (a shallow replica, M16a, rooted at its own first change, with
-  empty undo), and refuses (`invalid-value`) the source's own `docId`. That
-  root is the document's **birth**, recorded in the copy's first change:
-  `carries_whole_history()` (`carriesWholeHistory()`) is true for a full
-  replica and for a shallow one whose state at its root records that root
-  as its birth (the copy and every replica loaded from it), and false for one
-  truncated later; only the state at the root counts, so no later change
-  claims another birth. A sync server takes such a snapshot as a room's
-  first state (sync protocol S20). Copies
-  and their source refuse each other's bytes (M17). Hosts use it for
-  templates, copied files and repeated uploads; a fork (A12) keeps the
-  `docId` and is merged back, a copy never is. For a kit whose files embed
-  the replica, a host reads the `docId` a file carries and makes a file into
-  a new document through the kit, without knowing its format: the Kit
-  Process Protocol's `document.identity` and `document.fork`
+  `copy_as_new_document(doc_id, actor)` answers a replica of `doc_id` with
+  the same objects, ids and values, on a new lineage (M14), with an empty
+  change log and empty undo, and refuses (`invalid-value`) the source's own
+  `docId`. Copies and their source refuse each other's bytes (M17). Hosts
+  use it for templates, copied files and repeated uploads; a fork (A12)
+  keeps the `docId` and is merged back, a copy never is. For a kit whose
+  files embed the model, a host reads the `docId` a file carries and makes a
+  file into a new document through the kit, without knowing its format: the
+  Kit Process Protocol's `document.identity` and `document.fork`
   ([section 5.6](../reference/kit-process-protocol.md#56-document-identity-and-forks),
   feature `document.identity`).
-- **M8** Objects have KDM ids (UUID strings), unique across replicas without
-  coordination. Implementations generate UUID v7 ids and accept any UUID when
+- **M8** Objects have KDM ids (UUID strings), unique without coordination. Implementations generate UUID v7 ids and accept any UUID when
   loading. Engines MAY keep efficient local ids and file-format
   ids, mapped to KDM ids when loading, and MUST NOT allocate new persistent
   ids from a document-local counter. A host MAY create an object under an id
@@ -166,56 +154,53 @@ A kit on the KDM ships `model/schema.json`:
   generated ids are UUID v7. An engine's own id that its tools show is a
   field of the object, never its KDM id, and its schema names that field as
   the type's tool id ([`KitObjectModel 1.0`](object-model.md) OM9).
-- **M9** Every writable replica session has its own actor id. Two sessions
-  MUST NOT share one, including two windows on one device.
+- **M9** Every writable replica session has its own actor id, recorded with
+  each change it writes. Two sessions MUST NOT share one, including two
+  windows on one device.
 
 ## Transactions, origins, undo
 
-- **M10** A transaction is all-or-nothing on every replica: if any operation
-  fails, the transaction MUST produce no operations at all, so the replica's
-  version and exports are unchanged. Compensating operations (reverting what
-  was applied) are not acceptable, because they reach other replicas and
-  overwrite their concurrent edits. Implementations stage a transaction's
-  operations, validate them against the document plus the transaction's
-  pending effects, and apply them only when the transaction succeeds. Reads
-  inside a transaction see its pending effects. Implementations MAY keep a
-  last-resort revert path for an engine refusal that validation cannot
-  foresee; validated input MUST never reach it, and reaching it is a bug in
-  the implementation.
+- **M10** A transaction is all-or-nothing: if any operation fails, the
+  transaction MUST change nothing, so the replica's version and exports are
+  unchanged. Implementations stage a transaction's operations, validate
+  them against the document plus the transaction's pending effects, and
+  apply them only when the transaction succeeds; reads inside a transaction
+  see its pending effects. Applying records what each operation's inverse
+  needs, and an operation that still fails to apply takes back the ones
+  applied before it, so no partial change is ever logged or exported. A
+  transaction that succeeds is one change, numbered one after the replica's
+  version (M14).
 - **M10a** A tree node created in a transaction is identified by a handle
   that resolves when the transaction commits; a handle from a failed
   transaction is not found.
-- **M10b** A tree names each object with one node. Undo can break that: a
-  redo of a node's creation makes a new node when the old one is deleted
-  locally, while another replica's concurrent move may keep the old one
-  alive, so a merge can leave two nodes naming one object. A kit's repair
-  (engine contract E14) restores it for every tree field with
-  `tree_dedupe(id, field)` (`treeDedupe` in TypeScript): for each object
-  several of the document's nodes name, the node kept is the least by engine
-  id (peer, then counter) among those with no ancestor naming the same
-  object; each other node, in pre-order, has its children moved in order to
-  the end of the kept node's children and is then deleted. The rule reads
-  the state alone, so replicas repairing one state concurrently make the
-  same moves and deletes. Trees have no other node delete: deleting an
-  object leaves its node ([`KitObjectModel`](object-model.md) OM2a).
+- **M10b** A tree names each object with at most one node, and the node is
+  the object's id: creating a node for an object the tree already holds is
+  refused (`invalid-value`). Deleting an object takes its node out of every
+  tree holding it, and is refused while its node has children naming live
+  objects ([`KitObjectModel`](object-model.md) OM2a).
 - **M11** Every transaction carries an origin `{ kind, principal, label }`,
   `kind` one of `person`, `agent`, `extension`, `import`, `system`. Servers
   and hosts MUST NOT use it for authorization. The origin is recorded with
-  each commit; reading history back is not yet specified.
-- **M12** Undo reverts the replica's own last transaction as an inverse
-  operation on the current state; changes from other replicas, including
-  later changes to the same object, MUST survive. Undo and redo report the
+  each change (M5a); reading history back across sessions is not specified.
+- **M12** Undo takes back the replica's own last step of a scope (M12a) by
+  applying its inverse operations to the current state as a new change;
+  later changes of other scopes and imported changes, including later
+  changes to the same object, MUST survive. The inverses are carried over
+  the changes logged since the step: text and list positions move with what
+  was inserted or deleted before them, and a deleted range drops what is
+  gone. A register or map key someone else wrote since keeps that value, and
+  an operation whose object is gone is skipped. Undo and redo report the
   objects they change like any other change. Undo groups make several
   transactions one undo step. A step whose changes come to nothing (Enter,
   then Backspace, in one group; a value written and written back) is no
   step to undo: undo and redo pass over it and take back the step before it
-  in the same call, as they pass over a step whose changes other replicas
-  took back. Until an undo passes over it, `can_undo` still counts it; an
-  undo that finds nothing to take back changes nothing and answers false.
-  Transactions with origin `system` (repairs,
-  migrations) or `import` (changes merged from a file edited elsewhere) are
-  not undo steps: undo skips them like changes from other
-  replicas, and they survive the undo of earlier transactions.
+  in the same call, as they pass over a step whose changes others took
+  back. Until an undo passes over it, `can_undo` still counts it; an undo
+  that finds nothing to take back changes nothing and answers false. A
+  scope keeps at most 100 steps. Transactions with origin `system`
+  (migrations) or `import` (a file changed elsewhere, written over the
+  document) are not undo steps: undo skips them like imported changes, and
+  they survive the undo of earlier transactions.
 - **M12a** *(1.1) Undo scopes.* A replica keeps one undo history per **undo
   scope**, and every transaction that is an undo step joins exactly one:
 
@@ -228,24 +213,21 @@ A kit on the KDM ships `model/schema.json`:
   A draft merge (`merge_changes`, KitAgent A14) is the exception: it is
   labelled `agent` but is the person's step, so the person's Undo takes the
   whole merge back. Undo and redo in one scope treat every other scope's
-  transactions as M12 treats other replicas' changes: they survive, including
+  transactions as M12 treats imported changes: they survive, including
   later writes to the same register, and an undo of an agent's step keeps
   the person's later typing. Undo groups (M12) span both scopes, so the
   steps of one agent run made inside a group undo as one agent step.
-- **M12b** *(1.1) Undo groups across other replicas' changes.* A person's
-  undo group stays one undo step when other replicas' changes arrive while
-  it is open, also when they touch what the group changed: one Undo takes
-  back all of the group's transactions and keeps those changes, and one Redo
-  puts the group back. Two groups stay two steps, and each scope's steps stay
-  in that scope (M12a). `@kition/kdm` chains the steps an import split by the
-  group's run; `kition-kdm` keeps each group as one step of its own
-  ([undo across remote edits](../undo-across-remote-edits.md)).
+- **M12b** *(1.1) Undo groups across imported changes.* A person's undo
+  group stays one undo step when imported changes arrive while it is open,
+  also when they touch what the group changed: one Undo takes back all of
+  the group's transactions and keeps those changes, and one Redo puts the
+  group back. Two groups stay two steps, and each scope's steps stay in that
+  scope (M12a) ([undo across remote edits](../undo-across-remote-edits.md)).
 
   `undo()`, `redo()`, `can_undo()`, and `can_redo()` (`undo()`, `redo()`,
-  `canUndo()`, `canRedo()` in TypeScript) work in the `person` scope;
+  `canUndo()`, `canRedo()` on an engine) work in the `person` scope;
   `undo_in(scope)`, `redo_in(scope)`, `can_undo_in(scope)`, and
-  `can_redo_in(scope)` (`undoIn`, `redoIn`, `canUndoIn`, `canRedoIn`) name
-  the scope. An engine's `edit.undo` and `edit.redo` work in the scope of the
+  `can_redo_in(scope)` name the scope. An engine's `edit.undo` and `edit.redo` work in the scope of the
   origin they run as (a step of `ai/run` runs as `agent`), or in the scope
   their optional `scope` parameter names (`"person"` or `"agent"`), so a
   person's editor can offer "Undo the agent's last change" without the
@@ -253,184 +235,104 @@ A kit on the KDM ships `model/schema.json`:
   offer the person that action wherever they show agent edits (KitAgent A9).
 
   Several people never share a replica session (M9), so the `person` scope is
-  per person; their changes reach each other as other replicas' changes.
+  per person.
 - **M13** An editor bound to a KDM field MUST apply every change to that
-  field except the ones it published itself: remote changes, undo, and an
+  field except the ones it published itself: imported changes, undo, and an
   agent on the same replica all reach the editor.
 
 ## Exchange
 
-- **M14** A replica exports the changes another replica lacks
-  (`export_changes(since)`), imports changes in any order and any number of
-  times (`import_changes`), and reports which objects each import changed.
-  A shallow replica (M16a) refuses only changes that depend on history
-  before its root. Every change (`since` the empty version) always loads
-  (`load`) as the document: a shallow replica has no changes before its
-  root, so for a `since` that does not reach its root it exports its
-  snapshot (its state at the root with every change after it), which loads
-  as a shallow replica with the same root and imports into any replica that
-  has the root. A full replica, and a `since` at or after the root, export
-  the changes alone.
-- **M15** Every replica that has the same changes **and the same schema**
-  has the same canonical state: the document as JSON with keys sorted
-  (`state_json`), identical in the Rust and TypeScript implementations. The
-  canonical state follows the reader's schema: undeclared fields are omitted,
-  and objects of undeclared types show only `$type`.
-- **M16** Snapshots (`snapshot`) are compacted full states for fast opening
-  and new replicas.
-- **M16a** Shallow replicas: a device MAY hold a large document as a
-  **shallow replica**, its current state with only the history after a
-  root version. `shallow_snapshot(at)` (`shallowSnapshot` in TypeScript)
-  exports the current state with the history after `at` (the engine moves
-  the root back past changes made concurrently with `at`; an empty `at`
-  keeps the whole history), and `load` opens it as a replica for which
-  `is_shallow()` (`isShallow()`) is true and `shallow_root()`
-  (`shallowRoot()`) is its root; a snapshot of a shallow replica is
-  shallow with the same root. A shallow replica edits, exports, imports,
-  merges drafts, and converges like a full one (M14, M15), and its
-  canonical state is the same as a full replica's with the same changes.
-  Asked for every change, it answers bytes that load (M14), so whatever
-  opens a document from "every change" (the object model over the change
-  exchange, an agent's draft) works on it unchanged.
-  It has no history before its root: undo covers only its own transactions
-  since it was loaded (as for any loaded replica, M12), and it forks a
-  draft (A12), and answers `changes_since`, at the versions its history
-  reaches: `reaches(version)` (`reaches` in TypeScript) is true for a version
-  that includes its root and the root's own operation. The Rust replica forks
-  at every such version; the TypeScript engine forks a shallow document only
-  as a whole, so it forks at its current version and at the versions from the
-  one it was loaded at on (a replica opened from a file: every version since
-  the file), and refuses the others as `history-missing`. Earlier versions, blame, and
-  restores are read from whoever keeps the whole history (the sync server,
-  [sync-protocol.md](../reference/sync-protocol.md) sections 3 and 7; a copy
-  has none before its birth, M7a). Changes that
-  depend on history before the root (made by a replica that had not seen
-  the root) MUST be refused (`KdmError::HistoryMissing`, reason
-  `history-missing`) without changing anything; the host then rebases the
-  replica (`rebase(snapshot)`) on a newer snapshot that holds them, which
-  keeps the replica's own changes on top and clears its undo history. A
-  refused import that raises the minimum schema version (M20) is taken back
-  in Rust; the TypeScript engine cannot rebuild a shallow document at an
-  earlier version, so there the replica refuses every later change and
-  export with the same error, and the host reopens the document once
-  updated.
-- **M16b** A person's file holds no history (owner, 2026-11-22). A kit
-  whose file embeds its replica MUST write `content_snapshot()`
-  (`contentSnapshot()` in TypeScript) into the file, and MUST NOT write
-  `snapshot()` or a `shallow_snapshot(at)` there: `snapshot()` (the whole
-  history, with deleted content and every change's origin) is for the
-  host's history store (`<workspace>/.kition/docs/<docId>/`), a sync server
-  and new replicas. `content_snapshot()` first **seals** the replica
-  (`seal()`): unless its version has one head whose change is a seal, it
-  commits one `system` change labelled `content-seal` that depends on every
-  head and writes the version it closes into the root map `seal` (outside
-  the canonical state); then it answers a shallow snapshot (M16a) rooted at
-  the seal. A plain shallow snapshot at the current version is not enough:
-  with concurrent heads its root moves back to their last common version
-  and keeps the history since, and with one head that head's change keeps
-  its person's or agent's origin. The bytes hold the current state, the
-  seal (its origin `system`/`kdm`/`content-seal`, its lamport number, a zero
-  timestamp: the KDM records no times) and the actor ids inside element
-  ids; no deleted content, no overwritten value, no other origin. They load
-  as the same document (same `docId`, version and object ids), which edits,
-  takes later changes and merges like any shallow replica; changes that
-  depend on history before the seal are `history-missing`. A seal is an
-  ordinary change of its replica: it goes to the history store and the room,
-  is never an undo step (an undo after a save takes back the last edit), and
-  converges with another replica's concurrent seal. Saving again with no
-  change commits nothing and answers the same bytes; two replicas with the
-  same state but different histories answer different bytes. A copy's
-  change (M7a) and a rebirth count as seals. Code that holds the replica
-  read-only (a Rust kit's `KitDocument::save`) has it sealed before, in the
-  engine's `prepareSave` that every host calls right before `save` (engine
-  rule E4), and writes `sealed_content_snapshot()`
-  (`sealedContentSnapshot()`), which refuses (`invalid-value`) an unsealed
-  replica. A replica loaded from content bytes answers those same bytes while
-  it stays at their version. A content snapshot does not
-  carry the document's whole history (S20) unless its seal is the birth:
-  `rebirth()` makes the current version the birth of a document known only
-  from such a file (one `system` change labelled `rebirth`, the replica
-  rooted there, same `docId`, undo cleared; `false` when it already carries
-  the whole history; `invalid-value` while changes are pending), so it can
-  start a room. A host calls it only for a document with no history store and
-  no room: a replica that keeps earlier history cannot send it changes
-  concurrent with the rebirth (`history-missing`).
-- **M17** Every exported byte string (changes and snapshots) is an envelope:
-  the 4 bytes `K D M 0x01`, the 16-byte document UUID, then the engine's
-  bytes. A replica MUST refuse bytes without the envelope and changes of
-  another document, so two documents can never be merged by mistake.
+- **M14** A replica's version is `(lineage, seq)`: a random UUID naming its
+  line of changes and the number of that line's changes its state holds.
+  `Version::encode()` is 24 bytes (the lineage, then `seq` as 8 bytes
+  big-endian) or, for the empty version, none; equal versions are equal
+  bytes. A new lineage starts with `create`, with loading content (M16b) and
+  with `copy_as_new_document` (M7a); loading a snapshot and forking continue
+  one. A replica exports what a replica at `since` lacks
+  (`export_changes(since)`): the changes after `since`, in order, when
+  `since` is on its lineage and its change log holds it, else a snapshot
+  (M16). It imports changes in order (`import_changes`): changes it already
+  has are skipped, so importing twice is harmless; the first new one MUST
+  follow its version, and changes that do not, changes of another lineage,
+  and changes whose operations' preconditions do not hold are refused
+  (`KdmError::Stale`, reason `stale`) without changing anything. A snapshot
+  imports when it is on the replica's lineage and not behind it, or into a
+  replica that has applied nothing; it replaces the state. Each import
+  reports which objects it changed. The change log holds at most 10,000
+  changes or 64 MB and drops its oldest beyond either; a version older than
+  it is answered with a snapshot, or with `history-missing` by `fork_at` and
+  `changes_since`.
+- **M15** Every replica that has the same state **and the same schema** has
+  the same canonical state: the document as JSON with keys sorted
+  (`state_json`). The canonical state follows the reader's schema:
+  undeclared fields are omitted, and objects of undeclared types show only
+  `$type`. `@kition/kdm` reads the same canonical state from a snapshot and
+  the changes after it.
+- **M16** A snapshot (`snapshot`) is the document's content (M16b) with its
+  version: for the host's store, drafts, a page's mirror and new replicas.
+  `load` opens content or a snapshot.
+- **M16b** A person's file holds no history. A kit whose file embeds its
+  model MUST write `content_snapshot()` into the file (`content.json`, data
+  model section 7.4), and MUST NOT write `snapshot()` there. The content
+  holds the state alone: no version, lineage, actor, origin or time, so a
+  document saved again unchanged is the same bytes, and two people who save
+  the same state write the same bytes. It loads as the same document (same
+  `docId` and object ids) on a new lineage.
+- **M17** Changes and snapshots name their document (`docId`). A replica
+  MUST refuse another document's (`KdmError::WrongDocument`), so two
+  documents can never be mixed by mistake.
 - **M18** Text positions are local coordinates of each implementation:
   Unicode scalar values in Rust, UTF-16 code units in TypeScript (the units
   of CodeMirror and the DOM). A position inside a character is out of range.
-  Positions are never replicated; only the resulting text operations are.
+  A change's text operations count Unicode scalar values; `@kition/kdm`
+  converts where it answers UTF-16.
 - **M19** Marks: a transaction sets a declared mark over a range of a text
-  field (`text_mark(id, field, start, end, key, value)`, `textMark` in
-  TypeScript) or removes it (`text_unmark(id, field, start, end, key)`),
-  positions per M18 and checked against the text including the
-  transaction's earlier edits; an empty range changes nothing. Each mark key
-  is its own last-writer-wins value per character: concurrent marks of
-  different keys over overlapping ranges all apply, concurrent values of one
-  key resolve to one value per character, and concurrent insertions inside
-  or next to a marked range are all kept, taking the mark as its `expand`
-  says. A key the field does not declare is refused, and so is a `null`
-  value (remove a mark with `text_unmark`); values are plain JSON (M4b) and
-  read in canonical form. A text field that declares marks reads in the
-  canonical state (M15) as its runs, `[{ "insert": "...", "attributes":
-  { key: value } }]`: in text order, no run empty, adjacent runs with
-  different marks, `attributes` omitted for an unmarked run and holding
-  only the reader's declared keys; an empty text is `[]`. A text field
-  without marks reads as a string, as before. `text_delta(id, field)`
-  (`textDelta`) answers the same runs; `text` still answers the plain
-  string. Bridges write a field's new form as a difference
-  (`kition_kit::session::write_text`, `write_marks`, `write_rich_text`), not
-  a replacement, so concurrent typing in one paragraph keeps both sides.
+  field (`text_mark(id, field, start, end, key, value)`) or removes it
+  (`text_unmark(id, field, start, end, key)`), positions per M18 and checked
+  against the text including the transaction's earlier edits; an empty range
+  changes nothing. Each mark key has one value per character, and a later
+  mark of a key replaces the earlier one over its range. Text inserted takes
+  a key from its neighbours: from the run before it when the key's `expand`
+  is `after` or `both`, from the run after it when it is `before` or `both`,
+  and inside a run whose neighbours hold the same value of the key. A key the
+  field does not declare is refused, and so is a `null` value (remove a mark
+  with `text_unmark`); values are plain JSON (M4b) and read in canonical
+  form. A text field that declares marks reads in the canonical state (M15)
+  as its runs, `[{ "insert": "...", "attributes": { key: value } }]`: in
+  text order, no run empty, adjacent runs with different marks,
+  `attributes` omitted for an unmarked run and holding only the reader's
+  declared keys; an empty text is `[]`. A text field without marks reads as
+  a string. `text_delta(id, field)` (`textDelta`) answers the same runs;
+  `text` answers the plain string. Bridges write a field's new form as a
+  difference (`kition_kit::session::write_text`, `write_marks`,
+  `write_rich_text`), not a replacement, so undo takes back only what
+  changed.
 - **M20** Minimum schema version: a document's minimum schema version is the
   version it was created with, raised by migrations that rewrite it into a
   form older readers would misread. A `system` transaction raises it
-  (`Tx::raise_schema_version(version)`, `raiseSchemaVersion` in TypeScript),
-  in the transaction that rewrites the document, to at most the
-  transaction's own schema version; a raise in any other transaction is
-  refused, so a raise is never an undo step. The minimum is monotonic: a
-  raise to the current or a lower version changes nothing, and concurrent
-  raises keep the largest. It is replicated data: each raise records its
-  version as a key (decimal, value `true`) of the root map `schemaRaises`
-  and rewrites `meta.schemaVersion`, which builds before M20 check; the
-  minimum is the largest of `meta.schemaVersion` and those keys
-  (`min_schema_version()`, `minSchemaVersion()`). The canonical state (M15)
-  shows the minimum as `meta.schemaVersion` and does not show
-  `schemaRaises`. A replica whose schema is older than the minimum MUST
-  refuse to load the document and to import changes that raise it there
+  (`Tx::raise_schema_version(version)`), in the transaction that rewrites
+  the document, to at most the transaction's own schema version; a raise in
+  any other transaction is refused, so a raise is never an undo step. The
+  minimum is monotonic: a raise to the current or a lower version changes
+  nothing. It is `meta.schemaVersion` in the canonical state and
+  `schemaVersion` in the content (`min_schema_version()`,
+  `minSchemaVersion()`). A replica whose schema is older than the minimum
+  MUST refuse to load the document and to import changes that raise it there
   (`KdmError::NewerSchema`, reason `newer-schema`): a refused import
-  changes nothing (state, version, exports, pending changes), though it
-  may clear the replica's undo history; the host keeps the document
-  read-only as it last read it and asks for an update (M5a).
+  changes nothing; the host keeps the document read-only as it last read it
+  and asks for an update (M5a).
 
-- **M21** Coordinated objects: some edits do not merge meaningfully when two
-  people make them at once (two people repainting one layer's pixels, two full
-  rewrites of a PDF, two constraint solves). A kit takes a **lease** on such an
-  object's scope before editing it (a KDM object id, a name of its own such as
-  `layer:<objectId>`, or `*` for the whole document), through its host (Kit UI
-  protocol section 7b), which takes it from the sync server (sync protocol
-  section 8); it does not start the edit while another session holds the
-  scope, and releases the lease when the edit ends. An agent's edits on the
-  live document (`ai/run` steps) take the leases the person's would. Leases are advisory: they
-  never change what merges, and an edit made with no server to ask (offline)
-  is allowed. A kit lists the scopes it leases in `kit.json`
+- **M21** Coordinated objects: some edits make no sense for two people at
+  once (two people repainting one layer's pixels, two full rewrites of a PDF,
+  two constraint solves). A kit takes a **lease** on such an object's scope
+  before editing it (a KDM object id, a name of its own such as
+  `layer:<objectId>`, or `*` for the whole document), through its host (Kit
+  UI protocol section 7b); it does not start the edit while another session
+  holds the scope, and releases the lease when the edit ends. An agent's
+  edits on the live document (`ai/run` steps) take the leases the person's
+  would. A kit lists the scopes it leases in `kit.json`
   `collaboration.leases` (patterns such as `layer:{objectId}`, or `*`), so a
   host can tell which of its edits coordinate.
-- **M22** Conflict objects: a repair pass (`validate`) that cannot resolve a
-  merge by itself (an edit made against state another peer replaced, an edit
-  made offline while another session held its lease) records a **conflict
-  object** that keeps what could not be kept. Its type is `Conflict`, declared
-  exactly as `kition_kdm::conflict::CONFLICT_TYPE_JSON` (`kind`, `summary`,
-  `objects`, `kept`, `by`); its id is `conflict_id(kind, key)`, a function of
-  what the conflict is about, so every replica's repair records the same
-  object and replicas that record it concurrently keep one. The repair that
-  records a conflict also repairs its cause, so it does not record it again.
-  A later transaction resolves a conflict by deleting the object. The editor
-  reports the unresolved conflicts to its host (Kit UI protocol section 7c),
-  which shows a non-blocking notice. `kition_kdm::conflict` (`record_conflict`,
-  `conflicts`, `resolve_conflict`) implements it.
 - **M23** Comments: people discuss a document in **comment threads** kept
   beside its content. A thread is an object of the reserved type
   `CommentThread` (`anchor`, `resolved`, `comments`), each of its comments an
@@ -447,15 +349,11 @@ A kit on the KDM ships `model/schema.json`:
   ISO 8601 UTC, and `body` text. Comments MUST NOT be stored in the content
   (no comment marks or fields on content objects), and content MUST NOT
   reference a comment: a change that touches only `CommentThread` and
-  `Comment` objects is then a comment, which is all a principal with the sync
-  protocol's `commenter` role may push ([sync-protocol.md](../reference/sync-protocol.md)
-  1.6). A kit whose file format keeps comments maps them onto these objects
-  on import and back on export. Comment threads are collaboration objects: an
-  editor with no co-editing session shows the threads others wrote as
+  `Comment` objects is then a comment, which is all a commenter may make. A kit whose file format keeps comments maps them onto these objects
+  on import and back on export. An editor shows the threads others wrote as
   read-only history (a person may still add their own). `kition_kdm::comment`
-  (`add_thread`, `reply`, `set_resolved`, `delete_comment`, `threads`) and
-  `@kition/kdm` (`addThread`, `reply`, `setResolved`, `deleteComment`,
-  `commentThreads`) implement it; `@kition/kit-editor`'s `CommentsPanel` and
+  (`add_thread`, `reply`, `set_resolved`, `delete_comment`, `threads`)
+  implements it, and `@kition/kdm`'s `commentThreads` reads the threads; `@kition/kit-editor`'s `CommentsPanel` and
   `useCommentAnchors` show threads in an editor. A kit whose engine writes
   comments through commands lists them in `kit.json` as
   `collaboration.comments.commands` (K13), such as `comment.add`,
@@ -464,14 +362,12 @@ A kit on the KDM ships `model/schema.json`:
   commenter's document opens read-only with `document.comments.canComment`
   (Kit UI protocol section 3): the editor refuses every edit as for a viewer
   (UI-K7) except these commands, and each of them runs under a backstop that
-  reads the change it made as the sync server reads a commenter's push: when
-  it touches anything but `CommentThread` and `Comment` objects, it is undone
+  reads the change it made: when it touches anything but `CommentThread` and `Comment` objects, it is undone
   and refused (`read-only`). Undo and Redo take back and bring back the
   commenter's own comment changes: only as many steps as their comment
   commands made in the session, each under the same backstop (an Undo that
   would reach anything else is refused and taken back). Save and the file
-  commands stay refused; a commenter's comments reach others through the
-  replica, and the file is not theirs to save. An editor hides from a
+  commands stay refused: the file is not theirs to save. An editor hides from a
   commenter the commands it refuses them, rather than showing them disabled,
   and keeps offering the comment commands, Undo, and Redo.
   `@kition/kdm`'s `ChangeAudit` and `touchesOnlyComments` read a change that

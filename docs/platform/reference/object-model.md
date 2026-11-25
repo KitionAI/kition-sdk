@@ -3,7 +3,8 @@
 `@kition/script` lets a script read and edit a kit's document as typed objects
 (`KitObjectModel 1.0`, [`KitObjectModel 1.0`](../sets/object-model.md)), in a page
 or in Node, with the same code. It works with every kit on engine contract 2
-and needs nothing from the kit beyond its change exchange and its commands.
+and needs nothing from the kit beyond its `model` capability (`modelDescribe`,
+`modelBatch`) and its commands.
 
 ## Open a document
 
@@ -25,14 +26,10 @@ const doc2 = await file.model<Note, NoteCommands>()
 import { openHeadless } from '@kition/script/node'
 const native = await openHeadless('<kition-note>/target/debug/kition-note', 'Review.md')
 const doc3 = await native.model<Note, NoteCommands>()
-
-// A shared document in a sync server's room (see "Sync rooms"), in Node or a page.
-import { openRoom } from '@kition/script/node' // or '@kition/script'
-const doc4 = await openRoom<Note, NoteCommands>({ server: 'https://sync.kition.ai', token, shareLink })
 ```
 
 `openDocument` also takes a `KitConnection` (`@kition/kit-host`) of a kit with
-the `replica` capability, a kit engine with `options.kit`, or any `ModelPort`.
+the `model` capability, a kit engine with `options.kit`, or any `ModelPort`.
 Options: `schema` (when the kit is not registered), `origin` (what every
 batch records, `extension`/`script` by default).
 
@@ -87,16 +84,15 @@ const result = await doc.run(async (context) => {
   `enabled(id)`, and `run(id, params)` act right away.
 - `doc.on('changed', ({ origin, version }) => …)`: `local` after this
   handle's own edits, `kit` when the document moved otherwise (a person, a
-  command, a collaborator; in a page, from `replica/changed`).
-- `doc.on('saved' | 'conflict' | 'presence' | 'selection', …)` hears what the
+  command, an agent; in a page, from `replica/changed`).
+- `doc.on('saved' | 'conflict' | 'selection', …)` hears what the
   document's source reports; `doc.supports(event)` tells which it does.
   `saved` (`{ version, uri? }`): an `@kition/embed` editor wrote the storage
   (its new version), a headless kit saved (`document.didSave`, the file's
   `uri`), or a Node package document's `save()` made the bytes. `conflict`
   (`{ message }`): an embed editor's save was refused because the file
   changed elsewhere (`EmbedConflictError`); nothing was overwritten.
-  `presence` (`{ peers }`): the people in an embed editor's collaboration
-  room. `selection` (`{ ids }`, KDM object ids): what the person selected in
+  `selection` (`{ ids }`, KDM object ids): what the person selected in
   a kit editor, from the kit's `selection/changed` (Kit UI protocol section
   7h, the objects of the selection) or `presence/set` (section 7e) when its
   connection hears them (`KitConnection.onPresence`), or from a
@@ -104,24 +100,22 @@ const result = await doc.run(async (context) => {
 
 ## How it works
 
-The library keeps its own replica of the document (the kit's schema, its own
-actor), catches it up with the kit's changes before each read and write, runs
-the batch on it (`@kition/kdm`'s `runBatch`), and hands the new changes to the
-kit, which takes them as a collaborator's: its merge repair runs, and the
-editor shows them. Commands run in the kit (`ai/run` in a page, `executeAs`
-on an engine). Script edits made this way are not in the person's undo
-history. A kit that answers the `model` capability itself
-([ui-protocol.md](ui-protocol.md) section 7a) gets each batch instead (with
-the kit's schema, for an engine that does not describe its own), and the batch
-is a step of the person's undo history: every kit editor built on
-`@kition/kit-editor` does when its engine exchanges changes. `openDocument`
-prefers it (`ModelPort.model`, given by `portFromConnection` and by an
-`@kition/embed` editor whose kit lists `model` when `modelPort()` is called).
+The kit runs every batch: each `sync()` is one `model/batch` request to the
+kit that answers the `model` capability ([ui-protocol.md](ui-protocol.md)
+section 7a; `modelBatch` on an engine), with the kit's schema for an engine
+that does not describe its own. The kit runs it on its own replica, so the
+batch is a step of the person's undo history and the editor shows it.
+Commands run in the kit (`ai/run` in a page, `executeAs` on an engine). Every
+kit editor built on `@kition/kit-editor` answers `model`; `openDocument`
+takes it from `ModelPort.model`, given by `portFromConnection`, by
+`portFromEngine` and by an `@kition/embed` editor whose kit lists `model`. A
+source that answers no `model` is refused: the script keeps no replica of
+its own.
 
 The Rust side is the same: `kition_kdm::batch` is the interpreter,
 `kition_kit::session::model` serves it directly on a `KitSession`
 (`export_kit_session!` adds `modelDescribe` and `modelBatch`) or through an
-`Exchange` over any `ReplicaPort`, and `kition-headless` answers the Kit Process
+`Exchange` over any `ReplicaPort` (a scratch replica on the host's side), and `kition-headless` answers the Kit Process
 Protocol's `model.describe` and `model.batch` for kits built with
 `run_manifest_model` (see [Headless kits](#headless-kits)).
 
@@ -183,10 +177,8 @@ await file.shutdown()                // kit.shutdown; the process exits
 
 ### Replica methods
 
-A server runs the same headless executables on a sync room's state, which has
-no file (Kition Server's headless kit pool: previews, exports, server
-validation, and server-side agents, [sync-protocol.md](sync-protocol.md)
-section 8a). A kit whose engine can open a replica (`ReplicaPort::model_open_replica`,
+A server can run the same headless executables on a document's snapshot,
+which has no file (previews, exports and server-side agents). A kit whose engine can open a replica (`ReplicaPort::model_open_replica`,
 its `open_with_replica(name, &[], snapshot, blobs)`) lists these features in
 `kit.initialize` beside `model.describe` and `model.batch`; `kition-headless`
 serves them for kits built with `run_manifest_model`. Bytes travel as base64
@@ -199,25 +191,25 @@ strings.
 | `model.export` | `{ documentId, since? }` | `{ changes, blobs? }` |
 | `model.save` | `{ documentId, format? }` | `{ data, format, name }` |
 
-- `model.open` opens `snapshot` (a KDM snapshot or full change export) as a
+- `model.open` opens `snapshot` (a KDM snapshot or content) as a
   new replica under a fresh actor, named `name` (a plain file name in one of
   the kit's formats). `blobs` are the media it references, encoded as
   `(64-char hex SHA-256, u64 LE length, bytes) * N`. Nothing is written; the
   document is never saved to a file. A kit that cannot open a replica
   answers `unsupported_format`.
-- `model.import` takes changes as from a collaborator; the kit's merge repair
-  (`validate`) runs. When the kit refuses them (the changes do not apply, or
-  `validate` cannot repair the result) it answers `invalid_params` with
-  `data.refused: true` and closes the document, which may hold part of what
-  it refused. `blobs` (encoded as for `model.open`) are the media the
+- `model.import` applies changes that follow the document's version, in
+  order (a change list another replica of the document exported). When the
+  kit refuses them (they do not follow its version, `stale`, or an
+  operation's precondition does not hold) it answers `invalid_params` with
+  `data.refused: true` and closes the document. `blobs` (encoded as for `model.open`) are the media the
   changes reference, added before the changes, as a page's `addBlobs` before
   `importChanges` (engine contract 2 ([engine contract](../kits/engine.md))); changes whose blobs come later
   still import. Damaged blobs refuse the call (`invalid_params`, without
   `refused`) before anything is imported, and the document stays open.
 - `model.export` answers the document's changes since the encoded KDM
-  version `since` (every change when omitted), in the KDM envelope; every
-  change always opens with `model.open` (KitModel M14: a shallow replica,
-  such as a file `document.fork` made, answers its snapshot). A kit
+  version `since`, in order, when its change log holds them, and its
+  snapshot otherwise (`since` omitted, of another line, or older than the
+  log; KitModel M14), which always opens with `model.open`. A kit
   whose changes reference blobs (such as painted pixels) also answers
   `blobs`, the ones a replica at `since` needs for them (every blob the
   document references when `since` is omitted), encoded as for `model.open`;
@@ -234,82 +226,13 @@ How kits serve it: a contract 2 kit's engine implements
 `importChanges`, `executeAs`, schema, and commands; about fifteen lines) and
 its executable's `main` calls `kition_headless::run_manifest_model` instead of
 `run_manifest`. The headless server keeps an `Exchange` (a scratch replica)
-per open document, so batches arrive in the engine as another actor's changes
-and its merge repair runs, as in a page. A kit with its own backend
+per open document: it catches the scratch replica up with the engine, runs
+the batch on it, and hands its changes to the engine, which takes them when
+they follow its version; when the engine moved meanwhile it refuses them, and
+the `Exchange` starts again from the engine. A kit with its own backend
 answers `KitBackend::model` itself with the same `Exchange`.
 
 After saving, reopen the file in a new kit process to verify the persisted edit.
-
-## Sync rooms
-
-A document shared in a sync server's room (`kition-sync/1`,
-[sync-protocol.md](sync-protocol.md)) opens with no kit and no page:
-`openRoom` joins the room and keeps a KDM replica of it in the script.
-
-```ts
-import { createRoom, openRoom } from '@kition/script/node' // the same in '@kition/script', in a page
-import '@kition/script/kits/note'
-
-const doc = await openRoom<Note, NoteCommands>({
-  server: 'http://127.0.0.1:18300', // ws(s)://…/v1/sync, or a server address whose root means /v1/sync
-  token: 'dev-alice',               // or tokenProvider: () => fetchToken(), asked on every connection
-  docId, kit: 'kit.note',           // or shareLink (room/open; it names the kit)
-})
-doc.on('changed', (event) => { /* event.origin is 'kit' for another member's change */ })
-await doc.run(async (context) => { /* proxies and sync(), as anywhere */ })
-doc.close()                        // room/leave, and the connection closes
-```
-
-- `openRoom({ server, token | tokenProvider, docId | shareLink, kit?, schema?,
-  origin?, createTransport?, commandTimeout?, onError? })` connects a
-  `SyncClient` (`@kition/sync`) over the global `WebSocket` (Node 22 or later,
-  or a page; `createTransport` for another), resolves a `shareLink` with
-  `room/open`, joins the room (`room/join`, every page), loads its snapshot
-  (`snapshot/get`, or the join's own when it answers `snapshot: true`), and
-  imports the changes after it. It answers once the replica holds the room.
-  `kit` is required with `docId` and checked against the room's with
-  `shareLink`; the schema is the registered kit's (`@kition/script/kits/*`;
-  `@kition/script/node` registers every generated kit).
-- Each run of model operations in a batch is one change: it is made on a
-  draft of the replica (`Replica.fork`), pushed (`changes/push`), and kept
-  only once the room took it, so a change the server refuses leaves nothing
-  behind (`read-only` for `forbidden`, `invalid-value` otherwise). A batch
-  therefore settles when the room has its changes; offline, it waits for the
-  connection to come back (the client queues the push). Changes carry the
-  handle's `origin`, `extension`/`script` by default.
-- Other members' changes (`changes/pull`, and a reconnect's catch-up) are
-  imported as they arrive and fire `changed` with `origin: 'kit'`; the
-  handle's own batches fire `local`. `presence` is reported too (`peers` on
-  each `presence/update`), and `doc.peers` holds the last list.
-- Roles follow the room (`doc.role`, `doc.onRole`, `room/access`): a
-  `viewer`'s batches only read (a batch that writes fails `read-only`); a
-  `commenter`'s writes may touch only `CommentThread` and `Comment` objects
-  (rule M23; checked here with `@kition/kdm`'s `ChangeAudit` before the push,
-  `read-only` otherwise; the server also checks each `Comment`'s `author` is
-  the commenter, `doc.principal.id`). A member the owner removes keeps
-  reading what the handle holds and writes nothing.
-- Commands need the kit's engine, which the script does not have. On a
-  server that runs kits headless (it lists `headless` in `sync/hello`,
-  protocol 1.7; `doc.runsCommands`), each `command` operation is sent as
-  `agent/run` (`{ ops: [the command] }`), for an owner or an editor: the
-  server's kit runs it with the origin the server sets (`agent` for the
-  caller), and the batch goes on once the change it made has arrived
-  (`commandTimeout`, 30 seconds by default), so the operations after it read
-  its result. Any other server, and a viewer's or commenter's handle, refuses
-  commands: the batch fails `command-failed` at the command, with a message
-  that names the reason. `commands.list()` is empty: the kit's catalogue does
-  not travel over the sync protocol.
-- `createRoom({ server, token, kit, name, document })` shares a document as a
-  new room (`room/create`) and answers `{ docId, shareLink }`; `document` is
-  a KDM snapshot or full change export (an engine's `exportChanges` from
-  nothing).
-- `doc.sync` is the `SyncClient` (share links, members, history, previews,
-  leases), `doc.capabilities` the server's `sync/hello` list (for
-  `supports`), `doc.snapshot()` the document as the handle holds it.
-
-`packages/script/test/room.test.ts`
-runs against `@kition/sync`'s `FakeServer`, and `room.server.test.ts` against
-a real server when `KITION_SYNC_SERVER` is set.
 
 ## Typings
 
@@ -360,8 +283,8 @@ A script tests what its environment serves with a capability set (Kit
 ```ts
 import { advertiseCapabilitySets, supports } from '@kition/script'
 
-if (supports('KitCollab 1.0')) {
-  // the document is co-edited: expect remote changes between loads
+if (supports('KitObjectModel 1.0')) {
+  // the environment serves the object model
 }
 ```
 
@@ -369,5 +292,4 @@ if (supports('KitCollab 1.0')) {
 environment advertised) has the same set at the same major version with at
 least the required minor version. `@kition/script` serves `KitModel 1.0` and
 `KitObjectModel 1.0` by itself; a host adds what it serves with
-`advertiseCapabilitySets` (its Kit UI `capabilitySets`, or a sync server's
-`sync/hello` capabilities).
+`advertiseCapabilitySets` (its Kit UI `capabilitySets`).

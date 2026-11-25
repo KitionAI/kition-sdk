@@ -37,7 +37,7 @@ next to people in the ways in below (see [People and agents together](#people-an
 | **URL** (server-rendered page) | your server mints a signed iframe URL for one person and one file; the embed server shows the editor and reads and writes the file through HTTP callbacks to your server | `@kition/embed-server` | [url.md](url.md) |
 | **Server / headless** | no page: open, edit, render and save on your servers, from any language as JSON lines or from Node with the Script API | `kition serve`, `@kition/script/node` | [headless.md](headless.md), [hosts.md](hosts.md), [script.md](script.md) |
 | **Command line** (local runtime) | `kition`, a small program that installs kits on demand and runs them for agents and host applications | `kition kit install`, `kition mcp`, `kition serve`, `kition gateway`, `kition agent add` | [cli.md](cli.md), [agent.md](agent.md), [gateway-page.md](gateway-page.md) |
-| **Collaboration** | several people (and agents) on one document, through Kition Server (self-hosted) or Kition Cloud | `@kition/embed` with `collaboration`, `@kition/sync` | [collab.md](collab.md) |
+| **Collaboration** | several people on one document: part of Kition One, not in the SDK until its collaboration is redesigned | — | [collab.md](collab.md) |
 
 **Host integration.** A host application (an agent tool, a desktop app) integrates through the
 command line: it starts `kition gateway --workspace <folder>` and shows the gateway's editor page

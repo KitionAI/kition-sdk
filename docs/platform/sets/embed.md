@@ -8,9 +8,9 @@ the page brings its storage and identity, the embed is the Kit UI protocol
 `@kition/embed`, which serves `KitEmbed 1.3` and, of the later
 versions, EM25's opening, EM28, EM29, EM30 and EM31; [the embed reference](../reference/embed.md)
 documents it member by member, with every option, provider member, editor
-member, and event and its TypeScript type. EM1 to EM6 are `KitEmbed 1.0`; `KitEmbed 1.1` adds EM7 to
+member, and event and its TypeScript type. EM1 to EM5 are `KitEmbed 1.0`; `KitEmbed 1.1` adds EM7 to
 EM12, `KitEmbed 1.2` adds EM13 and EM14, `KitEmbed 1.3` adds
-EM15 to EM20, `KitEmbed 1.4` adds EM21 to EM24 (files, not yet
+EM15 to EM19, `KitEmbed 1.4` adds EM21 to EM24 (files, not yet
 implemented), and `KitEmbed 1.5` adds EM25 to EM27 (links, previews, and
 opening; of these only EM25's `open` and `openUrl` are implemented), and
 `KitEmbed 1.6` adds EM28 (the page's shortcuts), and `KitEmbed 1.7` adds EM29
@@ -21,21 +21,20 @@ unchanged with a newer embed.
 
 - **EM1** `mount(element, options)` returns an editor. `options`: `kit`
   (`id`, package base `url`, `entry`), `file` (`id`, `name`), `storage`,
-  and optionally `identity`, `collaboration` (`server`, `room`), `locale`,
+  and optionally `identity`, `locale`,
   `theme`, `permissions` (`mode`: `edit`, `comment` (1.1, EM9), or `view`), `model`
   (keep a replica for the object model, EM2), `ui` (1.1, EM10), `shortcuts` (1.6, EM28),
   `services` (1.7, EM29), `comments` (1.7, EM30), `timeoutMs`.
 - **EM2** The editor has `ready`, `save`, `on`, `setTheme`, `setLocale`,
-  `collab.state`, `collab.shareLink(role)`, `commands.list`, `commands.run`,
+  `commands.list`, `commands.run`,
   `replicaVersion`, `modelPort` ([`KitObjectModel 1.0`](object-model.md), with the mount option
   `model`), and `destroy`, and emits `saved`, `changed`, `error`,
-  `collab`, `presence`, `conflict` (a save refused because the file changed
+  `conflict` (a save refused because the file changed
   elsewhere), `notify`, and `shortcut` (1.6, EM28).
 - **EM3** A storage provider has `read`, `stamp`, and `write` with an
-  expected version, and optionally `create`, `replica`, and `state`. A write
+  expected version, and optionally `create` and `replica`. A write
   over a version that moved on MUST be refused as a conflict and reach the
-  kit as the reason `conflict`. An identity provider has `token`, asked for
-  on every connection, and `user`.
+  kit as the reason `conflict`. An identity provider has `user`.
 - **EM4** The kit runs in a frame from its package's origin, which MUST NOT
   be the page's, with the sandbox `allow-scripts allow-same-origin` (1.1:
   and `allow-forms`, so a kit's forms, such as a comment composer, submit);
@@ -48,14 +47,11 @@ unchanged with a newer embed.
   still does (`FRAME_SANDBOX`, [the embed reference](../reference/embed.md))
   until its next release. The integrator serves the package with the content security policy
   of UI-H3 ([Kit UI protocol](../reference/ui-protocol.md) section 6).
-- **EM5** Tokens, the sync connection, and the storage stay in the page. The
+- **EM5** The identity and the storage stay in the page. The
   kit sees only its document (UI-H2, [Kit UI protocol](../reference/ui-protocol.md)
   section 6): other reads are refused, other writes
   only make new files, and view mode refuses saves. From 1.4 the kit reaches
   other files only through file handles the embed grants (EM21 to EM24).
-- **EM6** Collaboration uses `kition-sync/1` ([sync-protocol.md](../reference/sync-protocol.md))
-  and the UI protocol's `replica` capability. One document co-edits in one
-  editor per page; another fails `ready` with the code `document-open`.
 
 - **EM7** (1.1) A storage provider MAY have `info(fileId)` answering `{
   name, version, size?, mime? }` or `null`; with it, `stamp` and the file's
@@ -66,16 +62,15 @@ unchanged with a newer embed.
   have `lend(fileId)` answering a URL, sent to the kit as `document.lend` for
   ranged reads of the files the document links (E5,
   [engine contract](../kits/engine.md)).
-- **EM8** (1.1) An identity provider's members are all optional
-  (collaboration still needs `token` and `user`). `users(ids)` names other
-  people (`{ id, name, avatar? }`) for presence and comment authors, each id
+- **EM8** (1.1) An identity provider's members are all optional.
+  `users(ids)` names other people (`{ id, name, avatar? }`) for comment
+  authors, each id
   asked for once per editor; `permissions(fileId)` answers `{ mode }`.
 - **EM9** (1.1) A person's mode is `edit`, `comment`, or `view`: the
-  strictest of the `permissions` option, `permissions(fileId)`, and the
-  room's role (`viewer`, `commenter`). `comment` opens the document read-only
+  stricter of the `permissions` option and `permissions(fileId)`. `comment` opens the document read-only
   with `document.comments.canComment` (rule M23); the kit is told who
   comments (`document.comments`) whenever the page names the person, with
-  `othersReadOnly` when the document is not co-edited.
+  `othersReadOnly`.
 - **EM10** (1.1) The `ui` option is the UI protocol's configuration
   ([Kit UI protocol](../reference/ui-protocol.md) section 9: `hide`, `disable`, `add`, `personal`) with `toolbar: 'none'`
   (hides `tab:*`), `panels` (the only panels shown, the others hidden from
@@ -83,10 +78,8 @@ unchanged with a newer embed.
   the person's hides to the page); `editor.configure(ui)` replaces it with
   `ui/configure`.
 - **EM11** (1.1) The editor also emits `comments` (the comment threads read
-  from the kit's replica, authors named by `users`), `leases` (`{ leases,
-  held, released }` when co-editing), `draft` (`draft/changed`), `action`
-  (`ui/action`), and `customize`; `presence` peers carry the `user` the page
-  names. It also has `configure`, `mode`, and `document(kit)`.
+  from the kit's replica, authors named by `users`), `draft` (`draft/changed`),
+  `action` (`ui/action`), and `customize`. It also has `configure`, `mode`, and `document(kit)`.
 - **EM12** (1.1) `editor.document(kit)` opens the document as the object
   model ([`KitObjectModel 1.0`](object-model.md)) over `modelPort` in one call, with the kit's typings
   (its id and schema); typings of another kit are refused.
@@ -157,12 +150,6 @@ unchanged with a newer embed.
   agent, and `next` and `reply` endpoints for the page); a WebSocket carries
   `next` and `reply` the same way. Without a relay the agent works
   headless on the file, and the page sees its new version through `stamp`.
-
-- **EM20** (1.3) *Tenant rooms* ([`KitCollab 1.3`](collab.md) section 4).
-  The embed records the person as `editor` until joining the room answers the
-  role their sync token grants, and then holds that role.
-  `collab.shareLink()` answers an `EmbedError` with the code `read-only`:
-  tenant rooms grant access by sync token only.
 
 - **EM21** (1.4) *Picking files* ([`KitFiles 1.1`](files.md)). A storage
   provider MAY add `pick({ purpose, mode, accept, multiple, suggestedName })`

@@ -22,8 +22,8 @@ exchange documents, commands and changes.
 goes through the same session; every kit shares the same data model.*
 
 Start with [the data model introduction](data-model.md), which explains why
-Kition's kits share one data model and what that gives collaboration and,
-later, version control.
+Kition's kits share one data model and what that gives history, drafts and
+agents.
 
 ## 1. Kition and KHP
 
@@ -32,8 +32,8 @@ later, version control.
 | For | Anyone who makes a kit for AI agents, and any agent harness | Kition's kits, Kition's hosts, the Kition SDK |
 | A kit is | An MCP server with the KHP tools | A WebAssembly engine on the Kit Data Model, its own editor, a package, and headless executables |
 | Defines | Tools, results, diagnostics, errors, drafts and safety rules, the minimal manifest, tiers, `khp check` | Everything else on this page |
-| Data model | None required; an object model is optional | The Kit Data Model (KDM), required for collaboration |
-| Drafts | File mode is enough | Drafts are forks of the document's replica, merged as one transaction |
+| Data model | None required; an object model is optional | The Kit Data Model (KDM) |
+| Drafts | File mode is enough | Drafts are forks of the document's replica, merged as one transaction that refuses fields both sides changed |
 
 Kition's kits are KHP kits too: `kition-kits-mcp` serves their tools over MCP
 ([agent bindings](sets/agent.md) section 8.1), and Kition's release tiers
@@ -66,7 +66,7 @@ on its own, implemented by one SDK package, and tested on its own.
 | [`KitPointer 1.0`](sets/pointer.md) | Know what every kit's pointer tools do with a gesture, what the person selected, and which object a point in a preview shows | `@kition/kit-editor`, `@kition/kit-dev-host` |
 | [`KitEmbed 1.8`](sets/embed.md) | Put a kit's editor in a web page with your storage and users | `@kition/embed` |
 | [`KitObjectModel 1.0`](sets/object-model.md) | Read and edit a document from code, in a page or Node | `@kition/script` |
-| [`KitCollab 1.3`](sets/collab.md) | Let people co-edit, comment, and sync across devices | `@kition/sync`, Kition Server |
+| [`KitCollab 1.3`](sets/collab.md) | Co-editing over Kition Server; not applicable until Kition One's collaboration is redesigned | `@kition/sync` (protocol client and types only) |
 | [`KitExtensions 1.0`](sets/extensions.md) | Add commands and panels to kit editors | `@kition/extensions` |
 | [`KitText 1.0`](sets/text.md) | Index a document's words for search, also when they live outside the object model (PDF page text, text layers): `document.text`, the capability `document-text`, and the order a host reads words in | headless executables (`kition-headless`) |
 | [`KitDrawing 1.0`](sets/drawing.md) *(draft)* | Insert and edit shapes and text boxes the same way in every kit that holds drawing objects, by pointer or by command | inside every kit with drawing objects |
@@ -124,19 +124,18 @@ A web application embeds Kition's Sheet and Slide kits
    slide 4. It fixes that, checks again (no errors), and calls
    `slide_draft_ready`.
 3. The person compares the draft with the slide in the page
-   (`editor.draft.compare`) and merges it as one undo step; a colleague
-   co-editing the slide on Kition Cloud, with a sync token the application's
-   server obtained, sees the result at once (`KitCollab 1.3`).
+   (`editor.draft.compare`) and merges it as one undo step, then saves it
+   through the page's storage.
 
 ## 5. Map of this folder
 
 | Path | What |
 | --- | --- |
-| [`data-model.md`](data-model.md) | Introduction to the Kit Data Model: design, collaboration, and version control |
+| [`data-model.md`](data-model.md) | Introduction to the Kit Data Model: the plain store, changes, versions, undo, drafts, and the content encoding |
 | [`layers.svg`](layers.svg) | The layered architecture diagram above |
 | `sets/` | The capability sets, one page each |
 | `reference/` | Full protocol references the sets point to: the Kit UI protocol, the Kit Process Protocol (headless), the sync protocol, the embed and object model APIs, extensions, the engine contract |
-| `kits/` | How Kition builds kits and hosts: manifest, engine and host contracts, kit editors, kit conformance levels (L1 to L6, the convergence suite), implementations, [adopting call context](kits/call-context.md) |
+| `kits/` | How Kition builds kits and hosts: manifest, engine and host contracts, kit editors, kit conformance levels (L1 to L5, the performance suite), implementations, [adopting call context](kits/call-context.md) |
 | [`getting-the-sdk.md`](getting-the-sdk.md) | Getting the SDK bundle, and the kits in it |
 | [`licence-format.md`](licence-format.md) | The `KITION1` licence of Kition One and Kition Server |
 | [`conformance.md`](conformance.md) | Conformance per set; Kition's Agent-ready release checks |
@@ -160,5 +159,5 @@ A web application embeds Kition's Sheet and Slide kits
 | E | [kits/engine.md](kits/engine.md) |
 | H, LR2 | [kits/host.md](kits/host.md) |
 | U | [kits/ui.md](kits/ui.md) |
-| L1–L6, the convergence suite | [kits/levels.md](kits/levels.md) |
+| L1–L5, the performance suite | [kits/levels.md](kits/levels.md) |
 | UI-K, UI-H, UI-S, UI-N and the other UI- rules | [reference/ui-protocol.md](reference/ui-protocol.md) |

@@ -80,9 +80,9 @@ shows it in an `<iframe>` and talks to it over the **UI protocol**.
   over the document) conform the same way as canvas editors (PT13).
 
 - **U10a** *Page replicas.* A kit editor that edits a KDM replica of its document in the page,
-  so typing never waits for the engine worker, keeps it in step with the worker's replica as
-  with a collaborator's: its edits go to the worker after each local transaction, and the
-  worker's changes (engine commands, co-editors, agents, external file merges) come back when
+  so typing never waits for the engine worker, keeps it in step with the worker's replica
+  in one order: its edits go to the worker after each local transaction, and the
+  worker's changes (engine commands, agents, a file changed outside) come back when
   the session reports a change, one exchange at a time, in order. An exchange reads the page's
   version only after the worker answered, so an edit made while it waits is still sent.
   `@kition/kit-editor`'s `WorkerRelay` does this; kits SHOULD use it rather than their own.

@@ -440,9 +440,9 @@ unproven derived comparisons stay in the guard's journal; unchanged derived
 facts are omitted. Requests for all changes follow the same visibility rules.
 An absent `before` or `after` member is distinct from a known JSON null value.
 
-Commands that replace the document can complete through the replica exchange
-and isolated planner. The exchange loads the new document and discards the old
-scratch history. A receipt whose original version belongs to the replaced
+Commands that replace the document can complete through the `Exchange` and
+the isolated planner. The `Exchange` loads the new document and discards its old
+scratch replica. A receipt whose original version belongs to the replaced
 document may report `changesUnavailable`; it never claims nothing changed.
 Malformed replacement exports still fail with their reason.
 

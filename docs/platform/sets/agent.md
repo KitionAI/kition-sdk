@@ -337,27 +337,23 @@ trusting that its commands did what it meant.
   Kit Process Protocol `model.changes`).
 - **A14** *Merge and discard.* **Merge** takes the draft's changes since its
   fork into the document as **one transaction of the replica that merges
-  them**: the result is the state a CRDT import would give, so edits other
-  people (and the person) made while the draft was open are kept, but only
-  the operations that turn the current state into the merged one are
-  written, under the merging replica's actor, with origin `agent` and the
-  principal of the person who started the agent. It is one undo step,
+  them** (`merge_changes`), under the merging replica's actor, with origin
+  `agent` and the principal of the person who started the agent. Edits the
+  person made while the draft was open are kept; when the draft and the
+  document both changed one field of one object since the fork, or one
+  changed an object the other deleted, the merge is refused (`stale`, naming
+  them) and nothing changes, since positions in a text or list both sides
+  edited would land in the wrong place. It is one undo step,
   labelled as the agent's, and the person's Undo takes the whole merge back.
   **Discard** drops the draft and leaves the document untouched. Merge and
   discard MUST require the person's explicit approval: a host MUST NOT offer
   them as agent tools or run them from a model's output.
 - **A15** *Where drafts live.* A draft's own changes MUST NOT reach the
-  document's other replicas: a replica holding both the draft's changes and
-  their merge would show the draft's effects twice. A draft is merged once
-  and then closed. In a co-edited document the draft belongs to the person
-  who runs the agent and lives on their device
-  ([Kit UI protocol](../reference/ui-protocol.md) section 7d); nothing of it
-  reaches the room until it is merged, as that person's changes. A server
-  MAY keep drafts for server-side agents and for drafts that follow a person
-  across devices: it stores the draft as the document id, the base version
-  it forked at, its changes since (and their blobs), its state, and the
-  principal it belongs to, outside the room's change log, and merges it with
-  the same operation.
+  document's other replicas: they reach the document only through its merge,
+  as the merging person's change. A draft is merged once and then closed. A
+  draft belongs to the person who runs the agent and lives where their
+  editor or harness runs ([Kit UI protocol](../reference/ui-protocol.md)
+  section 7d).
 - **A27** *Drafts beside a file.* A harness with no editor open MAY
   keep an agent's draft beside the file, in the workspace, with the file's
   hash when the draft began. A draft of a kit whose headless executable keeps

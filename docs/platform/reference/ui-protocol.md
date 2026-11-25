@@ -123,8 +123,7 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
 - `capabilities` are the optional host methods this host serves (sections 3,
   7, 7b, 7e, 7g, 7h, and 7i).
 - `capabilitySets` are the capability sets this host serves ([capability sets](../index.md#3-capability-sets)),
-  such as `"KitModel 1.0"`, `"KitCollab 1.0"` (the document is co-edited
-  through a sync server), `"KitObjectModel 1.0"`, `"KitExtensions 1.0"`, or
+  such as `"KitModel 1.0"`, `"KitObjectModel 1.0"`, `"KitExtensions 1.0"`, or
   `"KitEmbed 1.0"`. Older hosts leave it out; a kit treats that as an empty
   list.
 - `ui`, when present, is the UI configuration (section 9).
@@ -139,8 +138,7 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
   `othersReadOnly` that the document is not co-edited now, so threads others
   opened are read-only history. A commenter of a shared document opens with
   `readOnly: true` and `canComment: true`: the kit refuses every edit of the
-  content (UI-K7) but still writes comment threads, which are all its
-  replica's changes the sync server takes from a commenter: it runs the
+  content (UI-K7) but still writes comment threads: it runs the
   commands its `kit.json` lists as `collaboration.comments.commands` (Kit Harness
   Protocol 2.0 K13) and no other edit, and Undo and Redo
   of what those commands did in the session, never of anything else. Its
@@ -191,12 +189,10 @@ them and MUST let the person choose (standard H6).
 
 `{ "version": string }`: the file is now `version`, and the
 document the kit holds already contains everything it holds (another session
-of a co-edited room saved a state this replica has). The kit takes `version`
-as the version it last read or wrote, keeps its unsaved mark as it is, and
-raises no "changed on disk" choice for it; one it raised already for that
-version goes away. `@kition/embed` sends it in a managed room once its replica
-holds the room's changes up to the save; kit-editor's `useKitDocument` takes
-it (`holdFile`).
+saved a state this replica has). The kit takes `version` as the version it
+last read or wrote, keeps its unsaved mark as it is, and raises no "changed
+on disk" choice for it; one it raised already for that version goes away.
+kit-editor's `useKitDocument` takes it (`holdFile`); no SDK host sends it.
 
 ### `document/check` (request)
 
@@ -547,13 +543,13 @@ for the host's locales; it falls back to `en-US`.
 ## 7. Replicas (capability `replica`)
 
 A kit whose engine holds its document as a KDM replica
-([`KitModel 1.0`](../sets/model.md)) but whose file format cannot carry one (PSD) asks the host
-to keep the replica next to the file, so the document keeps its identity
-across saves and can later be shared. The host lists `replica` in
+([`KitModel 1.0`](../sets/model.md)) asks the host to keep the replica's state next to the file,
+so the document keeps its object ids, comment threads and checkpoints (section 7m) across
+saves, also when its file format cannot carry them (PSD). The host lists `replica` in
 `ui/initialize`'s `capabilities` when it serves `host/replicaRead` and
 `host/replicaWrite`; the kit lists `replica` in its answer when it uses them
 and answers `replica/*`. Either side without it changes nothing: the kit opens
-and saves the file as before. `replica/info` and narrower
+and saves the file alone. `replica/info` and narrower
 `replica/export` blobs (UI-R5) are optional for a kit's engine to answer precisely.
 
 | Method | Direction | Params | Result |
@@ -563,38 +559,34 @@ and saves the file as before. `replica/info` and narrower
 | `replica/version` | host to kit | `{}` | `{ version }` |
 | `replica/export` | host to kit | `{ since }` | `{ changes, blobs }` |
 | `replica/import` | host to kit | `{ changes, blobs }` | `{ damage }` |
+| `replica/restore` | host to kit | `{ snapshot, blobs, origin }` | `{ damage }` |
 | `replica/changed` | kit to host (notification) | `{ version }` | |
 | `replica/info` | host to kit | `{}` | `{ docId }` |
 
 `snapshot`, `blobs`, `version`, `since`, and `changes` are `ArrayBuffer`s in
 the KDM's encodings; `blobs` is the engine's blob bundle and `fileStamp` a
-version stamp as `host/stamp` answers it. In `host/replicaWrite`, `version`
-is the replica version `snapshot` holds (UI-R6). `since` may be empty (every change).
-`docId` is the replica's own id — a sync room's `docId`
-([sync-protocol.md](sync-protocol.md)) the kit's engine ties the document to,
-or `null` when it has none (the engine made its replica but no room exists
-for it yet, or the engine does not keep one at all).
+version stamp as `host/stamp` answers it. A `snapshot` is the document's
+state with its version ([data model](../data-model.md) section 7.4, rules C2 and C10): opaque
+bytes to the host, which stores them whole. A `version` is 0 bytes (the empty version) or 24
+bytes, the replica's line of changes and its position on it; equal versions are equal bytes.
+`since` may be empty (every change: the kit answers a snapshot).
+`docId` is the replica's own id, or `null` when the engine keeps none.
 
-- **UI-R1** The kit, not the host, decides whether a file opens with its
-  stored replica. The host MUST answer `host/replicaRead` with the replica it
-  keeps for `path` whatever its `fileStamp`, also when the file changed
-  outside the host since (the one exception: a co-edited document of a
-  managed room answers `null` for a replica of an earlier file generation,
-  [managed-collab.md](../managed-collab.md) section 1.3). A kit whose engine
-  merges a newer file into its stored replica (`open_with_replica`,
-  `openReplica`) declares so (in `@kition/kit-editor`, `replicaMergesFile`)
-  and opens the file with the stored replica whatever its `fileStamp`: when
-  the stamps differ, its engine records what the file changed as one `system`
-  change labelled `import` ([data model](../data-model.md) sections 7.1 and
-  7.3), so the document keeps its identity, comment threads and history, and
-  the replica it writes next continues the stored one's lineage: its
-  checkpoints, labelled ones included, stay available (UI-C5). Any other kit
-  opens with the stored replica only when its `fileStamp` equals the stamp of
-  the file it opens; otherwise it opens the file plainly and makes a new
-  replica on the first edit, another lineage, whose history starts over. The
-  file is always the document; a missing, stale, or damaged replica MUST NOT
-  stop it from opening, and a stored replica the engine cannot merge opens
-  the file plainly.
+- `replica/import` applies changes in order (or a snapshot) like the KDM's `import_changes`. Changes
+  that do not follow the replica's version, or whose operations do not fit its state, are refused
+  with `error.data.reason` `stale` and change nothing; the host then asks `replica/export` again
+  from the version it holds.
+- `replica/restore` writes the state `snapshot` holds (a checkpoint's, section 7m) over the
+  document as one change of `origin` (`{ kind: 'person', principal, label? }`), keyed by
+  object id: one person undo step, so Undo takes the restore back. The kit's engine does it
+  (`restoreState`, which `export_kit_session!` provides); the host never computes changes from
+  the bytes.
+- **UI-R1** The host MUST answer `host/replicaRead` with the snapshot it keeps for `path` whatever
+  its `fileStamp`, also when the file changed outside the host since. The kit opens the file with
+  that snapshot, so its objects keep their ids; when the file's content differs from the
+  snapshot's, its engine records the difference as one `system` change labelled `import`
+  ([data model](../data-model.md) section 7.1). The file is always the document: a missing or
+  unreadable snapshot is treated as none, and MUST NOT stop the file from opening.
 - **UI-R2** After a save (`host/write`), the kit stores the replica taken with
   the saved bytes, never a later one, under the stamp `host/write` answered. A
   failed `host/replicaWrite` MUST NOT fail the save.
@@ -603,29 +595,13 @@ for it yet, or the engine does not keep one at all).
   It MUST confine `path` like every other host call (UI-H2).
 - **UI-R4** The kit sends `replica/changed` after each edit that moved the
   replica's version; it MAY coalesce them while dragging. A host MAY add more
-  than one listener for it (for example, the tab's own unsaved mark and a sync
-  client sharing one connection); every listener hears every notification.
+  than one listener for it; every listener hears every notification.
 - **UI-R5** `replica/export`'s `blobs` MAY be narrower than the replica's
   whole blob bundle when the kit's engine can tell which blobs the changes
   since `since` actually need; a host MUST NOT assume it received every blob
   the replica ever referenced, only every blob its new changes need.
-- **UI-R6** A replica write names its own version. The kit takes `version`
-  together with `snapshot` and the saved bytes, in the one step that fixes the
-  save's content (after the engine's seal, `prepareSave`), and sends it in
-  `host/replicaWrite`: edits made while the file write and the replica write
-  are pending are in neither. A host that needs the stored replica's version
-  (a checkpoint, section 7m) uses this `version` and MUST NOT ask
-  `replica/version` for it after the write, which may answer a later state.
-  A host refuses a `host/replicaWrite` without `version` (`-32602`) and stores
-  nothing.
-- **UI-R7** A replica version is canonical bytes: equal versions are equal
-  bytes, whichever replica, engine (Rust or TypeScript KDM) or order of
-  imports made them ([data model](../data-model.md) section 7.2, "Version
-  bytes"). So a host compares
-  and stores `version`s (here, in `replica/changed`, and a checkpoint's
-  `version`, section 7m) as opaque bytes, for example to tell that a
-  checkpoint is at the newest one's version (UI-C1) or that a write continues
-  the stored history; it never decodes them.
+- **UI-R6** In `host/replicaWrite`, `version` is the version `snapshot` holds. A host refuses a
+  `host/replicaWrite` without `version` (`-32602`) and stores nothing.
 
 ## 7a. Object model (capability `model`)
 
@@ -646,19 +622,9 @@ so a host can tell its own change from the next `replica/changed`. A
 read-only document refuses a batch with any operation (`read-only`) and
 answers one that only loads.
 
-`@kition/kit-editor` lists `model` when the document's engine can answer it: an
+`@kition/kit-editor` lists `model` when the document's engine answers it: an
 engine with `modelBatch` and `modelDescribe` (`export_kit_session!`) runs the
-batch itself; any other contract 2 engine (one that exchanges changes) has
-the batch run on a scratch replica in the kit's engine worker, its changes
-handed to the engine, and each run of model operations kept as a step of the
-editor's undo history, in order with the engine's own steps (a command in a
-batch is the engine's own step). The editor's Undo takes a script step back
-when the document is as that step left it, or when the engine has nothing
-left to undo; the person's next edit drops the script steps to redo.
-
-A host whose kit does not list `model` but lists `replica` answers the object
-model on its side (standard OM6): `@kition/script` does, so every kit with the
-`replica` capability can be scripted today.
+batch itself, as one step of its own undo history.
 
 ## 7b. Leases (capability `lease`)
 
@@ -684,8 +650,7 @@ two collide when equal or when either is `*`.
 - `host/leaseAcquire` takes or renews the lease; `ttl` (milliseconds) is a
   hint for how long one renewal lasts. `lease` is `null` when there is
   nobody to coordinate with (the document is not co-edited, or the host is
-  offline): the kit goes ahead, and an edit made offline lands as a conflict
-  object if someone else held the lease meanwhile (section 7c). A refusal is
+  offline): the kit goes ahead. A refusal is
   an error whose `data.reason` is `held` (another session holds a colliding
   scope; `data.lease` names it) or `read-only`.
 - `host/leases` answers the document's leases now; `lease/changed` replaces
@@ -711,22 +676,6 @@ option names each step's scope (a kit asks its engine, for example a
 `leaseScope` extra declared in `kit.json`), and the session takes and
 releases it, refuses held ones, and refuses a step that edits without a lease
 of its own while another session holds the whole document (`*`).
-
-## 7c. Conflict objects (`document/conflicts`)
-
-When a kit's repair pass after a merge cannot resolve
-something by itself, it records a **conflict object** in the document
-(`KitModel 1.0` M22) that keeps what could not be kept, and tells the host:
-
-| Method | Direction | Params |
-| --- | --- | --- |
-| `document/conflicts` | kit to host (notification) | `{ conflicts: [{ id, kind, summary }] }` |
-
-`conflicts` is the document's whole list of unresolved conflicts, sent when it
-changes: `id` the conflict object's id, `kind` the kit's name for what
-happened (`pdf.droppedEdit`), `summary` a sentence for people. A host shows a
-non-blocking notice; it never blocks editing. `@kition/kit-editor`'s
-`reportConflicts` and `useConflictReport` send it.
 
 ## 7d. Drafts (capability `draft`)
 
@@ -769,23 +718,28 @@ it or discards it. A kit that keeps drafts lists `draft` in its
   with the document as merging the draft would leave it, and both sides
   rendered by the kit's engine as base64 PNGs at most `maxSize` pixels on
   the longer side (`null` where the engine cannot render).
-- `draft/merge` takes the draft into the document as one undo step recorded
-  with `origin` (`{ kind: "agent", principal, label? }`), reports the edit
-  with `document/changed` (`by: "agent"`), and closes the draft;
-  `draft/discard` closes it and leaves the document as it is. `schema` is
-  the kit's KDM schema as the host knows it, as in section 7a.
+- `draft/merge` takes the draft into the document as one undo step of the
+  person recorded with `origin` (`{ kind: "agent", principal, label? }`),
+  reports the edit with `document/changed` (`by: "agent"`), and closes the
+  draft; `draft/discard` closes it and leaves the document as it is. When the
+  document changed since the draft was opened, the merge applies unless the
+  draft and the document both changed one field of one object, or one of them
+  changed an object the other deleted: then it is refused (`error.data.reason`
+  `stale`, the message naming them), changes nothing, and the draft stays
+  open. `schema` is the kit's KDM schema as the host knows it, as in section 7a.
 - **UI-D1** A host MUST send `draft/merge` and `draft/discard` only on the
   person's explicit action (a Merge or Discard button), never from a model's
   output; it MAY let an agent call `draft/ready` and `draft/reopen`.
 - **UI-D2** A draft is local to the page that holds it. Its own changes MUST
-  NOT be sent to the document's room or stored as the document's replica
-  (`host/replicaWrite`); only the merge reaches them, as this person's
-  changes. Closing the kit drops the draft.
+  NOT be stored as the document's replica (`host/replicaWrite`); only the
+  merge reaches the document, as this person's change. Closing the kit drops
+  the draft.
 
 `@kition/kit-editor` serves this capability for every contract 2 engine: the
 draft is a second engine (its own worker) opened with the document's bytes
-and replica (`openWithReplica`), and a merge runs as a script step of the
-worker's replica model (section 7a), so the editor's Undo takes it back.
+and replica (`openWithReplica`). The document's engine compares the draft's
+changes with the document (`compareChanges`) and merges them (`mergeChanges`,
+one person undo step), so the editor's Undo takes a merge back.
 
 ## 7e. Presence (capability `presence`)
 
@@ -1279,15 +1233,15 @@ then links the kept copy, never the address.
 ## 7m. Checkpoints (capability `checkpoints`)
 
 A file holds no history ([data model](../data-model.md) section 7.3): a document's
-history is its replica in the host's store. A **checkpoint** names one version of that replica
-(a saved version a person labelled, the host's save, an agent's run) so a kit can list earlier
-versions, show one, and let the person name or remove the ones the kit made. A checkpoint is
-a reference into the store, never a copy of the document: the kit derives the content at its
-`version` from the replica. There are no branches: a checkpoint is only ever read.
+history is kept by the host. A **checkpoint** is the document's state at one moment (a saved
+version a person labelled, the host's save, an agent's run) so a kit can list earlier versions,
+show one, restore one, and let the person name or remove the ones the kit made. The host stores
+each checkpoint's snapshot (the replica write's, section 7), the same bytes once. There are no
+branches: a checkpoint is read, or restored as a new change (`replica/restore`, section 7).
 
 The host lists `checkpoints` in `ui/initialize`'s `capabilities` when it serves the methods
-below; it serves them only together with `replica` (section 7), since checkpoints name replica
-versions. A kit uses them only when listed.
+below; it serves them only together with `replica` (section 7), since a checkpoint is recorded
+with a replica write. A kit uses them only when listed.
 
 | Method | Direction | Params | Result |
 | --- | --- | --- | --- |
@@ -1295,24 +1249,21 @@ versions. A kit uses them only when listed.
 | `host/checkpointList` | kit to host | `{ path, labelled?, before?, limit? }` | `{ checkpoints, more }` |
 | `host/checkpointUpdate` | kit to host | `{ path, id, label?, description? }` | `{ checkpoint }` |
 | `host/checkpointDelete` | kit to host | `{ path, id }` | `{}` |
-| `host/checkpointRead` | kit to host | `{ path, id, state? }` | `{ checkpoint, blobs, snapshot? }` |
+| `host/checkpointRead` | kit to host | `{ path, id }` | `{ checkpoint, blobs, snapshot }` |
 
-A checkpoint is `{ id, time, origin, author?, label?, description?, version, available }`
+A checkpoint is `{ id, time, origin, author?, label?, description?, version }`
 (`KitCheckpoint`): `time` in milliseconds since the Unix epoch; `origin` who made it (`kit`
-for the kit's own; the host's are `save`, `agent`, and others it names); `version` the replica
-version, base64, as `ai/version` answers it; `available` false when the store no longer reaches
-that version.
+for the kit's own; the host's are `save`, `agent`, and others it names); `version` the version
+of its snapshot, base64, as `ai/version` answers it.
 
-- **UI-C1** A checkpoint is recorded with the replica write that holds its version:
+- **UI-C1** A checkpoint is recorded with the replica write that holds its state:
   `host/replicaWrite` with `checkpoint: { label?, description?, author?, origin? }` stores the
-  replica and records a checkpoint at exactly the write's `version` (UI-R6: the version of the
-  saved snapshot, never one asked of the kit afterwards), in one step, and answers it. So a
-  labelled checkpoint names the document as it was saved, and reading it back gives the saved
-  content, never an edit made while the save was being written. `origin`
-  is `kit` or absent (which means `kit`). Recording at the version of the newest checkpoint
-  answers that checkpoint; a request with a label upgrades it: it takes the label and
-  description and becomes the kit's (`origin: kit`), so the person can rename or remove it. A
-  checkpoint is never recorded apart from the replica it names.
+  snapshot and records a checkpoint of it, at the write's `version` (UI-R6), in one step, and
+  answers it. So a labelled checkpoint holds the document as it was saved, never an edit made
+  while the save was being written. `origin` is `kit` or absent (which means `kit`). Recording
+  at the version of the newest checkpoint answers that checkpoint; a request with a label
+  upgrades it: it takes the label and description and becomes the kit's (`origin: kit`), so the
+  person can rename or remove it. A checkpoint is never recorded apart from a replica write.
 - **UI-C2** `host/checkpointList` answers newest first, at most `limit` (default and maximum 200),
   only labelled ones with `labelled: true`, and only those older than the checkpoint `before`
   when given; `more` tells whether older ones remain. An unknown `before` is `not-found`.
@@ -1321,27 +1272,20 @@ that version.
   them (`read-only`). In `host/checkpointUpdate` an absent field is kept and an empty string
   removes it. A read-only document (`document.readOnly`) refuses every update, delete, and
   `checkpoint` request (`read-only`).
-- **UI-C4** `host/checkpointRead` answers the blobs the version needs. Normally the kit derives the
-  content from its own replica at `version`; with `state: true` the host also answers its
-  replica's snapshot at that version (`snapshot`), for a kit whose replica does not reach it.
-- **UI-C5** When the store no longer reaches a checkpoint's version (the replica was replaced by
-  one of another lineage, or the file was opened alone), the checkpoint stays listed with
-  `available: false`, and `host/checkpointRead` refuses it (`history-missing`). The host tells
-  lineage by the replica the kit writes (whether it continues the stored one), never by the
-  file's stamp: a file changed outside and merged into the stored replica as one `import` change
-  (UI-R1) continues the lineage, and every checkpoint stays available. A labelled
-  checkpoint is never dropped to make room for others: the host thins unlabelled ones, and keeps
-  its own, separate limit for labelled ones.
+- **UI-C4** `host/checkpointRead` answers the checkpoint's snapshot and the blobs it needs. The
+  kit reads the state from the snapshot (a replica loaded from it, or the engine's
+  comparison with the document now); `replica/restore` writes it over the document.
 - **UI-C6** Labels are at most 200 characters (`CHECKPOINT_LABEL_LIMIT`) and descriptions at most
   2000 (`CHECKPOINT_DESCRIPTION_LIMIT`); longer ones are refused (`too-long`). A checkpoint changed
   or deleted by someone else meanwhile is refused (`conflict`); an unknown `id` is `not-found`.
-- A refusal is `-32000` with `error.data.reason` one of `not-found`, `history-missing`,
-  `too-long`, `read-only`, or `conflict` (`CHECKPOINT_ERROR_REASONS`). A refused `checkpoint`
-  in `host/replicaWrite` stores nothing: the kit's save still succeeds (UI-R2), without the
-  checkpoint.
+  A labelled checkpoint is never dropped to make room for others: the host thins unlabelled ones
+  under a limit of their own.
+- A refusal is `-32000` with `error.data.reason` one of `not-found`, `too-long`, `read-only`, or
+  `conflict` (`CHECKPOINT_ERROR_REASONS`). A refused `checkpoint` in `host/replicaWrite` stores
+  nothing: the kit's save still succeeds (UI-R2), without the checkpoint.
 - `@kition/kit-host`'s `mountKit` routes these to the handler `checkpoints` (`find`, `list`,
-  `update`, `delete`, `read`) and checks the lengths, the origin, read-only documents, missing
-  history, and unknown ids before the handler runs. `@kition/kit-editor` offers them as
+  `update`, `delete`, `read`) and checks the lengths, the origin, read-only documents, and
+  unknown ids before the handler runs. `@kition/kit-editor` offers them as
   `listCheckpoints`, `updateCheckpoint`, `deleteCheckpoint`, `readCheckpoint`, and
   `useKitDocument`'s `saveCheckpoint`; without the capability they answer `null` and record
   nothing.
@@ -1351,13 +1295,10 @@ that version.
   write's `version` (UI-R6); it keeps each one's snapshot and blobs, so
   `host/checkpointRead` answers them after later saves. `devHost.reload()` reopens the document as
   its last save left it and keeps its replica and checkpoints; `devHost.reopenChanged(bytes)`
-  changes the file outside the editor (a new version) and reopens it, handing the stored replica
-  over under its earlier stamp (UI-R1); `devHost.open()` opens a file alone, and a replica of
-  another lineage (the kit opened the file without the stored one) makes earlier checkpoints
-  `available: false`. The dev host reads no KDM bytes, so a kit whose engine merges the file says
-  so (`replicaMergesFile: true` or `?replica-merges-file=1`): its replica after `reopenChanged`
-  continues the lineage and the checkpoints stay available. `devHost.recordCheckpoint({ origin: 'save' })` plays the host's
-  own; `devHost.history.checkpoints(path)` lists them all.
+  changes the file outside the editor (a new version) and reopens it, handing the stored snapshot
+  over under its earlier stamp (UI-R1); `devHost.open()` opens a file alone.
+  `devHost.recordCheckpoint({ origin: 'save' })` plays the host's own;
+  `devHost.history.checkpoints(path)` lists them all.
 
 ## 7n. View state (capability `view-state`)
 

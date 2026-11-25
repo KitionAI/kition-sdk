@@ -273,8 +273,7 @@ bin/<platform>/kition-kits serve --kits-dir kits                            # he
 bundle's `kits/`. A host that starts the kit executables itself (Kit Process Protocol, H11) can
 check each one against the SHA-256 the release manifest names for it.
 
-`@kition/script` depends on `@kition/kdm` and `@kition/sync` (in the bundle) and `loro-crdt` (public
-npm). `@kition/embed` has no dependencies. `@kition/embed-server` depends on `@kition/sync` and
+`@kition/script` depends on `@kition/kdm` (in the bundle). `@kition/embed` has no dependencies. `@kition/embed-server` depends on `@kition/sync` and
 `@kition/embed`.
 
 ## Versions never change once published

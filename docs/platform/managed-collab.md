@@ -1,5 +1,12 @@
 # Managed co-editing: open tokens, rooms per file, saves, host services
 
+> **Not applicable until Kition One's collaboration is redesigned.** A Kition document is a plain
+> model whose changes apply in one order ([data model](data-model.md)), and the SDK connects no kit replica
+> to a room: `@kition/embed`, `@kition/script` and the kit editors do not co-edit. `@kition/sync`
+> keeps the protocol's client and types (`SyncClient`, leases, the save state machine, open
+> tokens) and `kition-sync-protocol` its Rust types. The text below describes co-editing over a
+> merging model and is the starting point for Kition One's design.
+
 This guide describes open tokens, per-file rooms, managed saves and host
 services. The contracts are defined in [KitCollab](sets/collab.md), the
 [sync protocol](reference/sync-protocol.md) and the

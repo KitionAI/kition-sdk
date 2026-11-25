@@ -396,12 +396,10 @@ when its engine keeps a replica (`open_with_replica`, the features
   limit (section 2) is answered `null` and the kit opens the file plainly.
 - **On open.** In `document.open`, a kit whose engine keeps a replica asks
   `replica.read` for the document's handle and follows UI-R1: the host
-  answers the replica it keeps whatever its `fileStamp`; a kit whose engine
-  merges a newer file into its replica opens with it whatever the stamp,
-  recording what the file changed as one `import` change, and any other
-  opens the file with the replica only when `fileStamp` equals the file's
-  version, else plainly; a missing, stale, or damaged replica never stops
-  the file from opening.
+  answers the snapshot it keeps whatever its `fileStamp`; the kit opens the
+  file with it, recording what the file changed since as one `import` change;
+  a missing or unreadable snapshot is treated as none and never stops the
+  file from opening.
 - **On save.** After `document.save` (and `document.saveAs`, for the new
   file's handle) committed, the kit writes the replica taken with the saved
   bytes under the version the commit answered (UI-R2); a failed
@@ -441,10 +439,9 @@ not found`.
   stay behind), empty undo, and a new `docId` the kit makes and answers; the
   host supplies none, as it supplies no `documentId`. Everything else in the
   file is kept. The source and the fork refuse each other's changes (M17),
-  and a fork of a fork is another new document. The fork's replica is
-  shallow (M16a); its every change (`model.export` without `since`) still
-  opens with `model.open` (M14), so the object model and drafts need nothing
-  more from the kit.
+  and a fork of a fork is another new document. Its every change
+  (`model.export` without `since`) is a snapshot that opens with `model.open`
+  (M14), so the object model and drafts need nothing more from the kit.
 - A replica the kit cannot read (damaged, of another kit, of a newer schema)
   is `-32012 unsupported_format`, never `null`: a host must not take a file
   it cannot read as one without identity.
@@ -934,11 +931,9 @@ feature or capability or keeps the replica they name, and are skipped otherwise:
 14. For a kit whose engine keeps a replica (features `model.open` and
     `model.export`, section 5.5), with the suite serving `hostServices`
     `replica`: `document.open` asks `replica.read` for the document's handle
-    and opens with a replica whose `fileStamp` matches the file's version
-    (the reopened document keeps the replica's `docId` and comment
-    threads); with a stale one, a kit whose engine merges a newer file
-    opens with it too (the same `docId` and threads, the file's changes as
-    one `import` change) and any other opens the file plainly; with a
+    and opens with it (the reopened document keeps the replica's `docId`
+    and comment threads); with a stale one it opens with it too (the same
+    `docId` and threads, the file's changes as one `import` change); with a
     damaged or missing (`null`) replica it opens the file plainly; `document.save`, and `document.saveAs` for the new
     file's handle, are followed by `replica.write` for that handle with the
     replica taken with the saved bytes and the committed version; a failing

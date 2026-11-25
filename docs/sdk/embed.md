@@ -10,8 +10,7 @@ const editor = await KitionEmbed.mount(element, {
   kit: { id: 'kit.note', url: 'https://kits.example.com/note-ui/' }, // the kit package you host
   file: { id: 'plan-2026', name: 'Plan.md' },
   storage,             // your StorageProvider: read, stamp, write (versioned), create
-  identity,            // your IdentityProvider: token, user, users, permissions
-  collaboration: { server: 'wss://sync.example.com/v1/sync' }, // optional: co-editing
+  identity,            // your IdentityProvider: user, users, permissions
 })
 ```
 
@@ -25,7 +24,7 @@ const editor = await KitionEmbed.mount(element, {
   version the one before it wrote, and does not write the same bytes twice in a row, so a stale
   version always means the file changed elsewhere.
 - **Identity and permissions** are yours: `edit`, `comment`, or `view` per person and file.
-- **Collaboration** goes through a `kition-sync/1` server (Kition Server).
+- **One editor per document**: the embed does not co-edit.
 
 - **Checks**: `editor.check()` lists what the kit finds wrong with the document (`{ code,
   severity, target, message, fix? }`, errors first); `editor.check({ draft: true })` checks the

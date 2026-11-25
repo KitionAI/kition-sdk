@@ -14,10 +14,11 @@ facts appearing in public receipts.
 
 ## Document Replacement
 
-A command may replace its replica with a new document. Rust and TypeScript
-exchanges detect the different document identity and load its full export under
-a fresh actor. The editor discards the old scratch replica's undo and redo
-history. Changes from different documents are never merged. A replacement must
+A command may replace its replica with a new document. The Rust `Exchange`
+detects the different document identity (or a change list that does not follow
+its version, `stale`) and loads the engine's full export under a fresh actor,
+discarding the old scratch replica. Changes from different documents are never
+applied to each other. A replacement must
 provide a complete export valid for the declared schema; malformed exports and
 other import errors still fail with their reason.
 
@@ -125,7 +126,7 @@ Never silently choose a default target when restoring saved state.
 Implement `KitDocument::reconcile_reread(&mut self, fresh: &Self)` to keep
 undo history. Resolve imported identities, apply only the file difference to
 the existing session, retain its editor state and blobs, then return `true`.
-`KitSession::reread` and the TypeScript `KitSession.reread` apply that difference
+`KitSession::reread` applies that difference
 in one atomic import transaction, outside both undo histories. The callback
 writes only values that actually changed; rewriting unchanged values would
 make them outside writes and prevent undo from restoring them. An unsupported
@@ -155,17 +156,15 @@ of membership, and cannot-say for unknown fields or missing historical bytes.
 Use `HistoricalBlobs` for byte comparisons; current bytes cannot prove a basis
 match. The editor bridge serves the same `under` and `covered` wire callbacks.
 Rust `StateDiff::to_recorded_json` retains deleted JSON predicate values in
-private `$was` metadata. Custom TypeScript journals call `withDeletedBasis`
-after `diffWithToolIds`; strip `$was` from public receipts. These values retain
+private `$was` metadata; strip `$was` from public receipts. These values retain
 the receipt's bounds, so an excerpt still requires cannot-say.
 
 ## Isolated Planning And Raw Batches
 
-Update the Rust SDK, KDM TypeScript package, editor worker and host together.
+Update the Rust SDK, editor worker and host together.
 
 - For scoped `edit.undo` and `edit.redo`, use Rust `undo_touches_in(scope)` /
-  `redo_touches_in(scope)` or TypeScript `undoTouchesIn(scope)` /
-  `redoTouchesIn(scope)`. The result describes the next grouped step's original
+  `redo_touches_in(scope)`. The result describes the next grouped step's original
   object IDs and fields. Translate raw IDs through `ToolIds` and return these
   holds from `under`; `can_undo_in` / `can_redo_in` alone cannot declare them.
 - `under`, `covered` and `content` requests carry a zero-based `step`, editor
@@ -250,7 +249,7 @@ refuses a write with `basis` as `unknown`.
 
 Declare computed types with `projected:true`, ordinary field schemas and,
 for writable operations, `projectedOps`. Implement Rust
-`KitDocument::projected_objects` or TypeScript `KitModel.projectedObjects`.
+`KitDocument::projected_objects`.
 Return the complete projection for the current document state as
 `[{id,type,fields,at?:{parent,field,index}}]`. IDs must remain stable within the
 session, be unique and never shadow stored IDs. Containers are virtual lists,
@@ -403,9 +402,7 @@ Formatting-only changes have no text span. Several edits of one field in
 `spansTruncated:true` indicates omitted details. Existing field excerpts remain.
 
 Rust `to_recorded_json` includes spans automatically. `to_located_json` exposes
-them without private history; `to_json` keeps the comparison shape. TypeScript
-servers use `changesSince(version,{textSpans:true})` or `withTextSpans` before
-tool-id translation. `withTextBasis` also attaches spans before journalling.
+them without private history; `to_json` keeps the comparison shape.
 Custom adapters must pass span metadata through. Update the SDK pin; no file
 format change is required.
 
@@ -1041,10 +1038,9 @@ The live reader sends `kit/call` tool `premise` with `{method,params}` to the
 host's `connection.ai.premise(method, params)`, which forwards `ai/premise` to
 the editor. `@kition/kit-editor` calls the engine's synchronous
 `premiseRead(method, JSON.stringify(params))`. Rebuild Rust engines using
-`export_kit_document!` to export that method; TypeScript engines made with
-`kitEngineClass` implement `KitModel.premise` for their kit-specific answers.
-They also supply `editorState`, `restoreEditorState` and `setContext` on
-`KitModel` to isolate selection, part and time. Supplying only some hooks
+`export_kit_document!` to export that method. Engines also supply
+`editorState`, `restoreEditorState` and `setContext` to isolate selection,
+part and time. Supplying only some hooks
 leaves editor context unavailable. Those hooks change transient view state,
 never the replica. `state` is dispatched automatically from `editorState`.
 The capability is `premises`. Hosts must forward this request in addition to

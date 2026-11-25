@@ -24,7 +24,7 @@ tests.
 | `KitPointer 1.0` | Kits (canvas and DOM editors), hosts | See [KitPointer conformance](#kitpointer-10) below |
 | `KitEmbed 1.8` | Hosts (`@kition/embed`) | EM1–EM31, driven in Chromium and WebKit through the Kit UI protocol |
 | `KitObjectModel 1.0` | Kits, hosts | OM rules over every transport the implementation offers |
-| `KitCollab 1.3` | Kits, sync servers | The convergence suite for kits; the sync protocol's rules for servers |
+| `KitCollab 1.3` | Sync servers | The sync protocol's rules; not applicable until Kition One's collaboration is redesigned ([`KitCollab`](sets/collab.md)) |
 | `KitExtensions 1.0` | Hosts | EX rules, with the example extension |
 | `KitText 1.0` | Kits, hosts | `kition_kit::testing::check_text` on a fixture with known words; Kit Process Protocol check 15; `headless.capabilities` in `tools/check-manifest.mjs`; hosts read words in the T7 order ([`KitText 1.0`](sets/text.md) section 6) |
 
@@ -153,7 +153,7 @@ and `edit.json` (a command and params that change the document).
 A conformance report for the profile names the stage, the kit or host and
 its version, each platform tested, and the result of every phase.
 
-Kits are also rated by the levels L1–L6 in [kits/levels.md](kits/levels.md),
+Kits are also rated by the levels L1–L5 in [kits/levels.md](kits/levels.md),
 which `tools/check-manifest.mjs` reports.
 
 ## `khp check` on a Kition kit
@@ -223,7 +223,7 @@ usage error or a server that did not start.
 
 | Tool | Checks |
 | --- | --- |
-| `node tools/check-manifest.mjs <kit.json> [--module <dir>] [--convergence <report.json>]` | The manifest against `schemas/kit.schema.json` and rules K1–K14 (K15 to K18 to come), and KHP K21 (`agent.links` a boolean; when `true`, `conformance/links-outside.<ext>` beside `kit.json`); reports the kit levels it supports |
+| `node tools/check-manifest.mjs <kit.json> [--module <dir>]` | The manifest against `schemas/kit.schema.json` and rules K1–K14 (K15 to K18 to come), and KHP K21 (`agent.links` a boolean; when `true`, `conformance/links-outside.<ext>` beside `kit.json`); reports the kit levels it supports |
 | `node tools/check-sdk.mjs --dir <dir> --module <module> --class <Class> ...` | A built engine against the engine contract from JavaScript (E1–E4), and its command schemas (A5) |
 
 ## Conformance report

@@ -1,7 +1,6 @@
 # URL embedding: the embed server
 
-The embed server embeds a single-user editor. Collaborative editing uses
-Kition Server through the managed-collaboration interfaces.
+The embed server embeds a single-user editor.
 The integrator's guide is [docs/sdk/url.md](../sdk/url.md).
 
 ## What it is

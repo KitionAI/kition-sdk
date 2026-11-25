@@ -193,8 +193,10 @@ alias changes the document exactly as the command does.
 ## 5. Collaboration and saving
 
 - **DR14** A kit MUST keep a drawing object's frame, its text, and its other
-  properties so that two people's concurrent edits to different ones of
-  these all survive a merge (M15): the frame and each text paragraph are
+  properties in fields of their own, so that a draft that changed one of
+  them merges into a document where the person changed another (a merge
+  refuses only fields both sides changed) and an undo of one keeps later
+  changes to the others (M12): the frame and each text paragraph are
   their own KDM fields, as a text body is in `KitModel 1.0`. Storing a whole
   slide, page, or sheet of objects in one field is not allowed.
 

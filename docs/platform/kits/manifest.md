@@ -386,7 +386,7 @@ A kit on the Kit Data Model (engine contract 2) adds these fields to the fields 
   "engine": { "runtime": "rust-wasm", "module": "example_database", "class": "DatabaseDocument", "contract": 2 },
   "capabilities": ["kdm"],
   "model": { "schema": "model/schema.json", "schemaVersion": 1 },
-  "collaboration": { "merge": ["database"], "leases": [], "serverValidation": false },
+  "collaboration": { "leases": [] },
   "objectModel": { "namespace": "Database" }
 }
 ```
@@ -399,7 +399,7 @@ A kit on the Kit Data Model (engine contract 2) adds these fields to the fields 
   compiled to WebAssembly) or `ts-worker` (a TypeScript engine in a worker).
   A `ts-worker` engine is the ES module `<module>.js` in the package's engine
   folder: it exports the document class `engine.class` and, when it needs
-  preparing (the WebAssembly of a dependency such as Loro), a default export
+  preparing (the WebAssembly of a dependency), a default export
   that a host awaits with `{ base, read }` (`KitEngineInit`: the folder's URL,
   and in Node a reader of the folder's files) before the first document;
   there is no `<module>_bg.wasm` for the host to load. `@kition/kit-editor` loads
@@ -409,13 +409,7 @@ A kit on the Kit Data Model (engine contract 2) adds these fields to the fields 
   (`model/schema.json` in a package); the file is a valid schema ([`KitModel 1.0`](../sets/model.md))
   of this kit (`kit` equals `id`), and `model.schemaVersion` equals its
   `schemaVersion`.
-- **K13** `collaboration.merge` names the merge classes the kit's data maps
-  to: `structured`, `rich-text`, `database`, `grid`, `timeline`, `raster`,
-  `overlay`, `binary`. `leases` lists the scopes it leases (M21), and
-  `serverValidation` whether a server should validate pushed changes with the
-  kit's headless engine ([sync-protocol.md](../reference/sync-protocol.md) section 4); a
-  kit that sets it serves the replica methods (`model.open`, `model.import`,
-  [object-model.md](../reference/object-model.md)) from its headless executable.
+- **K13** `collaboration.leases` lists the scopes the kit leases (M21).
   `comments.commands` lists the engine commands that write only comment
   threads (M23), never the history or a `file` command: what a commenter's
   read-only session runs, with Undo and Redo of what they ran.

@@ -3,8 +3,7 @@
 For integrators that cannot run [`@kition/embed`](embed.md) in their own page:
 your server mints a URL, your page frames it, and the **embed server**
 (`@kition/embed-server`) shows the kit's editor and reads and writes the document through
-HTTP callbacks to your server. Single-user: co-editing goes through Kition
-Server ([collab.md](collab.md)). Design: [url-embedding.md](../platform/url-embedding.md).
+HTTP callbacks to your server. Single-user. Design: [url-embedding.md](../platform/url-embedding.md).
 A runnable example is `examples/url-embed` (`node examples/url-embed/serve.mjs`).
 
 ```html
