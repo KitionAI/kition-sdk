@@ -999,7 +999,7 @@ impl Kit {
                     let replica = document.model()?;
                     replica.import_changes(&changes).map_err(|error| RpcError::kit_detail(ErrorReason::InvalidParams, error.to_string()))?;
                     let root = batch::root_id(replica).ok_or_else(|| RpcError::internal("no root"))?;
-                    file.text = replica.text(&root, "text").map_err(|error| RpcError::internal(error.to_string()))?;
+                    document.text = replica.text(&root, "text").map_err(|error| RpcError::internal(error.to_string()))?;
                     Ok(json!({}))
                 })
             }
@@ -1401,7 +1401,7 @@ impl Kit {
             document.file = handle;
             document.name = name.clone();
             document.version = Some(version.clone());
-            document.dirty = file.text != text;
+            document.dirty = document.text != text;
             Ok(document.state())
         })?;
         let written = DocumentWritten { name, version };
@@ -1450,7 +1450,7 @@ impl Kit {
                 if let Some(replica) = document.model.as_mut() {
                     deck::reread(replica, &text).map_err(RpcError::internal)?;
                 }
-                file.text = text;
+                document.text = text;
                 document.version = Some(version);
                 document.dirty = false;
                 document.conflict = false;
@@ -1465,7 +1465,7 @@ impl Kit {
             } else {
                 None
             };
-            file.text = text;
+            document.text = text;
             if *STATE_IN_FILE {
                 document.current = current;
             }
@@ -1677,10 +1677,10 @@ impl Kit {
                     document.text.push_str(appended.as_deref().unwrap_or_default());
                 }
                 "text.clear" if !document.text.is_empty() => {
-                    document.history.push(std::mem::take(&mut file.text));
+                    document.history.push(std::mem::take(&mut document.text));
                 }
                 "edit.undo" => match document.history.pop() {
-                    Some(previous) => file.text = previous,
+                    Some(previous) => document.text = previous,
                     None => return Err(RpcError::kit(ErrorReason::CommandDisabled)),
                 },
                 _ => return Err(RpcError::kit(ErrorReason::CommandDisabled)),
@@ -1704,7 +1704,7 @@ impl Kit {
         let index = given.get("index").and_then(Value::as_u64).map(|index| index as usize);
         let invalid = |path: &str, message: String| invalid_command_params(vec![json!({ "path": path, "message": message, "expected": "see slide.inspect" })]);
         let (changed, result, state) = self.with_document(&params.document_id, |document| {
-            let mut slides = slides_of(&file.text);
+            let mut slides = slides_of(&document.text);
             let count = slides.len();
             let past_end = |index: usize| invalid("/index", format!("slide index {index} is past the last slide (the document has {count}, counted from 0)"));
             match params.command.as_str() {
@@ -1737,7 +1737,7 @@ impl Kit {
                 "select.set" => {
                     let ids = given.get("ids").and_then(Value::as_array).ok_or_else(|| invalid("/ids", "`ids` is a list of object ids".to_owned()))?;
                     let ids: Vec<Value> = ids.clone();
-                    file.selection = objects_of(&slides, document.current.min(count - 1), &ids)
+                    document.selection = objects_of(&slides, document.current.min(count - 1), &ids)
                         .map_err(|message| invalid("/ids", message))?
                         .into_iter()
                         .map(|at| format!("s{}", at + 1))
@@ -1773,7 +1773,7 @@ impl Kit {
                             _ => format!("*{object}*"),
                         };
                     }
-                    document.history.push(std::mem::replace(&mut file.text, slides_text(&slides)));
+                    document.history.push(std::mem::replace(&mut document.text, slides_text(&slides)));
                     document.dirty = true;
                     Ok((true, None, Some(document.state())))
                 }
@@ -1825,7 +1825,7 @@ impl Kit {
                     }
                     let result = deck::edit(replica, command, given, &origin).map_err(|message| invalid("", message))?;
                     let text = deck::text_of(replica);
-                    document.history.push(std::mem::replace(&mut file.text, text));
+                    document.history.push(std::mem::replace(&mut document.text, text));
                     document.current = document.current.min(deck::count(replica).saturating_sub(1));
                     document.dirty = true;
                     Ok((true, result, Some(document.state())))
@@ -1865,13 +1865,13 @@ impl Kit {
                     .ok_or_else(|| invalid("`time` is a number of seconds".to_owned()))?;
             }
             if let Some(selection) = edited.selection {
-                file.selection = selection;
+                document.selection = selection;
             }
             if !edited.changed {
                 return Ok((false, edited.result, None));
             }
             let text = tracks::text_of(replica);
-            document.history.push(std::mem::replace(&mut file.text, text));
+            document.history.push(std::mem::replace(&mut document.text, text));
             document.dirty = true;
             Ok((true, edited.result, Some(document.state())))
         })?;
@@ -1890,12 +1890,12 @@ impl Kit {
             if document.read_only {
                 return Err(RpcError::kit(ErrorReason::CommandDisabled));
             }
-            let mut sequences = slides_of(&file.text);
+            let mut sequences = slides_of(&document.text);
             let open = document.current.min(sequences.len() - 1);
             if let Some(last) = sequences[open].last_mut() {
                 last.push_str(text);
             }
-            document.history.push(std::mem::replace(&mut file.text, slides_text(&sequences)));
+            document.history.push(std::mem::replace(&mut document.text, slides_text(&sequences)));
             document.dirty = true;
             Ok(document.state())
         })?;
@@ -1911,7 +1911,7 @@ impl Kit {
         let invalid =
             |path: &str, message: String, expected: &str| invalid_command_params(vec![json!({ "path": path, "message": message, "expected": expected })]);
         let result = self.with_document(&params.document_id, |document| {
-            let count = slides_of(&file.text).len();
+            let count = slides_of(&document.text).len();
             match params.command.as_str() {
                 "playhead.set" => {
                     let time = given
@@ -1932,7 +1932,7 @@ impl Kit {
                     Ok(None)
                 }
                 OUTLINE => {
-                    let items: Vec<Value> = slides_of(&file.text)
+                    let items: Vec<Value> = slides_of(&document.text)
                         .iter()
                         .enumerate()
                         .map(|(index, objects)| {
@@ -1942,7 +1942,7 @@ impl Kit {
                         .collect();
                     Ok(Some(json!({ "items": items })))
                 }
-                _ => render_view(&file.text, given).map(Some),
+                _ => render_view(&document.text, given).map(Some),
             }
         })?;
         to_value(CommandsExecuteResult { changed: false, result })
@@ -1987,7 +1987,7 @@ impl Kit {
                 // The part is the kit's own noun ([`PART_NOUN`]), `{sequence}` counted from 1, as
                 // its manifest declares it (`agent.parts`) and the host passes it unchanged.
                 if let Some(part) = params.get("part").filter(|part| !part.is_null()) {
-                    let count = slides_of(&file.text).len() as u64;
+                    let count = slides_of(&document.text).len() as u64;
                     let noun = PART_NOUN.as_str();
                     let first = u64::from(noun == "sequence");
                     let sequence = part
@@ -2010,7 +2010,7 @@ impl Kit {
             }
             "context.get" | "context.set" | "context.restore" if *DECK => deck_context(document, method, params),
             _ if *TRACKS => tracks_context(document, method, params),
-            "context.get" if *SLIDES => Ok(json!({ "state": { "slide": document.current, "selection": file.selection, "mode": document.mode } })),
+            "context.get" if *SLIDES => Ok(json!({ "state": { "slide": document.current, "selection": document.selection, "mode": document.mode } })),
             "context.get" => Ok(json!({ "state": null })),
             "context.restore" => {
                 let state = &params["state"];
@@ -2019,7 +2019,7 @@ impl Kit {
                 }
                 let slide = state["slide"].as_u64().filter(|_| *SLIDES).ok_or_else(|| RpcError::invalid_params("`state` is what context.get answered"))?;
                 document.current = slide as usize;
-                file.selection = state["selection"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+                document.selection = state["selection"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
                 document.mode = state["mode"].as_str().unwrap_or("normal").to_owned();
                 Ok(json!({}))
             }
@@ -2029,7 +2029,7 @@ impl Kit {
                     let named = given.iter().map(|key| format!("`{key}`")).collect::<Vec<_>>().join(", ");
                     return Err(RpcError::kit_detail(ErrorReason::CommandDisabled, format!("setting {named} is not available in this kit")));
                 }
-                let slides = slides_of(&file.text);
+                let slides = slides_of(&document.text);
                 let count = slides.len();
                 if let Some(part) = params.get("part").filter(|part| !part.is_null()) {
                     let index = match (part.get("slide").and_then(Value::as_u64), part.get("slideId").and_then(Value::as_u64)) {
@@ -2050,7 +2050,7 @@ impl Kit {
                 if let Some(on) = params.get("on").and_then(Value::as_array).filter(|on| !on.is_empty()) {
                     let current = document.current.min(count - 1);
                     let at = objects_of(&slides, current, on).map_err(RpcError::invalid_params)?;
-                    file.selection = at.into_iter().map(|index| format!("s{}", index + 1)).collect();
+                    document.selection = at.into_iter().map(|index| format!("s{}", index + 1)).collect();
                 }
                 Ok(json!({}))
             }
@@ -2252,14 +2252,14 @@ impl Kit {
 /// or `{slideId}`) and the selected shapes (`on`, by tool id).
 fn deck_context(document: &mut Document, method: &str, params: &Value) -> Handled {
     match method {
-        "context.get" => Ok(json!({ "state": { "slide": document.current, "selection": file.selection } })),
+        "context.get" => Ok(json!({ "state": { "slide": document.current, "selection": document.selection } })),
         "context.restore" => {
             let state = &params["state"];
             if state.is_null() {
                 return Ok(json!({}));
             }
             document.current = state["slide"].as_u64().ok_or_else(|| RpcError::invalid_params("`state` is what context.get answered"))? as usize;
-            file.selection = state["selection"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+            document.selection = state["selection"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
             Ok(json!({}))
         }
         _ => {
@@ -2293,7 +2293,7 @@ fn deck_context(document: &mut Document, method: &str, params: &Value) -> Handle
             }
             document.current = current;
             if let Some(selection) = selection {
-                file.selection = selection;
+                document.selection = selection;
             }
             Ok(json!({}))
         }
@@ -2315,7 +2315,7 @@ fn tracks_context(document: &mut Document, method: &str, params: &Value) -> Hand
         tracks::track_index(replica, name).ok_or_else(|| RpcError::invalid_params(format!("no track `{name}` in the timeline")))
     };
     match method {
-        "context.get" => Ok(json!({ "state": { "playhead": document.playhead, "selection": file.selection, "track": document.current } })),
+        "context.get" => Ok(json!({ "state": { "playhead": document.playhead, "selection": document.selection, "track": document.current } })),
         "context.restore" => {
             let state = &params["state"];
             if state.is_null() {
@@ -2323,7 +2323,7 @@ fn tracks_context(document: &mut Document, method: &str, params: &Value) -> Hand
             }
             document.current = state["track"].as_u64().and_then(|track| usize::try_from(track).ok()).unwrap_or(0);
             document.playhead = state["playhead"].as_f64().ok_or_else(|| RpcError::invalid_params("`state` is what context.get answered"))?;
-            file.selection = state["selection"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+            document.selection = state["selection"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
             Ok(json!({}))
         }
         "context.under" => {
@@ -2370,7 +2370,7 @@ fn tracks_context(document: &mut Document, method: &str, params: &Value) -> Hand
                 document.playhead = time.as_f64().filter(|time| *time >= 0.0).ok_or_else(|| RpcError::invalid_params(format!("`time` {time} is no time")))?;
             }
             if let Some(selection) = selection {
-                file.selection = selection;
+                document.selection = selection;
             }
             if let Some(current) = current {
                 document.current = current;
