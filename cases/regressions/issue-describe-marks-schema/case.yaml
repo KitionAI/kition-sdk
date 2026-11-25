@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-describe-marks-schema
+feature: sdk.agent.object-model
+intent: >-
+  A reader with only a kit's model description builds the schema it describes, also when a text
+  field declares marks. `model/describe` names a text field's marks by key (KitObjectModel OM1)
+  where the schema declares their definitions (KitModel M4c), so `@kition/kdm`'s
+  `schemaOfDescription` reads the description as Rust's `kition_kits::drafts::schema_of` does
+  (each named mark expanding after); `@kition/script`'s headless model uses it. Before, the
+  description went to `parseSchema`, which refused it, so in Kition every agent step on an open
+  board (Element.text declares marks) failed with "the schema does not parse: `Element.text`:
+  `marks` is an object of mark definitions". An agent's reply in the editor is now named by the
+  engine's own `modelReply` (referenceReplies.test.ts), which reads no description.
+layer: gate
+source: { kind: issue, from: Kition desktop interaction run 2026-11-18 (B1), license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/described-schema.test.ts, packages/kit-editor/src/engine/referenceReplies.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-18"

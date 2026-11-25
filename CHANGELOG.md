@@ -4,6 +4,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A merged draft names its undo scope; merge classes optional.** `Replica::merge_changes`
+  answers a `DraftMerge` (the objects that changed and `scope`, the undo history its step went to:
+  the person's, also for the agent origin the editor passes; none for an empty draft or a `system`
+  origin) instead of the objects alone; `KitSession::merge_changes` answers `(scope, damage)` and
+  the engine member `mergeChanges` adds `scope` to `{ damage, summary }`. A kit with an undo history
+  of its own records the merge there, not in the agent's (sdk.model.draft-merge/undo-scope).
+  `collaboration.merge` in `kit.json` is optional and not read (regressions/issue-manifest-merge-optional).
+  The release's packed-worker smoke runs kit-editor's typing kit in Chromium again: open, type,
+  save, reopen with the stored snapshot, a draft merged and a checkpoint restored through
+  kit-dev-host (sdk.ui.checkpoints/browser-session).
 - **Undo answers, change lists, engine members (plan 2026-11-24, plain model).** `Replica::undo`,
   `redo`, `undo_in` and `redo_in` answer an `UndoOutcome` instead of a `bool`: the steps passed over
   (top first) and the one taken back, each by its footprint (`is_done()` is the old answer;

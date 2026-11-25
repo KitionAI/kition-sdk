@@ -126,7 +126,7 @@ The engine contract is specified member by member in
   excluded (LK1). It is cheap enough to call after every change and never
   reads a target.
 - **E18** *(KitLinks 1.0; not yet implemented)* *Retarget.* Such an engine
-  offers the command `links.retarget { from, to }` with a parameter schema
+  offers the command `link.retarget { from, to }` with a parameter schema
   (E7): it rewrites only the target text of the links that resolve to
   `from`, keeps their syntax, is idempotent, and is one transaction (LK2,
   LK3). `kition_kit::testing::check_contract` runs it twice and checks the
@@ -226,13 +226,22 @@ model is `modelDescribe()` and `modelBatch(request)` (JSON text in and out).
 A draft's changes are compared with the document by `compareChanges(changes)`
 (the `StateDiff` merging them would make; nothing changes) and taken in by
 `mergeChanges(changes, origin)` (one person undo step; answers
-`{ damage, summary }`; refuses, with the KDM's message, a draft that changed a
-field the document also changed since). `restoreState(snapshot, origin)` writes
+`{ damage, summary, scope }`; refuses, with the KDM's message, a draft that
+collides with the document's changes since it was made). A merged draft is a
+step of the person who accepts it even when an agent made it: `@kition/kit-editor`
+passes the draft's agent origin (`["agent", principal, label]`, Kit UI protocol
+`draft/merge`), and the merge still goes to the person's history (M12a). `scope`
+says where it went (`"person"`, or `null` when nothing was recorded), as
+`Replica::merge_changes` (`DraftMerge::scope`) and `KitSession::merge_changes`
+answer it: an engine that keeps an undo history of its own records the step in
+that scope, never in the scope of the origin's kind. `restoreState(snapshot, origin)` writes
 a checkpoint's state over the document as one change (Kit UI protocol
 `replica/restore`), and `changesSince(since)` answers a write's receipt,
 `{ changes }`, or `{ changes: null, unavailable }` when the replica's log does
 not hold `since`; `modelReply(value)` names the objects of an agent's reply by
-their tool ids. `origin` is the KDM commit form `[kind, principal, label]`.
+their tool ids where it refers to them (a minted id anywhere, an id the kit
+chose only under a member that holds references; [call context](call-context.md),
+"Exact known references"). `origin` is the KDM commit form `[kind, principal, label]`.
 A module without any of these fails manifest rule K3a
 ([manifest](manifest.md)).
 An engine SHOULD add `schemaVersion()` (the schema version its replica reads) and

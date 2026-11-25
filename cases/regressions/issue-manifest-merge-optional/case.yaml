@@ -1,0 +1,17 @@
+format: 1
+id: regressions/issue-manifest-merge-optional
+feature: sdk.platform.engine-session-members
+intent: >-
+  A contract 2 kit manifest's `collaboration` passes tools/check-manifest.mjs without `merge`, as
+  the manifest reference's own example writes it (`{ "leases": [] }`, K13): nothing reads the
+  merge classes since a document's changes form one line and a draft merges by data model 6.6.
+  Before, kit.schema.json required `collaboration.merge`, so every kit listed merge classes
+  nothing read. A manifest that still lists them checks as before, unknown classes refused.
+layer: gate
+source: { kind: synthetic, from: test review of the plain KDM (2d79991..03f6285), license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, tools/check-manifest.test.mjs, -t, merge class] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

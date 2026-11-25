@@ -125,7 +125,10 @@ Requirements:
   `compareChanges`, `restoreState`, `changesSince`, `modelReply`, `modelBatch`
   and `modelDescribe` ([engine contract](engine.md)). Without them the module
   loads and its editor loses drafts, restore, receipts or the object model
-  without an error. `tools/check-manifest.mjs kit.json --module <engine dir>`
+  without an error. `mergeChanges` records a merged draft as one step of the
+  person, also under the agent origin the editor passes, and answers that
+  scope (`scope`, data model 6.6 D9): an engine with an undo history of its
+  own records it there. `tools/check-manifest.mjs kit.json --module <engine dir>`
   checks them on the built engine; a kit runs it as a test script of `web/`,
   which kit CI runs after the engine build:
   `"test:contract": "node ../../kition-sdk/tools/check-manifest.mjs ../kit.json --module public/engine"`
@@ -215,7 +218,7 @@ Requirements:
   `kinds` are the link kinds its documents store (`link`, `embed`, `card`,
   `media`); `read` are the extensions, without the dot, of targets it may
   read through link handles (LR3); `retarget: true` promises the command
-  `links.retarget` (LK2, E18); `names: true` says it stores name links and
+  `link.retarget` (LK2, E18); `names: true` says it stores name links and
   needs name resolution (LR4). Its engine exports `linksOf` (E17), named in
   `extras` (K6), and its `headless.features` include `document.links`. A
   kit that asks for previews, opens files, or opens web addresses lists
@@ -274,7 +277,7 @@ Requirements:
   | `slide` | One slide or page, counted from 0, when the call names a part (`slide`, `page`, `slideId`, `pageId`) that the command's `target` does not declare |
 
   The view members a kit takes are those its render command declares in
-  `target.properties` of its parameter schema (`commands.list`), so a kit
+  `target.properties` of its parameter schema (`command.list`), so a kit
   adds one without a change in the host. A member it does not declare is
   refused with `invalid-params`, naming the members it takes; a `target`
   declared without `properties` takes any member. A command whose schema
@@ -326,7 +329,7 @@ Requirements:
   `headless.capabilities` lists the platform capabilities the headless
   executable serves, exactly as its `kit.initialize` answers them in
   `capabilities.capabilities`. The one capability is `document-text`: the
-  executable answers `document.text` with the document's words (T1). A kit
+  executable answers `file.text` with the document's words (T1). A kit
   lists it when its words live outside its object model; it is never a
   `headless.features` entry.
 - **K23** *(Kition platform)* `engine.editorState` lists the editor state
@@ -376,7 +379,7 @@ Requirements:
   The host makes a new, empty document of the kit (its first `creates` entry)
   beside the file, named after it, and runs two commands in it: `file.import`
   with `{ "paths": [<the file's name>] }`, which answers `{ "items": [...] }`,
-  then `file.newSequenceFromClip` with `{ "items" }`, which puts the clip on a
+  then `sequence.newFromClip` with `{ "items" }`, which puts the clip on a
   sequence of the clip's own size and frame rate; a kit that declares the
   action has both commands. The file itself is never changed. No `items` is a
   failure the host reports, and it makes no sequence. `open-as-document` and
@@ -422,6 +425,10 @@ A kit on the Kit Data Model (engine contract 2) adds these fields to the fields 
 - **K13** `collaboration.leases` lists the scopes the kit leases (M21).
   `comments.commands` lists the engine commands that write only comment
   threads (M23), never the history or a `file` command: what a commenter's
-  read-only session runs, with Undo and Redo of what they ran.
+  read-only session runs, with Undo and Redo of what they ran. Only these
+  two are read. `collaboration.merge` (merge classes, from when documents
+  merged concurrently) is optional and not read: a document's changes form
+  one line and a draft merges by the data model's rules (section 6.6); a
+  manifest that still lists it checks as before.
 - **K14** `objectModel.namespace` is the namespace of the kit's generated
   object model typings (`@kition/script`'s `kits/`).

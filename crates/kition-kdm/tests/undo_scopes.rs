@@ -144,11 +144,22 @@ fn a_draft_the_agent_made_merges_as_the_persons_step() {
     let mut draft = replica.fork(ActorId::from_u64(9).unwrap()).unwrap();
     append(&mut draft, &agent(), &shape, "Drafted.");
     let since = replica.version();
-    replica.merge_changes(&draft.export_changes(&since).unwrap(), &agent()).unwrap();
+    let merged = replica.merge_changes(&draft.export_changes(&since).unwrap(), &agent()).unwrap();
+    // The answer names the scope the step went to, so a kit with an undo history of its own
+    // records it there: the person's, though the origin is the agent's.
+    assert_eq!(agent().kind, OriginKind::Agent);
+    assert_eq!(merged.scope, Some(UndoScope::Person));
+    assert!(merged.objects.contains(&shape));
     assert_eq!(label(&replica, &shape), "Drafted.");
     assert!(!replica.can_undo_in(UndoScope::Agent));
     assert!(replica.undo().unwrap().is_done());
     assert_eq!(label(&replica, &shape), "");
+    // A merge recorded with a `system` origin is no step: no scope.
+    let mut draft = replica.fork(ActorId::from_u64(10).unwrap()).unwrap();
+    append(&mut draft, &agent(), &shape, "Again.");
+    let since = replica.version();
+    let merged = replica.merge_changes(&draft.export_changes(&since).unwrap(), &Origin::system("sync")).unwrap();
+    assert_eq!((merged.scope, label(&replica, &shape).as_str()), (None, "Again."));
 }
 
 #[test]

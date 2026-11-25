@@ -292,7 +292,9 @@ jobs:
       - run: node tools/smoke-sdk-package.mjs --tessera "$TESSERA_DIR"
       - run: pnpm exec playwright install --with-deps chromium
       # The production build only: its development server is not checked against an npm-installed
-      # Tessera (tools/smoke-sdk-worker.mjs, --build-only).
+      # Tessera (tools/smoke-sdk-worker.mjs, --build-only). Chromium runs kit-editor's typing kit on
+      # the packed editor worker through kit-dev-host: open, type, save, reopen with the stored
+      # snapshot, a draft merged and a checkpoint restored.
       - run: node tools/smoke-sdk-worker.mjs --tessera "$TESSERA_DIR" --build-only
       - name: The SDK's copy
         run: |

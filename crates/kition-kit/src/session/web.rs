@@ -28,8 +28,9 @@ pub trait KitSessionDocument: KitDocument {
     }
 
     /// Takes a draft's changes into the document as one undo step of the person
-    /// ([`KitSession::merge_changes`]).
-    fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<Damage, String> {
+    /// ([`KitSession::merge_changes`]): answers the scope the step was recorded in (the person's,
+    /// also for an agent's `origin`; `None` for no step) and the damage.
+    fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<(Option<UndoScope>, Damage), String> {
         Ok(self.session_mut().merge_changes(bytes, origin)?)
     }
 
@@ -146,17 +147,19 @@ pub fn __execute_as<D: KitSessionDocument>(document: &mut D, command: &str, para
 }
 
 /// A draft's changes taken into the document as one undo step of the person, recorded with
-/// `origin` (`[kind, principal, label]`): `{"damage": Damage, "summary": StateDiff}`, the summary
-/// the comparison of the document's states before and after. A refusal fails with the KDM's message.
+/// `origin` (`[kind, principal, label]`): `{"damage": Damage, "summary": StateDiff, "scope":
+/// "person" | null}`, the summary the comparison of the document's states before and after, the
+/// scope the undo step the merge recorded (the person's, also for an agent's origin; `null` for
+/// none). A refusal fails with the KDM's message.
 #[doc(hidden)]
 pub fn __merge_changes<D: KitSessionDocument>(document: &mut D, changes: &[u8], origin: &str) -> Result<String, String> {
     let origin = origin_of(origin)?;
     let since = document.session().replica().version();
-    let damage = KitSessionDocument::merge_changes(document, changes, &origin)?;
+    let (scope, damage) = KitSessionDocument::merge_changes(document, changes, &origin)?;
     // What the merge and the kit's repair after it changed, read only at the objects they wrote,
     // not two whole states (the log holds `since`: it keeps at least the merge).
     let summary = document.session().replica().diff_since(&since).map_err(|error| error.to_string())?;
-    Ok(json!({ "damage": damage, "summary": summary.to_json() }).to_string())
+    Ok(json!({ "damage": damage, "summary": summary.to_json(), "scope": scope.map(UndoScope::as_str) }).to_string())
 }
 
 /// What merging a draft's changes would change in the document now, as `StateDiff` JSON; nothing

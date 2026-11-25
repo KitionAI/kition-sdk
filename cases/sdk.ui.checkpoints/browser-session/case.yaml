@@ -1,0 +1,19 @@
+format: 1
+id: sdk.ui.checkpoints/browser-session
+feature: sdk.ui.checkpoints
+intent: >-
+  A kit editor in a browser under kit-dev-host keeping the replica and checkpoints: the person
+  types, the host saves the file and its stored snapshot and records a checkpoint, the document
+  reopens with the stored snapshot (its version going on), an agent's draft edit stays out of the
+  document until the host merges it, and restoring the checkpoint gives back the saved text, on
+  Chromium and WebKit, with no page error. The typing kit (packages/kit-editor/browser) runs it on
+  the sources; the release runs it on the packed @kition/sdk (sdk.packages.one-package/worker-wasm).
+layer: gate
+source: { kind: synthetic, from: the packed-worker smoke lost with kit-engine (sdk.packages.public/packed-worker), license: owned }
+input: []
+steps:
+  - exec: { cmd: [node, packages/kit-editor/browser/session.mjs, all] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 600
+since: "2026-11-25"

@@ -1,6 +1,6 @@
 //! `take_file` and `write_state`: a file's state written over the replica a host stored for the
-//! same document, keyed by object id, when the file's history does not reach the replica's
-//! (kition-sdk data model 7.3), and the file's changes when it does.
+//! same document, keyed by object id (kition-sdk data model 7.3). A file holds no history, so it is
+//! always taken in by its state: the stored replica keeps its own history.
 
 use std::sync::Arc;
 
@@ -180,7 +180,7 @@ fn a_file_taken_in_by_state_adds_no_node_for_a_deleted_item() {
 }
 
 #[test]
-fn a_file_whose_history_reaches_the_store_brings_its_changes() {
+fn a_file_edited_after_the_save_the_store_holds_is_taken_in_by_its_state() {
     let (source, items) = made();
     let content = source.content_snapshot().unwrap();
     // The store has the saved state; the file was opened, edited and saved again.

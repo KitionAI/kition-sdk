@@ -390,7 +390,7 @@ pub struct RoomCreateParams {
     pub doc_id: String,
     /// The room's first state: a KDM snapshot that carries the document's whole history (rule
     /// S20): a full one, or a shallow one rooted at the document's birth (a copy made as a new
-    /// document, `Replica::carries_whole_history`). A server refuses any other (`invalid`).
+    /// document, `Replica::copy_as_new_document`). A server refuses any other (`invalid`).
     pub snapshot: Bin,
     pub name: String,
     pub kit: String,

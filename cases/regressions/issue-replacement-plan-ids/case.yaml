@@ -1,0 +1,12 @@
+format: 1
+id: regressions/issue-replacement-plan-ids
+feature: sdk.agent.step-premises
+intent: Replacement plans retain public tool IDs in cumulative changes.
+layer: gate
+source: { kind: synthetic, from: Mock named board replacement, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: premise_plan_replacement_preserves_public_tool_ids }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

@@ -151,8 +151,8 @@ if (agentReady) {
     warn('headless.features', `an ${level} layout kit serves view.layout ${PLATFORM('K16, proposed')}`)
   }
 }
-// document.text is a platform capability, not a protocol feature (K22, KitText 1.0).
-if (serves('document.text')) fail('headless.features', `document.text is declared as the capability document-text in headless.capabilities ${PLATFORM('K22')}`)
+// file.text is a platform capability, not a protocol feature (K22, KitText 1.0).
+if (serves('file.text')) fail('headless.features', `file.text is declared as the capability document-text in headless.capabilities ${PLATFORM('K22')}`)
 // The editor state inspect() reports (K23): hosts leave it out of what an agent reads as the
 // document. The schema checks its shape; the kit's own test checks that it is the engine's list.
 if (manifest.engine && !Array.isArray(manifest.engine.editorState)) {
@@ -171,7 +171,7 @@ if (contract === 2) {
   if (!manifest.distribution) fail('distribution', `an engine contract 2 kit says "default" or "plugin" ${PLATFORM('K11')}`)
   if (manifest.engine && !manifest.engine.runtime) fail('engine.runtime', `an engine contract 2 kit says "rust-wasm" or "ts-worker" ${PLATFORM('K11')}`)
   if (!manifest.model) fail('model', `an engine contract 2 kit names its KDM schema ${PLATFORM('K12')}`)
-  if (!manifest.collaboration) fail('collaboration', `an engine contract 2 kit declares how its documents merge ${PLATFORM('K13')}`)
+  if (!manifest.collaboration) fail('collaboration', `an engine contract 2 kit declares its collaboration (leases, comment commands) ${PLATFORM('K13')}`)
   if (!manifest.objectModel) fail('objectModel', `an engine contract 2 kit names its object model namespace ${PLATFORM('K14')}`)
 }
 if (typeof manifest.model?.schema === 'string') {

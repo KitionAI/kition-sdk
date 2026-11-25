@@ -316,9 +316,13 @@ impl<M: KitModel> KitSession<M> {
     /// transaction with `origin` (`Replica::merge_changes`): one undo step, the edits made here
     /// since the fork kept. Repairs the result and applies it to the view like
     /// [`KitSession::import_changes`]. Add the draft's blobs first.
-    pub fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<Damage> {
-        self.replica.merge_changes(bytes, origin)?;
-        self.settle()
+    ///
+    /// Answers the undo scope the step was recorded in with the damage: the person's, also for an
+    /// agent's `origin` (KitModel M12a: the person accepted the draft), `None` when no step was
+    /// recorded. A kit that keeps undo labels or a history of its own records the step there.
+    pub fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<(Option<UndoScope>, Damage)> {
+        let merged = self.replica.merge_changes(bytes, origin)?;
+        Ok((merged.scope, self.settle()?))
     }
 
     /// Writes the state `snapshot` holds (a snapshot or content of this document, as a host's

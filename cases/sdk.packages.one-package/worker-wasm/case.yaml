@@ -5,7 +5,10 @@ intent: >-
   The packed @kition/sdk, installed in a project outside the workspace with a kit editor's Vite
   configuration (@kition/sdk not pre-bundled, module workers): the kit's production build emits the
   editor's worker as an asset of its own, which a chunk of the page starts, the static server
-  answers it as JavaScript, and it inlines no WebAssembly.
+  answers it as JavaScript, and it inlines no WebAssembly. The project is kit-editor's typing kit
+  (packages/kit-editor/browser) on the packed package, and Chromium runs its session on that
+  worker through kit-dev-host: it opens, the person types, the host saves, reopens it with the
+  stored snapshot, merges an agent's draft and restores a checkpoint, and the page throws nothing.
 layer: gate
 dimension: platform
 source:

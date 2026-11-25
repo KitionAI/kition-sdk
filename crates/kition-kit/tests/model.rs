@@ -536,7 +536,8 @@ fn title(document: &NotesDocument) -> Value {
 }
 
 /// The engine members a draft's review uses: `compareChanges` changes nothing, `mergeChanges` takes
-/// the draft in as one undo step of the person and answers the damage and what changed, and a
+/// the draft in as one undo step of the person and answers the damage, what changed and the undo
+/// scope of its step, and a
 /// merge the KDM refuses fails and changes nothing.
 #[test]
 fn a_draft_is_compared_and_merged_through_the_engine_members() {
@@ -556,6 +557,8 @@ fn a_draft_is_compared_and_merged_through_the_engine_members() {
         serde_json::from_str(&kition_kit::session::__merge_changes(&mut document, &changes, r#"["agent","agent:test",null]"#).unwrap()).unwrap();
     assert_eq!(merged["damage"], json!({ "kind": "full" }));
     assert_eq!(merged["summary"]["changed"][0]["id"], json!(root));
+    // Recorded with the agent's origin, the step is the person's, and the answer says so (M12a).
+    assert_eq!(merged["scope"], json!("person"));
     assert_eq!(title(&document), "Drafted");
     // The person approved the draft: their Undo takes the whole merge back.
     assert!(document.0.can_undo());

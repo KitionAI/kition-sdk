@@ -277,7 +277,7 @@ command and parameter paths into that operation:
 
 ```json
 {"set.text":{"command":"line.set","params":{"id":"target","text":"value"}},
- "create":{"command":"line.create","params":{"text":"fields.text","in":"in"}},
+ "create":{"command":"line.add","params":{"text":"fields.text","in":"in"}},
  "delete":{"command":"line.delete","params":{"id":"target"}},
  "list.move":{"command":"line.move","params":{"id":"target","in":"in","to":"to"}}}
 ```
@@ -1024,7 +1024,15 @@ never by an object id a kit may mint again on its next read of the file:
 So a kit gets usable ids in receipts by giving tool ids to what agents address, declaring `owns`
 on the refs and maps that hold parts of an object, and keeping rows and columns in lists.
 Exact known references inside maps and JSON values/keys also use tool ids in SDK replies
-. A custom reply builder uses `ToolIds::show_json` / `ToolIds.showJson`.
+(`modelReply`, `ToolIds::show_reply`). A reply is the kit's own JSON, so a reference is read
+from the text and its place: a string or a member name that is an object id the KDM minted (a
+UUID; also a member name whose `:`-separated parts all are) wherever it is; any other object id
+(one the kit chose, such as `project` for a singleton) only as the value, or an item of the value,
+of a member that holds references: `id`, `ids`, `object`, `objects`, `target`, `targets`,
+`selection`, `parent`, or a name ending in `Id` or `Ids`. A member name that spells a chosen id,
+and a value elsewhere that equals one (`"note": "project"`), stay as the kit wrote them; text
+that contains an id stays literal. The document's own values (`model/batch` loads of a `json`
+or `map` field) use `ToolIds::show_json`, where every exact known id is a reference.
 
 ## In the open editor
 

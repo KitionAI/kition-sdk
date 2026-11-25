@@ -1,0 +1,21 @@
+format: 1
+id: sdk.model.draft-merge/undo-scope
+feature: sdk.model.draft-merge
+intent: >-
+  A merged draft is one undo step of the person who accepts it, also when an agent made the draft
+  and the merge is recorded with the agent's origin (KitModel M12a, data model 6.6 D9), and the
+  merge answers the scope it recorded the step in, so a kit that keeps an undo history of its own
+  records the step there and not in the agent's: Replica::merge_changes answers DraftMerge
+  (objects, scope: person; none for an empty draft or a system origin), KitSession::merge_changes
+  (scope, damage), and the engine member mergeChanges `{damage, summary, scope}`. Four kits put an
+  agent's merged draft in their own agent history because nothing said otherwise.
+layer: gate
+source: { kind: synthetic, from: kit engine histories (cad, film, pdf, sheet) reviewed after the plain KDM, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_scopes, filter: a_draft_the_agent_made_merges_as_the_persons_step }
+  - cargo-test: { package: kition-kdm, test: draft }
+  - cargo-test: { package: kition-kit, test: model, filter: a_draft_is_compared_and_merged_through_the_engine_members }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

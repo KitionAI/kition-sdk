@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-reply-chosen-ids
+feature: sdk.agent.tool-ids
+intent: >-
+  An agent's reply (`modelReply`, `ToolIds::show_reply`) shows an object by its tool id only where
+  it refers to it: a minted object id (a UUID) anywhere, also as a member name; an id the kit chose
+  (film's project object is `project`) only as the value of a member that holds references (`id`,
+  `object`, `target`, `selection`, `...Id`). Before, every member name and string equal to an
+  existing object id was rewritten, so film's reply member `"project"` and a word `"project"`
+  would have become the project's tool id.
+layer: gate
+source: { kind: issue, from: kition-film modelReply review (show_reply on a singleton id), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: tool_ids, filter: a_reply_shows_references_by_tool_id }
+  - cargo-test: { package: kition-kit, test: model, filter: model_reply_names_objects_by_their_tool_ids }
+  - cargo-test: { package: kition-kdm, test: reply_costs }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

@@ -40,8 +40,8 @@ features:
     dimension: [collab, data-safety]
     priority: P0
     status: has
-    paths: [crates/kition-headless/src/**, crates/kition-kit/src/lib.rs, crates/kition-kit-mock/src/**, packages/kit-engine/src/**]
-    cases: [regressions/issue-reread-active-mode]
+    paths: [crates/kition-headless/src/**, crates/kition-kit/src/lib.rs, crates/kition-kit-mock/src/**]
+    cases: [regressions/issue-reread-session, regressions/issue-reread-active-mode]
     since: "2026-11-16"
   - id: sdk.distribution.published-kits
     title: Public kit artifacts come only from the explicit publication allowlist
@@ -176,8 +176,8 @@ features:
     dimension: [function, collab, data-safety]
     priority: P0
     status: has
-    paths: [crates/kition-kdm/src/merge.rs, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/store/transform.rs, crates/kition-kdm/tests/merge_rules.rs, crates/kition-kdm/tests/draft.rs, docs/platform/data-model.md]
-    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes, regressions/issue-kdm-compare-costs]
+    paths: [crates/kition-kdm/src/merge.rs, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/store/transform.rs, crates/kition-kdm/tests/merge_rules.rs, crates/kition-kdm/tests/draft.rs, crates/kition-kdm/tests/undo_scopes.rs, crates/kition-kit/src/session/mod.rs, crates/kition-kit/src/session/web.rs, crates/kition-kit/tests/session.rs, docs/platform/data-model.md, docs/platform/kits/engine.md]
+    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes, sdk.model.draft-merge/undo-scope, sdk.model.draft-merge/session-lists, regressions/issue-kdm-compare-costs]
     since: "2026-11-25"
   - id: sdk.model.change-list-reader
     title: "@kition/kdm reads a change list (readChangeList): each change's number, actor, origin and operations"
@@ -192,8 +192,8 @@ features:
     dimension: [platform, data-safety]
     priority: P0
     status: has
-    paths: [tools/check-manifest.mjs, tools/check-manifest.test.mjs, docs/platform/kits/manifest.md, docs/platform/kits/engine.md]
-    cases: [sdk.platform.engine-session-members/check-manifest]
+    paths: [tools/check-manifest.mjs, tools/check-manifest.test.mjs, schemas/kit.schema.json, docs/platform/kits/manifest.md, docs/platform/kits/engine.md]
+    cases: [sdk.platform.engine-session-members/check-manifest, regressions/issue-manifest-merge-optional]
     since: "2026-11-24"
   - id: sdk.model.content-encoding
     title: A person's file holds the document's content as one deterministic JSON encoding (content.json), the same bytes for the same state
@@ -881,6 +881,7 @@ features:
       - regressions/issue-c8-fix-22-step-state
       - regressions/issue-c8-fix-22-plan-advance
       - regressions/issue-replica-replacement
+      - regressions/issue-replacement-plan-ids
       - regressions/issue-premise-plan-earlier-steps
     since: "2026-11-16"
   - id: sdk.agent.editing-guides
@@ -953,6 +954,7 @@ features:
       - regressions/issue-29-nested-text
       - regressions/issue-batch-command-atomic
       - regressions/issue-describe-field-kinds
+      - regressions/issue-describe-marks-schema
     since: "2026-11-16"
   - id: sdk.agent.tool-ids
     title: A kit's KDM schema names the field holding each type's tool id, and the object model answers and takes that id (one id space)
@@ -980,6 +982,7 @@ features:
       - regressions/issue-one-id-space
       - regressions/issue-one-id-space-tools
       - regressions/issue-c8-fix-19-reference-replies
+      - regressions/issue-reply-chosen-ids
     since: "2026-11-16"
   - id: sdk.agent.previews
     title: An inspect preview is drawn at the call's target, scale and size, by the kit's declared render command or its screenshot; what neither can draw fails the preview instead of a silent whole-document image
@@ -1581,9 +1584,11 @@ features:
       - packages/kit-editor/src/engine/replica.ts
       - packages/kit-editor/src/engine/useKitDocument.ts
       - packages/kit-editor/src/engine/kitEngine.worker.ts
+      - packages/kit-editor/browser/session.mjs
     cases:
       - sdk.ui.checkpoints/host-rules
       - sdk.ui.checkpoints/editor-fallbacks
+      - sdk.ui.checkpoints/browser-session
       - regressions/issue-checkpoint-version-at-save
     since: "2026-11-23"
   - id: sdk.ui.view-state
@@ -1867,7 +1872,7 @@ features:
       - regressions/issue-7
     since: "2026-11-16"
   - id: sdk.host.document-text
-    title: Kits answer document.text with their words in reading order within a limit, so hosts index words outside the object model (KitText 1.0)
+    title: Kits answer file.text with their words in reading order within a limit, so hosts index words outside the object model (KitText 1.0)
     dimension: [function, ai]
     priority: P1
     status: has

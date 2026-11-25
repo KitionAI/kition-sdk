@@ -198,6 +198,26 @@ fn ids(session: &Session) -> Vec<ObjectId> {
 
 // Tests.
 
+/// `execute` answers the damage the kit's `apply` reports: a new shape changes the board (all of
+/// it), a recolour only the shape's rectangle, before and after.
+#[test]
+fn execute_answers_the_kits_damage() {
+    let mut a = first();
+    let shape = ids(&a)[0].clone();
+    let (added, damage) = a.execute(&person("a"), |_, tx| add_shape(tx, 5.0, "green")).unwrap();
+    assert_eq!(damage, Damage::Full);
+    let (_, damage) = a
+        .execute(&person("a"), |model, tx| {
+            assert_eq!(model.shapes.len(), 3);
+            Ok(tx.set(&shape, "color", json!("black"))?)
+        })
+        .unwrap();
+    assert_eq!(damage, Damage::Rects(vec![[1, 2, 11, 12], [1, 2, 11, 12]]));
+    assert_eq!(ids(&a)[2], added);
+    assert_eq!(a.model().shapes[0].color, "black");
+    assert_view_follows_replica(&a);
+}
+
 #[test]
 fn undo_reverts_only_local_person_transactions() {
     let mut a = first();
@@ -498,12 +518,42 @@ fn a_draft_merges_as_one_undo_step_and_keeps_edits_made_meanwhile() {
     assert_eq!(ids(&live), before, "the live document is untouched");
     // Meanwhile the person recolors a shape: another field than the draft's.
     let mine = ids(&live)[0].clone();
-    live.execute(&person("a"), |_, tx| Ok(tx.set(&mine, "color", json!("red"))?)).unwrap();
-    let damage = live.merge_changes(&draft.export_changes(&base).unwrap(), &agent).unwrap();
-    assert_ne!(damage, Damage::None);
-    assert!(ids(&live).contains(&drafted) && live.replica().get(&mine, "color").unwrap() == json!("red"));
+    live.execute(&person("a"), |_, tx| Ok(tx.set(&mine, "color", json!("black"))?)).unwrap();
+    let (scope, damage) = live.merge_changes(&draft.export_changes(&base).unwrap(), &agent).unwrap();
+    assert_eq!(scope, Some(UndoScope::Person), "the agent's draft is the person's step");
+    assert_eq!(damage, Damage::Full);
+    assert!(ids(&live).contains(&drafted) && live.replica().get(&mine, "color").unwrap() == json!("black"));
     assert_view_follows_replica(&live);
     assert!(live.undo().unwrap().0);
-    assert!(!ids(&live).contains(&drafted) && live.replica().get(&mine, "color").unwrap() == json!("red"));
+    assert!(!ids(&live).contains(&drafted) && live.replica().get(&mine, "color").unwrap() == json!("black"));
     assert_view_follows_replica(&live);
+}
+
+/// The draft adds a shape while the document added another to the same list (data model 6.6,
+/// rule D6): both are there, the document's first at the one position; the person's one Undo
+/// takes back the draft's shape only, to the exact state before the merge, and the agent's
+/// history holds no step of it (M12a).
+#[test]
+fn a_draft_that_appends_merges_with_a_shape_the_document_appended_meanwhile() {
+    let mut live = first();
+    let base = live.version();
+    let start = ids(&live);
+    let mut draft = live.fork(actor(9), Box::new(MemoryBlobs::default())).unwrap();
+    let (drafted, _) = draft.execute(&Origin::agent("user:a"), |_, tx| add_shape(tx, 30.0, "blue")).unwrap();
+    let (mine, _) = live.execute(&person("a"), |_, tx| add_shape(tx, 50.0, "red")).unwrap();
+    let before = (live.state_hash().unwrap(), ids(&live));
+    let agent = Origin::agent("user:a").with_label("Merged the agent's draft");
+    let (scope, damage) = live.merge_changes(&draft.export_changes(&base).unwrap(), &agent).unwrap();
+    assert_eq!((scope, damage), (Some(UndoScope::Person), Damage::Full));
+    assert_eq!(ids(&live), [start.clone(), vec![mine.clone(), drafted.clone()]].concat(), "the document's shape first");
+    assert_eq!(live.model().shapes[3].color, "blue");
+    assert_view_follows_replica(&live);
+    assert!(!live.can_undo_in(UndoScope::Agent), "no step of the agent's");
+    assert!(live.undo().unwrap().0);
+    assert_eq!((live.state_hash().unwrap(), ids(&live)), before, "the exact state before the merge");
+    assert!(!live.replica().exists(&drafted));
+    assert_view_follows_replica(&live);
+    // The person's own shape is the next step.
+    assert!(live.undo().unwrap().0);
+    assert_eq!(ids(&live), start);
 }

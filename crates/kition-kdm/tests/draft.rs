@@ -5,7 +5,7 @@ mod common;
 
 use common::{fields, page_with_shape, person, schema};
 use kition_kdm::diff::diff_states;
-use kition_kdm::{ActorId, DocId, KdmError, Origin, Replica};
+use kition_kdm::{ActorId, DocId, KdmError, Origin, Replica, UndoScope};
 use serde_json::json;
 
 fn actor(n: u64) -> ActorId {
@@ -74,8 +74,10 @@ fn a_merge_is_one_undo_step() {
     let preview = live.merged_state(&changes).expect("preview");
     assert_eq!(live.state_json().expect("state"), before, "a preview changes nothing");
     live.take_changed();
-    let changed = live.merge_changes(&changes, &agent()).expect("merge");
+    let merged = live.merge_changes(&changes, &agent()).expect("merge");
+    let changed = &merged.objects;
     assert!(changed.contains(&added) && changed.contains(&shape) && changed.contains(&page), "{changed:?}");
+    assert_eq!(merged.scope, Some(UndoScope::Person), "the agent's draft is the person's step");
     assert_eq!(live.state_json().expect("state"), preview);
     assert_eq!(live.state_json().expect("state"), draft.state_json().expect("state"));
     assert_eq!(live.list(&page, "shapes").expect("list").len(), 2);
@@ -201,7 +203,9 @@ fn a_merge_refuses_changes_it_cannot_take_and_changes_nothing() {
     assert_eq!((live.version(), live.state_json().expect("state")), before);
     // An empty draft merges to nothing, with no undo step.
     let empty = live.fork(actor(10)).expect("fork");
-    assert!(live.merge_changes(&empty.export_changes(&live.version()).expect("export"), &agent()).expect("merge").is_empty());
+    let merged = live.merge_changes(&empty.export_changes(&live.version()).expect("export"), &agent()).expect("merge");
+    assert!(merged.objects.is_empty());
+    assert_eq!(merged.scope, None, "no step recorded");
     assert_eq!(live.version(), before.0);
 }
 

@@ -69,3 +69,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm test:editor:keys
+      # Open, type, save, reopen with the stored snapshot, a draft merged and a checkpoint restored
+      # through kit-dev-host (the release runs the same on the packed @kition/sdk).
+      - run: pnpm test:editor:session

@@ -87,14 +87,14 @@ describe('check-manifest headless.capabilities (platform K22)', () => {
   })
 
   it('refuses an unknown or repeated capability', () => {
-    const unknown = headless({ capabilities: ['document.text'] })
+    const unknown = headless({ capabilities: ['file.text'] })
     expect(unknown.code).toBe(1)
     expect(unknown.out).toContain('headless.capabilities[0]')
     expect(headless({ capabilities: ['document-text', 'document-text'] }).code).toBe(1)
   })
 
-  it('refuses document.text listed as a feature, naming the capability', () => {
-    const result = headless({ features: ['document.text'] })
+  it('refuses file.text listed as a feature, naming the capability', () => {
+    const result = headless({ features: ['file.text'] })
     expect(result.code).toBe(1)
     expect(result.out).toContain('document-text in headless.capabilities')
   })
@@ -240,6 +240,15 @@ describe('check-manifest engine contract 2 (platform K10 to K14)', () => {
     expect(handWritten.code).toBe(1)
     for (const member of ['mergeChanges', 'compareChanges', 'restoreState', 'changesSince', 'modelReply']) expect(handWritten.out).toContain(`a contract 2 module has ${member}`)
     expect(handWritten.out).not.toContain('a contract 2 module has modelBatch')
+  })
+
+  it('accepts collaboration without merge classes, as the manifest reference writes it, and still checks listed ones (platform K13)', () => {
+    const leasesOnly = checkFolder({ ...v2, collaboration: { leases: [] } }, { 'model/schema.json': schema })
+    expect(leasesOnly.out).toContain('PASS example.grid 0.1.0: KHP 1.0 manifest, tier basic claimed')
+    expect(leasesOnly.out).not.toContain('collaboration')
+    expect(leasesOnly.code).toBe(0)
+    const listed = checkFolder({ ...v2, collaboration: { merge: ['structured', 'overlay'], leases: [] } }, { 'model/schema.json': schema })
+    expect(listed.code).toBe(0)
   })
 
   it('refuses an unknown merge class and a malformed lease scope', () => {

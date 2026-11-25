@@ -6,6 +6,13 @@
  * `restoreEditorState`, `setContext`), so the editor offers `model`, `draft`, `changes` and
  * `context` as a real kit's does.
  *
+ * Its replica is the text and the number of changes made to it (`version`): `snapshot` holds both,
+ * `openWithReplica` opens a stored one (`text.read` answers `opened: "replica"`), `exportChanges`
+ * is the text after a version, `mergeChanges` takes a draft's text when the document has not
+ * changed since the draft's version (a draft edits with `text.append`), and `restoreState` writes
+ * a stored snapshot's text over the document: what the release's packed-editor smoke checks
+ * (`session.mjs`).
+ *
  * Every key and text the tool takes is logged in order (`keys.read`), so a test can tell a key
  * lost or applied out of order from one applied. `setCosts(host, tool)` (the manifest's `setup`)
  * makes each host member and each tool event take that many milliseconds of the worker's one
@@ -17,6 +24,7 @@ export default async function prepare() {}
 const COMMANDS = [
   { id: 'text.read', title: 'Read text', menu: [], shortcut: null, mutates: false, enabled: true },
   { id: 'keys.read', title: 'Read keys', menu: [], shortcut: null, mutates: false, enabled: true },
+  { id: 'text.append', title: 'Append text', menu: [], shortcut: null, mutates: true, enabled: true },
   { id: 'edit.undo', title: 'Undo', menu: ['Edit'], shortcut: 'Cmd+Z', mutates: true, enabled: false },
   { id: 'edit.redo', title: 'Redo', menu: ['Edit'], shortcut: 'Cmd+Shift+Z', mutates: true, enabled: false },
 ]
@@ -49,10 +57,20 @@ export class TypingDocument {
     this.height = 600
     this.hostCost = 0
     this.toolCost = 0
+    /** `file`, or `replica` when opened with a stored snapshot. */
+    this.opened = 'file'
   }
 
   static open(_name, bytes) {
     return new TypingDocument(decoder.decode(bytes))
+  }
+
+  static openWithReplica(_name, _bytes, snapshot) {
+    const stored = JSON.parse(decoder.decode(snapshot))
+    const doc = new TypingDocument(stored.text)
+    doc.changes = stored.changes
+    doc.opened = 'replica'
+    return doc
   }
 
   setCosts(host, tool) {
@@ -77,9 +95,15 @@ export class TypingDocument {
     return JSON.stringify(COMMANDS)
   }
 
-  execute(command) {
-    if (command === 'text.read') return JSON.stringify({ text: this.text, anchor: this.anchor, focus: this.focus })
+  execute(command, params) {
+    if (command === 'text.read') return JSON.stringify({ text: this.text, anchor: this.anchor, focus: this.focus, opened: this.opened, changes: this.changes })
     if (command === 'keys.read') return JSON.stringify({ keys: this.keys })
+    if (command === 'text.append') {
+      this.text += String(JSON.parse(params || '{}').text ?? '')
+      this.anchor = this.focus = [...this.text].length
+      this.changed()
+      return JSON.stringify({ text: this.text })
+    }
     throw new Error(`no command ${command}`)
   }
 
@@ -181,12 +205,12 @@ export class TypingDocument {
     return encoder.encode(String(this.changes))
   }
 
-  exportChanges() {
-    return encoder.encode(this.text)
+  exportChanges(since) {
+    return encoder.encode(JSON.stringify({ since: Number(decoder.decode(since)), changes: this.changes, text: this.text }))
   }
 
   snapshot() {
-    return encoder.encode(this.text)
+    return encoder.encode(JSON.stringify({ text: this.text, changes: this.changes }))
   }
 
   blobs() {
@@ -219,18 +243,36 @@ export class TypingDocument {
     return JSON.stringify({ refs: {}, results: [], loaded: [{ id: 'text', type: 'Text', fields: { text: this.text } }] })
   }
 
-  compareChanges() {
-    spend(this.hostCost)
-    return JSON.stringify({ created: [], deleted: [], changed: [] })
+  /** A draft's changes as this document would take them: its text, or a refusal. */
+  draftText(changes) {
+    const draft = JSON.parse(decoder.decode(changes))
+    if (draft.since !== this.changes) throw new Error(`stale: the document changed since the draft's version ${draft.since}`)
+    return draft.text
   }
 
-  mergeChanges() {
+  compareChanges(changes) {
     spend(this.hostCost)
-    return JSON.stringify({ damage: null, summary: { created: 0, deleted: 0, changed: 0 } })
+    const text = this.draftText(changes)
+    return JSON.stringify({ created: [], deleted: [], changed: text === this.text ? [] : [{ id: 'text', fields: ['text'] }] })
   }
 
-  restoreState() {
+  mergeChanges(changes) {
     spend(this.hostCost)
-    return JSON.stringify(null)
+    const text = this.draftText(changes)
+    if (text === this.text) return JSON.stringify({ damage: { kind: 'none' }, summary: { created: [], deleted: [], changed: [] }, scope: null })
+    this.text = text
+    this.anchor = this.focus = [...text].length
+    this.changed()
+    return JSON.stringify({ damage: { kind: 'full' }, summary: { created: [], deleted: [], changed: [{ id: 'text', fields: ['text'] }] }, scope: 'person' })
+  }
+
+  restoreState(snapshot) {
+    spend(this.hostCost)
+    const { text } = JSON.parse(decoder.decode(snapshot))
+    if (text === this.text) return JSON.stringify({ kind: 'none' })
+    this.text = text
+    this.anchor = this.focus = [...text].length
+    this.changed()
+    return JSON.stringify({ kind: 'full' })
   }
 }

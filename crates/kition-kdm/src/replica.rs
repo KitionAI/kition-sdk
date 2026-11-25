@@ -149,6 +149,22 @@ impl UndoOutcome {
     }
 }
 
+/// What one [`Replica::merge_changes`] took into the document: the objects that changed, and the
+/// undo scope its one step was recorded in (KitModel M12a).
+///
+/// A merged draft is a step of the **person** who accepts it, even when an agent made the draft
+/// and the merge is recorded with the agent's origin: the person approved it. A kit that keeps an
+/// undo history of its own beside the replica's records the step in `scope`, never in the scope
+/// of the origin's kind. `scope` is `None` when no step was recorded: the draft changed nothing,
+/// or the origin is `system` or `import`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DraftMerge {
+    /// The objects that changed.
+    pub objects: BTreeSet<ObjectId>,
+    /// The undo scope the merge's step was recorded in: [`UndoScope::Person`], or `None` for none.
+    pub scope: Option<UndoScope>,
+}
+
 /// The operations of one change as the log and the undo history hold them: shared, and, for an
 /// undo or redo that took back a change exactly, that change's operations read backwards.
 #[derive(Clone, Debug)]
@@ -1211,7 +1227,7 @@ impl Replica {
     pub fn compare_changes(&self, changes: &[u8]) -> Result<crate::diff::StateDiff> {
         let mut merged = self.fork(self.actor)?;
         merged.log = self.log.clone();
-        let touched = merged.merge_changes(changes, &Origin::system("merged-state"))?;
+        let touched = merged.merge_changes(changes, &Origin::system("merged-state"))?.objects;
         diff_of_objects(&self.store, &|id: &ObjectId| self.store.contains(id), &merged.store, &self.schema, &touched)
     }
 
@@ -1314,8 +1330,10 @@ impl Replica {
 
     /// Takes a draft's changes (made on a [`Replica::fork`] of this replica) into this one as one
     /// transaction of its own, with `origin`: one undo step of the person (unless `origin` is
-    /// `system` or `import`), even when an agent made the draft (M12a, KitAgent A14): the person
-    /// approved it. Answers the objects that changed.
+    /// `system` or `import`), even when an agent made the draft and `origin` is the agent's (M12a,
+    /// KitAgent A14): the person approved it. Answers the objects that changed and the scope the
+    /// step was recorded in ([`DraftMerge`]): a kit with an undo history of its own records the
+    /// step there, not in the scope of `origin`'s kind.
     ///
     /// When this replica has not changed since the draft was forked, the draft's operations apply
     /// as they are. When it has, they merge by the rules of data model 6.6 (D2 to D8): by what
@@ -1327,10 +1345,10 @@ impl Replica {
     /// ([`KdmError::Stale`]), changes that raise the minimum schema version beyond this replica's
     /// ([`KdmError::NewerSchema`]), and operations the schema refuses, checked as
     /// [`Replica::import_changes`] checks them. A refused merge changes nothing.
-    pub fn merge_changes(&mut self, changes: &[u8], origin: &Origin) -> Result<BTreeSet<ObjectId>> {
+    pub fn merge_changes(&mut self, changes: &[u8], origin: &Origin) -> Result<DraftMerge> {
         let (base, ops) = self.draft_ops(changes)?;
         if ops.is_empty() {
-            return Ok(BTreeSet::new());
+            return Ok(DraftMerge::default());
         }
         let ops = match self.merge_plan(base, ops)? {
             Ok(ops) => ops,
@@ -1340,7 +1358,7 @@ impl Replica {
             }
         };
         if ops.is_empty() {
-            return Ok(BTreeSet::new());
+            return Ok(DraftMerge::default());
         }
         let schema = Arc::clone(&self.schema);
         let applied = self.store.apply_all_checked(ops, &schema)?;
@@ -1363,7 +1381,7 @@ impl Replica {
         if let Some(scope) = scope {
             self.undo.record(scope, Part { seq, ops }, touches, self.grouping);
         }
-        Ok(objects)
+        Ok(DraftMerge { objects, scope })
     }
 
     pub fn state_json(&self) -> Result<Value> {

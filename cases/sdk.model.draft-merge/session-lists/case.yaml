@@ -1,0 +1,18 @@
+format: 1
+id: sdk.model.draft-merge/session-lists
+feature: sdk.model.draft-merge
+intent: >-
+  Through a kit session, a draft that adds a shape merges into a document that added another to
+  the same list meanwhile (data model 6.6, D6): both are there, the document's first at the one
+  position, the view equals a fresh load, the damage is the kit's, and the person's one Undo takes
+  back the draft's shape only, giving back the exact state before the merge; a draft beside a
+  recolour of another shape merges too, and `execute` answers the kit's damage exactly.
+layer: gate
+source: { kind: synthetic, from: test review of the plain KDM (2d79991..03f6285), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit, test: session, filter: a_draft_ }
+  - cargo-test: { package: kition-kit, test: session, filter: execute_answers_the_kits_damage }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

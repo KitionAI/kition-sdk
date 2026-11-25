@@ -123,6 +123,7 @@ fn an_older_reader_refuses_to_load_a_migrated_document() {
 #[test]
 fn a_refused_import_leaves_the_replica_unchanged() {
     let mut old = Replica::create(schema_at(1), DocId::new(), actor(1)).unwrap();
+    let (start, empty) = (old.version(), old.snapshot().unwrap());
     let (page, _) = page_with_shape(&mut old);
     let mut new = Replica::load(schema_at(2), &old.snapshot().unwrap(), actor(2)).unwrap();
     let base = new.version();
@@ -134,6 +135,7 @@ fn a_refused_import_leaves_the_replica_unchanged() {
     .unwrap();
     old.take_changed();
     let before = (old.version(), old.state_json().unwrap(), old.snapshot().unwrap());
+    let exported = old.export_changes(&start).unwrap();
     let error = old.import_changes(&new.export_changes(&base).unwrap()).unwrap_err();
     assert_eq!(error, KdmError::NewerSchema { found: 2, reads: 1 });
     assert_eq!(old.version(), before.0);
@@ -143,6 +145,11 @@ fn a_refused_import_leaves_the_replica_unchanged() {
     // Its snapshot is the one before: a fresh replica loads it to the same state.
     assert_eq!(old.snapshot().unwrap(), before.2);
     let copy = Replica::load(schema_at(1), &before.2, actor(4)).unwrap();
+    assert_eq!(copy.state_json().unwrap(), before.1);
+    // Its changes are exactly the ones before: the replica they follow takes them to the same state.
+    assert_eq!(old.export_changes(&start).unwrap(), exported);
+    let mut copy = Replica::load(schema_at(1), &empty, actor(5)).unwrap();
+    copy.import_changes(&exported).unwrap();
     assert_eq!(copy.state_json().unwrap(), before.1);
     // The replica keeps working.
     old.transact(&person(), |tx| tx.set(&page, "title", json!("Later"))).unwrap();
@@ -166,6 +173,10 @@ fn the_canonical_state_shows_the_minimum_as_meta_schema_version() {
             r#"{"meta":{"docId":"01920000-0000-7000-8000-0000000000bb","kdm":1,"kit":"kit.test","schemaVersion":3},"objects":{}}"#
         );
     }
+    // The later raise keeps the largest: raising again to it or below changes nothing.
+    assert_eq!(b.min_schema_version(), 3);
+    assert!(!raise(&mut b, 3));
+    assert!(!raise(&mut b, 2));
 }
 
 // Each change's author schema version (rule M5a).

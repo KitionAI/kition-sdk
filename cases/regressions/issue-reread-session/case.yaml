@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-reread-session
+feature: sdk.agent.reread-session
+intent: Outside file rereads retain resolving editor state and reconcile agent undo history, refusing an unresolved active target before any write.
+layer: gate
+source: { kind: synthetic, from: Mock editor sessions, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: reread_ }
+  - cargo-test: { package: kition-kits, test: premise_guard, filter: reread_session_ }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-16"

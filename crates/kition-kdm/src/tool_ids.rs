@@ -20,6 +20,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::{FieldKind, ObjectId, Replica, Schema, ToolIdDef};
 
@@ -152,6 +153,17 @@ pub(crate) fn named_ids(value: &Value, exists: &dyn Fn(&ObjectId) -> bool) -> BT
         }
     }
     out
+}
+
+/// Whether `text` is an object id in the form the KDM mints ([`crate::Tx::create`]: a UUID, in
+/// its lowercase hyphenated form), which no word of a reply spells.
+fn minted(text: &str) -> bool {
+    text.len() == 36 && Uuid::try_parse(text).is_ok_and(|uuid| uuid.hyphenated().to_string() == text)
+}
+
+/// Whether a reply member named `name` holds object references ([`ToolIds::show_reply_json`]).
+fn holds_references(name: &str) -> bool {
+    matches!(name, "id" | "ids" | "object" | "objects" | "target" | "targets" | "selection" | "parent") || name.ends_with("Id") || name.ends_with("Ids")
 }
 
 /// One object's tool id as rendered: its type, the id, and the value it ends with.
@@ -481,10 +493,11 @@ impl ToolIds {
         self.tool_id(id).map_or_else(|| id.to_string(), str::to_owned)
     }
 
-    /// [`ToolIds::show_json`] of `value` with `replica`'s tool ids, read only at the objects
-    /// `value` names (a string, a key, or a `:`-separated part of a key that is an object id;
-    /// [`Replica::tool_ids_of`]): an agent's reply costs its own size and the objects it names,
-    /// not the document's, also right after a change. A reply naming no object comes back as it is.
+    /// An agent's reply (an inspection, a check's diagnostics, a step's result) with the objects
+    /// it names shown by their tool ids ([`ToolIds::show_reply_json`]), read only at the objects
+    /// `value` may name ([`Replica::tool_ids_of`]): an agent's reply costs its own size and the
+    /// objects it names, not the document's, also right after a change. A reply naming no object
+    /// comes back as it is.
     pub fn show_reply(replica: &Replica, value: &Value) -> Value {
         if !replica.schema().has_tool_ids() {
             return value.clone();
@@ -493,7 +506,48 @@ impl ToolIds {
         if named.is_empty() {
             return value.clone();
         }
-        replica.tool_ids_of(&named).show_json(value)
+        replica.tool_ids_of(&named).show_reply_json(value)
+    }
+
+    /// A reply's object references shown by their tool ids. A reply is the kit's own JSON, so what
+    /// names an object is read from the text and its place (Kition platform
+    /// `docs/platform/kits/call-context.md`, "Exact known references"):
+    ///
+    /// - a string or a member name that is an object id the KDM minted (a UUID), or a member name
+    ///   whose `:`-separated parts all are (a cell keyed `<row id>:<column id>`), wherever it is:
+    ///   such a text is no word of the reply;
+    /// - any other object id (one the kit chose, such as `project` for a singleton) only as the
+    ///   value, or an item of the value, of a member that holds references: `id`, `ids`, `object`,
+    ///   `objects`, `target`, `targets`, `selection`, `parent`, or a name ending in `Id` or `Ids`.
+    ///
+    /// So a member name is never taken for the object it spells unless it is a minted id, and a
+    /// value elsewhere that merely equals a chosen id (`"note": "project"`) stays as the kit wrote
+    /// it. Text that contains an id stays literal.
+    pub fn show_reply_json(&self, value: &Value) -> Value {
+        self.show_reply_at(value, false)
+    }
+
+    fn show_reply_at(&self, value: &Value, references: bool) -> Value {
+        match value {
+            Value::String(text) if references || minted(text) => Value::String(self.show(&ObjectId::from_string(text))),
+            Value::Array(items) => Value::Array(items.iter().map(|item| self.show_reply_at(item, references)).collect()),
+            Value::Object(members) => {
+                Value::Object(members.iter().map(|(name, member)| (self.reply_key(name), self.show_reply_at(member, holds_references(name)))).collect())
+            }
+            other => other.clone(),
+        }
+    }
+
+    /// A reply's member name: shown when it is a minted object id, or when each of its
+    /// `:`-separated parts is; otherwise as the kit wrote it.
+    fn reply_key(&self, key: &str) -> String {
+        if minted(key) {
+            return self.show(&ObjectId::from_string(key));
+        }
+        if key.contains(':') && key.split(':').all(minted) {
+            return key.split(':').map(|part| self.show(&ObjectId::from_string(part))).collect::<Vec<_>>().join(":");
+        }
+        key.to_owned()
     }
 
     /// The tool ids of only the objects `ids` (those of them that exist: `ty_of` answers their

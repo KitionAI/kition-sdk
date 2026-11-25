@@ -88,7 +88,7 @@ MAY carry `{ reason }` with a [Kit Process Protocol](kit-process-protocol.md) re
 }
 ```
 
-- `document.bytes` is the file as it is now, with its version stamp. To start
+- `file.bytes` is the file as it is now, with its version stamp. To start
   a new file instead, the host sends `document.create: { "width", "height" }`,
   no bytes, and the `path` and `name` of the file it will create (an unused
   name it chose, H5); the kit makes the document and writes it with
@@ -719,7 +719,9 @@ it or discards it. A kit that keeps drafts lists `draft` in its
   rendered by the kit's engine as base64 PNGs at most `maxSize` pixels on
   the longer side (`null` where the engine cannot render).
 - `draft/merge` takes the draft into the document as one undo step of the
-  person recorded with `origin` (`{ kind: "agent", principal, label? }`),
+  person recorded with `origin` (`{ kind: "agent", principal, label? }`: the
+  draft's agent, which the editor passes on to the engine's `mergeChanges`;
+  the step is the person's all the same, KitModel M12a),
   reports the edit with `document/changed` (`by: "agent"`), and closes the
   draft; `draft/discard` closes it and leaves the document as it is. When the
   document changed since the draft was opened, the merge follows the data
@@ -951,7 +953,7 @@ previews of its documents for a host lists `render`. `linkRef` is
     or `?open=1`; `opens` keeps the requests, `openAnswer` is the answer):
     links resolve against the document's folder or by name, a missing one is
     `not-found` unless `create` asks for it.
-- `links/retarget` runs the kit's `links.retarget` command (LK2) as one
+- `links/retarget` runs the kit's `link.retarget` command (LK2) as one
   transaction with the given `origin` (`kind: "system"` for a host's
   rename); in a read-only document it is refused (`read-only`, LK11). The
   host sends it only after a rename or move it performed (LK8).

@@ -578,13 +578,13 @@ fn page_with_a_corrupt_list() -> Vec<u8> {
 /// A list item that is not an object id is refused when the content is read: no read or index
 /// ever disagrees with the list.
 #[test]
-fn a_list_item_that_is_not_an_id_is_an_error_and_indices_stay_the_engines() {
+fn content_whose_list_holds_an_item_that_is_not_an_id_is_refused_at_load() {
     let error = Replica::load(schema(), &page_with_a_corrupt_list(), ActorId::from_u64(2).unwrap()).err().unwrap();
     assert!(matches!(error, KdmError::Encoding(_)), "{error:?}");
 }
 
 /// Random list edits in one transaction against a plain vector model, reading the items in the
-/// middle of the transaction (`observe`) or never; the engine must end where the model does.
+/// middle of the transaction (`observe`) or never; the replica must end where the model does.
 fn list_edits_match_a_model(observe: bool) {
     for seed in 0..20 {
         let mut replica = replica();
@@ -628,12 +628,12 @@ fn list_edits_match_a_model(observe: bool) {
 }
 
 #[test]
-fn list_edits_read_back_mid_transaction_match_the_engine() {
+fn list_edits_read_back_mid_transaction_match_a_vector_model() {
     list_edits_match_a_model(true);
 }
 
 #[test]
-fn list_edits_never_read_back_match_the_engine() {
+fn list_edits_never_read_back_match_a_vector_model() {
     list_edits_match_a_model(false);
 }
 

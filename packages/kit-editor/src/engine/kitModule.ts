@@ -152,8 +152,10 @@ export interface KitModuleDocument {
   modelBatch?(request: string): string
   /**
    * A draft's changes taken in as one undo step of the person, recorded with `origin`
-   * (`[kind, principal, label]`): answers `{"damage", "summary"}`, `summary` what changed. A
-   * refusal throws with the KDM's message.
+   * (`[kind, principal, label]`; the editor passes the draft's agent origin, kind `agent`):
+   * answers `{"damage", "summary", "scope"}`, `summary` what changed, `scope` the undo history the
+   * step went to (`"person"` also for an agent's origin, KitModel M12a; `null` when no step was
+   * recorded). A refusal throws with the KDM's message.
    */
   mergeChanges?(changes: Uint8Array, origin: string): string
   /** What merging a draft's changes would change now, as `StateDiff` JSON; changes nothing. */
