@@ -2,9 +2,10 @@
 /**
  * Keys under host calls (kit-editor's browser test; GitHub CI runs it, `pnpm test:editor:keys`):
  * the typing kit (`public/engine/typing_engine.js`, the shared editor in `editor.tsx`) opens in
- * kit-dev-host; Playwright types 300 characters, presses Enter and Backspace 50 times each, then
- * Shift+ArrowLeft 300 times, as fast as it can, while two loops in the host page call the editor
- * without pause (`ai.inspect`, `ai.version`, `ai.changes`, `model.describe`, `model.batch`,
+ * kit-dev-host; Playwright types 300 characters, then 30 times `1,2)`, a read through the host and
+ * Enter (as Kition Sheet's FX-C6), presses Enter and Backspace 50 times each, then
+ * Shift+ArrowLeft 300 times, as fast as it can, while two loops in the host page and one from the
+ * test call the editor without pause (`ai.inspect`, `ai.version`, `ai.changes`, `model.describe`, `model.batch`,
  * `document/check`, `ai.run` reads). Every key must reach the engine once, in the order pressed,
  * and the text and selection must be what they make. Each round is run with no engine cost and with
  * host members and tool events made slow (`hostCost`, `toolCost`).
@@ -40,10 +41,14 @@ const origin = `http://127.0.0.1:${server.httpServer.address().port}`
 
 const TYPED = Array.from({ length: 300 }, (_, i) => 'abcdefghijklmnopqrstuvwxyz0123456789,.()=+-'[(i * 7) % 43]).join('')
 const START = 'Sample'
+/** Typed, then read through the host, then Enter, as Kition Sheet's FX-C6 does. */
+const BURST = '1,2)'
+const BURSTS = 30
 
 /** What the engine's key log must hold, in order. */
 function expectedKeys() {
   const keys = [...TYPED]
+  for (let i = 0; i < BURSTS; i += 1) keys.push(...BURST, 'Enter')
   for (let i = 0; i < 50; i += 1) keys.push('Enter', 'Backspace')
   for (let i = 0; i < 300; i += 1) keys.push('Shift+ArrowLeft')
   return keys
@@ -97,8 +102,25 @@ for (const name of browsers) {
         }
         state.done = Promise.all([loop(false), loop(true)])
       })
+      // A third from the test itself, as the kits' tests read while they type (Chromium runs the
+      // page's own loops only between bursts of input; Playwright's calls go between the keys).
+      const outside = { on: true, calls: 0 }
+      const outsideLoop = (async () => {
+        while (outside.on) {
+          await page.evaluate(async () => {
+            const c = window.devHost.connection()
+            await Promise.all([c.ai.inspect(), c.model.describe(), c.ai.changes(await c.ai.version())])
+          })
+          outside.calls += 1
+        }
+      })()
 
       await page.keyboard.type(TYPED)
+      for (let i = 0; i < BURSTS; i += 1) {
+        await page.keyboard.type(BURST)
+        await page.evaluate(() => window.devHost.connection().ai.inspect())
+        await page.keyboard.press('Enter')
+      }
       for (let i = 0; i < 50; i += 1) {
         await page.keyboard.press('Enter')
         await page.keyboard.press('Backspace')
@@ -110,6 +132,9 @@ for (const name of browsers) {
         await window.__hammer.done
         return { calls: window.__hammer.calls, failed: window.__hammer.failed }
       })
+      outside.on = false
+      await outsideLoop
+      hammer.calls += outside.calls * 3
       const expected = expectedKeys()
       const read = (command) => page.evaluate(async (command) => (await window.devHost.connection().ai.run([{ command, params: {} }], false)).completed[0].result, command)
       let keys = []
@@ -119,7 +144,8 @@ for (const name of browsers) {
         await page.waitForTimeout(100)
       }
       const text = await read('text.read')
-      const length = [...START].length + TYPED.length
+      const typed = START + TYPED + `${BURST}\n`.repeat(BURSTS)
+      const length = [...typed].length
       const problems = []
       if (hammer.failed.length) problems.push(`host calls failed: ${JSON.stringify(hammer.failed)}`)
       if (hammer.calls < 20) problems.push(`only ${hammer.calls} host calls ran`)
@@ -127,7 +153,7 @@ for (const name of browsers) {
       if (first >= 0 || keys.length !== expected.length) {
         problems.push(`keys: ${keys.length} of ${expected.length} reached the engine; first difference at ${first}: expected ${JSON.stringify(expected.slice(first, first + 4))}, got ${JSON.stringify(keys.slice(first, first + 4))}`)
       }
-      if (text.text !== START + TYPED) problems.push(`text: ${JSON.stringify(text.text.slice(-40))}`)
+      if (text.text !== typed) problems.push(`text: ${JSON.stringify(text.text.slice(-40))}`)
       if (text.anchor !== length || text.focus !== length - 300) problems.push(`selection ${text.anchor}–${text.focus}, expected ${length}–${length - 300}`)
       if (errors.length) problems.push(`page errors: ${errors.slice(0, 3).join(' | ')}`)
       if (problems.length) {
