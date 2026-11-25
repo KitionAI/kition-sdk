@@ -18,6 +18,13 @@ jobs:
           components: clippy, rustfmt
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      # Temporary (plain model, large documents): the full-size measurements, each in its own process.
+      - name: Large documents at full size
+        continue-on-error: true
+        run: |
+          for test in table_at_full_size sheet_at_full_size table_built_through_transactions_at_full_size; do
+            cargo test --release -q -p kition-kdm --test large_documents -- --ignored --nocapture --exact "$test" 2>&1 | tail -n 30
+          done
       # Host tests launch the mock kit's executable.
       - run: cargo build -p kition-kit-mock
       - run: cargo test
