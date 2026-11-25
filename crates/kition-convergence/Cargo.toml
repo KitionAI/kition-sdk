@@ -1,6 +1,6 @@
 [package]
 name = "kition-convergence"
-description = "The Kition kit platform's convergence suite (L6, docs/platform/kits/levels.md): scripted and fuzzed multi-replica scenarios, native and WebAssembly state parity, and performance budgets, run against any contract 2 kit through a small adapter."
+description = "The Kition kit platform's performance suite: the per-kit budgets (open, remote changes, keystroke, memory), run against any contract 2 kit through a small adapter."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

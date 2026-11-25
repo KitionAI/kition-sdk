@@ -4,6 +4,23 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The Kit Data Model is a plain object store, without a CRDT (kition-plan plans/2026-11-24,
+  plain model; format and schema versions stay 1).** `kition-kdm` no longer depends on Loro. A
+  replica holds its objects in memory and applies each transaction as one change: operations
+  addressed by object id, each checking its preconditions and carrying what its inverse needs.
+  A `Version` is the replica's line of changes and their count (`(lineage, seq)`, 24 bytes);
+  `import_changes` skips the changes it holds, takes the next ones in order, and refuses anything
+  else as `KdmError::Stale`, changing nothing. Undo takes back a step's inverses, carrying text and
+  list positions over the changes made since and keeping registers others wrote later.
+  `merge_changes` refuses a draft that changed a field the document changed too. A file holds the
+  document's content (`content_snapshot`, `content.json`, data model 7.4); a snapshot is the same
+  encoding with its version. Removed with the CRDT: `seal`, `is_sealed`, `sealed_content_snapshot`,
+  shallow snapshots and roots, `reaches`, `earliest_readable`, `history_since`, `HistoryChange`,
+  `has_pending_changes`, `rebirth`, `rebase`, `carries_whole_history`, `snapshot_origins`,
+  `Tx::tree_dedupe`, `kdm::conflict`, `KitDocument::prepare_save` (and `prepareSave`), and the
+  merge scenarios of `kition-convergence` (its performance mode stays). A tree holds an object
+  once, and a deleted object's node leaves its trees (sdk.model.plain-store/ordered-changes,
+  sdk.model.content-encoding/canonical-bytes).
 - **A labelled checkpoint names the document exactly as it was saved (Kit UI protocol UI-R6,
   UI-C1; protocol stays 1).** `host/replicaWrite` now carries `version`, the replica version its
   `snapshot` holds, which the kit's engine takes with the snapshot and the saved bytes in one step

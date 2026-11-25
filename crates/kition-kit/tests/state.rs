@@ -113,9 +113,7 @@ fn a_file_saved_from_changes_the_store_lacks_is_written_over_it_by_object_id() {
     let mut ours = Replica::load(schema(), &source.snapshot().unwrap(), actor(2)).unwrap();
     let d = edit_everything(&mut source, &items);
     let file = Replica::load(schema(), &source.content_snapshot().unwrap(), actor(3)).unwrap();
-    assert!(!ours.version().includes(&file.shallow_root().unwrap()), "the file's history does not reach the store's");
     let before = ours.version();
-    let held = Replica::snapshot_origins(&ours.snapshot().unwrap()).unwrap().len();
     assert!(take_file(&mut ours, &file).unwrap());
     assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
     assert_eq!(ours.get(&doc(), "lead").unwrap(), json!(items[2].to_string()));
@@ -128,10 +126,10 @@ fn a_file_saved_from_changes_the_store_lacks_is_written_over_it_by_object_id() {
     };
     assert_eq!(outline, vec![(items[2].clone(), None), (d.clone(), Some(items[2].clone())), (items[0].clone(), None)]);
     // One system transaction labelled import, which is no undo step.
-    let origins = Replica::snapshot_origins(&ours.snapshot().unwrap()).unwrap();
-    assert_eq!(origins.len(), held + 1, "{origins:?}");
-    assert_eq!(origins.iter().filter(|origin| **origin == Some(Origin::system("import"))).count(), 1);
-    assert!(origins.iter().flatten().any(|origin| origin.kind == OriginKind::System));
+    let changes: Value = serde_json::from_slice(&ours.export_changes(&before).unwrap()).unwrap();
+    let origins: Vec<Option<Origin>> = changes["changes"].as_array().unwrap().iter().map(|change| Origin::decode(&change["origin"].to_string())).collect();
+    assert_eq!(origins, vec![Some(Origin::system("import"))], "{changes}");
+    assert!(origins.iter().flatten().all(|origin| origin.kind == OriginKind::System));
     assert!(ours.version().includes(&before));
     assert!(!ours.can_undo());
     // A state that already agrees writes nothing.
@@ -155,9 +153,9 @@ fn outline_nodes(state: &kition_kit::session::State) -> Vec<(String, Option<Stri
     out
 }
 
-/// A deleted item keeps its tree node (an undo of the delete brings the item back into it), and
-/// the file's state names it. Written over a store that holds the same dead node, the state adds
-/// no node of its own for the deleted item (kition-layout's file taken in by state).
+/// A deleted item's node leaves the tree with it, and the file's state names no node for it.
+/// Written over a store, the state adds no node for the deleted item (kition-layout's file taken
+/// in by state).
 #[test]
 fn a_file_taken_in_by_state_adds_no_node_for_a_deleted_item() {
     let (mut source, items) = made();
@@ -173,25 +171,26 @@ fn a_file_taken_in_by_state_adds_no_node_for_a_deleted_item() {
         })
         .unwrap();
     let file = Replica::load(schema(), &source.content_snapshot().unwrap(), actor(3)).unwrap();
-    assert!(!ours.version().includes(&file.shallow_root().unwrap()), "the file's history does not reach the store's");
     let dead = items[1].to_string();
-    assert!(outline_nodes(&state(&file).unwrap()).iter().any(|(object, _)| *object == dead), "the file's outline names the deleted item");
+    assert!(!outline_nodes(&state(&file).unwrap()).iter().any(|(object, _)| *object == dead), "the file's outline names no deleted item");
     assert!(take_file(&mut ours, &file).unwrap());
     assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
-    assert_eq!(outline_nodes(&state(&ours).unwrap()).iter().filter(|(object, _)| *object == dead).count(), 1, "one node for the deleted item");
+    assert_eq!(outline_nodes(&state(&ours).unwrap()).iter().filter(|(object, _)| *object == dead).count(), 0, "no node for the deleted item");
     assert!(!ours.exists(&items[1]));
 }
 
 #[test]
 fn a_file_whose_history_reaches_the_store_brings_its_changes() {
-    let (mut source, items) = made();
+    let (source, items) = made();
     let content = source.content_snapshot().unwrap();
-    // The store has the seal; the file was opened, edited and saved again.
+    // The store has the saved state; the file was opened, edited and saved again.
     let mut ours = Replica::load(schema(), &source.snapshot().unwrap(), actor(2)).unwrap();
     let mut file = Replica::load(schema(), &content, actor(3)).unwrap();
     file.transact(&person(), |tx| tx.set(&items[0], "name", json!("renamed"))).unwrap();
+    let before = ours.version();
     assert!(take_file(&mut ours, &file).unwrap());
-    assert!(ours.version().includes(&file.version()));
+    assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
+    assert!(ours.version().includes(&before), "the store's history goes on");
     assert_eq!(ours.get(&items[0], "name").unwrap(), json!("renamed"));
     // Nothing more to take.
     assert!(!take_file(&mut ours, &file).unwrap());
@@ -235,7 +234,6 @@ fn a_file_taken_in_by_state_makes_objects_with_required_refs() {
         })
         .unwrap();
     let file = Replica::load(Arc::clone(&schema), &source.content_snapshot().unwrap(), actor(3)).unwrap();
-    assert!(!ours.version().includes(&file.shallow_root().unwrap()), "the file's history does not reach the store's");
     assert!(take_file(&mut ours, &file).unwrap());
     assert_eq!(state(&ours).unwrap(), state(&file).unwrap());
     assert_eq!(ours.get(&a, "peer").unwrap(), json!("n-b"));

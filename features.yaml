@@ -145,16 +145,24 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, packages/kdm/src/replica.ts]
-    cases: [sdk.model.new-document/copy, regressions/issue-kdm-shallow-export]
+    cases: [sdk.model.new-document/copy]
     since: "2026-11-19"
   - id: sdk.model.content-snapshot
-    title: A person's file holds the document's content with no history (a sealed state-only snapshot); rebirth lets such a file start a room
+    title: A person's file holds the document's content with no history; a file taken into the replica a host stored is written over it by object id
     dimension: [data-safety, collab, conversion]
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/read.ts, crates/kition-kit/src/session/mod.rs, crates/kition-kit/src/session/state.rs, crates/kition-kit/src/lib.rs, crates/kition-headless/src/lib.rs, packages/kit-engine/src/session.ts, packages/kit-engine/src/contract.ts, packages/kit-editor/src/engine/kitEngine.worker.ts, crates/kition-kit/src/testing.rs]
-    cases: [sdk.model.content-snapshot/no-history, sdk.model.content-snapshot/open-and-save, regressions/issue-content-reexport-after-read, regressions/issue-take-file-dead-tree-node, regressions/issue-write-state-required-refs, regressions/issue-stored-replica-earliest-readable, regressions/issue-check-contract-prepare-save]
+    cases: [regressions/issue-content-reexport-after-read, regressions/issue-take-file-dead-tree-node, regressions/issue-write-state-required-refs]
     since: "2026-11-22"
+  - id: sdk.model.plain-store
+    title: The Kit Data Model keeps a document in a plain object store with an ordered, invertible change log; versions are a line and a count, and imports take changes in order or refuse them as stale
+    dimension: [data-safety, function, performance]
+    priority: P0
+    status: has
+    paths: [crates/kition-kdm/src/store/**, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/tests/versions.rs]
+    cases: [sdk.model.plain-store/ordered-changes]
+    since: "2026-11-24"
   - id: sdk.model.content-encoding
     title: A person's file holds the document's content as one deterministic JSON encoding (content.json), the same bytes for the same state
     dimension: [data-safety, conversion]
@@ -194,7 +202,7 @@ features:
       - packages/script/src/room.ts
       - crates/kition-sync-protocol/src/messages.rs
       - docs/platform/reference/sync-protocol.md
-    cases: [sdk.collab.fork-rooms/create-and-converge, regressions/issue-sync-relay-shallow-push, regressions/issue-sync-relay-refused-push]
+    cases: [regressions/issue-sync-relay-shallow-push, regressions/issue-sync-relay-refused-push]
     since: "2026-11-20"
   - id: sdk.agent.editor-premises
     title: Live editor kit callbacks participate in per-call premises
@@ -1470,13 +1478,11 @@ features:
       - crates/kition-kdm/tests/deterministic.rs
       - crates/kition-kdm/src/ids.rs
       - crates/kition-kdm/tests/reproducible_ids.rs
-      - crates/kition-kdm/tests/version_bytes.rs
       - crates/kition-kdm/tests/fixtures/version-bytes.json
       - packages/kdm/src/envelope.ts
     cases:
       - regressions/issue-kition-table-7
       - regressions/issue-reproducible-ids
-      - regressions/issue-kdm-version-bytes
     since: "2026-11-16"
   - id: sdk.kdm.values
     title: The Kit Data Model refuses a value it cannot hold and says which values it takes

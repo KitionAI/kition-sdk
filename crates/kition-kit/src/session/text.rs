@@ -454,25 +454,6 @@ mod tests {
         }
 
         #[test]
-        fn concurrent_rich_text_writes_keep_both_sides_typing() {
-            let (mut a, para) = paragraph(1, &[run("Hello world", json!({}))]);
-            let mut b = Replica::load(Arc::new(Schema::parse(SCHEMA).unwrap()), &a.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
-            rewrite(&mut a, &para, &[run("Hello brave world", json!({}))]);
-            rewrite(&mut b, &para, &[run("Hello ", json!({})), run("world", json!({ "bold": true })), run("!", json!({}))]);
-            let to_b = a.export_changes(&b.version()).unwrap();
-            let to_a = b.export_changes(&a.version()).unwrap();
-            a.import_changes(&to_a).unwrap();
-            b.import_changes(&to_b).unwrap();
-            assert_eq!(a.state_json().unwrap(), b.state_json().unwrap());
-            assert_eq!(a.text(&para, "text").unwrap(), "Hello brave world!");
-            // "world" is bold and "!" is not; whether "brave " (typed concurrently at the bold
-            // range's start) takes the mark is the engine's choice, the same on both replicas.
-            let runs = a.text_delta(&para, "text").unwrap();
-            assert!(runs.iter().any(|run| run.insert.ends_with("world") && run.attributes.get("bold") == Some(&json!(true))), "{runs:?}");
-            assert_eq!(runs.last(), Some(&run("!", json!({}))));
-        }
-
-        #[test]
         fn write_marks_refuses_runs_over_different_texts() {
             let (mut replica, para) = paragraph(1, &[run("abc", json!({}))]);
             let error =

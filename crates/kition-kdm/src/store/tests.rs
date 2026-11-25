@@ -293,7 +293,7 @@ fn an_undo_of_typed_text_keeps_what_another_scope_typed_inside_it() {
     let mine = store.apply(Op::TextInsert { id: id("b1"), field: notes.clone(), index: 0, text: "abc".into(), marks: None }, &schema).unwrap();
     let theirs = store.apply(Op::TextInsert { id: id("b1"), field: notes.clone(), index: 1, text: "Q".into(), marks: None }, &schema).unwrap();
     assert_eq!(text_of(&store, "b1", "notes"), "aQbchello world");
-    undo_with(&mut store, through(inverse(&mine), &[theirs]), &schema);
+    undo_with(&mut store, through(inverse(&mine), &[theirs]).0, &schema);
     assert_eq!(text_of(&store, "b1", "notes"), "Qhello world");
 }
 
@@ -308,7 +308,7 @@ fn an_undo_of_a_deletion_puts_the_text_back_where_it_is_now() {
         store.apply(Op::TextDelete { id: id("b1"), field: notes.clone(), index: 4, count: 1, was: Vec::new() }, &schema).unwrap(),
     ];
     assert_eq!(text_of(&store, "b1", "notes"), "Hi, ello");
-    undo_with(&mut store, through(inverse(&mine), &theirs), &schema);
+    undo_with(&mut store, through(inverse(&mine), &theirs).0, &schema);
     assert_eq!(text_of(&store, "b1", "notes"), "Hi, ello world");
 }
 
@@ -322,7 +322,7 @@ fn an_undo_of_a_deletion_inside_text_another_scope_deleted_keeps_their_deletion(
     assert_eq!(text_of(&store, "b1", "notes"), "helorld");
     let theirs = vec![store.apply(Op::TextDelete { id: id("b1"), field: notes.clone(), index: 0, count: 2, was: Vec::new() }, &schema).unwrap()];
     assert_eq!(text_of(&store, "b1", "notes"), "lorld");
-    undo_with(&mut store, through(inverse(&mine), &theirs), &schema);
+    undo_with(&mut store, through(inverse(&mine), &theirs).0, &schema);
     assert_eq!(text_of(&store, "b1", "notes"), "llo world");
 }
 
@@ -335,7 +335,7 @@ fn an_undo_of_a_mark_does_not_spread_over_text_typed_inside_it() {
         .apply(Op::TextMark { id: id("p1"), field: body.clone(), start: 0, end: 4, key: "link".into(), value: json!("u"), was: Vec::new() }, &schema)
         .unwrap();
     let theirs = store.apply(Op::TextInsert { id: id("p1"), field: body.clone(), index: 2, text: "ZZ".into(), marks: None }, &schema).unwrap();
-    undo_with(&mut store, through(inverse(&mine), &[theirs]), &schema);
+    undo_with(&mut store, through(inverse(&mine), &[theirs]).0, &schema);
     let Some(Field::Text(text)) = store.field(&id("p1"), "body") else { panic!("no body") };
     let runs = text.runs();
     // `ZZ`, typed inside the link, keeps it; the rest is unlinked again.
@@ -356,20 +356,20 @@ fn an_undo_of_list_edits_follows_the_items_moved_since() {
         store.apply(Op::ListMove { id: id("b1"), field: pages.clone(), from: 2, to: 0, item: None }, &schema).unwrap(),
     ];
     assert_eq!(list_of(&store, "b1", "pages"), vec![id("p3"), id("x"), id("p2")]);
-    undo_with(&mut store, through(inverse(&mine), &theirs), &schema);
+    undo_with(&mut store, through(inverse(&mine), &theirs).0, &schema);
     // At the same place, the item put back comes before the one inserted there since.
     assert_eq!(list_of(&store, "b1", "pages"), vec![id("p1"), id("p3"), id("x"), id("p2")]);
 
     // Undoing an insertion removes that item wherever it went.
     let mine = store.apply(Op::ListInsert { id: id("b1"), field: pages.clone(), index: 4, item: id("y") }, &schema).unwrap();
     let theirs = vec![store.apply(Op::ListMove { id: id("b1"), field: pages.clone(), from: 4, to: 0, item: None }, &schema).unwrap()];
-    undo_with(&mut store, through(inverse(&mine), &theirs), &schema);
+    undo_with(&mut store, through(inverse(&mine), &theirs).0, &schema);
     assert_eq!(list_of(&store, "b1", "pages"), vec![id("p1"), id("p3"), id("x"), id("p2")]);
 
     // An item another scope removed since is not removed twice.
     let mine = store.apply(Op::ListInsert { id: id("b1"), field: pages.clone(), index: 0, item: id("z") }, &schema).unwrap();
     let theirs = vec![store.apply(Op::ListRemove { id: id("b1"), field: pages.clone(), index: 0, item: None }, &schema).unwrap()];
-    undo_with(&mut store, through(inverse(&mine), &theirs), &schema);
+    undo_with(&mut store, through(inverse(&mine), &theirs).0, &schema);
     assert_eq!(list_of(&store, "b1", "pages"), vec![id("p1"), id("p3"), id("x"), id("p2")]);
 }
 

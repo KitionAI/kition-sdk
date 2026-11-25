@@ -1,0 +1,22 @@
+format: 1
+id: sdk.model.plain-store/ordered-changes
+feature: sdk.model.plain-store
+intent: >-
+  The Kit Data Model keeps a document in a plain object store, without a CRDT. Every operation of
+  a change checks its preconditions and applies whole or not at all; each one applied and then
+  inverted gives back the state; undo carries text and list positions over the changes made since
+  and keeps registers others wrote later. A version is a line of changes and a count on it: an
+  import skips the changes it holds, takes the next ones in order, and refuses (stale) changes that
+  do not follow its version or went another way from it, changing nothing; the change log keeps
+  its newest changes and answers older versions with a snapshot or history-missing.
+layer: gate
+source: { kind: synthetic, from: kition-plan plans/2026-11-24-plain-model-design.md sections 1 and 9, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, filter: "store::" }
+  - cargo-test: { package: kition-kdm, test: versions }
+  - cargo-test: { package: kition-kdm, filter: "replica::tests::" }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 300
+since: "2026-11-24"

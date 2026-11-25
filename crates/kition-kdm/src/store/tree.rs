@@ -19,10 +19,6 @@ impl Tree {
         self.parent.is_empty()
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.parent.len()
-    }
-
     pub(crate) fn contains(&self, node: &ObjectId) -> bool {
         self.parent.contains_key(node)
     }

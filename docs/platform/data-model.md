@@ -716,7 +716,7 @@ implementations read it.
 | # | Rule |
 | --- | --- |
 | C1 | UTF-8 without a byte order mark. Lines end with `\n`, the last line too. |
-| C2 | The first line is the header: `kdm` (1), `kit`, `docId`, then, in a snapshot only, `version` as `{"lineage":"<uuid>","seq":<n>}`, then `schemaVersion` (the minimum schema version, rule M20), then `"objects":{`, in this order. |
+| C2 | The first line is the header: `kdm` (1), `kit`, `docId`, then, in a snapshot only, `version` as `{"lineage":"<uuid>","seq":<n>}` (with `"authorSchemaVersion":<n>` after `seq` when the replica knows the newest schema version a change was written under, rule M5a), then `schemaVersion` (the minimum schema version, rule M20), then `"objects":{`, in this order. |
 | C3 | Then one line per object, `"<id>":{...}`, with a `,` after each but the last, ids in ascending order of their UTF-8 bytes; then the line `}}`. A document without objects is the header and `}}`. There is no other whitespace. |
 | C4 | Inside an object, at every depth, keys are in ascending order of their UTF-8 bytes (not UTF-16 code units: U+FF5A sorts before U+1F600). `$type` holds the object's type. |
 | C5 | A field holding `null`, an empty text, an empty list, an empty map or an empty tree is left out; reading, a field left out is empty (`null` for a register). A register holding `""`, `[]`, `{}`, `0` or `false` is written. So adding a field to a type does not change an older document's bytes. |

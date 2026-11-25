@@ -246,11 +246,14 @@ fn a_map_field_the_stored_object_lacks_reads_as_empty() {
     new.transact(&person(), |tx| {
         assert_eq!(tx.map_get(&shape, "meta", "k")?, Value::Null);
         assert!(tx.map_entries(&shape, "meta")?.is_empty());
-        assert!(matches!(tx.map_set(&shape, "meta", "k", json!(1)), Err(KdmError::NotFound(_))));
-        assert_eq!(tx.map_get(&shape, "meta", "k")?, Value::Null);
+        // A container field exists once something is written to it (plan 2026-11-24, section
+        // 1.1): an object made before the field takes a write.
+        tx.map_set(&shape, "meta", "k", json!(1))?;
+        assert_eq!(tx.map_get(&shape, "meta", "k")?, json!(1));
         Ok(())
     })
     .unwrap();
+    assert_eq!(new.map_get(&shape, "meta", "k").unwrap(), json!(1));
 }
 
 #[test]

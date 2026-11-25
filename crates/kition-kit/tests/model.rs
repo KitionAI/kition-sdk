@@ -452,7 +452,6 @@ fn an_exchange_edits_the_engine_through_its_changes() {
 fn an_exchange_and_a_draft_work_on_a_document_forked_as_a_new_document() {
     let source = open();
     let fork = source.0.replica().copy_as_new_document(DocId::new(), ActorId::from_u64(2).unwrap()).unwrap();
-    assert!(fork.is_shallow());
     let mut document = NotesDocument(KitSession::from_replica(fork, Box::new(MemoryBlobs::default())).unwrap(), Vec::new(), Value::Null);
     let mut exchange = Exchange::new();
     let described = exchange.describe(&mut document).unwrap();

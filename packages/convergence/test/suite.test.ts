@@ -1,21 +1,8 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_OPTIONS, optionsFromEnv, run, runOne, SCENARIOS, SUITE } from '../src/index'
+import { DEFAULT_OPTIONS, optionsFromEnv, run, runOne, SUITE } from '../src/index'
 import { broken, NotesKit } from './toy'
 
-const crate = path.join(__dirname, '../../../crates/kition-convergence')
-
 describe('the TypeScript convergence suite', () => {
-  it('has the Rust suite’s scenarios, in its order, and its name', () => {
-    const source = readFileSync(path.join(crate, 'src/scenarios.rs'), 'utf8')
-    const table = source.slice(source.indexOf('pub(crate) const SCENARIOS'), source.indexOf('];'))
-    const rust = [...table.matchAll(/\("([^"]+)", "([^"]+)"\)/g)].map((match) => [match[1], match[2]])
-    expect(rust).toHaveLength(17)
-    expect(SCENARIOS).toEqual(rust)
-    expect(readFileSync(path.join(crate, 'src/lib.rs'), 'utf8')).toContain(`pub const SUITE: &str = "${SUITE}";`)
-  })
-
   it('passes a correct kit, skipping only what it has no step for', () => {
     const report = run(new NotesKit(), DEFAULT_OPTIONS)
     expect(report.level6(), report.render()).toBe(true)

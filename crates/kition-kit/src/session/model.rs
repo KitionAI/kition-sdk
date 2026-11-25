@@ -204,7 +204,7 @@ fn catch_up<'a, P: ReplicaPort>(scratch: &'a mut Option<Replica>, port: &mut P) 
             let changes = port.model_export(&replica.version().encode()).map_err(failed)?;
             match replica.import_changes(&changes) {
                 Ok(_) => {}
-                Err(kition_kdm::KdmError::WrongDocument { .. }) => {
+                Err(kition_kdm::KdmError::WrongDocument { .. } | kition_kdm::KdmError::Stale(_)) => {
                     // A command may replace the engine's document. Histories of distinct
                     // documents never merge; load the replacement under a fresh actor.
                     *scratch = None;

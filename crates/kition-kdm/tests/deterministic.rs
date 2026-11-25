@@ -1,6 +1,7 @@
 //! The same changes encode the same bytes: a JSON object value is written in one key order, not
 //! in a hash map's per-process order, so a document built twice by the same commands (a showcase
-//! sample, a gating test) saves the same file.
+//! sample, a gating test) saves the same file. The content is compared: a snapshot also holds its
+//! replica's line of changes, which is new for every document made.
 
 mod common;
 
@@ -26,7 +27,9 @@ fn build() -> (Vec<u8>, Vec<u8>) {
             Ok(())
         })
         .unwrap();
-    (replica.snapshot().unwrap(), replica.export_changes(&kition_kdm::Version::empty()).unwrap())
+    let content = replica.content_snapshot().unwrap();
+    let reloaded = Replica::load(schema(), &content, ActorId::from_u64(8).unwrap()).unwrap();
+    (content, reloaded.content_snapshot().unwrap())
 }
 
 #[test]

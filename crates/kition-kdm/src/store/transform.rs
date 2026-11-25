@@ -9,24 +9,30 @@
 //! Only operations on the same text or list field affect each other; any other operation passes
 //! unchanged. Positions that no longer fit are fitted when the undo applies ([`super::Store::fit`]).
 
+use std::collections::HashSet;
+
 use super::op::Op;
+use crate::ObjectId;
 
 /// `ops` (applied in order on a state) carried over `later` (applied in order on that same
-/// state), so they apply in order after `later`. List moves come out as the removal and the
-/// insertion they are.
-pub(crate) fn through(ops: Vec<Op>, later: &[Op]) -> Vec<Op> {
+/// state), so they apply in order after `later`; and whether any of `later` moved them. List
+/// moves come out as the removal and the insertion they are.
+pub(crate) fn through(ops: Vec<Op>, later: &[Op]) -> (Vec<Op>, bool) {
+    let fields: HashSet<(&ObjectId, &str)> = ops.iter().filter(|op| is_sequence_edit(op)).filter_map(|op| Some((op.object()?, &**op.field()?))).collect();
+    let touching: Vec<&Op> =
+        later.iter().filter(|op| is_sequence_edit(op) && op.object().zip(op.field()).is_some_and(|(id, field)| fields.contains(&(id, &**field)))).collect();
+    if touching.is_empty() {
+        return (ops, false);
+    }
     let mut ops: Vec<Op> = ops.into_iter().flat_map(split_move).collect();
-    for op in later {
+    for op in touching {
         if ops.is_empty() {
             break;
-        }
-        if !ops.iter().any(|mine| addresses_same_sequence(mine, op)) {
-            continue;
         }
         let (moved, _) = xform(ops, split_move(op.clone()));
         ops = moved;
     }
-    ops
+    (ops, true)
 }
 
 /// Whether both operations edit one text or one list field.
@@ -49,8 +55,7 @@ fn split_move(op: Op) -> Vec<Op> {
 }
 
 /// Two sequences of operations made on one state (neither holding a list move), transformed
-/// against each other: `a` to apply after `b`, and `b` to apply after `a`. At one position, `a`'s
-/// insertion comes first.
+/// against each other: `a` to apply after `b`, and `b` to apply after `a` ([`pair`]).
 fn xform(a: Vec<Op>, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
     match (a.len(), b.len()) {
         (0, _) | (_, 0) => (a, b),
@@ -83,8 +88,8 @@ fn chars(text: &str) -> usize {
 }
 
 /// Two operations made on one state, transformed against each other: `a` to apply after `b`, `b`
-/// to apply after `a`. At one position, `a`'s insertion comes first. Answers none for an
-/// operation left with nothing to do.
+/// to apply after `a`. At one position, `b`'s text comes first and `a`'s list item does. Answers
+/// none for an operation left with nothing to do.
 fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
     if !addresses_same_sequence(&a, &b) {
         return (vec![a], vec![b]);
@@ -93,7 +98,9 @@ fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
         (Op::TextInsert { id, field, index: i, text: s, marks }, b @ Op::TextInsert { .. }) => {
             let Op::TextInsert { index: j, ref text, .. } = b else { return (Vec::new(), vec![b]) };
             let (n, m) = (chars(&s), chars(text));
-            if i <= j {
+            // At one position the other text comes first: text taken back and put back loses its
+            // place among what was typed at that point, and what was typed after it stays after.
+            if i < j {
                 (vec![Op::TextInsert { id, field, index: i, text: s, marks }], vec![with_index(b, j + n)])
             } else {
                 (vec![Op::TextInsert { id, field, index: i + m, text: s, marks }], vec![b])

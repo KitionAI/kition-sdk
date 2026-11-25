@@ -89,7 +89,7 @@ pub fn measure<K: KitAdapter>(kit: &K, options: &PerfOptions) -> Result<PerfRepo
     };
     let snapshot = kit.snapshot(&mut doc)?;
     let blobs = kit.blobs(&mut doc)?;
-    let objects = crate::state::objects(&kit.state(&mut doc)?).len();
+    let objects = kit.state(&mut doc)?.get("objects").and_then(serde_json::Value::as_object).map_or(0, serde_json::Map::len);
 
     let mut opens = Vec::new();
     for _ in 0..5 {

@@ -15,7 +15,7 @@ fn schema() -> Arc<Schema> {
 /// The snapshot fixture's version.
 fn snapshot_version() -> ContentVersion {
     let lineage = uuid::Uuid::parse_str("0193a5c4-0000-7000-8000-0000000000ff").expect("a UUID");
-    ContentVersion { lineage: *lineage.as_bytes(), seq: 42 }
+    ContentVersion { lineage: *lineage.as_bytes(), seq: 42, author_schema_version: None }
 }
 
 /// Each fixture: its name, its canonical state, its content bytes, and its version (snapshots).

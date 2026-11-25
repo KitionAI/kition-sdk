@@ -1,32 +1,13 @@
 //! # kition-convergence
 //!
-//! The convergence suite of the Kition kit platform (`docs/platform/kits/levels.md`): what a
-//! contract 2 kit runs to claim **L6 Collaboration**. It drives two to five in-process replicas of
-//! one document through the kit's own command layer, delivers their changes in seeded orders with
-//! duplicates, crashes and recovers replicas, and checks after every scenario that
+//! The performance mode of the Kition kit platform's kit suite ([`perf`]): the per-kit budgets of
+//! Kition's `docs/kits.md` section 7 (opening a document, applying 1,000 changes from another
+//! replica, a keystroke, the memory of one more replica), measured through a small adapter
+//! ([`KitAdapter`]) on any contract 2 kit. The suite only sees bytes and JSON, so it depends on no
+//! particular `kition-kit` revision; a kit adds it as a dev-dependency.
 //!
-//! - every replica has the same canonical state (the KDM's `state_json`, whose SHA-256 is the
-//!   state hash);
-//! - the state keeps the schema's references valid: a `ref` names an existing object of its type,
-//!   a `list` holds existing objects once each, a `tree` names each object at most once;
-//! - each replica's view matches its replica ([`KitAdapter::check_view`]).
-//!
-//! A kit plugs in with a [`KitAdapter`]: how to make and join replicas, exchange changes, read the
-//! canonical state, make a random edit from its command catalogue, and run the few scripted steps
-//! of [`Script`]. The suite only sees bytes and JSON, so it depends on no particular `kition-kit`
-//! revision; a kit adds it as a dev-dependency:
-//!
-//! ```ignore
-//! #[test]
-//! fn converges() {
-//!     let report = kition_convergence::run(&MyKit, &kition_convergence::Options::default());
-//!     println!("{}", report.render());
-//!     assert!(report.passed(), "{}", report.render());
-//! }
-//! ```
-//!
-//! [`perf`] measures the performance budgets of `docs/kits.md` section 7 (Kition), and [`wasm`]
-//! checks that the kit's WebAssembly engine reaches the native state from the same change log.
+//! The multi-replica merge scenarios it ran before are gone with the CRDT (plan 2026-11-24): a
+//! document's changes form one line, and collaboration will order them on a server.
 
 // No `clippy::indexing_slicing`: the suite indexes `serde_json::Value`s by key, which never panics.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -36,15 +17,9 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 mod alloc;
-mod net;
 pub mod perf;
-mod scenarios;
-pub mod state;
-pub mod wasm;
 
 pub use alloc::CountingAlloc;
-pub use net::Net;
-pub use state::SchemaInfo;
 
 /// A failure, as a message that names what differed.
 pub type Result<T, E = String> = std::result::Result<T, E>;
@@ -210,167 +185,4 @@ impl Rng {
     pub fn pick<'a, T>(&mut self, items: &'a [T]) -> Option<&'a T> {
         items.get(self.below(items.len()))
     }
-}
-
-/// What the suite runs.
-#[derive(Clone, Debug)]
-pub struct Options {
-    /// Seeds of the fuzzed runs; each runs on every replica count of `replicas`.
-    pub seeds: Vec<u64>,
-    /// Replica counts of the fuzzed runs (2 to 5).
-    pub replicas: Vec<usize>,
-    /// Steps of each fuzzed run.
-    pub steps: usize,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self { seeds: vec![1, 2, 3], replicas: vec![2, 3, 5], steps: 120 }
-    }
-}
-
-impl Options {
-    /// A heavier run, for nightly jobs: `KITION_CONVERGENCE_SEEDS=<n>` seeds from 1,
-    /// `KITION_CONVERGENCE_SEED_BASE=<b>` seeds from `b + 1` instead (another range of runs),
-    /// `KITION_CONVERGENCE_STEPS=<n>` steps.
-    pub fn from_env() -> Self {
-        Self::from_vars(|name| std::env::var(name).ok())
-    }
-
-    /// [`Options::from_env`] with the variables `var` answers.
-    pub fn from_vars(var: impl Fn(&str) -> Option<String>) -> Self {
-        let mut options = Self::default();
-        let number = |name: &str| var(name).and_then(|text| text.parse::<u64>().ok());
-        let base = number("KITION_CONVERGENCE_SEED_BASE").unwrap_or(0);
-        let count = number("KITION_CONVERGENCE_SEEDS").map(|count| count.max(1));
-        if count.is_some() || base > 0 {
-            let count = count.unwrap_or_else(|| u64::try_from(options.seeds.len()).unwrap_or(u64::MAX));
-            options.seeds = (1..=count).map(|seed| base.saturating_add(seed)).collect();
-        }
-        if let Some(steps) = number("KITION_CONVERGENCE_STEPS") {
-            options.steps = usize::try_from(steps).unwrap_or(usize::MAX).max(1);
-        }
-        options
-    }
-}
-
-/// How one scenario went.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Outcome {
-    Passed,
-    Failed(String),
-    /// The kit has no such step (its adapter answered `Ok(false)`), with why.
-    Skipped(String),
-}
-
-/// One scenario's result.
-#[derive(Clone, Debug)]
-pub struct Check {
-    pub id: &'static str,
-    pub title: &'static str,
-    /// Whether L6 needs it to pass (rather than be skipped). Conditional scenarios (text, blobs,
-    /// lists, trees) are required when the kit has what they test.
-    pub required: bool,
-    pub outcome: Outcome,
-}
-
-/// The suite's results.
-#[derive(Clone, Debug, Default)]
-pub struct Report {
-    pub kit: String,
-    pub checks: Vec<Check>,
-}
-
-impl Report {
-    /// No scenario failed. Skips are allowed here; [`Report::level6`] is stricter.
-    pub fn passed(&self) -> bool {
-        !self.checks.is_empty() && self.checks.iter().all(|check| !matches!(check.outcome, Outcome::Failed(_)))
-    }
-
-    /// The kit passes the convergence suite for L6: nothing failed and no required scenario was
-    /// skipped.
-    pub fn level6(&self) -> bool {
-        self.passed() && self.checks.iter().all(|check| !check.required || check.outcome == Outcome::Passed)
-    }
-
-    /// The report as JSON: `{ kit, suite, level6, checks: [{ id, title, required, outcome, reason? }] }`,
-    /// `outcome` one of `passed`, `failed`, `skipped`. `tools/check-manifest.mjs --convergence`
-    /// reads it for L6.
-    pub fn to_json(&self) -> Value {
-        let checks: Vec<Value> = self
-            .checks
-            .iter()
-            .map(|check| {
-                let (outcome, reason) = match &check.outcome {
-                    Outcome::Passed => ("passed", None),
-                    Outcome::Failed(reason) => ("failed", Some(reason)),
-                    Outcome::Skipped(reason) => ("skipped", Some(reason)),
-                };
-                let mut out = serde_json::json!({ "id": check.id, "title": check.title, "required": check.required, "outcome": outcome });
-                if let Some(reason) = reason {
-                    out["reason"] = Value::from(reason.as_str());
-                }
-                out
-            })
-            .collect();
-        serde_json::json!({ "kit": self.kit, "suite": SUITE, "level6": self.level6(), "checks": checks })
-    }
-
-    /// Writes [`Report::to_json`] to the file `KITION_CONVERGENCE_REPORT` names, when it is set:
-    /// how a kit's test hands its result to `check-manifest.mjs --convergence`.
-    pub fn save_if_requested(&self) -> Result<()> {
-        match std::env::var_os("KITION_CONVERGENCE_REPORT") {
-            Some(path) => {
-                std::fs::write(&path, format!("{:#}\n", self.to_json())).map_err(|error| format!("{}: {error}", std::path::Path::new(&path).display()))
-            }
-            None => Ok(()),
-        }
-    }
-
-    pub fn outcome(&self, id: &str) -> Option<&Outcome> {
-        self.checks.iter().find(|check| check.id == id).map(|check| &check.outcome)
-    }
-
-    /// One line per scenario, then the summary.
-    pub fn render(&self) -> String {
-        let mut out = String::new();
-        for check in &self.checks {
-            let line = match &check.outcome {
-                Outcome::Passed => format!("PASS {} - {}\n", check.id, check.title),
-                Outcome::Failed(reason) => format!("FAIL {} - {}: {reason}\n", check.id, check.title),
-                Outcome::Skipped(reason) => {
-                    format!("SKIP {} - {}{}: {reason}\n", check.id, check.title, if check.required { " (required for L6)" } else { "" })
-                }
-            };
-            out.push_str(&line);
-        }
-        let passed = self.checks.iter().filter(|check| check.outcome == Outcome::Passed).count();
-        out.push_str(&format!(
-            "{}: {passed}/{} scenarios passed; L6 convergence {}\n",
-            self.kit,
-            self.checks.len(),
-            if self.level6() { "passed" } else { "not passed" }
-        ));
-        out
-    }
-
-    fn push(&mut self, id: &'static str, title: &'static str, required: bool, outcome: Outcome) {
-        self.checks.push(Check { id, title, required, outcome });
-    }
-}
-
-/// The suite's name and version in reports: scenarios are only added in a minor version.
-pub const SUITE: &str = "kition-convergence 1.0";
-
-/// Every scenario: `(id, title)`, in the order [`run`] runs them.
-pub const SCENARIOS: &[(&str, &str)] = scenarios::SCENARIOS;
-
-/// Runs the whole suite against `kit`.
-pub fn run<K: KitAdapter>(kit: &K, options: &Options) -> Report {
-    scenarios::run(kit, options)
-}
-
-/// Runs one scenario by id (from [`SCENARIOS`]); `None` for an unknown id.
-pub fn run_one<K: KitAdapter>(kit: &K, id: &str, options: &Options) -> Option<Report> {
-    scenarios::run_one(kit, id, options)
 }

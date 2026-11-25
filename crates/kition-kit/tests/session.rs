@@ -172,10 +172,15 @@ fn peer(of: &Session, value: u64) -> Session {
     KitSession::open_snapshot(&of.snapshot().unwrap(), Box::new(MemoryBlobs::default()), actor(value)).unwrap()
 }
 
+/// Brings the session that is behind up to the other (their changes are one line).
 fn sync(a: &mut Session, b: &mut Session) {
     for _ in 0..8 {
-        a.import_changes(&b.export_changes(&a.version()).unwrap()).unwrap();
-        b.import_changes(&a.export_changes(&b.version()).unwrap()).unwrap();
+        if !a.version().includes(&b.version()) {
+            a.import_changes(&b.export_changes(&a.version()).unwrap()).unwrap();
+        }
+        if !b.version().includes(&a.version()) {
+            b.import_changes(&a.export_changes(&b.version()).unwrap()).unwrap();
+        }
         if a.version() == b.version() {
             return;
         }
@@ -194,49 +199,12 @@ fn ids(session: &Session) -> Vec<ObjectId> {
 // Tests.
 
 #[test]
-fn two_sessions_exchanging_changes_converge() {
-    let mut a = first();
-    let mut b = peer(&a, 2);
-    let shape = ids(&a)[0].clone();
-    let (added, damage) = a.execute(&person("a"), |_, tx| add_shape(tx, 5.0, "green")).unwrap();
-    assert_eq!(damage, Damage::Full);
-    let (_, damage) = b
-        .execute(&person("b"), |model, tx| {
-            assert_eq!(model.shapes.len(), 2);
-            Ok(tx.set(&shape, "color", json!("black"))?)
-        })
-        .unwrap();
-    assert_eq!(damage, Damage::Rects(vec![[1, 2, 11, 12], [1, 2, 11, 12]]));
-    sync(&mut a, &mut b);
-    assert_eq!(a.state_hash().unwrap(), b.state_hash().unwrap());
-    assert_eq!(a.model(), b.model());
-    assert_eq!(ids(&a)[2], added);
-    assert_eq!(a.model().shapes[0].color, "black");
-    assert_view_follows_replica(&a);
-}
-
-#[test]
-fn each_tile_is_its_own_last_writer_wins_register() {
-    let mut a = first();
-    let mut b = peer(&a, 2);
-    let set = |key: &'static str, value: &'static str| move |_: &Toy, tx: &mut Tx<'_>| Ok(tx.map_set(&board(), "tiles", key, json!(value))?);
-    a.execute(&person("a"), set("1,1", "water")).unwrap();
-    b.execute(&person("b"), set("1,1", "sand")).unwrap();
-    b.execute(&person("b"), set("2,2", "rock")).unwrap();
-    sync(&mut a, &mut b);
-    assert_eq!(a.model(), b.model());
-    let tiles = &a.model().tiles;
-    assert!(tiles["1,1"] == json!("water") || tiles["1,1"] == json!("sand"));
-    assert_eq!(tiles["2,2"], json!("rock"));
-    assert_eq!(tiles["0,0"], json!("grass"));
-}
-
-#[test]
 fn undo_reverts_only_local_person_transactions() {
     let mut a = first();
     let mut b = peer(&a, 2);
     let original = ids(&a)[0].clone();
     let (mine, _) = a.execute(&person("a"), |_, tx| add_shape(tx, 50.0, "pink")).unwrap();
+    b.import_changes(&a.export_changes(&b.version()).unwrap()).unwrap();
     let (theirs, _) = b.execute(&person("b"), |_, tx| add_shape(tx, 60.0, "gray")).unwrap();
     // Deleting the object but not its list entry leaves the entry dangling: a's import repairs it.
     b.execute(&person("b"), |_, tx| Ok(tx.delete(&original)?)).unwrap();
@@ -380,6 +348,9 @@ fn execute_keeps_the_view_equal_to_a_fresh_load() {
                 }
             }
             assert_view_follows_replica(&sessions[which]);
+            // One line of changes: the other session takes each change before it edits.
+            let [a, b] = &mut sessions;
+            sync(a, b);
         }
         let [a, b] = &mut sessions;
         sync(a, b);
@@ -404,27 +375,21 @@ fn snapshots_and_exports_round_trip() {
 }
 
 #[test]
-fn a_content_snapshot_holds_the_state_and_the_snapshot_the_history() {
+fn a_content_snapshot_holds_the_state_and_no_history() {
     let mut a = first();
     let olive = a.execute(&person("a"), |_, tx| add_shape(tx, 9.0, "olive")).unwrap().0;
     a.execute(&person("a"), |_, tx| tx.set(&olive, "color", json!("Kp4Tz8Wd2Hn")).map_err(KitError::from)).unwrap();
     a.execute(&person("a"), |_, tx| tx.set(&olive, "color", json!("teal")).map_err(KitError::from)).unwrap();
-    assert!(a.seal().unwrap());
     let version = a.version();
-    // Sealed already: the content snapshot commits nothing, and the export sees a sealed replica.
     let content = a.content_snapshot().unwrap();
-    assert_eq!(a.version(), version);
-    assert!(a.replica().is_sealed());
-    assert_eq!(a.replica().sealed_content_snapshot().unwrap(), content);
-    let snapshot = a.snapshot().unwrap();
+    assert_eq!(a.version(), version, "taking the content is no change");
     let holds = |bytes: &[u8]| bytes.windows(11).any(|window| window == b"Kp4Tz8Wd2Hn");
-    assert!(holds(&snapshot), "the control: the history holds the overwritten color");
-    assert!(!holds(&content));
+    assert!(!holds(&content) && !holds(&a.snapshot().unwrap()));
     let file = KitSession::<Toy>::open_snapshot(&content, Box::new(MemoryBlobs::default()), actor(4)).unwrap();
     assert_eq!(file.state_hash().unwrap(), a.state_hash().unwrap());
     assert_eq!(file.model(), a.model());
-    assert!(file.replica().is_shallow());
-    // The seal is no undo step: Undo takes back the last color.
+    assert_eq!(file.content_snapshot().unwrap(), content, "saved again unchanged: the same bytes");
+    // Undo takes back the last color.
     assert!(a.undo().unwrap().0);
     assert_eq!(a.replica().get(&olive, "color").unwrap(), json!("Kp4Tz8Wd2Hn"));
 }
@@ -507,12 +472,14 @@ fn a_draft_merges_as_one_undo_step_and_keeps_edits_made_meanwhile() {
     let agent = Origin::agent("user:a").with_label("Merged the agent's draft");
     let (drafted, _) = draft.execute(&Origin::agent("user:a"), |_, tx| add_shape(tx, 30.0, "blue")).unwrap();
     assert_eq!(ids(&live), before, "the live document is untouched");
-    let (mine, _) = live.execute(&person("a"), |_, tx| add_shape(tx, 50.0, "red")).unwrap();
+    // Meanwhile the person recolors a shape: another field than the draft's.
+    let mine = ids(&live)[0].clone();
+    live.execute(&person("a"), |_, tx| Ok(tx.set(&mine, "color", json!("red"))?)).unwrap();
     let damage = live.merge_changes(&draft.export_changes(&base).unwrap(), &agent).unwrap();
     assert_ne!(damage, Damage::None);
-    assert!(ids(&live).contains(&drafted) && ids(&live).contains(&mine));
+    assert!(ids(&live).contains(&drafted) && live.replica().get(&mine, "color").unwrap() == json!("red"));
     assert_view_follows_replica(&live);
     assert!(live.undo().unwrap().0);
-    assert!(!ids(&live).contains(&drafted) && ids(&live).contains(&mine));
+    assert!(!ids(&live).contains(&drafted) && live.replica().get(&mine, "color").unwrap() == json!("red"));
     assert_view_follows_replica(&live);
 }

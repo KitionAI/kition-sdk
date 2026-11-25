@@ -133,8 +133,9 @@ async fn a_file_that_embeds_its_replica_tells_its_identity_and_forks_into_a_new_
     let text = std::fs::read_to_string(dir.join("b.mocktext")).unwrap();
     assert!(text.starts_with("Kept words"), "{text}");
 
-    // No history: the deleted tag's name is in the source's replica and not in the fork's.
-    assert!(holds(&embedded(&dir.join("a.mocktext")), SECRET), "the source keeps its history");
+    // No history: a replica holds the document's state alone (plan 2026-11-24), so the deleted
+    // tag's name is in neither the source's replica nor the fork's.
+    assert!(!holds(&embedded(&dir.join("a.mocktext")), SECRET), "a replica holds no deleted content");
     assert!(!holds(&embedded(&dir.join("b.mocktext")), SECRET), "deleted content does not travel");
 
     // The source and the fork refuse each other's changes.

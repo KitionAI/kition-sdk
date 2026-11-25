@@ -1,25 +1,11 @@
-//! Writes a snapshot made by the Rust KDM and its canonical state, for the TypeScript
-//! implementation to prove it reads the same document:
-//! `cargo run -p kition-kdm --example write-fixture -- <dir>` writes `rust-page.bin` and
-//! `rust-page.json` into `<dir>`; `... -- <dir> shallow` writes only `rust-shallow.bin` and
-//! `rust-shallow.json`, a shallow snapshot (standard 2.0 rule M16a) of the same kind of document
-//! with more edits after its root; `... -- <dir> new-document` writes only
-//! `rust-new-document.bin` and `rust-new-document.json`, the committed `<dir>/rust-page.bin` copied
-//! as a new document (`Replica::copy_as_new_document`) under docId
-//! `01920000-0000-7000-8000-000000000002`; `... -- <dir> shallow-export` writes only
-//! `rust-shallow-export.bin` and `rust-shallow-export.json`, the committed
-//! `<dir>/rust-new-document.bin` (a shallow replica) with its page retitled, as it answers every
-//! change (`export_changes(&Version::empty())`); `... -- <dir> birth` writes only `rust-birth.bin`
-//! and `rust-birth-truncated.bin`, the committed `<dir>/rust-page.bin` copied as a new document under
-//! docId `01920000-0000-7000-8000-000000000003` with its page retitled, as its snapshot (rooted at
-//! its birth: it carries the whole history) and as a shallow snapshot at its last version (it does
-//! not); `... -- <dir> content` writes only `rust-content.bin` and `rust-content.json`, the
-//! committed `<dir>/rust-page.bin` edited by two replicas (text typed and deleted, a title
-//! overwritten), merged, as its content snapshot (`Replica::content_snapshot`).
+//! Writes a document made by the Rust KDM, as its content and its canonical state, for another
+//! implementation to prove it reads the same document (plan 2026-11-24, section 4: Rust writes,
+//! TypeScript reads): `cargo run -p kition-kdm --example write-fixture -- <dir>` writes
+//! `rust-page.content.json` and `rust-page.json` into `<dir>`.
 
 use std::sync::Arc;
 
-use kition_kdm::{ActorId, DocId, Origin, Replica, Schema, Version};
+use kition_kdm::{ActorId, DocId, Origin, Replica, Schema};
 use serde_json::{Map, Value, json};
 
 fn fields(value: Value) -> Map<String, Value> {
@@ -29,49 +15,6 @@ fn fields(value: Value) -> Map<String, Value> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dir = std::env::args().nth(1).ok_or("usage: write-fixture <dir>")?;
     let schema = Arc::new(Schema::parse(include_str!("../tests/fixtures/test-schema.json"))?);
-    if std::env::args().nth(2).as_deref() == Some("new-document") {
-        let page = Replica::load(schema, &std::fs::read(format!("{dir}/rust-page.bin"))?, ActorId::from_u64(7)?)?;
-        let copy = page.copy_as_new_document(DocId::parse("01920000-0000-7000-8000-000000000002")?, ActorId::from_u64(8)?)?;
-        std::fs::write(format!("{dir}/rust-new-document.bin"), copy.snapshot()?)?;
-        std::fs::write(format!("{dir}/rust-new-document.json"), copy.state_json()?.to_string())?;
-        println!("{}", copy.state_hash()?);
-        return Ok(());
-    }
-    if std::env::args().nth(2).as_deref() == Some("birth") {
-        let page = Replica::load(schema, &std::fs::read(format!("{dir}/rust-page.bin"))?, ActorId::from_u64(7)?)?;
-        let mut copy = page.copy_as_new_document(DocId::parse("01920000-0000-7000-8000-000000000003")?, ActorId::from_u64(10)?)?;
-        let title = copy.objects_of_type("Page").into_iter().next().ok_or("no page")?;
-        copy.transact(&Origin::person("user:fixture"), |tx| tx.set(&title, "title", json!("Born page")))?;
-        std::fs::write(format!("{dir}/rust-birth.bin"), copy.snapshot()?)?;
-        std::fs::write(format!("{dir}/rust-birth-truncated.bin"), copy.shallow_snapshot(&copy.version())?)?;
-        return Ok(());
-    }
-    if std::env::args().nth(2).as_deref() == Some("content") {
-        let mut a = Replica::load(Arc::clone(&schema), &std::fs::read(format!("{dir}/rust-page.bin"))?, ActorId::from_u64(11)?)?;
-        let mut b = Replica::load(schema, &a.snapshot()?, ActorId::from_u64(12)?)?;
-        let page = a.objects_of_type("Page").into_iter().next().ok_or("no page")?;
-        let shape = a.objects_of_type("Shape").into_iter().next().ok_or("no shape")?;
-        let typist = Origin::person("user:Hs6Pn2Dc9Lx").with_label("Ty5Ga1Ve7Oj");
-        a.transact(&typist, |tx| tx.text_insert(&shape, "label", 0, "Jx4Hb8Ty3Nc6"))?;
-        a.transact(&typist, |tx| tx.text_delete(&shape, "label", 0, 12))?;
-        let agent = Origin::agent("agent:Mz8Cu4Ki0Ef").with_label("Rb2Wn6Xs3Ip");
-        b.transact(&agent, |tx| tx.set(&page, "title", json!("Ug5Le1Fo0Dw4")))?;
-        b.transact(&agent, |tx| tx.set(&page, "title", json!("Content page")))?;
-        a.import_changes(&b.export_changes(&a.version())?)?;
-        std::fs::write(format!("{dir}/rust-content.bin"), a.content_snapshot()?)?;
-        std::fs::write(format!("{dir}/rust-content.json"), a.state_json()?.to_string())?;
-        println!("{}", a.state_hash()?);
-        return Ok(());
-    }
-    if std::env::args().nth(2).as_deref() == Some("shallow-export") {
-        let mut copy = Replica::load(schema, &std::fs::read(format!("{dir}/rust-new-document.bin"))?, ActorId::from_u64(9)?)?;
-        let page = copy.objects_of_type("Page").into_iter().next().ok_or("no page")?;
-        copy.transact(&Origin::person("user:fixture"), |tx| tx.set(&page, "title", json!("Forked page")))?;
-        std::fs::write(format!("{dir}/rust-shallow-export.bin"), copy.export_changes(&Version::empty())?)?;
-        std::fs::write(format!("{dir}/rust-shallow-export.json"), copy.state_json()?.to_string())?;
-        println!("{}", copy.state_hash()?);
-        return Ok(());
-    }
     let mut replica = Replica::create(schema, DocId::parse("01920000-0000-7000-8000-000000000001")?, ActorId::from_u64(7)?)?;
     replica.transact(&Origin::person("user:fixture"), |tx| {
         let page = tx.create("Page", fields(json!({ "title": "Fixture 页面" })))?;
@@ -105,23 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         tx.map_set(&sheet, "cells", "a", json!([1e16, 9.1e15, 5e-324]))?;
         Ok(())
     })?;
-    if std::env::args().nth(2).as_deref() == Some("shallow") {
-        let root = replica.version();
-        let shapes = replica.objects_of_type("Shape");
-        let page = replica.objects_of_type("Page").into_iter().next().ok_or("no page")?;
-        for (step, shape) in shapes.iter().enumerate() {
-            replica.transact(&Origin::person("user:fixture"), |tx| {
-                tx.text_insert(shape, "label", 0, &format!("after root {step} "))?;
-                tx.set(shape, "x", json!(step))
-            })?;
-        }
-        replica.transact(&Origin::person("user:fixture"), |tx| tx.set(&page, "title", json!("Shallow page")))?;
-        std::fs::write(format!("{dir}/rust-shallow.bin"), replica.shallow_snapshot(&root)?)?;
-        std::fs::write(format!("{dir}/rust-shallow.json"), replica.state_json()?.to_string())?;
-        println!("{}", replica.state_hash()?);
-        return Ok(());
-    }
-    std::fs::write(format!("{dir}/rust-page.bin"), replica.snapshot()?)?;
+    std::fs::write(format!("{dir}/rust-page.content.json"), replica.content_snapshot()?)?;
     std::fs::write(format!("{dir}/rust-page.json"), replica.state_json()?.to_string())?;
     println!("{}", replica.state_hash()?);
     Ok(())

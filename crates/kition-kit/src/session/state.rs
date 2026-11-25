@@ -1,7 +1,7 @@
 //! One document state written over another replica of the same document, keyed by object id:
-//! what a kit does when a file and the replica a host stored for it disagree and the file's
-//! history does not reach the replica's (data model 7.3, "Opening a file with its stored
-//! replica"). [`take_file`] is the open path; [`write_state`] is the write it falls back to.
+//! what a kit does when a file and the replica a host stored for it disagree (data model 7.3,
+//! "Opening a file with its stored replica"). [`take_file`] is the open path; [`write_state`] is
+//! the write.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -26,29 +26,14 @@ pub fn state(replica: &Replica) -> Result<State> {
 }
 
 /// Takes `file` (a replica opened from a file) into `ours` (the replica a host stored for the
-/// same document) and answers whether `ours` changed:
-///
-/// - nothing, when `ours` has every change of `file`;
-/// - `file`'s changes, when its history reaches `ours`'s version (`ours` includes its shallow
-///   root, or `file` is full);
-/// - otherwise `file`'s state, written over `ours`'s as one `system` transaction labelled
-///   `import` ([`write_state`]): the file was saved from changes `ours` lacks (another machine, a
-///   store that is gone). The same if the import is refused or leaves changes pending.
+/// same document) and answers whether `ours` changed: nothing when both hold the same state;
+/// otherwise `file`'s state written over `ours`'s as one `system` transaction labelled `import`
+/// ([`write_state`]), keyed by object id, so `ours` keeps its history, undo steps and object ids.
 ///
 /// Refuses ([`kition_kdm::KdmError::WrongDocument`]) a file of another document.
 pub fn take_file(ours: &mut Replica, file: &Replica) -> Result<bool> {
     if ours.doc_id() != file.doc_id() {
         return Err(kition_kdm::KdmError::WrongDocument { expected: ours.doc_id().to_string(), found: file.doc_id().to_string() }.into());
-    }
-    let version = ours.version();
-    if version.includes(&file.version()) {
-        return Ok(false);
-    }
-    if file.shallow_root().is_none_or(|root| version.includes(&root)) {
-        let changes = file.export_changes(&version)?;
-        if ours.import_changes(&changes).is_ok() && !ours.has_pending_changes() {
-            return Ok(true);
-        }
     }
     let (before, after) = (state(ours)?, state(file)?);
     if before == after {
@@ -208,10 +193,9 @@ fn wanted_nodes(value: &Value, parent: Option<&ObjectId>, out: &mut Vec<(ObjectI
 /// the missing nodes created, the nodes of objects `value` does not hold deleted, and each
 /// parent's children put in order.
 ///
-/// A node of an object `live` does not hold (the KDM keeps a deleted object's node, and the
-/// canonical form names it) is moved when the tree here still shows it (its object is deleted
-/// later in the same write) and otherwise left alone with its subtree: no node is made for an
-/// object that is gone, and the tree here keeps whatever node it holds for it.
+/// A node of an object `live` does not hold is moved when the tree here still shows it (its
+/// object is deleted later in the same write) and otherwise left alone with its subtree: no node
+/// is made for an object that is gone.
 fn write_tree(tx: &mut Tx<'_>, id: &ObjectId, field: &str, value: &Value, live: &State) -> Result<()> {
     let mut want = Vec::new();
     wanted_nodes(value, None, &mut want);

@@ -13,7 +13,8 @@
 //!
 //! - UTF-8 without a byte order mark; lines end with `\n`, the last one too.
 //! - The first line is the header: `kdm`, `kit`, `docId`, then (a snapshot only) `version` as
-//!   `{"lineage":"<uuid>","seq":<n>}`, then `schemaVersion`, then `"objects":{`, in this order.
+//!   `{"lineage":"<uuid>","seq":<n>}` (and `"authorSchemaVersion":<n>` when known), then
+//!   `schemaVersion`, then `"objects":{`, in this order.
 //! - Then one line per object, `"<id>":{…}`, a `,` after each but the last, ids in ascending
 //!   order of their UTF-8 bytes; then the line `}}`. No other whitespace anywhere.
 //! - Inside an object, at every depth, keys are in ascending order of their UTF-8 bytes.
@@ -51,6 +52,9 @@ pub const TYPE_KEY: &str = "$type";
 pub struct ContentVersion {
     pub lineage: [u8; 16],
     pub seq: u64,
+    /// The newest schema version a change of the replica's session was written under (rule
+    /// M5a), which a replica loaded from the snapshot answers on (`authorSchemaVersion`).
+    pub author_schema_version: Option<u64>,
 }
 
 /// A document's content as the encoding holds it: its header and its objects, each object with
@@ -83,6 +87,10 @@ pub fn encode(content: &Content) -> Result<Vec<u8>> {
         write_string(&mut out, &Uuid::from_bytes(version.lineage).to_string());
         out.push_str(",\"seq\":");
         out.push_str(&version.seq.to_string());
+        if let Some(author) = version.author_schema_version {
+            out.push_str(",\"authorSchemaVersion\":");
+            out.push_str(&author.to_string());
+        }
         out.push('}');
     }
     out.push_str(",\"schemaVersion\":");
@@ -113,8 +121,13 @@ pub fn encode(content: &Content) -> Result<Vec<u8>> {
 /// ([`KdmError::Encoding`]) bytes that are not this encoding, a `kdm` other than 1
 /// ([`KdmError::Schema`]), and an integer beyond ±2^53.
 pub fn decode(bytes: &[u8]) -> Result<Content> {
-    let bad = |reason: &str| KdmError::Encoding(format!("not KDM content: {reason}"));
     let value: Value = serde_json::from_slice(bytes).map_err(|error| KdmError::Encoding(format!("not KDM content: {error}")))?;
+    decode_value(value)
+}
+
+/// [`decode`] of bytes already read as JSON.
+pub fn decode_value(value: Value) -> Result<Content> {
+    let bad = |reason: &str| KdmError::Encoding(format!("not KDM content: {reason}"));
     let Value::Object(mut top) = value else { return Err(bad("not a JSON object")) };
     if let Some(key) = top.keys().find(|key| !matches!(key.as_str(), "kdm" | "kit" | "docId" | "version" | "schemaVersion" | "objects")) {
         return Err(bad(&format!("unknown key `{key}`")));
@@ -129,10 +142,14 @@ pub fn decode(bytes: &[u8]) -> Result<Content> {
     let schema_version = top.get("schemaVersion").and_then(Value::as_u64).ok_or_else(|| bad("`schemaVersion` is missing"))?;
     let version = match top.remove("version") {
         None => None,
-        Some(Value::Object(version)) if version.len() == 2 => {
+        Some(Value::Object(version)) if version.keys().all(|key| matches!(key.as_str(), "lineage" | "seq" | "authorSchemaVersion")) => {
             let lineage = version.get("lineage").and_then(Value::as_str).and_then(|text| Uuid::parse_str(text).ok()).ok_or_else(|| bad("`version.lineage`"))?;
             let seq = version.get("seq").and_then(Value::as_u64).ok_or_else(|| bad("`version.seq`"))?;
-            Some(ContentVersion { lineage: *lineage.as_bytes(), seq })
+            let author_schema_version = match version.get("authorSchemaVersion") {
+                None => None,
+                Some(author) => Some(author.as_u64().ok_or_else(|| bad("`version.authorSchemaVersion`"))?),
+            };
+            Some(ContentVersion { lineage: *lineage.as_bytes(), seq, author_schema_version })
         }
         Some(_) => return Err(bad("`version` is not {lineage, seq}")),
     };

@@ -1,16 +1,13 @@
-//! The suite against a toy contract 2 kit (notes on a board, in a list and an outline tree, with
-//! text and pictures), and against broken variants of it, which the suite must catch.
-//!
-//! Actors, the document id, and object ids are deterministic (counters that `create` restarts), so
-//! the TypeScript runner (`packages/convergence`) can be checked against this one: its twin of the
-//! toy must reach the same states, which `tests/fixtures/toy-cross-check.json` records.
+//! The performance mode against a toy contract 2 kit (notes on a board, in a list and an outline
+//! tree, with text and pictures). Actors, the document id, and object ids are deterministic
+//! (counters that `create` restarts).
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use kition_convergence::perf::{self, PerfOptions};
-use kition_convergence::{Blobs, KitAdapter, Options, Outcome, Rng, Script, wasm};
+use kition_convergence::{Blobs, KitAdapter, Rng, Script};
 use kition_kit::kdm::{ActorId, DocId, ObjectId, Origin, Replica, Schema, Tx, Version};
 use kition_kit::session::{BlobSink, BlobSource, Damage, KitError, KitModel, KitSession, MemoryBlobs, sha256_hex};
 use serde_json::{Map, Value, json};
@@ -66,9 +63,6 @@ impl KitModel for Notes {
     }
 
     fn validate(tx: &mut Tx<'_>, _changed: &BTreeSet<ObjectId>) -> Result<bool, KitError> {
-        if BROKEN_REPAIR.with(|broken| broken.get()) {
-            return Ok(false);
-        }
         let mut wrote = false;
         let items = tx.list_items(&board(), "notes")?;
         for (index, id) in items.iter().enumerate().rev() {
@@ -100,13 +94,9 @@ impl KitModel for Notes {
 }
 
 thread_local! {
-    /// The broken variant: the repair does nothing.
-    static BROKEN_REPAIR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// The last object id and actor handed out; `NotesKit::create` restarts both.
     static NEXT_OBJECT: Cell<u64> = const { Cell::new(0) };
     static NEXT_ACTOR: Cell<u64> = const { Cell::new(0) };
-    /// The SHA-256 of every state the suite read, for the cross-check.
-    static RECORDED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Every toy document has this id, so both runners' states match.
@@ -127,12 +117,8 @@ struct Doc {
     blobs: Blobs,
 }
 
-/// The adapter; `forget_undo` is a broken variant whose undo restores a snapshot of the whole
-/// document (and so reverts others' later changes).
-#[derive(Default)]
-struct NotesKit {
-    whole_document_undo: bool,
-}
+/// The adapter.
+struct NotesKit;
 
 fn person() -> Origin {
     Origin::person("alice")
@@ -197,25 +183,10 @@ impl KitAdapter for NotesKit {
     }
 
     fn state(&self, doc: &mut Doc) -> Result<Value, String> {
-        let hash = doc.session.state_hash()?;
-        RECORDED.with(|recorded| recorded.borrow_mut().push(hash));
         doc.session.replica().state_json().map_err(|error| error.to_string())
     }
 
     fn undo(&self, doc: &mut Doc) -> Result<bool, String> {
-        if self.whole_document_undo {
-            // Broken on purpose: puts every note's x back to its imported value.
-            let ids = notes(doc);
-            let done = doc.session.can_undo();
-            self.run(doc, |_, tx| {
-                for (index, id) in ids.iter().enumerate() {
-                    tx.set(id, "x", json!(index + 1))?;
-                    tx.set(id, "color", json!("reset"))?;
-                }
-                Ok(())
-            })?;
-            return Ok(done);
-        }
         Ok(doc.session.undo()?.0)
     }
 
@@ -268,8 +239,7 @@ impl KitAdapter for NotesKit {
                 self.run(doc, |_, tx| {
                     let index = tx.list_items(&board(), "notes")?.iter().position(|id| id == &probe);
                     tx.delete(&probe)?;
-                    // The list entry stays when the repair is broken: the delete relies on it.
-                    if let Some(index) = index.filter(|_| !BROKEN_REPAIR.with(|broken| broken.get())) {
+                    if let Some(index) = index {
                         tx.list_remove(&board(), "notes", index)?;
                     }
                     Ok(())
@@ -358,102 +328,9 @@ impl KitAdapter for NotesKit {
 }
 
 #[test]
-fn a_correct_kit_passes_every_scenario() {
-    let report = kition_convergence::run(&NotesKit::default(), &Options::default());
-    println!("{}", report.render());
-    assert!(report.level6(), "{}", report.render());
-    // The toy has no paragraphs: split and merge are skipped, which L6 allows.
-    assert!(matches!(report.outcome("text-split"), Some(Outcome::Skipped(_))));
-    let json = report.to_json();
-    assert_eq!(json["level6"], json!(true));
-    assert_eq!(json["kit"], json!("kit.notes"));
-    assert!(json["checks"].as_array().unwrap().iter().any(|check| check["outcome"] == json!("skipped") && check["reason"].is_string()));
-}
-
-#[test]
-fn a_missing_repair_is_caught() {
-    BROKEN_REPAIR.with(|broken| broken.set(true));
-    let report = kition_convergence::run_one(&NotesKit::default(), "delete-edit", &Options::default()).unwrap();
-    BROKEN_REPAIR.with(|broken| broken.set(false));
-    match report.outcome("delete-edit") {
-        Some(Outcome::Failed(reason)) => assert!(reason.contains("does not exist"), "{reason}"),
-        other => panic!("expected a failure, got {other:?}"),
-    }
-}
-
-#[test]
-fn an_undo_that_reverts_others_is_caught() {
-    let kit = NotesKit { whole_document_undo: true };
-    let report = kition_convergence::run_one(&kit, "undo", &Options::default()).unwrap();
-    match report.outcome("undo") {
-        Some(Outcome::Failed(reason)) => assert!(reason.contains("later change"), "{reason}"),
-        other => panic!("expected a failure, got {other:?}"),
-    }
-}
-
-#[test]
 fn the_perf_mode_measures() {
-    let report = perf::measure(&NotesKit::default(), &PerfOptions { edits: 50, remote_changes: 100, keystrokes: 20, ..PerfOptions::default() }).unwrap();
+    let report = perf::measure(&NotesKit, &PerfOptions { edits: 50, remote_changes: 100, keystrokes: 20, ..PerfOptions::default() }).unwrap();
     println!("{}", report.render());
     assert_eq!(report.remote_changes, 100);
     assert!(report.objects >= 2);
-}
-
-#[test]
-fn a_trace_replays_natively_to_one_state() {
-    let kit = NotesKit::default();
-    let trace = wasm::record(&kit, 3, 30).unwrap();
-    assert!(!trace.changes.is_empty());
-    let first = wasm::replay_native(&kit, &trace).unwrap();
-    let mut reversed = trace.clone();
-    reversed.changes.reverse();
-    assert_eq!(first, wasm::replay_native(&kit, &reversed).unwrap());
-}
-
-/// What a runner reaches on the toy: the whole suite's report, and for each scenario run alone its
-/// outcome, how many states it read, the SHA-256 of the last one, and the SHA-256 of all of their
-/// hashes in order (`trace`). The TypeScript runner's twin of the toy must reach the same.
-fn cross_check() -> Value {
-    let kit = NotesKit::default();
-    let options = Options::default();
-    let report = kition_convergence::run(&kit, &options).to_json();
-    let mut scenarios = Map::new();
-    for (id, _) in kition_convergence::SCENARIOS {
-        RECORDED.with(|recorded| recorded.borrow_mut().clear());
-        let outcome = kition_convergence::run_one(&kit, id, &options).unwrap().to_json()["checks"][0]["outcome"].clone();
-        let recorded = RECORDED.with(RefCell::take);
-        let trace = sha256_hex(recorded.join(",").as_bytes());
-        scenarios.insert((*id).to_owned(), json!({ "outcome": outcome, "states": recorded.len(), "last": recorded.last(), "trace": trace }));
-    }
-    json!({ "report": report, "scenarios": scenarios })
-}
-
-/// `KITION_UPDATE_FIXTURES=1` writes the fixture from this runner; the TypeScript runner's test
-/// (`packages/convergence/test/cross-check.test.ts`) reads the same file.
-#[test]
-fn the_typescript_runner_reaches_the_same_states() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/toy-cross-check.json");
-    let found = cross_check();
-    if std::env::var_os("KITION_UPDATE_FIXTURES").is_some() {
-        std::fs::write(&path, format!("{found:#}\n")).unwrap();
-    }
-    let expected: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    assert_eq!(
-        found, expected,
-        "the toy no longer reaches the recorded states; if the suite changed on purpose, update the fixture and the TypeScript runner together"
-    );
-}
-
-#[test]
-fn heavier_runs_come_from_the_environment() {
-    let vars =
-        |pairs: &'static [(&'static str, &'static str)]| move |name: &str| pairs.iter().find(|(key, _)| *key == name).map(|(_, value)| (*value).to_owned());
-    let defaults = Options::default();
-    let none = Options::from_vars(vars(&[]));
-    assert_eq!((none.seeds, none.steps), (defaults.seeds.clone(), defaults.steps));
-    let heavy = Options::from_vars(vars(&[("KITION_CONVERGENCE_SEEDS", "5"), ("KITION_CONVERGENCE_STEPS", "300")]));
-    assert_eq!((heavy.seeds, heavy.steps), (vec![1, 2, 3, 4, 5], 300));
-    let range = Options::from_vars(vars(&[("KITION_CONVERGENCE_SEEDS", "3"), ("KITION_CONVERGENCE_SEED_BASE", "1000")]));
-    assert_eq!(range.seeds, vec![1001, 1002, 1003]);
-    assert_eq!(Options::from_vars(vars(&[("KITION_CONVERGENCE_SEED_BASE", "50")])).seeds, vec![51, 52, 53]);
 }

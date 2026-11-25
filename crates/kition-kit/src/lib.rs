@@ -697,15 +697,6 @@ pub trait KitDocument: Sized {
     fn disabled_commands(&self) -> Vec<String> {
         self.commands().into_iter().filter(|command| !command.enabled).map(|command| command.id).collect()
     }
-    /// Gets the document ready for [`KitDocument::save`]; every host calls it right before `save`
-    /// (and before taking the replica's snapshot for its history store, after `save`). A kit whose
-    /// file holds its KDM replica seals the live replica here (`KitSession::seal`, data model 7.3),
-    /// so `save` writes `Replica::sealed_content_snapshot` and the seal is in the replica the host
-    /// stores and syncs. It must not change the document's content or mark it saved. None by
-    /// default.
-    fn prepare_save(&mut self) -> Result<(), String> {
-        Ok(())
-    }
     /// The document as file bytes, in `name`'s format or the document's own. It must not mark the
     /// document saved: the host writes the bytes and then calls [`KitDocument::mark_saved`].
     fn save(&self, name: Option<&str>) -> Result<Vec<u8>, String>;
@@ -1084,13 +1075,6 @@ macro_rules! __export_kit_document_paste {
                 #[wasm_bindgen(js_name = disabledCommands)]
                 pub fn disabled_commands(&self) -> String {
                     $crate::__serde_json_string(&$crate::KitDocument::disabled_commands(&self.0))
-                }
-
-                /// Gets the document ready for `save` (`KitDocument::prepare_save`); hosts call it
-                /// right before `save`.
-                #[wasm_bindgen(js_name = prepareSave)]
-                pub fn prepare_save(&mut self) -> Result<(), JsError> {
-                    $crate::KitDocument::prepare_save(&mut self.0).map_err(error)
                 }
 
                 pub fn save(&self, name: Option<String>) -> Result<Vec<u8>, JsError> {

@@ -821,7 +821,6 @@ fn a_replica_port_kit_serves_a_forked_document_and_its_drafts() {
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
     let source = <notes::NotesDocument as KitDocument>::create("ideas.notes", 1, 1).unwrap();
     let fork = source.session().replica().copy_as_new_document(DocId::new(), ActorId::random()).unwrap();
-    assert!(fork.is_shallow());
     let opened = kit.model("model.open", json!({ "name": "ideas.notes", "snapshot": base64::encode(&fork.snapshot().unwrap()) })).unwrap();
     let id = opened["documentId"].as_str().unwrap().to_owned();
     let described = kit.model("model.describe", json!({ "documentId": id })).unwrap();
@@ -1951,77 +1950,4 @@ fn premise_plan_replacement_preserves_public_tool_ids() {
         )
         .unwrap();
     assert_eq!(next["changes"]["created"][0]["id"], "board:replacement", "{next}");
-}
-
-/// The grid kit with a `save` that needs `prepare_save` first, as a kit whose file holds its
-/// replica needs its seal (kition-kit `KitDocument::prepare_save`).
-struct Preparing {
-    grid: GridDocument,
-    prepared: bool,
-}
-
-impl KitDocument for Preparing {
-    fn open(name: &str, bytes: &[u8]) -> Result<Self, String> {
-        GridDocument::open(name, bytes).map(|grid| Self { grid, prepared: false })
-    }
-    fn create(name: &str, width: u32, height: u32) -> Result<Self, String> {
-        GridDocument::create(name, width, height).map(|grid| Self { grid, prepared: false })
-    }
-    fn width(&self) -> u32 {
-        self.grid.width()
-    }
-    fn height(&self) -> u32 {
-        self.grid.height()
-    }
-    fn revision(&self) -> u64 {
-        self.grid.revision()
-    }
-    fn dirty(&self) -> bool {
-        self.grid.dirty()
-    }
-    fn render(&self, x: f64, y: f64, scale: f64, width: u32, height: u32) -> Result<Vec<u8>, String> {
-        self.grid.render(x, y, scale, width, height)
-    }
-    fn render_area(&self, x0: i32, y0: i32, x1: i32, y1: i32, width: u32, height: u32) -> Result<Vec<u8>, String> {
-        self.grid.render_area(x0, y0, x1, y1, width, height)
-    }
-    fn execute(&mut self, command: &str, params: Value) -> Result<Value, String> {
-        self.prepared = false;
-        self.grid.execute(command, params)
-    }
-    fn inspect(&self) -> Result<Value, String> {
-        self.grid.inspect()
-    }
-    fn commands(&self) -> Vec<KitCommand> {
-        self.grid.commands()
-    }
-    fn prepare_save(&mut self) -> Result<(), String> {
-        self.prepared = true;
-        Ok(())
-    }
-    fn save(&self, name: Option<&str>) -> Result<Vec<u8>, String> {
-        if !self.prepared {
-            return Err("save before prepare_save".into());
-        }
-        self.grid.save(name)
-    }
-    fn mark_saved(&mut self) {
-        self.grid.mark_saved();
-    }
-}
-
-#[test]
-fn a_host_gets_the_kit_ready_before_every_save() {
-    let _turn = lent_turn();
-    let root = workspace("prepare");
-    std::fs::write(root.join("art/a.grid"), GridDocument::create("a.grid", 2, 2).unwrap().save(None).unwrap()).unwrap();
-    let mut kit = Headless::<Preparing>::new(kit());
-    let folder = serve(&mut kit, &root);
-    let info = open(&mut kit, &folder, "art/a.grid");
-    kit.execute(&info.id, "grid.set", Map::from_iter([("x".into(), json!(1)), ("y".into(), json!(1)), ("grey".into(), json!(0))]), Origin::Agent).unwrap();
-    let (saved, _) = kit.save(&info.id, None, None).unwrap();
-    assert!(!saved.dirty);
-    kit.execute(&info.id, "grid.set", Map::from_iter([("x".into(), json!(0)), ("y".into(), json!(0)), ("grey".into(), json!(0))]), Origin::Agent).unwrap();
-    kit.save(&info.id, None, None).unwrap();
-    let _ = std::fs::remove_dir_all(root);
 }

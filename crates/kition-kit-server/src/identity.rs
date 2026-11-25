@@ -31,11 +31,11 @@ pub enum FileIdentity {
 pub trait EmbeddedReplica: Send + Sync {
     /// The schema the replica is of (the kit's `model/schema.json`).
     fn schema(&self) -> Arc<Schema>;
-    /// The replica's bytes (a KDM snapshot, `Replica::snapshot`) in `file`, or `None` when this
+    /// The replica's bytes (KDM content, `Replica::content_snapshot`) in `file`, or `None` when this
     /// file holds none (a file another program wrote, one the kit has not saved yet). An error
     /// says the file is not one of the kit's.
     fn replica(&self, file: &[u8]) -> Result<Option<Vec<u8>>, RpcError>;
-    /// `file` with its replica replaced by `snapshot`, everything else as it was.
+    /// `file` with its replica replaced by `snapshot` (KDM content), everything else as it was.
     fn replace(&self, file: &[u8], snapshot: &[u8]) -> Result<Vec<u8>, RpcError>;
 }
 
@@ -66,8 +66,8 @@ impl FileIdentity {
         let Some(source) = Self::embedded(replica.as_ref(), file)? else { return Ok((file.to_vec(), None)) };
         let doc_id = DocId::new();
         let copy = source.copy_as_new_document(doc_id, ActorId::random()).map_err(|error| RpcError::internal(error.to_string()))?;
-        let snapshot = copy.snapshot().map_err(|error| RpcError::internal(error.to_string()))?;
-        Ok((replica.replace(file, &snapshot)?, Some(doc_id)))
+        let content = copy.content_snapshot().map_err(|error| RpcError::internal(error.to_string()))?;
+        Ok((replica.replace(file, &content)?, Some(doc_id)))
     }
 }
 
@@ -136,26 +136,10 @@ mod tests {
         assert!(forked.starts_with(b"TEST header\0"), "the rest of the container is kept");
         assert_eq!(kind.identity(&forked).unwrap_or_else(|error| panic!("{error}")), Some(new));
         let holds = |bytes: &[u8]| bytes.windows(20).any(|window| window == b"GONE-BEFORE-THE-FORK");
-        assert!(holds(&bytes) && !holds(&forked), "deleted content stays behind");
+        assert!(!holds(&bytes) && !holds(&forked), "no deleted content in either");
         let (again, third) = kind.fork(&forked).unwrap_or_else(|error| panic!("{error}"));
         assert!(third.is_some_and(|third| third != new && third != id));
         assert!(kind.identity(&again).is_ok());
-    }
-
-    /// A forked file's replica is rooted at its birth, so a sync server takes its snapshot as a
-    /// room's first state (sync protocol S20), and so does a fork of a fork.
-    #[test]
-    fn a_forked_files_replica_carries_its_whole_history() {
-        let (bytes, _) = file();
-        let kind = container();
-        let container = Container(Arc::new(Schema::parse(SCHEMA).unwrap_or_else(|error| panic!("{error}"))));
-        let replica_of =
-            |file: &[u8]| FileIdentity::embedded(&container, file).unwrap_or_else(|error| panic!("{error}")).unwrap_or_else(|| panic!("a replica"));
-        let (forked, _) = kind.fork(&bytes).unwrap_or_else(|error| panic!("{error}"));
-        let fork = replica_of(&forked);
-        assert!(fork.is_shallow() && fork.carries_whole_history());
-        let (again, _) = kind.fork(&forked).unwrap_or_else(|error| panic!("{error}"));
-        assert!(replica_of(&again).carries_whole_history());
     }
 
     #[test]

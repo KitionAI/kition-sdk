@@ -8,6 +8,13 @@ fn replica() -> Replica {
     Replica::create(schema(), DocId::new(), ActorId::from_u64(1).unwrap()).unwrap()
 }
 
+/// `count` new shapes, for tree nodes: a tree holds an object once.
+fn shapes(replica: &mut Replica, count: usize) -> Vec<ObjectId> {
+    replica
+        .transact(&Origin::system("fixture"), |tx| (0..count).map(|_| tx.create("Shape", fields(json!({ "kind": "rect", "x": 0, "y": 0 })))).collect())
+        .unwrap()
+}
+
 #[test]
 fn lists_the_objects_of_a_type_in_code_point_order_without_deleted_ones_or_other_types() {
     let mut replica = replica();
@@ -100,11 +107,12 @@ fn moves_and_removes_list_items() {
 #[test]
 fn builds_trees_and_refuses_cycles() {
     let mut replica = replica();
-    let (page, shape) = page_with_shape(&mut replica);
+    let (page, _) = page_with_shape(&mut replica);
+    let nodes = shapes(&mut replica, 2);
     let (parent, child) = replica
         .transact(&person(), |tx| {
-            let parent = tx.tree_create(&page, "outline", None, &shape)?;
-            let child = tx.tree_create(&page, "outline", Some(&parent), &shape)?;
+            let parent = tx.tree_create(&page, "outline", None, &nodes[0])?;
+            let child = tx.tree_create(&page, "outline", Some(&parent), &nodes[1])?;
             Ok((parent, child))
         })
         .unwrap();
@@ -238,9 +246,10 @@ fn reads_inside_a_transaction_see_its_pending_effects() {
 #[test]
 fn a_cycle_formed_only_by_moves_inside_one_transaction_is_rejected_and_leaves_nothing() {
     let mut replica = replica();
-    let (page, shape) = page_with_shape(&mut replica);
+    let (page, _) = page_with_shape(&mut replica);
+    let nodes = shapes(&mut replica, 4);
     let (a, b) =
-        replica.transact(&person(), |tx| Ok((tx.tree_create(&page, "outline", None, &shape)?, tx.tree_create(&page, "outline", None, &shape)?))).unwrap();
+        replica.transact(&person(), |tx| Ok((tx.tree_create(&page, "outline", None, &nodes[0])?, tx.tree_create(&page, "outline", None, &nodes[1])?))).unwrap();
     let before = replica.version();
     let error = replica
         .transact(&person(), |tx| {
@@ -252,8 +261,8 @@ fn a_cycle_formed_only_by_moves_inside_one_transaction_is_rejected_and_leaves_no
     assert_eq!(replica.version(), before);
     let error = replica
         .transact(&person(), |tx| {
-            let c = tx.tree_create(&page, "outline", None, &shape)?;
-            let d = tx.tree_create(&page, "outline", Some(&c), &shape)?;
+            let c = tx.tree_create(&page, "outline", None, &nodes[2])?;
+            let d = tx.tree_create(&page, "outline", Some(&c), &nodes[3])?;
             tx.tree_move(&page, "outline", &c, Some(&d))
         })
         .unwrap_err();
@@ -266,12 +275,15 @@ fn a_cycle_formed_only_by_moves_inside_one_transaction_is_rejected_and_leaves_no
 fn node_handles_resolve_when_their_transaction_commits() {
     let mut replica = replica();
     let (page, shape) = page_with_shape(&mut replica);
+    let other = shapes(&mut replica, 1).remove(0);
     let (a, b) = replica
         .transact(&person(), |tx| {
             let a = tx.tree_create(&page, "outline", None, &shape)?;
-            let b = tx.tree_create(&page, "outline", None, &shape)?;
+            let b = tx.tree_create(&page, "outline", None, &other)?;
             assert_eq!(a, a.clone());
-            assert_ne!(a, b, "two unresolved handles are equal only if they are the same handle");
+            assert_ne!(a, b, "two nodes are two objects' nodes");
+            // A tree holds an object once.
+            assert!(matches!(tx.tree_create(&page, "outline", None, &shape), Err(KdmError::InvalidValue { .. })));
             tx.tree_move(&page, "outline", &b, Some(&a))?;
             Ok((a, b))
         })
@@ -332,13 +344,14 @@ fn undo_and_redo_report_the_objects_they_change() {
 #[test]
 fn trees_list_their_nodes_parent_first_in_sibling_order() {
     let mut replica = replica();
-    let (page, shape) = page_with_shape(&mut replica);
+    let (page, _) = page_with_shape(&mut replica);
+    let objects = shapes(&mut replica, 4);
     let (a, a1, b, b1) = replica
         .transact(&person(), |tx| {
-            let a = tx.tree_create(&page, "outline", None, &shape)?;
-            let b = tx.tree_create(&page, "outline", None, &shape)?;
-            let a1 = tx.tree_create(&page, "outline", Some(&a), &shape)?;
-            let b1 = tx.tree_create(&page, "outline", Some(&b), &shape)?;
+            let a = tx.tree_create(&page, "outline", None, &objects[0])?;
+            let b = tx.tree_create(&page, "outline", None, &objects[1])?;
+            let a1 = tx.tree_create(&page, "outline", Some(&a), &objects[2])?;
+            let b1 = tx.tree_create(&page, "outline", Some(&b), &objects[3])?;
             Ok((a, a1, b, b1))
         })
         .unwrap();
@@ -347,40 +360,21 @@ fn trees_list_their_nodes_parent_first_in_sibling_order() {
     assert_eq!(nodes, vec![a.clone(), a1, b.clone(), b1]);
     let parents: Vec<Option<NodeRef>> = entries.iter().map(|entry| entry.parent.clone()).collect();
     assert_eq!(parents, vec![None, Some(a), None, Some(b)]);
-    assert!(entries.iter().all(|entry| entry.object == shape));
+    let named: Vec<ObjectId> = entries.iter().map(|entry| entry.object.clone()).collect();
+    assert_eq!(named, vec![objects[0].clone(), objects[2].clone(), objects[1].clone(), objects[3].clone()]);
 }
 
-/// A document whose page outline holds a node without an object (with a child) next to a
-/// normal node: written directly with the engine, as no KDM operation can produce it.
+/// A document whose page outline holds a node naming no object of the document (with a child)
+/// next to a normal node: content written by hand, as no KDM operation can produce it.
 fn page_with_an_objectless_node() -> (Vec<u8>, String) {
-    use loro::{LoroDoc, LoroMap, LoroMovableList, LoroText, LoroTree};
-    let doc = LoroDoc::new();
-    let meta = doc.get_map("meta");
-    let doc_id = DocId::new();
-    meta.insert("docId", doc_id.to_string()).unwrap();
-    meta.insert("kit", "kit.test").unwrap();
-    meta.insert("schemaVersion", 1).unwrap();
-    meta.insert("kdm", 1).unwrap();
-    let objects = doc.get_map("objects");
-    let shape = objects.insert_container("s", LoroMap::new()).unwrap();
-    for (key, value) in [("$type", "Shape"), ("kind", "rect")] {
-        shape.insert(key, value).unwrap();
-    }
-    shape.insert("x", 1).unwrap();
-    shape.insert("y", 2).unwrap();
-    shape.insert_container("label", LoroText::new()).unwrap();
-    let page = objects.insert_container("p", LoroMap::new()).unwrap();
-    page.insert("$type", "Page").unwrap();
-    page.insert("title", "T").unwrap();
-    page.insert_container("shapes", LoroMovableList::new()).unwrap();
-    let tree = page.insert_container("outline", LoroTree::new()).unwrap();
-    let bare = tree.create(None).unwrap();
-    let child = tree.create(bare).unwrap();
-    tree.get_meta(child).unwrap().insert("object", "s").unwrap();
-    let named = tree.create(None).unwrap();
-    tree.get_meta(named).unwrap().insert("object", "s").unwrap();
-    doc.commit();
-    (common::envelope(&doc_id, &doc.export(loro::ExportMode::Snapshot).unwrap()), "p".into())
+    let content = format!(
+        "{{\"kdm\":1,\"kit\":\"kit.test\",\"docId\":\"{}\",\"schemaVersion\":1,\"objects\":{{\n\
+         \"p\":{{\"$type\":\"Page\",\"outline\":[{{\"children\":[{{\"children\":[],\"object\":\"t\"}}],\"object\":\"gone\"}},{{\"children\":[],\"object\":\"s\"}}],\"title\":\"T\"}},\n\
+         \"s\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":1,\"y\":2}},\n\
+         \"t\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":3,\"y\":4}}\n}}}}\n",
+        DocId::new()
+    );
+    (content.into_bytes(), "p".into())
 }
 
 #[test]
@@ -429,12 +423,13 @@ fn reads_tolerate_types_and_fields_from_other_schema_versions() {
     let mut old = replica();
     let (_, shape) = page_with_shape(&mut old);
     let mut new = Replica::load(common::schema_v2(), &old.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
-    // An object written before `caption` existed reads it as empty; writing it is refused.
+    // An object written before `caption` existed reads it as empty, and writing it makes it
+    // (plan 2026-11-24, section 1.1: a container field exists once something is written to it).
     assert_eq!(new.text(&shape, "caption").unwrap(), "");
     assert_eq!(new.state_json().unwrap()["objects"][shape.as_str()]["caption"], json!(""));
-    let error = new.transact(&person(), |tx| tx.text_insert(&shape, "caption", 0, "x")).unwrap_err();
-    assert!(matches!(error, KdmError::NotFound(_)), "{error:?}");
     assert_eq!(new.transact(&person(), |tx| tx.text_len(&shape, "caption")).unwrap(), 0);
+    new.transact(&person(), |tx| tx.text_insert(&shape, "caption", 0, "x")).unwrap();
+    assert_eq!(new.text(&shape, "caption").unwrap(), "x");
     // A type the older schema does not declare reads as its type only.
     let note = new.transact(&person(), |tx| tx.create("Note", fields(json!({ "body": "hi" })))).unwrap();
     let bytes = new.export_changes(&old.version()).unwrap();
@@ -448,15 +443,15 @@ fn malformed_bytes_are_encoding_errors() {
     let mut replica = replica();
     let (_, shape) = page_with_shape(&mut replica);
     let snapshot = replica.snapshot().unwrap();
-    assert_eq!(&snapshot[..4], b"KDM\x01");
-    let engine_only = snapshot[20..].to_vec();
+    assert!(snapshot.starts_with(b"{\"kdm\":1,"));
     let truncated = snapshot[..10].to_vec();
-    let mut wrong_magic = snapshot.clone();
-    wrong_magic[3] = 2;
-    for bytes in [b"garbage".to_vec(), Vec::new(), engine_only, truncated, wrong_magic] {
-        assert!(matches!(Replica::load(schema(), &bytes, ActorId::random()), Err(KdmError::Encoding(_))));
+    let text = String::from_utf8(snapshot.clone()).unwrap();
+    let no_objects = text.replacen("\"objects\":{", "\"objectz\":{", 1).into_bytes();
+    let bad_object = format!("{{\"kdm\":1,\"kit\":\"kit.test\",\"docId\":\"{}\",\"version\":{{\"lineage\":\"0193a5c4-0000-7000-8000-0000000000ff\",\"seq\":9}},\"schemaVersion\":1,\"objects\":{{\"x\":5}}}}", replica.doc_id()).into_bytes();
+    for bytes in [b"garbage".to_vec(), Vec::new(), truncated, b"[]".to_vec(), no_objects, bad_object] {
+        assert!(matches!(Replica::load(schema(), &bytes, ActorId::random()), Err(KdmError::Encoding(_))), "{}", String::from_utf8_lossy(&bytes));
         let before = replica.version();
-        assert!(matches!(replica.import_changes(&bytes), Err(KdmError::Encoding(_))));
+        assert!(matches!(replica.import_changes(&bytes), Err(KdmError::Encoding(_))), "{}", String::from_utf8_lossy(&bytes));
         assert_eq!(replica.version(), before);
     }
     assert!(replica.exists(&shape));
@@ -523,50 +518,24 @@ fn references_lists_and_trees_refuse_an_existing_target_of_another_type() {
     assert_eq!(replica.list(&a, "l").unwrap(), vec![b, missing]);
 }
 
-/// A page whose `shapes` list holds a shape id and a number: written directly with the engine,
-/// as no KDM operation can produce it. Answers the snapshot, the page id, and the shape id.
-fn page_with_a_corrupt_list() -> (Vec<u8>, kition_kdm::ObjectId, kition_kdm::ObjectId) {
-    use loro::{LoroDoc, LoroMap, LoroMovableList, LoroText, LoroTree};
-    let doc = LoroDoc::new();
-    let meta = doc.get_map("meta");
-    let doc_id = DocId::new();
-    meta.insert("docId", doc_id.to_string()).unwrap();
-    meta.insert("kit", "kit.test").unwrap();
-    meta.insert("schemaVersion", 1).unwrap();
-    meta.insert("kdm", 1).unwrap();
-    let objects = doc.get_map("objects");
-    let shape = objects.insert_container("s", LoroMap::new()).unwrap();
-    shape.insert("$type", "Shape").unwrap();
-    shape.insert("kind", "rect").unwrap();
-    shape.insert("x", 1).unwrap();
-    shape.insert("y", 2).unwrap();
-    shape.insert_container("label", LoroText::new()).unwrap();
-    let page = objects.insert_container("p", LoroMap::new()).unwrap();
-    page.insert("$type", "Page").unwrap();
-    page.insert("title", "T").unwrap();
-    let shapes = page.insert_container("shapes", LoroMovableList::new()).unwrap();
-    shapes.push("s").unwrap();
-    shapes.push(5).unwrap();
-    page.insert_container("outline", LoroTree::new()).unwrap();
-    doc.commit();
-    let snapshot = common::envelope(&doc_id, &doc.export(loro::ExportMode::Snapshot).unwrap());
-    (snapshot, kition_kdm::ObjectId::from_string("p"), kition_kdm::ObjectId::from_string("s"))
+/// A page whose `shapes` list holds a shape id and a number: content written by hand, as no KDM
+/// operation can produce it.
+fn page_with_a_corrupt_list() -> Vec<u8> {
+    format!(
+        "{{\"kdm\":1,\"kit\":\"kit.test\",\"docId\":\"{}\",\"schemaVersion\":1,\"objects\":{{\n\
+         \"p\":{{\"$type\":\"Page\",\"shapes\":[\"s\",5],\"title\":\"T\"}},\n\
+         \"s\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":1,\"y\":2}}\n}}}}\n",
+        DocId::new()
+    )
+    .into_bytes()
 }
 
+/// A list item that is not an object id is refused when the content is read: no read or index
+/// ever disagrees with the list.
 #[test]
 fn a_list_item_that_is_not_an_id_is_an_error_and_indices_stay_the_engines() {
-    let (snapshot, page, shape) = page_with_a_corrupt_list();
-    let mut replica = Replica::load(schema(), &snapshot, ActorId::from_u64(2).unwrap()).unwrap();
-    assert!(matches!(replica.list(&page, "shapes"), Err(KdmError::Encoding(_))));
-    assert!(matches!(replica.state_json(), Err(KdmError::Encoding(_))));
-    let error = replica.transact(&person(), |tx| tx.list_insert(&page, "shapes", 3, &shape)).unwrap_err();
-    assert_eq!(error, KdmError::OutOfRange { index: 3, len: 2 });
-    let error = replica.transact(&person(), |tx| tx.list_items(&page, "shapes")).unwrap_err();
+    let error = Replica::load(schema(), &page_with_a_corrupt_list(), ActorId::from_u64(2).unwrap()).err().unwrap();
     assert!(matches!(error, KdmError::Encoding(_)), "{error:?}");
-    // Validation counts the engine's items, so an index past the bad item lands where asked.
-    replica.transact(&person(), |tx| tx.list_insert(&page, "shapes", 2, &shape)).unwrap();
-    replica.transact(&person(), |tx| tx.list_remove(&page, "shapes", 1)).unwrap();
-    assert_eq!(replica.list(&page, "shapes").unwrap(), vec![shape.clone(), shape]);
 }
 
 /// Random list edits in one transaction against a plain vector model, reading the items in the
@@ -626,12 +595,13 @@ fn list_edits_never_read_back_match_the_engine() {
 #[test]
 fn tree_cycle_checks_see_earlier_moves_of_the_same_transaction() {
     let mut replica = replica();
-    let (page, shape) = page_with_shape(&mut replica);
+    let (page, _) = page_with_shape(&mut replica);
+    let nodes = shapes(&mut replica, 4);
     let (a, b, c) = replica
         .transact(&person(), |tx| {
-            let a = tx.tree_create(&page, "outline", None, &shape)?;
-            let b = tx.tree_create(&page, "outline", Some(&a), &shape)?;
-            let c = tx.tree_create(&page, "outline", Some(&b), &shape)?;
+            let a = tx.tree_create(&page, "outline", None, &nodes[0])?;
+            let b = tx.tree_create(&page, "outline", Some(&a), &nodes[1])?;
+            let c = tx.tree_create(&page, "outline", Some(&b), &nodes[2])?;
             Ok((a, b, c))
         })
         .unwrap();
@@ -641,7 +611,7 @@ fn tree_cycle_checks_see_earlier_moves_of_the_same_transaction() {
             tx.tree_move(&page, "outline", &c, None)?;
             tx.tree_move(&page, "outline", &a, Some(&c))?;
             assert_eq!(tx.tree_move(&page, "outline", &c, Some(&b)), Err(KdmError::Cycle));
-            let d = tx.tree_create(&page, "outline", Some(&b), &shape)?;
+            let d = tx.tree_create(&page, "outline", Some(&b), &nodes[3])?;
             assert_eq!(tx.tree_move(&page, "outline", &c, Some(&d)), Err(KdmError::Cycle));
             tx.tree_move(&page, "outline", &d, None)
         })
@@ -893,10 +863,11 @@ fn an_import_that_changes_what_the_group_changed_keeps_the_group_one_undo_step()
     let mut replica = replica();
     let (_, shape) = page_with_shape(&mut replica);
     let mut other = Replica::load(schema(), &replica.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
-    let since = other.version();
-    other.transact(&person(), |tx| tx.set(&shape, "fill", json!("#111"))).unwrap();
     replica.begin_undo_group().unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "x", json!(1))).unwrap();
+    other.import_changes(&replica.export_changes(&other.version()).unwrap()).unwrap();
+    let since = other.version();
+    other.transact(&person(), |tx| tx.set(&shape, "fill", json!("#111"))).unwrap();
     replica.import_changes(&other.export_changes(&since).unwrap()).unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "y", json!(2))).unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "kind", json!("ellipse"))).unwrap();
@@ -919,9 +890,10 @@ fn two_undo_groups_split_by_imports_stay_two_steps() {
     let mut replica = replica();
     let (_, shape) = page_with_shape(&mut replica);
     let mut other = Replica::load(schema(), &replica.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
-    let since = other.version();
     replica.begin_undo_group().unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "x", json!(1))).unwrap();
+    other.import_changes(&replica.export_changes(&other.version()).unwrap()).unwrap();
+    let since = other.version();
     other.transact(&person(), |tx| tx.set(&shape, "fill", json!("#222"))).unwrap();
     replica.import_changes(&other.export_changes(&since).unwrap()).unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "x", json!(2))).unwrap();
@@ -940,10 +912,11 @@ fn an_import_that_leaves_the_group_alone_keeps_the_group_one_undo_step() {
     let mut replica = replica();
     let (_, shape) = page_with_shape(&mut replica);
     let mut other = Replica::load(schema(), &replica.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
-    let since = other.version();
-    let page = other.transact(&person(), |tx| tx.create("Page", fields(json!({ "title": "Theirs" })))).unwrap();
     replica.begin_undo_group().unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "x", json!(1))).unwrap();
+    other.import_changes(&replica.export_changes(&other.version()).unwrap()).unwrap();
+    let since = other.version();
+    let page = other.transact(&person(), |tx| tx.create("Page", fields(json!({ "title": "Theirs" })))).unwrap();
     replica.import_changes(&other.export_changes(&since).unwrap()).unwrap();
     replica.transact(&person(), |tx| tx.set(&shape, "y", json!(2))).unwrap();
     replica.end_undo_group();

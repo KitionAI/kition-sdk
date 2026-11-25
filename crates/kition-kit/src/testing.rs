@@ -26,8 +26,6 @@ pub use nested::{Dispatcher, check_nested_dispatch_is_gated, step_list};
 /// - `disabled_commands` names exactly the commands `commands` reports disabled, before and after
 ///   the edit;
 /// - unknown commands are errors, and so is taking an output the document never made;
-/// - `prepare_save` (called right before `save`, as every host does) leaves the document dirty and
-///   its render unchanged;
 /// - `save` leaves the document dirty until `mark_saved`, and its bytes reopen to the same pixels.
 pub fn check_contract<D: KitDocument>(fixture: &[u8], name: &str, edit: impl FnOnce(&mut D) -> Result<(), String>) -> Result<(), String> {
     if D::open(name, b"not a document").is_ok() {
@@ -83,15 +81,6 @@ pub fn check_contract<D: KitDocument>(fixture: &[u8], name: &str, edit: impl FnO
         return Err("the edit did not change the render".into());
     }
 
-    // As every host does: the document gets ready right before it saves (a kit whose file holds
-    // its KDM replica seals the replica here), changing neither its content nor its saved state.
-    doc.prepare_save()?;
-    if !doc.dirty() {
-        return Err("prepare_save marked the document saved; only mark_saved may".into());
-    }
-    if doc.render(0.0, 0.0, 1.0, doc.width(), doc.height())? != edited {
-        return Err("prepare_save changed the render".into());
-    }
     let bytes = doc.save(None)?;
     if !doc.dirty() {
         return Err("save marked the document saved; only mark_saved may".into());
@@ -1728,24 +1717,21 @@ mod contract_tests {
     use crate::{KitCommand, KitDocument};
     use serde_json::{Value, json};
 
-    /// A 4 × 4 swatch of one grey, saved as `swatch:<grey>`. With `SEALS`, `save` refuses until
-    /// `prepare_save` ran after the last change, as a kit whose file holds its KDM replica refuses
-    /// an unsealed save; without, `prepare_save` is the default no-op.
-    struct Swatch<const SEALS: bool> {
+    /// A 4 × 4 swatch of one grey, saved as `swatch:<grey>`.
+    struct Swatch {
         grey: u8,
         revision: u64,
         dirty: bool,
-        prepared: bool,
     }
 
-    impl<const SEALS: bool> KitDocument for Swatch<SEALS> {
+    impl KitDocument for Swatch {
         fn open(_: &str, bytes: &[u8]) -> Result<Self, String> {
             let grey =
                 std::str::from_utf8(bytes).ok().and_then(|text| text.strip_prefix("swatch:")).and_then(|grey| grey.parse().ok()).ok_or("not a swatch")?;
-            Ok(Self { grey, revision: 0, dirty: false, prepared: true })
+            Ok(Self { grey, revision: 0, dirty: false })
         }
         fn create(_: &str, _: u32, _: u32) -> Result<Self, String> {
-            Ok(Self { grey: 0, revision: 0, dirty: false, prepared: true })
+            Ok(Self { grey: 0, revision: 0, dirty: false })
         }
         fn width(&self) -> u32 {
             4
@@ -1771,7 +1757,6 @@ mod contract_tests {
                     self.grey = params.get("grey").and_then(Value::as_u64).and_then(|grey| u8::try_from(grey).ok()).ok_or("grey is required")?;
                     self.revision += 1;
                     self.dirty = true;
-                    self.prepared = false;
                     Ok(Value::Null)
                 }
                 "edit.undo" | "edit.redo" => Ok(Value::Null),
@@ -1787,14 +1772,7 @@ mod contract_tests {
                 .map(|id| KitCommand { id: id.into(), title: id.into(), enabled: true, ..Default::default() })
                 .collect()
         }
-        fn prepare_save(&mut self) -> Result<(), String> {
-            self.prepared = true;
-            Ok(())
-        }
         fn save(&self, _: Option<&str>) -> Result<Vec<u8>, String> {
-            if SEALS && !self.prepared {
-                return Err("save before prepare_save".into());
-            }
             Ok(format!("swatch:{}", self.grey).into_bytes())
         }
         fn mark_saved(&mut self) {
@@ -1802,15 +1780,8 @@ mod contract_tests {
         }
     }
 
-    // A kit that refuses an unsealed save keeps the contract with an edit that does not seal: the
-    // check gets the document ready before it saves, as a host does.
     #[test]
-    fn the_check_prepares_the_save_as_a_host_does() {
-        check_contract::<Swatch<true>>(b"swatch:10", "fixture.swatch", |doc| doc.execute("fill.set", json!({ "grey": 200 })).map(|_| ())).unwrap();
-    }
-
-    #[test]
-    fn a_kit_whose_prepare_save_does_nothing_keeps_the_contract() {
-        check_contract::<Swatch<false>>(b"swatch:10", "fixture.swatch", |doc| doc.execute("fill.set", json!({ "grey": 200 })).map(|_| ())).unwrap();
+    fn a_kit_keeps_the_contract() {
+        check_contract::<Swatch>(b"swatch:10", "fixture.swatch", |doc| doc.execute("fill.set", json!({ "grey": 200 })).map(|_| ())).unwrap();
     }
 }
