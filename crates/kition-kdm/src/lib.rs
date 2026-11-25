@@ -27,6 +27,9 @@ mod read;
 mod replica;
 pub mod reread;
 mod schema;
+// The plain model's store (plan 2026-11-24): `Replica` moves onto it in the next step.
+#[allow(dead_code)]
+mod store;
 pub mod testing;
 pub mod tool_ids;
 mod tx;

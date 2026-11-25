@@ -32,6 +32,11 @@ pub enum KdmError {
     /// the server.
     #[error("history missing: {0}")]
     HistoryMissing(String),
+    /// Changes that do not follow this replica's state: they continue another version, or an
+    /// operation's precondition (its object, its position, the list item at it) does not hold.
+    /// Nothing was applied.
+    #[error("stale: {0}")]
+    Stale(String),
     #[error("encoding: {0}")]
     Encoding(String),
     #[error("engine: {0}")]
