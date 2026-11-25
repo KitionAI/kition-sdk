@@ -218,13 +218,13 @@ impl<M: KitModel> KitSession<M> {
     /// Answers whether there was one, and the damage. Then repairs the result like
     /// [`KitSession::import_changes`]: an undo can bring back state that later edits made invalid.
     pub fn undo(&mut self) -> Result<(bool, Damage)> {
-        let done = self.replica.undo()?;
+        let done = self.replica.undo()?.is_done();
         Ok((done, self.settle()?))
     }
 
     /// Repairs the result like [`KitSession::undo`].
     pub fn redo(&mut self) -> Result<(bool, Damage)> {
-        let done = self.replica.redo()?;
+        let done = self.replica.redo()?.is_done();
         Ok((done, self.settle()?))
     }
 
@@ -232,13 +232,13 @@ impl<M: KitModel> KitSession<M> {
     /// agent's steps, and the person's (`undo`) only the person's. Repairs the result like
     /// [`KitSession::undo`].
     pub fn undo_in(&mut self, scope: UndoScope) -> Result<(bool, Damage)> {
-        let done = self.replica.undo_in(scope)?;
+        let done = self.replica.undo_in(scope)?.is_done();
         Ok((done, self.settle()?))
     }
 
     /// Redoes the last undone transaction of `scope`, like [`KitSession::undo_in`].
     pub fn redo_in(&mut self, scope: UndoScope) -> Result<(bool, Damage)> {
-        let done = self.replica.redo_in(scope)?;
+        let done = self.replica.redo_in(scope)?.is_done();
         Ok((done, self.settle()?))
     }
 

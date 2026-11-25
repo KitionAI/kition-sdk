@@ -123,7 +123,7 @@ fn a_replica_takes_back_its_changes_after_a_version_and_keeps_its_log_before_it(
     assert!(!replica.can_redo());
     let since = replica.changes_since(&start).unwrap();
     assert_eq!(since.created.len(), 2, "the log before the version stays");
-    assert!(replica.undo().unwrap(), "the step before the version stays");
+    assert!(replica.undo().unwrap().is_done(), "the step before the version stays");
     assert!(!replica.exists(&page));
     let other = Replica::create(schema(), DocId::new(), actor(2)).unwrap().version();
     assert!(matches!(replica.take_back_to(&other), Err(KdmError::HistoryMissing(_))));

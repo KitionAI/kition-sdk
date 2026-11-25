@@ -249,7 +249,7 @@ fn distinct(states: Vec<Value>) -> Vec<Value> {
 /// Undoes every step of `scope`; answers the states after each undo.
 fn undo_all(replica: &mut Replica, scope: UndoScope) -> Vec<Value> {
     let mut states = Vec::new();
-    while replica.undo_in(scope).unwrap() {
+    while replica.undo_in(scope).unwrap().is_done() {
         states.push(state(replica));
     }
     states
@@ -258,7 +258,7 @@ fn undo_all(replica: &mut Replica, scope: UndoScope) -> Vec<Value> {
 /// Redoes every undone step of `scope`; answers the states after each redo.
 fn redo_all(replica: &mut Replica, scope: UndoScope) -> Vec<Value> {
     let mut states = Vec::new();
-    while replica.redo_in(scope).unwrap() {
+    while replica.redo_in(scope).unwrap().is_done() {
         states.push(state(replica));
     }
     states
@@ -399,13 +399,13 @@ fn undos_in_turn_of_overlapping_text_edits_give_back_each_earlier_text() {
         texts.push((doc.replica.text_delta(&doc.doc, "body").unwrap(), state(&doc.replica)));
     }
     for (n, (text, state_before)) in texts.iter().rev().skip(1).enumerate() {
-        assert!(doc.replica.undo().unwrap());
+        assert!(doc.replica.undo().unwrap().is_done());
         assert_eq!(&doc.replica.text_delta(&doc.doc, "body").unwrap(), text, "undo {}", n + 1);
         assert_eq!(&state(&doc.replica), state_before, "undo {}", n + 1);
     }
     assert!(!doc.replica.can_undo());
     for (n, (text, _)) in texts.iter().skip(1).enumerate() {
-        assert!(doc.replica.redo().unwrap());
+        assert!(doc.replica.redo().unwrap().is_done());
         assert_eq!(&doc.replica.text_delta(&doc.doc, "body").unwrap(), text, "redo {}", n + 1);
     }
 }
@@ -421,8 +421,74 @@ fn undos_in_turn_keep_what_another_scope_typed_inside_the_text() {
     assert!(apply(&mut doc.replica, &doc.doc, &agent(), &[Edit::Insert(1, "X".into())]));
     assert!(apply(&mut doc.replica, &doc.doc, &person(), &[Edit::Delete(2, 1)]));
     assert_eq!(doc.replica.text(&doc.doc, "body").unwrap(), "aXc");
-    assert!(doc.replica.undo().unwrap());
+    assert!(doc.replica.undo().unwrap().is_done());
     assert_eq!(doc.replica.text(&doc.doc, "body").unwrap(), "aXbc");
-    assert!(doc.replica.undo().unwrap());
+    assert!(doc.replica.undo().unwrap().is_done());
     assert_eq!(doc.replica.text(&doc.doc, "body").unwrap(), "X");
+}
+
+/// Undoes every step of `scope` and redoes them all, one call at a time; answers the states
+/// after each undo and after each redo.
+fn undo_and_redo_one_by_one(replica: &mut Replica) -> (Vec<Value>, Vec<Value>) {
+    let mut undone = Vec::new();
+    while replica.undo().unwrap().is_done() {
+        undone.push(state(replica));
+    }
+    let mut redone = Vec::new();
+    while replica.redo().unwrap().is_done() {
+        redone.push(state(replica));
+    }
+    (undone, redone)
+}
+
+/// Kit commands that each make one object and append it (kition-vector's shapes under one
+/// group, a list's new item, typing at the end): N steps, N undos and N redos give back each
+/// state in turn, the siblings in their order. Before, a redo was carried over the undos and
+/// redos after it and put the siblings back reversed ([2, 3, 4] came back [4, 3, 2]).
+#[test]
+fn appended_objects_and_text_come_back_in_order_after_undoing_and_redoing_them_all() {
+    for count in [3, 5, 8] {
+        let mut doc = setup();
+        let group = doc.items[0].clone();
+        assert!(apply(&mut doc.replica, &doc.doc, &Origin::system("fixture"), &[Edit::TreeCreate(group.clone(), None)]));
+        let mut states = vec![state(&doc.replica)];
+        for n in 0..count {
+            let target = doc.doc.clone();
+            let parent = doc.replica.tree(&target, "outline").unwrap().into_iter().find(|entry| entry.object == group).unwrap().node;
+            doc.replica
+                .transact(&person(), |tx| {
+                    let mut name = Map::new();
+                    name.insert("name".into(), json!(format!("made {n}")));
+                    let made = tx.create("Item", name)?;
+                    tx.tree_create(&target, "outline", Some(&parent), &made)?;
+                    let end = tx.list_items(&target, "items")?.len();
+                    tx.list_insert(&target, "items", end, &made)?;
+                    let len = tx.text_len(&target, "body")?;
+                    tx.text_insert(&target, "body", len, &format!(" {n}"))
+                })
+                .unwrap();
+            states.push(state(&doc.replica));
+        }
+        let (undone, redone) = undo_and_redo_one_by_one(&mut doc.replica);
+        assert_eq!(undone, states.iter().rev().skip(1).cloned().collect::<Vec<_>>(), "{count} objects: each undo");
+        assert_eq!(redone, states.iter().skip(1).cloned().collect::<Vec<_>>(), "{count} objects: each redo, the siblings in order");
+    }
+}
+
+/// kition-layout's tracked changes: in "The catdog sat" (a tracked deletion of "cat", a tracked
+/// insertion of "dog"), accepting the deletion takes "cat" out and rejecting the insertion takes
+/// "dog" out, both at index 4; undoing both gives back "The catdog sat". Before, the undo of the
+/// first was carried over the second and its undo, and the tie at index 4 put "cat" after "dog".
+#[test]
+fn undoing_two_deletions_at_one_place_puts_the_text_back_in_its_order() {
+    let mut doc = setup();
+    let all = doc.replica.text(&doc.doc, "body").unwrap().chars().count();
+    assert!(apply(&mut doc.replica, &doc.doc, &Origin::system("fixture"), &[Edit::Delete(0, all), Edit::Insert(0, "The catdog sat".into())]));
+    assert!(apply(&mut doc.replica, &doc.doc, &person(), &[Edit::Delete(4, 3)]));
+    assert!(apply(&mut doc.replica, &doc.doc, &person(), &[Edit::Delete(4, 3)]));
+    assert_eq!(doc.replica.text(&doc.doc, "body").unwrap(), "The  sat");
+    assert!(doc.replica.undo().unwrap().is_done());
+    assert_eq!(doc.replica.text(&doc.doc, "body").unwrap(), "The dog sat");
+    assert!(doc.replica.undo().unwrap().is_done());
+    assert_eq!(doc.replica.text(&doc.doc, "body").unwrap(), "The catdog sat");
 }

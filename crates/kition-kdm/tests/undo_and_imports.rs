@@ -78,7 +78,7 @@ fn undo_steps_older_than_the_log_are_dropped_when_the_log_trims() {
     }
     // The steps the log can no longer carry over what came after are gone, not undone wrongly.
     assert!(!replica.can_undo());
-    assert!(!replica.undo().unwrap());
+    assert!(!replica.undo().unwrap().is_done());
     assert_eq!(replica.text(&shape, "label").unwrap(), "Xabc");
 }
 
@@ -107,7 +107,7 @@ fn an_undone_delete_whose_parent_is_gone_comes_back_as_a_root() {
             tx.delete(&parent)
         })
         .unwrap();
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert!(replica.exists(&d), "the deletion of `d` is undone");
     assert_eq!(tree(&replica, &page), roots(&[&d]));
     // The step before it (the creation of `a` and `d`) is not undone in its place.
@@ -127,7 +127,7 @@ fn an_undone_delete_goes_back_among_its_siblings_after_a_sibling_moved() {
     let a_node = node(&replica, &page, a);
     replica.transact(&agent(), |tx| tx.tree_move(&page, "outline", &a_node, None)).unwrap();
     assert_eq!(tree(&replica, &page), roots(&[c, d, a]));
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_eq!(tree(&replica, &page), roots(&[b, c, d, a]));
 }
 
@@ -141,7 +141,7 @@ fn an_undone_move_goes_back_among_its_siblings_after_a_sibling_moved() {
     assert_eq!(tree(&replica, &page), roots(&[a, c, d, b]));
     replica.transact(&agent(), |tx| tx.tree_move(&page, "outline", &a_node, None)).unwrap();
     assert_eq!(tree(&replica, &page), roots(&[c, d, b, a]));
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_eq!(tree(&replica, &page), roots(&[b, c, d, a]));
 }
 

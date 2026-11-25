@@ -116,6 +116,36 @@ pub(crate) fn merge_undo_touches(into: &mut Vec<UndoTouch>, more: &[UndoTouch]) 
     *into = merged;
 }
 
+/// What one [`Replica::undo_in`] or [`Replica::redo_in`] (and [`Replica::undo`], [`Replica::redo`])
+/// took off its stack, top first, each step by its write footprint ([`Replica::undo_touches_in`]).
+///
+/// A step with nothing left to change (its objects gone since, or its own changes cancelling
+/// out) is **passed over**: it leaves the stack and changes nothing, and the call goes on to the
+/// step below it. When one is taken back (`taken`), the steps passed over on the way join it: the
+/// one redo (or undo) step the call leaves brings back all of them together. When none is (the
+/// stack was empty, or held only steps to pass over), `taken` is `None`, the steps passed over
+/// are gone from the stack all the same, and nothing changed: so [`Replica::can_undo_in`] is
+/// true before such a call and false after it, and the call answers that it did nothing.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UndoOutcome {
+    /// The steps passed over, top first.
+    pub passed: Vec<Vec<UndoTouch>>,
+    /// The step taken back, or `None` when none was.
+    pub taken: Option<Vec<UndoTouch>>,
+}
+
+impl UndoOutcome {
+    /// Whether a step was taken back.
+    pub fn is_done(&self) -> bool {
+        self.taken.is_some()
+    }
+
+    /// How many steps the call took off its stack: those passed over and the one taken back.
+    pub fn steps(&self) -> usize {
+        self.passed.len() + usize::from(self.taken.is_some())
+    }
+}
+
 /// The operations of one change as the log and the undo history hold them: shared, and, for an
 /// undo or redo that took back a change exactly, that change's operations read backwards.
 #[derive(Clone, Debug)]
@@ -715,23 +745,23 @@ impl Replica {
     /// from other scopes and imports are kept, including later changes to the same object and to
     /// the same field: a register written since by someone else keeps that value (M12), and text
     /// and list positions follow the changes made since. The objects it changes are reported by
-    /// [`Replica::take_changed`].
-    pub fn undo(&mut self) -> Result<bool> {
+    /// [`Replica::take_changed`]. The answer says which steps the call took ([`UndoOutcome`]).
+    pub fn undo(&mut self) -> Result<UndoOutcome> {
         self.undo_or_redo(UndoScope::Person, true)
     }
 
     /// Redoes the person's last undone transaction, keeping later changes like [`Replica::undo`].
-    pub fn redo(&mut self) -> Result<bool> {
+    pub fn redo(&mut self) -> Result<UndoOutcome> {
         self.undo_or_redo(UndoScope::Person, false)
     }
 
     /// Undoes the last transaction of `scope` on this replica, like [`Replica::undo`] for the person.
-    pub fn undo_in(&mut self, scope: UndoScope) -> Result<bool> {
+    pub fn undo_in(&mut self, scope: UndoScope) -> Result<UndoOutcome> {
         self.undo_or_redo(scope, true)
     }
 
     /// Redoes the last undone transaction of `scope`, like [`Replica::redo`] for the person.
-    pub fn redo_in(&mut self, scope: UndoScope) -> Result<bool> {
+    pub fn redo_in(&mut self, scope: UndoScope) -> Result<UndoOutcome> {
         self.undo_or_redo(scope, false)
     }
 
@@ -740,8 +770,9 @@ impl Replica {
     /// the state ([`Store::fit`]); a register or map key someone else wrote since keeps that
     /// value. A step that changes nothing that way (its objects gone, or its own changes
     /// cancelling out) is passed over, and the one below it is taken back in the same call; what
-    /// the passed steps replayed joins that change. Answers whether a step was taken back.
-    fn undo_or_redo(&mut self, scope: UndoScope, undo: bool) -> Result<bool> {
+    /// the passed steps replayed joins that change. Answers the steps passed over and the one
+    /// taken back.
+    fn undo_or_redo(&mut self, scope: UndoScope, undo: bool) -> Result<UndoOutcome> {
         self.end_undo_group();
         let schema = Arc::clone(&self.schema);
         let mut applied: Vec<Op> = Vec::new();
@@ -753,6 +784,7 @@ impl Replica {
         // The changes taken back so far in this call: the parts of the steps passed over and the
         // step's own later parts.
         let mut cancelled: Vec<u64> = Vec::new();
+        let mut outcome = UndoOutcome::default();
         while let Some(step) = self.undo.of(scope).pop(undo) {
             steps += 1;
             let before = self.digest(&step.touches);
@@ -801,8 +833,12 @@ impl Replica {
             merge_undo_touches(&mut touches, &step.touches);
             let changed =
                 kept || self.digest(&step.touches) != before || applied.get(start..).is_some_and(|ops| ops.iter().any(|op| touches_outside(op, &step.touches)));
+            if !changed {
+                outcome.passed.push(step.touches.clone());
+            }
             if changed {
                 done = true;
+                outcome.taken = Some(step.touches.clone());
                 if steps == 1 && exact && !kept && step.parts.len() == 1 {
                     taken = step.parts.first().map(|part| part.ops.inverse());
                 }
@@ -811,7 +847,7 @@ impl Replica {
         }
         if !done {
             self.store.revert(&applied, &schema);
-            return Ok(false);
+            return Ok(outcome);
         }
         self.changed.extend(kept_changes);
         self.changed.extend(changes_of(&applied));
@@ -831,7 +867,7 @@ impl Replica {
             vec![Part { seq, ops }]
         };
         self.undo.of(scope).push_replayed(undo, Step { parts, touches });
-        Ok(true)
+        Ok(outcome)
     }
 
     /// The changes logged after `seq` that an undo of a change logged at `seq` (whose inverse is
@@ -1436,10 +1472,10 @@ mod tests {
             })
             .unwrap();
         replica.transact(&person, |tx| tx.map_set(&sheet, "cells", "c1", json!("person"))).unwrap();
-        assert!(replica.undo().unwrap());
+        assert!(replica.undo().unwrap().is_done());
         let last = replica.log.entries.back().unwrap();
         assert!(last.ops.inverted && last.size < 200);
-        assert!(replica.redo().unwrap());
+        assert!(replica.redo().unwrap().is_done());
         assert_eq!(replica.map_get(&sheet, "cells", "c1").unwrap(), json!("person"));
         assert!(!replica.log.entries.back().unwrap().ops.inverted);
     }
@@ -1467,9 +1503,9 @@ mod tests {
         replica.transact(&person, |tx| tx.map_set(&sheet, "cells", "c1", json!("person"))).unwrap();
         assert_eq!(replica.undo.person.undo.len(), 2);
         replica.transact(&Origin::agent("agent:test"), |tx| tx.map_set(&sheet, "cells", "c1", json!("agent"))).unwrap();
-        assert!(replica.undo().unwrap());
+        assert!(replica.undo().unwrap().is_done());
         assert_eq!(replica.map_get(&sheet, "cells", "c1").unwrap(), json!("agent"));
-        assert!(replica.undo().unwrap());
+        assert!(replica.undo().unwrap().is_done());
         assert!(!replica.exists(&sheet));
     }
 
@@ -1497,7 +1533,7 @@ mod tests {
         theirs.import_changes(&mine.export_changes(&theirs.version()).unwrap()).unwrap();
         theirs.transact(&person, |tx| tx.map_set(&sheet, "cells", "c1", json!("theirs"))).unwrap();
         mine.import_changes(&theirs.export_changes(&mine.version()).unwrap()).unwrap();
-        assert!(mine.undo().unwrap());
+        assert!(mine.undo().unwrap().is_done());
         assert_eq!(mine.map_get(&sheet, "cells", "c1").unwrap(), json!("theirs"));
     }
 

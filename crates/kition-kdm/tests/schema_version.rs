@@ -100,8 +100,8 @@ fn a_raise_is_not_an_undo_step() {
     let (_, shape) = page_with_shape(&mut new);
     assert!(raise(&mut new, 2));
     new.transact(&person(), |tx| tx.set(&shape, "x", json!(5))).unwrap();
-    assert!(new.undo().unwrap());
-    assert!(new.undo().unwrap());
+    assert!(new.undo().unwrap().is_done());
+    assert!(new.undo().unwrap().is_done());
     assert!(!new.can_undo());
     assert_eq!(new.min_schema_version(), 2);
 }

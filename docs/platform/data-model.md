@@ -564,7 +564,11 @@ and an operation whose object is gone is skipped; a node whose parent is gone
 comes back as a root. A step older than the change log (section 6.7) is
 dropped, since the changes after it are no longer all known. A step that changes
 nothing that way is passed over, and the step below it is taken back in the
-same call.
+same call. The call answers which steps it took (`UndoOutcome`): the steps
+passed over, top first, and the one taken back, each by its footprint. Steps
+passed over leave the stack either way: when none is taken back, nothing
+changed, the call says so, and `can_undo` is false after it as the answer
+implies; when one is, they join it, and one redo brings them all back.
 
 ### 6.6 Drafts
 

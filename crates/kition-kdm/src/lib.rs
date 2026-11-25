@@ -36,7 +36,7 @@ pub use error::{KdmError, Result};
 pub use ids::{ActorId, DocId, NodeRef, ObjectId};
 pub use marks::TextRun;
 pub use origin::{Origin, OriginKind, UndoScope};
-pub use replica::{Replica, TreeEntry, UndoTouch, Version};
+pub use replica::{Replica, TreeEntry, UndoOutcome, UndoTouch, Version};
 pub use schema::{
     Expand, FieldDef, FieldKind, KDM_VERSION, MarkDef, NumberLimits, ProjectedCommand, ReadOnlyWhen, Schema, StructuralConsequence, ToolIdDef, TypeDef,
 };

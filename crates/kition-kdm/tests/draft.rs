@@ -82,18 +82,18 @@ fn a_merge_is_one_undo_step() {
     assert_eq!(live.text(&added, "label").expect("text"), "Hello");
 
     // Undo takes the whole merge back in one step, and redo brings it back.
-    assert!(live.undo().expect("undo"));
+    assert!(live.undo().expect("undo").is_done());
     assert_eq!(live.state_json().expect("state"), before);
-    assert!(live.redo().expect("redo"));
+    assert!(live.redo().expect("redo").is_done());
     assert_eq!(live.state_json().expect("state"), preview);
-    assert!(live.undo().expect("undo"));
+    assert!(live.undo().expect("undo").is_done());
     // The person's own edit before the draft is the next step.
-    assert!(live.undo().expect("undo"));
+    assert!(live.undo().expect("undo").is_done());
     assert!(!live.exists(&page));
 
     // A replica that syncs with this one gets the merge as ordinary changes. (Never the draft's
     // own changes as well: a replica holding both would show the draft's effects twice.)
-    assert!(live.redo().expect("redo") && live.redo().expect("redo"));
+    assert!(live.redo().expect("redo").is_done() && live.redo().expect("redo").is_done());
     follower.import_changes(&live.export_changes(&follower.version()).expect("export")).expect("import");
     assert_eq!(follower.state_json().expect("state"), live.state_json().expect("state"));
 }
@@ -143,7 +143,7 @@ fn live_edits_made_during_a_draft_survive_its_merge_and_its_undo() {
         later.export_changes(&live.version()).expect("export")
     })
     .expect("import");
-    assert!(live.undo().expect("undo"));
+    assert!(live.undo().expect("undo").is_done());
     assert_eq!(live.text(&shape, "label").expect("text"), "ab");
     assert_eq!(live.get(&shape, "x").expect("x"), json!(10));
     assert_eq!(live.get(&shape, "y").expect("y"), json!(7));

@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.undo-outcome/steps-taken
+feature: sdk.model.undo-outcome
+intent: >-
+  An undo or a redo answers which steps it took off its stack (Replica::undo_in, redo_in, undo, redo: UndoOutcome): the steps passed over (nothing left to change), top first, and the one taken back, each by its footprint. A call that passes over a step and takes back the one below says two moved; one that only passes over steps says none was taken back, and can_undo is false after it.
+layer: gate
+source: { kind: synthetic, from: kition-slide on the plain KDM (91cf510), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_nothing, filter: an_undo_answers_the_steps_it_passed_over_and_the_one_it_took_back }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

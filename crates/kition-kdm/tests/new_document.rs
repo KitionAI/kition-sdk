@@ -107,7 +107,7 @@ fn a_copy_starts_with_empty_undo_history() {
     assert!(source.can_undo());
     let mut copy = source.copy_as_new_document(DocId::new(), actor(1)).unwrap();
     assert!(!copy.can_undo() && !copy.can_redo());
-    assert!(!copy.undo().unwrap());
+    assert!(!copy.undo().unwrap().is_done());
     assert_eq!(content(&copy), content(&source));
 }
 

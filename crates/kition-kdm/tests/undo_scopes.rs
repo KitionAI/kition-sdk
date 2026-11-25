@@ -75,9 +75,9 @@ fn the_persons_undo_skips_the_agents_steps_and_keeps_their_text() {
     append(&mut replica, &agent(), &shape, " Agent.");
     assert!(replica.can_undo_in(UndoScope::Agent));
 
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_eq!(label(&replica, &shape), " Agent.");
-    assert!(replica.redo().unwrap());
+    assert!(replica.redo().unwrap().is_done());
     assert_eq!(label(&replica, &shape), "Mine. Agent.");
 }
 
@@ -87,11 +87,11 @@ fn the_agents_undo_takes_back_only_its_step_and_keeps_the_persons_later_typing()
     append(&mut replica, &agent(), &shape, "Agent.");
     append(&mut replica, &person(), &shape, " Mine.");
 
-    assert!(replica.undo_in(UndoScope::Agent).unwrap());
+    assert!(replica.undo_in(UndoScope::Agent).unwrap().is_done());
     assert_eq!(label(&replica, &shape), " Mine.");
     assert!(!replica.can_undo_in(UndoScope::Agent));
     assert!(replica.can_redo_in(UndoScope::Agent));
-    assert!(replica.redo_in(UndoScope::Agent).unwrap());
+    assert!(replica.redo_in(UndoScope::Agent).unwrap().is_done());
     assert_eq!(label(&replica, &shape), "Agent. Mine.");
 }
 
@@ -100,16 +100,16 @@ fn an_undo_keeps_a_register_the_other_scope_wrote_later() {
     let (mut replica, page, _) = replica();
     set_title(&mut replica, &person(), &page, "Mine");
     set_title(&mut replica, &agent(), &page, "Agent");
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_eq!(replica.get(&page, "title").unwrap(), json!("Agent"), "the agent wrote the title after the person");
 
     let (mut replica, page, _) = self::replica();
     set_title(&mut replica, &agent(), &page, "Agent");
     set_title(&mut replica, &person(), &page, "Mine");
-    assert!(replica.undo_in(UndoScope::Agent).unwrap());
+    assert!(replica.undo_in(UndoScope::Agent).unwrap().is_done());
     assert_eq!(replica.get(&page, "title").unwrap(), json!("Mine"), "the person wrote the title after the agent");
     // The person's own undo still takes their title back.
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_ne!(replica.get(&page, "title").unwrap(), json!("Mine"));
 }
 
@@ -122,7 +122,7 @@ fn an_undo_group_makes_one_step_in_each_scope() {
     replica.end_undo_group();
     append(&mut replica, &person(), &shape, " Mine.");
 
-    assert!(replica.undo_in(UndoScope::Agent).unwrap());
+    assert!(replica.undo_in(UndoScope::Agent).unwrap().is_done());
     assert_eq!(label(&replica, &shape), " Mine.");
     assert!(!replica.can_undo_in(UndoScope::Agent));
 }
@@ -134,7 +134,7 @@ fn scripts_are_the_persons_steps_and_repairs_are_nobodys() {
     append(&mut replica, &Origin::new(OriginKind::Extension, "user:test"), &shape, "Script.");
     append(&mut replica, &Origin::system("repair"), &shape, " Repair.");
     assert!(!replica.can_undo_in(UndoScope::Agent));
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_eq!(label(&replica, &shape), " Repair.");
 }
 
@@ -147,7 +147,7 @@ fn a_draft_the_agent_made_merges_as_the_persons_step() {
     replica.merge_changes(&draft.export_changes(&since).unwrap(), &agent()).unwrap();
     assert_eq!(label(&replica, &shape), "Drafted.");
     assert!(!replica.can_undo_in(UndoScope::Agent));
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_eq!(label(&replica, &shape), "");
 }
 
@@ -167,9 +167,9 @@ fn next_history_step_exposes_fields_without_changing_state_or_history() {
     assert!(touches.iter().any(|touch| touch.id == page.as_str() && touch.fields.as_ref().unwrap().contains("title")));
     assert_eq!(replica.version(), before);
     assert_eq!(replica.undo_touches_in(UndoScope::Agent), touches);
-    assert!(replica.undo_in(UndoScope::Agent).unwrap());
+    assert!(replica.undo_in(UndoScope::Agent).unwrap().is_done());
     assert!(replica.undo_touches_in(UndoScope::Agent).is_empty());
     assert_eq!(replica.redo_touches_in(UndoScope::Agent), touches);
-    assert!(replica.redo_in(UndoScope::Agent).unwrap());
+    assert!(replica.redo_in(UndoScope::Agent).unwrap().is_done());
     assert_eq!(replica.undo_touches_in(UndoScope::Agent), touches);
 }

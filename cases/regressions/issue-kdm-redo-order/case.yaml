@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-kdm-redo-order
+feature: sdk.model.plain-store
+intent: >-
+  N steps that each make an object and append it (a tree node under one parent, a list item at the end, text at the end), N undos and N redos give back each state in turn with the siblings in their order (kition-vector saw [2, 3, 4] come back [4, 3, 2] on 91cf510: a redo was carried over the undos and redos after it); and two deletions at one place undone in turn put the text back in its order (kition-layout: "The catdog sat" came back "The dogcat sat", the undone step and its undo deciding a tie at one position).
+layer: gate
+source: { kind: synthetic, from: kition-vector and kition-layout on the plain KDM (91cf510), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: appended_objects_and_text_come_back_in_order_after_undoing_and_redoing_them_all }
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: undoing_two_deletions_at_one_place_puts_the_text_back_in_its_order }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

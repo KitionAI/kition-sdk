@@ -80,7 +80,7 @@ fn a_content_snapshot_is_no_change() {
     assert_eq!(replica.version(), version);
     assert!(replica.take_changed().is_empty());
     // An undo after it takes back the last edit, as before.
-    assert!(replica.undo().unwrap());
+    assert!(replica.undo().unwrap().is_done());
     assert_ne!(replica.content_snapshot().unwrap(), bytes);
 }
 
