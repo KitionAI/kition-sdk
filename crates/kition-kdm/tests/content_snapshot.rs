@@ -3,7 +3,7 @@
 //! it; it loads as the same document (its id and object ids) on a new line of changes; a document
 //! saved again unchanged, or the same state saved by another replica, is the same bytes.
 
-use kition_kdm::{ActorId, DocId, ObjectId, Origin, Replica, Version, content};
+use kition_kdm::{ActorId, DocId, ObjectId, Origin, Replica, Version};
 use serde_json::{Value, json};
 
 mod common;
@@ -50,9 +50,8 @@ fn a_content_snapshot_holds_the_state_and_no_history() {
         assert!(!contains(&bytes, gone), "`{gone}` is in the content");
     }
     assert!(contains(&bytes, "Final") && contains(&bytes, "kept"));
-    let decoded = content::decode(&bytes).unwrap();
-    assert_eq!(decoded.version, None);
-    assert_eq!(content::to_state(&decoded, replica.schema()), replica.state_json().unwrap());
+    let read = Replica::load(schema(), &bytes, actor(2)).unwrap();
+    assert_eq!(read.state_json().unwrap(), replica.state_json().unwrap());
     assert_eq!(replica.text(&shape, "label").unwrap(), "kept");
 }
 

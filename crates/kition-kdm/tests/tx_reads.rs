@@ -40,7 +40,8 @@ fn replica_lists_map_entries_sorted_by_key_in_canonical_form() {
         })
         .unwrap();
     let keys: Vec<String> = replica.map_entries(&sheet, "cells").unwrap().into_iter().map(|(key, _)| key).collect();
-    assert_eq!(keys, ["b", "c", "\u{ffff}", "😀"], "code point order, as the canonical state");
+    // A key set to `null` is deleted (data model C5).
+    assert_eq!(keys, ["b", "c", "😀"], "code point order, as the canonical state");
 }
 
 #[test]
@@ -81,11 +82,12 @@ fn tx_map_entries_merge_committed_and_pending_writes() {
             tx.map_delete(&sheet, "cells", "c")?;
             tx.map_delete(&sheet, "cells", "never")?;
             tx.map_set(&sheet, "cells", "z", json!(null))?;
-            assert_eq!(tx.map_entries(&sheet, "cells")?, entries(&[("0", json!(0)), ("a", json!(1)), ("b", json!(20)), ("z", json!(null))]));
+            // A key set to `null` is deleted (data model C5).
+            assert_eq!(tx.map_entries(&sheet, "cells")?, entries(&[("0", json!(0)), ("a", json!(1)), ("b", json!(20))]));
             Ok(())
         })
         .unwrap();
-    assert_eq!(replica.map_entries(&sheet, "cells").unwrap(), entries(&[("0", json!(0)), ("a", json!(1)), ("b", json!(20)), ("z", json!(null))]));
+    assert_eq!(replica.map_entries(&sheet, "cells").unwrap(), entries(&[("0", json!(0)), ("a", json!(1)), ("b", json!(20))]));
 }
 
 #[test]

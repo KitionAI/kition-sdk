@@ -161,7 +161,10 @@ fn a_copy_of_a_loaded_replica_or_a_copy_is_a_new_document_too() {
     let loaded = Replica::load(schema(), &source.content_snapshot().unwrap(), actor(4)).unwrap();
     let copy = loaded.copy_as_new_document(DocId::new(), actor(4)).unwrap();
     let again = copy.copy_as_new_document(DocId::new(), actor(6)).unwrap();
-    assert_eq!(content(&again), content(&source));
+    // The file leaves out the deleted shape's list entry (data model C13): the copies hold what
+    // the file holds.
+    assert_eq!(content(&again), content(&loaded));
+    assert_eq!(content(&loaded).as_object().map(serde_json::Map::len), content(&source).as_object().map(serde_json::Map::len));
     assert_ne!(again.doc_id(), copy.doc_id());
     assert!(Replica::load(schema(), &again.snapshot().unwrap(), actor(7)).is_ok());
 }

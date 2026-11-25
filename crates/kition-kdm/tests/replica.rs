@@ -365,29 +365,68 @@ fn trees_list_their_nodes_parent_first_in_sibling_order() {
 }
 
 /// A document whose page outline holds a node naming no object of the document (with a child)
-/// next to a normal node: content written by hand, as no KDM operation can produce it.
-fn page_with_an_objectless_node() -> (Vec<u8>, String) {
-    let content = format!(
-        "{{\"kdm\":1,\"kit\":\"kit.test\",\"docId\":\"{}\",\"schemaVersion\":1,\"objects\":{{\n\
-         \"p\":{{\"$type\":\"Page\",\"outline\":[{{\"children\":[{{\"children\":[],\"object\":\"t\"}}],\"object\":\"gone\"}},{{\"children\":[],\"object\":\"s\"}}],\"title\":\"T\"}},\n\
-         \"s\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":1,\"y\":2}},\n\
-         \"t\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":3,\"y\":4}}\n}}}}\n",
-        DocId::new()
-    );
-    (content.into_bytes(), "p".into())
+/// before a normal node. No transaction makes one (a deleted object leaves its trees), and content
+/// naming one is refused, so it comes from an imported change whose tree operations name an
+/// object the document does not hold.
+fn page_with_an_objectless_node() -> (Replica, ObjectId) {
+    let mut replica = replica();
+    let id = |text: &str| ObjectId::from_string(text.to_owned());
+    replica
+        .transact(&person(), |tx| {
+            let page = tx.create_with_id("Page", &id("p"), fields(json!({ "title": "T" })))?;
+            tx.create_with_id("Shape", &id("s"), fields(json!({ "kind": "rect", "x": 1, "y": 2 })))?;
+            tx.create_with_id("Shape", &id("t"), fields(json!({ "kind": "rect", "x": 3, "y": 4 })))?;
+            tx.tree_create(&page, "outline", None, &id("s")).map(drop)
+        })
+        .unwrap();
+    let snapshot: serde_json::Value = serde_json::from_slice(&replica.snapshot().unwrap()).unwrap();
+    let (lineage, seq) = (snapshot["version"]["lineage"].clone(), snapshot["version"]["seq"].as_u64().unwrap());
+    let changes = json!({
+        "kdm": 1,
+        "docId": replica.doc_id().to_string(),
+        "lineage": lineage,
+        "after": { "seq": seq, "actor": null },
+        "changes": [{
+            "seq": seq + 1,
+            "actor": "0000000000000009",
+            "origin": ["person", "user:other", null, 1],
+            "ops": [
+                { "op": "treeCreate", "id": "p", "field": "outline", "node": "gone", "parent": null, "index": 0 },
+                { "op": "treeCreate", "id": "p", "field": "outline", "node": "t", "parent": "gone", "index": 0 }
+            ]
+        }]
+    });
+    replica.import_changes(changes.to_string().as_bytes()).unwrap();
+    (replica, id("p"))
 }
 
 #[test]
 fn tree_reads_skip_a_node_without_an_object_and_its_subtree() {
-    let (snapshot, page) = page_with_an_objectless_node();
-    let replica = Replica::load(schema(), &snapshot, ActorId::from_u64(2).unwrap()).unwrap();
-    let page = kition_kdm::ObjectId::from_string(page);
+    let (replica, page) = page_with_an_objectless_node();
     let entries = replica.tree(&page, "outline").unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].object.as_str(), "s");
     assert_eq!(entries[0].parent, None);
     let state = replica.state_json().unwrap();
     assert_eq!(state["objects"]["p"]["outline"], json!([{ "children": [], "object": "s" }]));
+    // Saved, the node goes with its subtree (data model 7.4, C13), and the file reads back.
+    let saved = String::from_utf8(replica.content_snapshot().unwrap()).unwrap();
+    assert!(saved.contains("\"outline\":[[0,\"s\"]]"), "{saved}");
+    let read = Replica::load(schema(), saved.as_bytes(), ActorId::from_u64(2).unwrap()).unwrap();
+    assert_eq!(read.state_json().unwrap(), state);
+}
+
+#[test]
+fn content_whose_tree_names_no_object_is_refused() {
+    let content = format!(
+        "{{\"kdm\":1,\"kit\":\"kit.test\",\"docId\":\"{}\",\"schemaVersion\":1,\"objects\":{{\n\
+         \"p\":{{\"$type\":\"Page\",\"outline\":[[0,\"gone\"],[1,\"t\"],[0,\"s\"]],\"title\":\"T\"}},\n\
+         \"s\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":1,\"y\":2}},\n\
+         \"t\":{{\"$type\":\"Shape\",\"kind\":\"rect\",\"x\":3,\"y\":4}}\n}}}}\n",
+        DocId::new()
+    );
+    let error = Replica::load(schema(), content.as_bytes(), ActorId::from_u64(2).unwrap()).err().unwrap();
+    assert!(matches!(error, KdmError::Encoding(_)), "{error:?}");
 }
 
 #[test]
@@ -748,6 +787,68 @@ fn caller_ids_follow_the_pattern_and_stay_taken_after_a_delete_in_the_transactio
     let id = ObjectId::from_string("p2");
     let error = replica.transact(&person(), |tx| tx.create_with_id("Page", &id, fields(json!({})))).unwrap_err();
     assert!(matches!(error, KdmError::InvalidValue { field, .. } if field == "title"));
+}
+
+#[test]
+fn a_caller_id_that_is_a_uuid_is_taken_only_in_lowercase_hyphenated_form() {
+    let mut replica = replica();
+    let before = replica.version();
+    for bad in ["0193A5C4-0000-7000-8000-0000000000B1", "0193a5c40000700080000000000000b1", "urn:uuid:0193a5c4-0000-7000-8000-0000000000b1"] {
+        let id = ObjectId::from_string(bad);
+        let error = replica.transact(&person(), |tx| tx.create_with_id("Page", &id, fields(json!({ "title": "A" })))).unwrap_err();
+        assert!(matches!(error, KdmError::InvalidValue { ref field, .. } if field == "$id"), "{bad}: {error:?}");
+    }
+    assert_eq!(replica.version(), before);
+    let good = ObjectId::from_string("0193a5c4-0000-7000-8000-0000000000b1");
+    assert_eq!(replica.transact(&person(), |tx| tx.create_with_id("Page", &good, fields(json!({ "title": "A" })))).unwrap(), good);
+    // What it wrote loads back.
+    Replica::load(schema(), &replica.content_snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
+}
+
+/// `levels` arrays nested in each other, built without recursion.
+fn nested(levels: usize) -> serde_json::Value {
+    let mut value = json!([]);
+    for _ in 1..levels {
+        value = json!([value]);
+    }
+    value
+}
+
+#[test]
+fn a_value_nested_deeper_than_a_change_carries_is_refused() {
+    let mut replica = replica();
+    let (_, shape) = page_with_shape(&mut replica);
+    replica.transact(&person(), |tx| tx.set(&shape, "transform", nested(118))).unwrap();
+    // Its change imports, and its content loads.
+    let mut other = Replica::load(schema(), &replica.snapshot().unwrap(), ActorId::from_u64(2).unwrap()).unwrap();
+    let start = other.version();
+    other.transact(&person(), |tx| tx.set(&shape, "transform", nested(118))).unwrap();
+    other.transact(&person(), |tx| tx.delete(&shape)).unwrap();
+    replica.import_changes(&other.export_changes(&start).unwrap()).unwrap();
+    Replica::load(schema(), &other.content_snapshot().unwrap(), ActorId::from_u64(3).unwrap()).unwrap();
+    let before = replica.version();
+    let shape_with = |transform: serde_json::Value| fields(json!({ "kind": "rect", "x": 0, "y": 0, "transform": transform }));
+    for (what, result) in [
+        ("create", replica.transact(&person(), |tx| tx.create("Shape", shape_with(nested(119))).map(drop))),
+        (
+            "set",
+            replica.transact(&person(), |tx| {
+                let shape = tx.create("Shape", shape_with(json!(1)))?;
+                tx.set(&shape, "transform", nested(119))
+            }),
+        ),
+        (
+            "map set",
+            replica.transact(&person(), |tx| {
+                let sheet = tx.create("Sheet", fields(json!({})))?;
+                tx.map_set(&sheet, "cells", "a", nested(119))
+            }),
+        ),
+        ("far deeper", replica.transact(&person(), |tx| tx.create("Shape", shape_with(nested(1_000))).map(drop))),
+    ] {
+        assert!(matches!(result, Err(KdmError::InvalidValue { .. })), "{what}: {result:?}");
+    }
+    assert_eq!(replica.version(), before);
 }
 
 #[test]

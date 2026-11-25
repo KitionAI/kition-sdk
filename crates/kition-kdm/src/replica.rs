@@ -291,7 +291,7 @@ impl Replica {
     /// minimum schema version (rule M20) is newer than `schema`'s, and ([`KdmError::Encoding`])
     /// bytes that are not content.
     pub fn load(schema: Arc<Schema>, bytes: &[u8], actor: ActorId) -> Result<Self> {
-        let value: Value = serde_json::from_slice(bytes).map_err(|error| KdmError::Encoding(format!("not KDM content: {error}")))?;
+        let value = content::parse(bytes, "KDM content")?;
         if value.get("changes").is_some() {
             return Err(KdmError::Encoding("not a snapshot: these are changes only (load a snapshot or content)".into()));
         }
@@ -472,7 +472,7 @@ impl Replica {
             .after(seq)
             .map(|entry| {
                 Change { seq: entry.seq, actor: entry.actor, origin: entry.origin.clone(), schema_version: entry.schema_version, ops: entry.ops.forward() }
-                    .to_json(&self.schema)
+                    .to_json()
             })
             .collect();
         let after_actor = self.log.get(seq).map_or(Value::Null, |entry| Value::String(format!("{:016x}", entry.actor.get())));
@@ -499,7 +499,7 @@ impl Replica {
     /// version above this replica's schema are [`KdmError::NewerSchema`]. A refused import changes
     /// nothing.
     pub fn import_changes(&mut self, bytes: &[u8]) -> Result<BTreeSet<ObjectId>> {
-        let value: Value = serde_json::from_slice(bytes).map_err(|error| KdmError::Encoding(format!("not KDM changes: {error}")))?;
+        let value = content::parse(bytes, "KDM changes")?;
         let doc_id = value.get("docId").and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("not KDM changes: no `docId`".into()))?;
         let doc_id = DocId::parse(doc_id)?;
         if doc_id != self.store.doc_id {
@@ -643,14 +643,14 @@ impl Replica {
     /// ([`Replica::content_snapshot`] is).
     pub fn snapshot(&self) -> Result<Vec<u8>> {
         let version = ContentVersion { lineage: self.lineage, seq: self.seq, author_schema_version: self.author_schema.map(u64::from) };
-        content::encode(&self.store.to_content(&self.schema, Some(version)))
+        content::encode(&self.store.to_content(Some(version)))
     }
 
     /// The document's **content**: what a kit writes into a person's file (data model 7.4). It
     /// depends on the state alone: a document saved again unchanged is the same bytes, and so is
     /// the same state saved by anyone.
     pub fn content_snapshot(&self) -> Result<Vec<u8>> {
-        content::encode(&self.store.to_content(&self.schema, None))
+        content::encode(&self.store.to_content(None))
     }
 
     /// Undoes the person's last transaction on this replica (the `person` scope, M12a). Changes

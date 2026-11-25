@@ -20,8 +20,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{Map, Value};
 
-use crate::content::{Content, ContentVersion, TYPE_KEY};
-use crate::{DocId, Expand, FieldKind, KdmError, ObjectId, Result, Schema, TextRun};
+use crate::content::{self, Content, ContentVersion, TYPE_KEY};
+use crate::{DocId, Expand, FieldDef, FieldKind, KdmError, ObjectId, Result, Schema, TextRun};
 use op::{Name, Op, TreePlace};
 use text::Text;
 use tree::Tree;
@@ -49,47 +49,107 @@ impl Field {
         }
     }
 
-    /// The field in its content form (data model 7.4, rule C8); `None` when it is empty.
-    /// `marked`: the schema declares marks for this text field.
-    pub(crate) fn content(&self, marked: bool) -> Option<Value> {
-        if self.is_empty() {
-            return None;
+    /// The field in its content form (data model 7.4, rule C8); `None` when it is empty. It
+    /// depends on the field alone, never on a schema: a text is a string exactly when no run
+    /// carries a mark. List items and tree nodes `keep` refuses are left out (a node with its
+    /// subtree); a list or tree left with nothing is empty.
+    pub(crate) fn content(&self, keep: &dyn Fn(&ObjectId) -> bool) -> Option<Value> {
+        match self {
+            Self::Value(value) => (!value.is_null()).then(|| value.clone()),
+            Self::Text(text) if text.is_empty() => None,
+            Self::Text(text) if text.has_marks() => Some(Value::Array(text.runs().iter().map(TextRun::to_json).collect())),
+            Self::Text(text) => Some(Value::String(text.string())),
+            Self::List(items) => {
+                let kept: Vec<Value> = items.iter().filter(|item| keep(item)).map(|item| Value::String(item.to_string())).collect();
+                (!kept.is_empty()).then_some(Value::Array(kept))
+            }
+            Self::Map(entries) => (!entries.is_empty()).then(|| Value::Object(entries.iter().map(|(key, value)| (key.clone(), value.clone())).collect())),
+            Self::Tree(tree) => {
+                let nodes: Vec<Value> =
+                    tree.flat(keep).into_iter().map(|(depth, node)| Value::Array(vec![Value::from(depth), Value::String(node.to_string())])).collect();
+                (!nodes.is_empty()).then_some(Value::Array(nodes))
+            }
         }
-        Some(match self {
-            Self::Value(value) => value.clone(),
-            Self::Text(text) if marked || text.has_marks() => Value::Array(text.runs().iter().map(TextRun::to_json).collect()),
-            Self::Text(text) => Value::String(text.string()),
-            Self::List(items) => Value::Array(items.iter().map(|item| Value::String(item.to_string())).collect()),
-            Self::Map(entries) => Value::Object(entries.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
-            Self::Tree(tree) => tree.to_json(&|_| true),
-        })
     }
 
-    /// A field from its content form, as the schema declares it (`kind`; `None`: a register).
-    fn from_content(value: &Value, kind: Option<FieldKind>) -> Result<Self> {
-        let bad = |what: &str| KdmError::Encoding(format!("a {what} field holds {value}"));
-        Ok(match kind {
+    /// A field from its content form, as the schema declares it (`def`; `None`: a register).
+    /// Refuses ([`KdmError::Encoding`]) a value of the wrong shape for its kind, a run with a key
+    /// other than `insert` and `attributes`, a tree entry that is not `[depth, "<id>"]`, a map
+    /// entry holding `null`, and an id (list item, tree node, ref) that is a UUID not in
+    /// lowercase hyphenated form.
+    fn from_content(name: &str, value: &Value, def: Option<&FieldDef>) -> Result<Self> {
+        let bad = |shape: &str| KdmError::Encoding(format!("not KDM content: field `{name}` is not {shape}"));
+        Ok(match def.map(|def| def.kind) {
             Some(FieldKind::Text) => match value {
                 Value::String(text) => Self::Text(Box::new(Text::plain(text))),
-                Value::Array(_) => {
-                    let runs: Vec<TextRun> = serde_json::from_value(value.clone()).map_err(|_| bad("text"))?;
-                    Self::Text(Box::new(Text::from_runs(&runs)))
-                }
-                _ => return Err(bad("text")),
+                Value::Array(runs) => Self::Text(Box::new(Text::from_runs(&runs_from_content(runs).ok_or_else(|| bad("a string or an array of runs"))?))),
+                _ => return Err(bad("a string or an array of runs")),
             },
-            Some(FieldKind::List) => Self::List(
-                value
-                    .as_array()
-                    .ok_or_else(|| bad("list"))?
-                    .iter()
-                    .map(|item| item.as_str().map(ObjectId::from_string).ok_or_else(|| bad("list")))
-                    .collect::<Result<Vec<_>>>()?,
-            ),
-            Some(FieldKind::Map) => Self::Map(value.as_object().ok_or_else(|| bad("map"))?.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
-            Some(FieldKind::Tree) => Self::Tree(Box::new(Tree::from_json(value)?)),
+            Some(FieldKind::List) => {
+                let Value::Array(items) = value else { return Err(bad("an array of object ids")) };
+                Self::List(items.iter().map(|item| id_from_content(item).unwrap_or_else(|| Err(bad("an array of object ids")))).collect::<Result<Vec<_>>>()?)
+            }
+            Some(FieldKind::Map) => {
+                let Value::Object(entries) = value else { return Err(bad("a JSON object")) };
+                let mut out = BTreeMap::new();
+                for (key, entry) in entries {
+                    if entry.is_null() {
+                        return Err(KdmError::Encoding(format!("not KDM content: map entry `{key}` of field `{name}` holds null")));
+                    }
+                    if let (Some(_), Value::String(id)) = (def.and_then(|def| def.of.as_ref()), entry) {
+                        content::check_id(id)?;
+                    }
+                    out.insert(key.clone(), entry.clone());
+                }
+                Self::Map(out)
+            }
+            Some(FieldKind::Tree) => {
+                let Value::Array(entries) = value else { return Err(bad("an array of [depth, id] entries")) };
+                let mut nodes = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    let Some([depth, node]) = entry.as_array().map(Vec::as_slice) else { return Err(bad("an array of [depth, id] entries")) };
+                    let depth = depth.as_u64().and_then(|depth| usize::try_from(depth).ok()).ok_or_else(|| bad("an array of [depth, id] entries"))?;
+                    nodes.push((depth, id_from_content(node).unwrap_or_else(|| Err(bad("an array of [depth, id] entries")))?));
+                }
+                Self::Tree(Box::new(Tree::from_flat(nodes)?))
+            }
+            Some(FieldKind::Ref) => {
+                if let Value::String(id) = value {
+                    content::check_id(id)?;
+                }
+                Self::Value(value.clone())
+            }
             _ => Self::Value(value.clone()),
         })
     }
+}
+
+/// An id in content: `None` when it is not a string, an error when it is not a well-formed id.
+fn id_from_content(value: &Value) -> Option<Result<ObjectId>> {
+    let id = value.as_str()?;
+    Some(content::check_id(id).map(|()| ObjectId::from_string(id)))
+}
+
+/// A text's runs from content: `None` when a run is not `{"insert": "<text>"}` with an optional
+/// `"attributes"` object. Empty runs, adjacent runs with equal marks and `null` mark values are
+/// read as they are; [`Text::from_runs`] drops and merges them.
+fn runs_from_content(items: &[Value]) -> Option<Vec<TextRun>> {
+    items
+        .iter()
+        .map(|item| {
+            let run = item.as_object()?;
+            if run.keys().any(|key| key != "insert" && key != "attributes") {
+                return None;
+            }
+            let insert = run.get("insert")?.as_str()?.to_owned();
+            let attributes = match run.get("attributes") {
+                None => BTreeMap::new(),
+                Some(Value::Object(marks)) => marks.iter().map(|(key, value)| (key.clone(), value.clone())).collect(),
+                Some(_) => return None,
+            };
+            Some(TextRun { insert, attributes })
+        })
+        .collect()
 }
 
 /// One object: its type and the fields it holds, sorted by name.
@@ -150,14 +210,18 @@ impl Object {
         self.fields.iter().map(|(name, field)| (name, field))
     }
 
-    /// The object's content form: `$type` and every field it holds (data model 7.4).
-    pub(crate) fn to_content(&self, schema: &Schema) -> Map<String, Value> {
-        let def = schema.types.get(&*self.ty);
+    /// The object's content form: `$type` and every field it holds (data model 7.4), as a change
+    /// carries it.
+    pub(crate) fn to_content(&self) -> Map<String, Value> {
+        self.content_keeping(&|_: &ObjectId| true)
+    }
+
+    /// [`Object::to_content`] with the list items and tree nodes `keep` refuses left out.
+    fn content_keeping(&self, keep: &dyn Fn(&ObjectId) -> bool) -> Map<String, Value> {
         let mut out = Map::new();
         out.insert(TYPE_KEY.to_owned(), Value::String(self.ty.to_string()));
         for (name, field) in &self.fields {
-            let marked = def.and_then(|def| def.fields.get(&**name)).is_some_and(crate::FieldDef::has_marks);
-            if let Some(value) = field.content(marked) {
+            if let Some(value) = field.content(keep) {
                 out.insert(name.to_string(), value);
             }
         }
@@ -165,17 +229,21 @@ impl Object {
     }
 
     /// An object from its content form; each field as the schema declares it, a field it does not
-    /// declare as a register.
+    /// declare as a register. Refuses ([`KdmError::Encoding`]) a field holding `null` and a field
+    /// of the wrong shape ([`Field::from_content`]); a container field written empty is left out.
     pub(crate) fn from_content(fields: &Map<String, Value>, schema: &Schema) -> Result<Self> {
-        let ty = fields.get(TYPE_KEY).and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("an object has no `$type`".into()))?;
+        let ty = fields.get(TYPE_KEY).and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("not KDM content: an object has no `$type`".into()))?;
         let def = schema.types.get(ty);
         let mut object = Self::new(Name::from(ty));
         for (name, value) in fields {
-            if name == TYPE_KEY || value.is_null() {
+            if name == TYPE_KEY {
                 continue;
             }
-            let kind = def.and_then(|def| def.fields.get(name)).map(|field| field.kind);
-            object.put(Name::from(name.as_str()), Field::from_content(value, kind)?);
+            if value.is_null() {
+                return Err(KdmError::Encoding(format!("not KDM content: field `{name}` holds null (a field without a value is left out)")));
+            }
+            let field = def.and_then(|def| def.fields.get(name));
+            object.put(Name::from(name.as_str()), Field::from_content(name, value, field)?);
         }
         Ok(object)
     }
@@ -244,6 +312,9 @@ impl Store {
     }
 
     /// The state that content holds (data model 7.4), its fields read as `schema` declares them.
+    /// Refuses ([`KdmError::Encoding`]) a file's content (no version) whose list item or tree node
+    /// names no object of it (the writer leaves them out, [`Store::to_content`]); a snapshot holds
+    /// the state exactly, such entries included.
     pub(crate) fn from_content(content: &Content, schema: &Schema) -> Result<Self> {
         let mut store = Self::new(content.doc_id, content.kit.clone(), content.schema_version);
         store.objects.reserve(content.objects.len());
@@ -254,17 +325,37 @@ impl Store {
             store.index_trees(&id, &object, true);
             store.objects.insert(id, object);
         }
+        let exact = content.version.is_some();
+        for (id, object) in store.objects.iter().filter(|_| !exact) {
+            for (name, field) in &object.fields {
+                let missing = match field {
+                    Field::List(items) => items.iter().find(|item| !store.objects.contains_key(*item)),
+                    Field::Tree(tree) => tree.nodes().map(|(node, _)| node).find(|node| !store.objects.contains_key(*node)),
+                    _ => None,
+                };
+                if let Some(missing) = missing {
+                    return Err(KdmError::Encoding(format!("not KDM content: {id}.{name} names `{missing}`, which is no object of the document")));
+                }
+            }
+        }
         Ok(store)
     }
 
-    /// The state as content (with `version`, a snapshot's).
-    pub(crate) fn to_content(&self, schema: &Schema, version: Option<ContentVersion>) -> Content {
+    /// The state as content (with `version`, a snapshot's). It depends on the state alone. In a
+    /// file's content (no version), list items and tree nodes naming no object of the document (a
+    /// deleted object's list entries, which stay until the kit removes them) are left out, a node
+    /// with its subtree, as reads skip them: a file never names a missing object. A snapshot holds
+    /// the state exactly, so that a replica loaded from it at its version holds the same state and
+    /// takes the same later changes (a `list_remove` of such an entry included).
+    pub(crate) fn to_content(&self, version: Option<ContentVersion>) -> Content {
+        let exact = version.is_some();
+        let keep = |id: &ObjectId| exact || self.objects.contains_key(id);
         Content {
             kit: self.kit.clone(),
             doc_id: self.doc_id,
             schema_version: self.schema_version,
             version,
-            objects: self.objects.iter().map(|(id, object)| (id.to_string(), object.to_content(schema))).collect(),
+            objects: self.objects.iter().map(|(id, object)| (id.to_string(), object.content_keeping(&keep))).collect(),
         }
     }
 
@@ -529,6 +620,8 @@ impl Store {
                 Ok(Op::ListMove { id, field, from, to, item: Some(moved) })
             }
             Op::MapSet { id, field, key, value, .. } => {
+                // Setting a key to `null` deletes it: a map holds no `null` (data model 7.4, C5).
+                let value = value.filter(|value| !value.is_null());
                 let name = intern(&mut self.names, &field);
                 let object = self.objects.get_mut(&id).ok_or_else(|| stale(format!("object `{id}` does not exist")))?;
                 let was = match object.get_mut(&field) {

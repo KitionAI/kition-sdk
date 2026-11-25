@@ -283,10 +283,10 @@ fn runs_json(runs: &[TextRun]) -> Value {
 
 impl Op {
     /// The operation's JSON (plan 2026-11-24, section 1.2). Objects are in their content form.
-    pub(crate) fn to_json(&self, schema: &Schema) -> Value {
+    pub(crate) fn to_json(&self) -> Value {
         match self {
             Self::Create { id, object, trees } => {
-                let mut out = json!({ "op": "create", "id": id_json(id), "object": Value::Object(object.to_content(schema)) });
+                let mut out = json!({ "op": "create", "id": id_json(id), "object": Value::Object(object.to_content()) });
                 if !trees.is_empty() {
                     put(&mut out, "trees", Value::Array(trees.iter().map(place_json).collect()));
                 }
@@ -295,7 +295,7 @@ impl Op {
             Self::Delete { id, was, trees } => {
                 let mut out = json!({ "op": "delete", "id": id_json(id) });
                 if let Some(object) = was {
-                    put(&mut out, "was", Value::Object(object.to_content(schema)));
+                    put(&mut out, "was", Value::Object(object.to_content()));
                 }
                 if !trees.is_empty() {
                     put(&mut out, "trees", Value::Array(trees.iter().map(place_json).collect()));
@@ -483,13 +483,13 @@ impl Op {
 
 impl Change {
     /// The change's JSON: `{"seq", "actor", "origin": [kind, principal, label, schemaVersion], "ops"}`.
-    pub(crate) fn to_json(&self, schema: &Schema) -> Value {
+    pub(crate) fn to_json(&self) -> Value {
         let origin: Value = serde_json::from_str(&self.origin.encode_commit(self.schema_version)).unwrap_or(Value::Null);
         json!({
             "seq": self.seq,
             "actor": format!("{:016x}", self.actor.get()),
             "origin": origin,
-            "ops": Value::Array(self.ops.iter().map(|op| op.to_json(schema)).collect()),
+            "ops": Value::Array(self.ops.iter().map(Op::to_json).collect()),
         })
     }
 

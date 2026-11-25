@@ -12,6 +12,34 @@ use crate::{FieldDef, FieldKind, KdmError, NodeRef, ObjectId, Result, Schema};
 /// The form of an object id a host chooses (generated ids are UUID v7, which also match).
 const OBJECT_ID_PATTERN: &str = "[A-Za-z0-9][A-Za-z0-9:_-]{0,127}";
 
+/// The deepest nesting of arrays and objects in a value a transaction writes (a register, a map
+/// entry, a mark value). Changes and content nest at most [`crate::content::MAX_DEPTH`] (127)
+/// levels (data model 7.4, C14), and a change carries a value at most 9 levels in: the change
+/// list, `changes`, a change, `ops`, an operation, a deleted object (`was`), a text field's runs,
+/// a run, its `attributes`, with the mark value on the 10th level. So 127 - 9 = 118.
+const VALUE_DEPTH: usize = crate::content::MAX_DEPTH - 9;
+
+/// The refusal of a value nested deeper than [`VALUE_DEPTH`], checked without recursion (before
+/// anything that walks the value recursively).
+fn nesting_refusal(ty: &str, field: &str, value: &Value) -> Result<()> {
+    let mut open = vec![(value, 1_usize)];
+    while let Some((value, depth)) = open.pop() {
+        match value {
+            Value::Array(items) if depth <= VALUE_DEPTH => open.extend(items.iter().map(|item| (item, depth + 1))),
+            Value::Object(entries) if depth <= VALUE_DEPTH => open.extend(entries.values().map(|item| (item, depth + 1))),
+            Value::Array(_) | Value::Object(_) => {
+                return Err(KdmError::InvalidValue {
+                    ty: ty.to_owned(),
+                    field: field.to_owned(),
+                    reason: format!("nests arrays and objects deeper than {VALUE_DEPTH} levels, more than a change or a file holds"),
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// Whether `id` matches [`OBJECT_ID_PATTERN`].
 fn is_object_id(id: &str) -> bool {
     let mut bytes = id.bytes();
@@ -92,8 +120,9 @@ impl<'a> Tx<'a> {
     }
 
     /// [`Tx::create`] under an id the host chose. The id matches
-    /// `[A-Za-z0-9][A-Za-z0-9:_-]{0,127}` and names no object of the document or of this
-    /// transaction (one it deleted included); otherwise [`KdmError::InvalidValue`].
+    /// `[A-Za-z0-9][A-Za-z0-9:_-]{0,127}`, is written in lowercase hyphenated form when it reads
+    /// as a UUID (data model 7.4, C12), and names no object of the document or of this transaction
+    /// (one it deleted included); otherwise [`KdmError::InvalidValue`].
     pub fn create_with_id(&mut self, ty: &str, id: &ObjectId, fields: Map<String, Value>) -> Result<ObjectId> {
         self.create_as(ty, Some(id), fields)
     }
@@ -109,6 +138,7 @@ impl<'a> Tx<'a> {
             });
         }
         for (name, value) in &fields {
+            nesting_refusal(ty, name, value)?;
             schema.check_value(ty, name, value)?;
             if let (Some(field), Some(target)) = (def.fields.get(name), value.as_str()) {
                 self.check_of(ty, name, field, &ObjectId::from_string(target))?;
@@ -139,6 +169,7 @@ impl<'a> Tx<'a> {
     /// Sets one register field.
     pub fn set(&mut self, id: &ObjectId, field: &str, value: Value) -> Result<()> {
         let (ty, name, def) = self.field(id, field)?;
+        nesting_refusal(ty, name, &value)?;
         self.schema.check_value(ty, field, &value)?;
         if let Some(target) = value.as_str() {
             self.check_of(ty, name, def, &ObjectId::from_string(target))?;
@@ -268,8 +299,9 @@ impl<'a> Tx<'a> {
                 reason: format!("mark `{key}` takes a value; remove a mark with text_unmark"),
             });
         }
+        let (ty, _, _) = self.field(id, field)?;
+        nesting_refusal(ty, name, &value)?;
         if let Some(reason) = crate::schema::unportable(&value) {
-            let (ty, _, _) = self.field(id, field)?;
             return Err(KdmError::InvalidValue { ty: ty.to_owned(), field: name.to_owned(), reason: format!("mark `{key}` {reason}") });
         }
         if !self.mark_range(id, name, start, end)? {
@@ -344,10 +376,16 @@ impl<'a> Tx<'a> {
 
     /// Sets `key` of a map field. Values hold no integer beyond ±2^53 and no `__proto__` key, at
     /// any depth ([`KdmError::InvalidValue`]).
+    /// Sets key `key` of a map field; a `null` value deletes the key ([`Tx::map_delete`]): a map
+    /// holds no `null` (data model C5).
     pub fn map_set(&mut self, id: &ObjectId, field: &str, key: &str, value: Value) -> Result<()> {
         let name = self.container_field(id, field, FieldKind::Map)?;
         let (ty, _, def) = self.field(id, field)?;
+        nesting_refusal(ty, name, &value)?;
         self.schema.check_map_entry(ty, field, key, &value)?;
+        if value.is_null() {
+            return self.map_delete(id, field, key);
+        }
         if let Some(target) = value.as_str() {
             self.check_of(ty, field, def, &ObjectId::from_string(target))?;
         }
@@ -553,6 +591,10 @@ impl<'a> Tx<'a> {
         let invalid = |reason: String| KdmError::InvalidValue { ty: ty.to_owned(), field: "$id".into(), reason };
         if !is_object_id(id.as_str()) {
             return Err(invalid(format!("cannot be `{id}`: an object id matches `{OBJECT_ID_PATTERN}`")));
+        }
+        // One object, one way to write its id (data model 7.4, C12): a file refuses the others.
+        if crate::content::check_id(id.as_str()).is_err() {
+            return Err(invalid(format!("cannot be `{id}`: an object id that is a UUID is written in lowercase hyphenated form")));
         }
         if self.overlay.is_created(id) || self.overlay.deleted.contains(id) || self.store.contains(id) {
             return Err(invalid(format!("cannot be `{id}`: that object id is taken")));

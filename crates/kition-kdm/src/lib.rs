@@ -4,14 +4,15 @@
 //! plain object store, changes it only through transactions ([`Replica::transact`]), each one
 //! change on the document's line of changes, and passes its changes to other replicas of the
 //! same session ([`Replica::export_changes`], [`Replica::import_changes`]) in order. What a kit
-//! writes into a person's file is its content ([`Replica::content_snapshot`], [`content`]).
+//! writes into a person's file is its content ([`Replica::content_snapshot`], read back by
+//! [`Replica::load`]; data model 7.4).
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 pub mod batch;
 mod changes;
 pub mod comment;
-pub mod content;
+mod content;
 pub mod diff;
 mod error;
 pub mod footprint;

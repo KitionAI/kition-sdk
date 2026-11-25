@@ -126,7 +126,7 @@ fn every_operation_applied_then_inverted_gives_back_the_state() {
         }
         assert_eq!(store, before, "{what}: the inverse did not give back the state");
         // The content (what a file holds) is the same as well.
-        assert_eq!(store.to_content(&schema, None), before.to_content(&schema, None), "{what}");
+        assert_eq!(store.to_content(None), before.to_content(None), "{what}");
     }
 }
 
@@ -387,7 +387,7 @@ fn a_change_reads_back_from_its_json() {
         .collect();
     assert_eq!(ops.len(), operations().len());
     let change = Change { seq: 7, actor: ActorId::from_u64(42).unwrap(), origin: Origin::agent("agent:test").with_label("edit"), schema_version: 2, ops };
-    let json = change.to_json(&schema);
+    let json = change.to_json();
     let text = json.to_string();
     let read = Change::from_json(&serde_json::from_str(&text).unwrap(), &schema).expect("reads back");
     assert_eq!(read, change);
@@ -398,7 +398,7 @@ fn a_change_reads_back_from_its_json() {
     assert!(applied.is_err(), "p1 has a child node");
     let applied = store.apply(Op::Delete { id: id("p2"), was: None, trees: Vec::new() }, &schema).unwrap();
     assert_eq!(
-        applied.to_json(&schema),
+        applied.to_json(),
         json!({ "op": "delete", "id": "p2", "was": { "$type": "Page", "name": "Two" }, "trees": [{ "id": "b1", "field": "outline", "parent": "p1", "index": 0 }] })
     );
 }
@@ -407,9 +407,9 @@ fn a_change_reads_back_from_its_json() {
 fn content_reads_into_a_store_and_back() {
     let schema = schema();
     let store = base();
-    let content = store.to_content(&schema, None);
+    let content = store.to_content(None);
     let bytes = crate::content::encode(&content).unwrap();
-    let read = Store::from_content(&crate::content::decode(&bytes).unwrap(), &schema).unwrap();
+    let read = Store::from_content(&crate::content::decode_value(crate::content::parse(&bytes, "KDM content").unwrap()).unwrap(), &schema).unwrap();
     assert_eq!(read, store);
     assert_eq!(read.holders(&id("p2")), &[(id("b1"), Name::from("outline"))]);
 }

@@ -93,51 +93,75 @@ impl Tree {
         out
     }
 
-    /// The tree's JSON: `[{"children":[...],"object":"<id>"}]`, siblings in order. `keep` decides
-    /// which nodes are written; a node left out is left out with its subtree.
-    pub(crate) fn to_json(&self, keep: &dyn Fn(&ObjectId) -> bool) -> Value {
-        self.json_under(None, keep, 0)
-    }
-
-    fn json_under(&self, parent: Option<&ObjectId>, keep: &dyn Fn(&ObjectId) -> bool, depth: usize) -> Value {
-        if depth > self.parent.len() {
-            return Value::Array(Vec::new());
-        }
-        Value::Array(
-            self.children(parent)
-                .iter()
-                .filter(|node| keep(node))
-                .map(|node| {
-                    let mut entry = Map::new();
-                    entry.insert("children".into(), self.json_under(Some(node), keep, depth + 1));
-                    entry.insert("object".into(), Value::String(node.to_string()));
-                    Value::Object(entry)
-                })
-                .collect(),
-        )
-    }
-
-    /// A tree from its JSON ([`Tree::to_json`]). Refuses ([`KdmError::Encoding`]) a node that is
-    /// not `{children, object}` and an object named twice.
-    pub(crate) fn from_json(value: &Value) -> Result<Self> {
-        let mut tree = Self::default();
-        let mut stack: Vec<(Option<ObjectId>, &Value)> = vec![(None, value)];
-        while let Some((parent, nodes)) = stack.pop() {
-            let nodes = nodes.as_array().ok_or_else(|| KdmError::Encoding("a tree is an array of nodes".into()))?;
-            for node in nodes {
-                let object = node.get("object").and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("a tree node names no object".into()))?;
-                let object = ObjectId::from_string(object);
-                if tree.contains(&object) {
-                    return Err(KdmError::Encoding(format!("the tree names `{object}` twice")));
-                }
-                let index = tree.children(parent.as_ref()).len();
-                tree.insert(object.clone(), parent.clone(), index);
-                if let Some(children) = node.get("children") {
-                    stack.push((Some(object), children));
-                }
+    /// The nodes in pre-order (each parent before its children, siblings in order), each with its
+    /// depth (a root's is 0). A node `keep` refuses is left out with its subtree. Iterative, so a
+    /// tree of any depth.
+    pub(crate) fn flat(&self, keep: &dyn Fn(&ObjectId) -> bool) -> Vec<(usize, &ObjectId)> {
+        let mut out = Vec::with_capacity(self.parent.len());
+        let mut stack: Vec<(usize, &ObjectId)> = self.children(None).iter().rev().map(|node| (0, node)).collect();
+        while let Some((depth, node)) = stack.pop() {
+            if !keep(node) {
+                continue;
             }
+            out.push((depth, node));
+            stack.extend(self.children(Some(node)).iter().rev().map(|child| (depth + 1, child)));
+        }
+        out
+    }
+
+    /// A tree from its nodes in pre-order with their depths ([`Tree::flat`]): a node's parent is
+    /// the last node before it one level up. Refuses ([`KdmError::Encoding`]) a depth more than
+    /// one below the node before (a root's is 0) and a node named twice.
+    pub(crate) fn from_flat(nodes: Vec<(usize, ObjectId)>) -> Result<Self> {
+        let mut tree = Self::default();
+        // The node at each depth on the way down to the last node read.
+        let mut path: Vec<ObjectId> = Vec::new();
+        for (depth, node) in nodes {
+            if depth > path.len() {
+                return Err(KdmError::Encoding(format!("the tree puts `{node}` at depth {depth}, more than one below the node before it")));
+            }
+            if tree.contains(&node) {
+                return Err(KdmError::Encoding(format!("the tree names `{node}` twice")));
+            }
+            path.truncate(depth);
+            let parent = path.last().cloned();
+            let index = tree.children(parent.as_ref()).len();
+            tree.insert(node.clone(), parent, index);
+            path.push(node);
         }
         Ok(tree)
+    }
+
+    /// The tree as reads report it: `[{"children":[...],"object":"<id>"}]`, siblings in order. A
+    /// node `keep` refuses is left out with its subtree. Built from [`Tree::flat`] with an explicit
+    /// stack, without recursion.
+    pub(crate) fn to_json(&self, keep: &dyn Fn(&ObjectId) -> bool) -> Value {
+        // The nodes from a root down to the last node read, each with its children so far.
+        let mut open: Vec<(&ObjectId, Vec<Value>)> = Vec::new();
+        let mut roots = Vec::new();
+        for (depth, node) in self.flat(keep) {
+            while open.len() > depth {
+                close_node(&mut open, &mut roots);
+            }
+            open.push((node, Vec::new()));
+        }
+        while !open.is_empty() {
+            close_node(&mut open, &mut roots);
+        }
+        Value::Array(roots)
+    }
+}
+
+/// Ends the last open node of [`Tree::to_json`]: its JSON goes to its parent's children, or to the
+/// roots.
+fn close_node(open: &mut Vec<(&ObjectId, Vec<Value>)>, roots: &mut Vec<Value>) {
+    let Some((node, children)) = open.pop() else { return };
+    let mut entry = Map::new();
+    entry.insert("children".into(), Value::Array(children));
+    entry.insert("object".into(), Value::String(node.to_string()));
+    match open.last_mut() {
+        Some((_, siblings)) => siblings.push(Value::Object(entry)),
+        None => roots.push(Value::Object(entry)),
     }
 }
 
@@ -166,9 +190,16 @@ mod tests {
             json,
             json!([{ "children": [{ "children": [], "object": "d" }, { "children": [], "object": "c" }], "object": "a" }, { "children": [], "object": "b" }])
         );
-        assert_eq!(Tree::from_json(&json).unwrap(), tree);
+        let flat: Vec<(usize, ObjectId)> = tree.flat(&|_| true).into_iter().map(|(depth, node)| (depth, node.clone())).collect();
+        assert_eq!(flat, vec![(0, id("a")), (1, id("d")), (1, id("c")), (0, id("b"))]);
+        assert_eq!(Tree::from_flat(flat).unwrap(), tree);
+        // A node left out goes with its subtree.
+        assert_eq!(tree.flat(&|node: &ObjectId| node != &id("a")), vec![(0, &id("b"))]);
+        assert_eq!(tree.to_json(&|node: &ObjectId| node != &id("a")), json!([{ "children": [], "object": "b" }]));
         assert_eq!(tree.detach(&id("d")), Some((Some(id("a")), 0)));
         assert_eq!(tree.place(&id("c")), Some((Some(id("a")), 0)));
-        assert!(Tree::from_json(&json!([{ "children": [], "object": "a" }, { "children": [], "object": "a" }])).is_err());
+        assert!(Tree::from_flat(vec![(0, id("a")), (1, id("a"))]).is_err());
+        assert!(Tree::from_flat(vec![(1, id("a"))]).is_err());
+        assert!(Tree::from_flat(vec![(0, id("a")), (2, id("b"))]).is_err());
     }
 }

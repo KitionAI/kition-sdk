@@ -1,12 +1,15 @@
-//! The content encoding (data model, "The content encoding"): the bytes a kit writes into a
-//! person's file (`content.json`), and, with a version, a replica's snapshot.
+//! The content encoding (data model 7.4): the bytes a kit writes into a person's file
+//! (`content.json`), and, with a version, a replica's snapshot.
 //!
 //! This is the one part of the KDM that cannot change after the first public release: every rule
-//! below is a test (`tests/content.rs`, fixtures `tests/fixtures/content/`).
+//! below is a test (`tests/content.rs`, fixtures `tests/fixtures/content/`). There is one writer:
+//! [`crate::Replica::content_snapshot`] and [`crate::Replica::snapshot`] write the store's content
+//! ([`crate::store::Store::to_content`]) with [`encode`]; [`crate::Replica::load`] reads it with
+//! [`parse`] and [`decode_value`] into the store ([`crate::store::Store::from_content`]).
 //!
 //! ```text
 //! {"kdm":1,"kit":"kit.board","docId":"…","schemaVersion":1,"objects":{
-//! "<id>":{"$type":"Board","pages":["<id>"],"title":"Q4"},
+//! "<id>":{"$type":"Board","outline":[[0,"<id>"],[1,"<id>"]],"pages":["<id>"],"title":"Q4"},
 //! "<id>":{"$type":"Page","name":"Page 1"}
 //! }}
 //! ```
@@ -18,63 +21,80 @@
 //! - Then one line per object, `"<id>":{…}`, a `,` after each but the last, ids in ascending
 //!   order of their UTF-8 bytes; then the line `}}`. No other whitespace anywhere.
 //! - Inside an object, at every depth, keys are in ascending order of their UTF-8 bytes.
-//! - A field holding `null`, an empty text (`""`, or no runs), an empty list, an empty map or an
-//!   empty tree is left out. A register holding `""`, `[]`, `{}`, `0` or `false` is written.
+//! - A field holding `null`, an empty text, an empty list, an empty map or an empty tree is left
+//!   out. A register holding `""`, `[]`, `{}`, `0` or `false` is written.
 //! - A number that is whole and within ±2^53 is written as an integer (`-0` as `0`, `5.0` as `5`);
 //!   an integer beyond ±2^53 is refused; any other number is written in its shortest round-trip
 //!   digits, laid out by [`write_double`] (`0.1`, `123456789.125`, `1e21`, `1.5e-7`).
 //! - In strings only `"`, `\` and U+0000 to U+001F are escaped (`\b`, `\f`, `\n`, `\r`, `\t`, else
 //!   `\u00xx` in lower case); every other character is written as itself, outside the BMP too.
-//! - A text field that declares marks is its runs, `[{"attributes":{…},"insert":"…"}]`
-//!   (`attributes` left out of a run without marks); one that declares none is a string. A list
-//!   is an array of ids, a map an object, a tree an array of `{"children":[…],"object":"<id>"}`
-//!   in pre-order, and a blob the value `{"hash","mime","size"}`.
+//! - A text field is a string when no run carries a mark, else its runs,
+//!   `[{"attributes":{…},"insert":"…"}]` (`attributes` left out of a run without marks). A list is
+//!   an array of ids, a map an object, a tree its nodes in pre-order as `[depth,"<id>"]` pairs
+//!   (roots at depth 0), and a blob the value `{"hash","mime","size"}`. None of it depends on the
+//!   schema that writes it.
+//! - In a file's content, a list item or tree node naming no object of the document is left out
+//!   (a node with its subtree); a snapshot holds the state exactly.
+//! - Arrays and objects nest at most [`MAX_DEPTH`] deep, the outer object counted.
 //! - No version (outside a snapshot), lineage, actor, origin or time.
+//!
+//! Reading refuses a key written twice in one object, a UUID not in lowercase hyphenated form, an
+//! unknown key in the header, a wrong shape, and a byte order mark; what it accepts besides the
+//! canonical form is listed in data model 7.4 (rule C13).
 
 use std::collections::BTreeMap;
+use std::fmt;
 
-use serde_json::{Map, Value};
+use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
+use serde_json::{Map, Number, Value};
 use uuid::Uuid;
 
 use crate::value::canonical;
-use crate::{DocId, FieldKind, KDM_VERSION, KdmError, Result, Schema};
+use crate::{DocId, KDM_VERSION, KdmError, Result};
 
 /// The largest integer magnitude the encoding writes: every reader, JavaScript's doubles
 /// included, holds integers up to ±2^53 exactly.
 const MAX_SAFE_INTEGER: u64 = 1 << 53;
 
+/// The deepest nesting of arrays and objects in the encoding, the outer object counted as 1: what
+/// a reader holding a recursion limit of 128 (serde_json's) parses.
+pub(crate) const MAX_DEPTH: usize = 127;
+
+/// The nesting depth of a field's value: inside the outer object, `objects` and its object.
+const FIELD_DEPTH: usize = 4;
+
 /// The key of an object's type.
-pub const TYPE_KEY: &str = "$type";
+pub(crate) const TYPE_KEY: &str = "$type";
 
 /// A snapshot's version (data model, "Versions"): the line of changes (`lineage`) and how many
 /// changes of it the state holds (`seq`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ContentVersion {
-    pub lineage: [u8; 16],
-    pub seq: u64,
+pub(crate) struct ContentVersion {
+    pub(crate) lineage: [u8; 16],
+    pub(crate) seq: u64,
     /// The newest schema version a change of the replica's session was written under (rule
     /// M5a), which a replica loaded from the snapshot answers on (`authorSchemaVersion`).
-    pub author_schema_version: Option<u64>,
+    pub(crate) author_schema_version: Option<u64>,
 }
 
 /// A document's content as the encoding holds it: its header and its objects, each object with
 /// `$type` and the fields it stores, in their content form.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Content {
-    pub kit: String,
-    pub doc_id: DocId,
+pub(crate) struct Content {
+    pub(crate) kit: String,
+    pub(crate) doc_id: DocId,
     /// The document's minimum schema version (rule M20).
-    pub schema_version: u64,
+    pub(crate) schema_version: u64,
     /// Only in a snapshot; never in a file's content.
-    pub version: Option<ContentVersion>,
+    pub(crate) version: Option<ContentVersion>,
     /// Each object's id and its fields, `$type` included, sorted by id.
-    pub objects: BTreeMap<String, Map<String, Value>>,
+    pub(crate) objects: BTreeMap<String, Map<String, Value>>,
 }
 
-/// The content's bytes. Refuses ([`KdmError::Encoding`]) an object without a string `$type` and
-/// an integer beyond ±2^53; leaves out fields holding `null` (empty containers are left out by
-/// [`from_state`], which knows the fields' kinds).
-pub fn encode(content: &Content) -> Result<Vec<u8>> {
+/// The content's bytes. Refuses ([`KdmError::Encoding`]) an object without a string `$type`, an
+/// integer beyond ±2^53 and a value nested deeper than [`MAX_DEPTH`]; leaves out fields holding
+/// `null`.
+pub(crate) fn encode(content: &Content) -> Result<Vec<u8>> {
     let mut out = String::with_capacity(128 + content.objects.len() * 96);
     out.push_str("{\"kdm\":");
     out.push_str(&KDM_VERSION.to_string());
@@ -116,17 +136,114 @@ pub fn encode(content: &Content) -> Result<Vec<u8>> {
     Ok(out.into_bytes())
 }
 
-/// Reads content bytes (a file's content, or a snapshot). Whitespace between tokens is accepted,
-/// so a file edited by hand reads; [`encode`] writes it back in the canonical form. Refuses
-/// ([`KdmError::Encoding`]) bytes that are not this encoding, a `kdm` other than 1
-/// ([`KdmError::Schema`]), and an integer beyond ±2^53.
-pub fn decode(bytes: &[u8]) -> Result<Content> {
-    let value: Value = serde_json::from_slice(bytes).map_err(|error| KdmError::Encoding(format!("not KDM content: {error}")))?;
-    decode_value(value)
+/// Bytes read as JSON by the encoding's reading rules (`what` names them in errors): no byte
+/// order mark, and no key twice in one object at any depth ([`KdmError::Encoding`]).
+pub(crate) fn parse(bytes: &[u8], what: &str) -> Result<Value> {
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        return Err(KdmError::Encoding(format!("not {what}: the bytes start with a byte order mark")));
+    }
+    serde_json::from_slice::<Strict>(bytes).map(|strict| strict.0).map_err(|error| KdmError::Encoding(format!("not {what}: {error}")))
 }
 
-/// [`decode`] of bytes already read as JSON.
-pub fn decode_value(value: Value) -> Result<Content> {
+/// A JSON value read without accepting a key twice in one object.
+struct Strict(Value);
+
+impl<'de> Deserialize<'de> for Strict {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        deserializer.deserialize_any(StrictVisitor).map(Strict)
+    }
+}
+
+struct StrictVisitor;
+
+impl<'de> Visitor<'de> for StrictVisitor {
+    type Value = Value;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E: de::Error>(self, value: bool) -> std::result::Result<Value, E> {
+        Ok(Value::Bool(value))
+    }
+
+    fn visit_i64<E: de::Error>(self, value: i64) -> std::result::Result<Value, E> {
+        Ok(Value::from(value))
+    }
+
+    fn visit_u64<E: de::Error>(self, value: u64) -> std::result::Result<Value, E> {
+        Ok(Value::from(value))
+    }
+
+    fn visit_f64<E: de::Error>(self, value: f64) -> std::result::Result<Value, E> {
+        Number::from_f64(value).map(Value::Number).ok_or_else(|| E::custom("a number that is not finite"))
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> std::result::Result<Value, E> {
+        Ok(Value::String(value.to_owned()))
+    }
+
+    fn visit_string<E: de::Error>(self, value: String) -> std::result::Result<Value, E> {
+        Ok(Value::String(value))
+    }
+
+    fn visit_unit<E: de::Error>(self) -> std::result::Result<Value, E> {
+        Ok(Value::Null)
+    }
+
+    fn visit_none<E: de::Error>(self) -> std::result::Result<Value, E> {
+        Ok(Value::Null)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> std::result::Result<Value, A::Error> {
+        let mut items = Vec::new();
+        while let Some(Strict(item)) = seq.next_element::<Strict>()? {
+            items.push(item);
+        }
+        Ok(Value::Array(items))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> std::result::Result<Value, A::Error> {
+        let mut entries = Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if entries.contains_key(&key) {
+                return Err(de::Error::custom(format_args!("the key `{key}` is written twice in one object")));
+            }
+            let Strict(value) = map.next_value::<Strict>()?;
+            entries.insert(key, value);
+        }
+        Ok(Value::Object(entries))
+    }
+}
+
+/// Refuses a UUID not written in lowercase hyphenated form; `what` names it in errors.
+fn uuid_text(text: &str, what: &str) -> Result<Uuid> {
+    match Uuid::parse_str(text) {
+        Ok(uuid) if uuid.to_string() == text => Ok(uuid),
+        _ => Err(KdmError::Encoding(format!("not KDM content: {what} `{text}` is not a UUID in lowercase hyphenated form"))),
+    }
+}
+
+/// Refuses an object id that is empty, or that reads as a UUID but is not written in lowercase
+/// hyphenated form (one object, one way to write its id).
+pub(crate) fn check_id(id: &str) -> Result<()> {
+    if id.is_empty() {
+        return Err(KdmError::Encoding("not KDM content: an object id is empty".into()));
+    }
+    match Uuid::parse_str(id) {
+        Ok(uuid) if uuid.to_string() != id => {
+            Err(KdmError::Encoding(format!("not KDM content: the object id `{id}` is a UUID not in lowercase hyphenated form")))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Content from JSON read by [`parse`] (a file's content, or a snapshot). Refuses
+/// ([`KdmError::Encoding`]) what is not this encoding: an unknown or missing header key, a header
+/// value of the wrong shape, a UUID not in lowercase hyphenated form, an object without a string
+/// `$type`, a field holding `null`, and an integer beyond ±2^53; and ([`KdmError::Schema`]) a
+/// `kdm` other than 1. The fields' kinds are checked by the store that reads them.
+pub(crate) fn decode_value(value: Value) -> Result<Content> {
     let bad = |reason: &str| KdmError::Encoding(format!("not KDM content: {reason}"));
     let Value::Object(mut top) = value else { return Err(bad("not a JSON object")) };
     if let Some(key) = top.keys().find(|key| !matches!(key.as_str(), "kdm" | "kit" | "docId" | "version" | "schemaVersion" | "objects")) {
@@ -138,12 +255,17 @@ pub fn decode_value(value: Value) -> Result<Content> {
         None => return Err(bad("`kdm` is missing")),
     }
     let kit = top.get("kit").and_then(Value::as_str).ok_or_else(|| bad("`kit` is missing"))?.to_owned();
-    let doc_id = DocId::parse(top.get("docId").and_then(Value::as_str).ok_or_else(|| bad("`docId` is missing"))?)?;
+    let doc_text = top.get("docId").and_then(Value::as_str).ok_or_else(|| bad("`docId` is missing"))?;
+    uuid_text(doc_text, "`docId`")?;
+    let doc_id = DocId::parse(doc_text)?;
     let schema_version = top.get("schemaVersion").and_then(Value::as_u64).ok_or_else(|| bad("`schemaVersion` is missing"))?;
     let version = match top.remove("version") {
         None => None,
-        Some(Value::Object(version)) if version.keys().all(|key| matches!(key.as_str(), "lineage" | "seq" | "authorSchemaVersion")) => {
-            let lineage = version.get("lineage").and_then(Value::as_str).and_then(|text| Uuid::parse_str(text).ok()).ok_or_else(|| bad("`version.lineage`"))?;
+        Some(Value::Object(version)) => {
+            if let Some(key) = version.keys().find(|key| !matches!(key.as_str(), "lineage" | "seq" | "authorSchemaVersion")) {
+                return Err(bad(&format!("unknown key `version.{key}`")));
+            }
+            let lineage = uuid_text(version.get("lineage").and_then(Value::as_str).ok_or_else(|| bad("`version.lineage` is missing"))?, "`version.lineage`")?;
             let seq = version.get("seq").and_then(Value::as_u64).ok_or_else(|| bad("`version.seq`"))?;
             let author_schema_version = match version.get("authorSchemaVersion") {
                 None => None,
@@ -153,17 +275,18 @@ pub fn decode_value(value: Value) -> Result<Content> {
         }
         Some(_) => return Err(bad("`version` is not {lineage, seq}")),
     };
-    let Some(Value::Object(stored)) = top.remove("objects") else { return Err(bad("`objects` is missing")) };
+    let Some(Value::Object(stored)) = top.remove("objects") else { return Err(bad("`objects` is missing or not a JSON object")) };
     let mut objects = BTreeMap::new();
     for (id, object) in stored {
+        check_id(&id)?;
         let Value::Object(fields) = object else { return Err(bad(&format!("object `{id}` is not a JSON object"))) };
         if !fields.get(TYPE_KEY).is_some_and(Value::is_string) {
-            return Err(KdmError::Encoding(format!("object `{id}` has no `$type`")));
+            return Err(bad(&format!("object `{id}` has no `$type`")));
         }
         let mut kept = Map::new();
         for (name, value) in fields {
             if value.is_null() {
-                continue;
+                return Err(bad(&format!("field `{name}` of `{id}` holds null (a field without a value is left out)")));
             }
             check_portable(&value)?;
             kept.insert(name, canonical(value));
@@ -171,78 +294,6 @@ pub fn decode_value(value: Value) -> Result<Content> {
         objects.insert(id, kept);
     }
     Ok(Content { kit, doc_id, schema_version, version, objects })
-}
-
-/// The content of a canonical state (`{meta, objects}`, as [`crate::Replica::state_json`] reads
-/// it), with `version` for a snapshot. Fields that hold `null`, and fields the schema declares as
-/// text, list, map or tree that are empty, are left out; fields the schema does not declare
-/// (objects written under another schema version) are kept as they are.
-pub fn from_state(state: &Value, schema: &Schema, version: Option<ContentVersion>) -> Result<Content> {
-    let bad = |reason: &str| KdmError::Encoding(format!("not a KDM state: {reason}"));
-    let meta = state.get("meta").and_then(Value::as_object).ok_or_else(|| bad("`meta` is missing"))?;
-    let kit = meta.get("kit").and_then(Value::as_str).ok_or_else(|| bad("`meta.kit` is missing"))?.to_owned();
-    let doc_id = DocId::parse(meta.get("docId").and_then(Value::as_str).ok_or_else(|| bad("`meta.docId` is missing"))?)?;
-    let schema_version = meta.get("schemaVersion").and_then(Value::as_u64).ok_or_else(|| bad("`meta.schemaVersion` is missing"))?;
-    let stored = state.get("objects").and_then(Value::as_object).ok_or_else(|| bad("`objects` is missing"))?;
-    let mut objects = BTreeMap::new();
-    for (id, object) in stored {
-        let fields = object.as_object().ok_or_else(|| bad(&format!("object `{id}` is not a JSON object")))?;
-        let ty = fields.get(TYPE_KEY).and_then(Value::as_str).ok_or_else(|| KdmError::Encoding(format!("object `{id}` has no `$type`")))?;
-        let def = schema.types.get(ty);
-        let mut kept = Map::new();
-        for (name, value) in fields {
-            let kind = def.and_then(|def| def.fields.get(name)).map(|field| field.kind);
-            if value.is_null() || kind.is_some_and(|kind| kind.is_container() && is_empty_container(value)) {
-                continue;
-            }
-            check_portable(value)?;
-            kept.insert(name.clone(), canonical(value.clone()));
-        }
-        objects.insert(id.clone(), kept);
-    }
-    Ok(Content { kit, doc_id, schema_version, version, objects })
-}
-
-/// The canonical state (`{meta, objects}`) of content: each object of a type the schema declares
-/// with every field of the type, a field the content leaves out read as empty (`null`, `""`, `[]`
-/// for a text that declares marks, a list or a tree, `{}` for a map); an object of a type the
-/// schema does not declare as its `$type` only, as [`crate::Replica::state_json`] reads them.
-pub fn to_state(content: &Content, schema: &Schema) -> Value {
-    let mut objects = Map::new();
-    for (id, fields) in &content.objects {
-        let ty = fields.get(TYPE_KEY).and_then(Value::as_str).unwrap_or_default();
-        let mut out = Map::new();
-        out.insert(TYPE_KEY.to_owned(), Value::String(ty.to_owned()));
-        if let Some(def) = schema.types.get(ty) {
-            for (name, field) in &def.fields {
-                let value = fields.get(name).cloned().unwrap_or_else(|| match field.kind {
-                    FieldKind::Text if field.has_marks() => Value::Array(Vec::new()),
-                    FieldKind::Text => Value::String(String::new()),
-                    FieldKind::List | FieldKind::Tree => Value::Array(Vec::new()),
-                    FieldKind::Map => Value::Object(Map::new()),
-                    _ => Value::Null,
-                });
-                out.insert(name.clone(), value);
-            }
-        }
-        objects.insert(id.clone(), Value::Object(out));
-    }
-    let mut meta = Map::new();
-    meta.insert("docId".into(), Value::String(content.doc_id.to_string()));
-    meta.insert("kdm".into(), Value::from(KDM_VERSION));
-    meta.insert("kit".into(), Value::String(content.kit.clone()));
-    meta.insert("schemaVersion".into(), Value::from(content.schema_version));
-    canonical(serde_json::json!({ "meta": Value::Object(meta), "objects": Value::Object(objects) }))
-}
-
-/// Whether a container field's value is empty: `""`, `[]` or `{}`.
-fn is_empty_container(value: &Value) -> bool {
-    match value {
-        Value::String(text) => text.is_empty(),
-        Value::Array(items) => items.is_empty(),
-        Value::Object(entries) => entries.is_empty(),
-        _ => false,
-    }
 }
 
 /// Refuses an integer beyond ±2^53 at any depth.
@@ -273,30 +324,42 @@ fn write_fields(out: &mut String, fields: &Map<String, Value>) -> Result<()> {
         }
         write_string(out, key);
         out.push(':');
-        write_value(out, value)?;
+        write_value(out, value, FIELD_DEPTH)?;
     }
     out.push('}');
     Ok(())
 }
 
-/// One JSON value in the canonical form: keys in byte order, numbers by [`write_number`].
-fn write_value(out: &mut String, value: &Value) -> Result<()> {
+/// The error for a value nested deeper than [`MAX_DEPTH`].
+fn too_deep() -> KdmError {
+    KdmError::Encoding(format!("a value nests arrays and objects deeper than the encoding's {MAX_DEPTH} levels"))
+}
+
+/// One JSON value in the canonical form: keys in byte order, numbers by [`write_number`]. `depth`
+/// is the nesting depth of the value when it is an array or an object.
+fn write_value(out: &mut String, value: &Value, depth: usize) -> Result<()> {
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
         Value::Number(number) => write_number(out, number)?,
         Value::String(text) => write_string(out, text),
         Value::Array(items) => {
+            if depth > MAX_DEPTH {
+                return Err(too_deep());
+            }
             out.push('[');
             for (index, item) in items.iter().enumerate() {
                 if index > 0 {
                     out.push(',');
                 }
-                write_value(out, item)?;
+                write_value(out, item, depth + 1)?;
             }
             out.push(']');
         }
         Value::Object(entries) => {
+            if depth > MAX_DEPTH {
+                return Err(too_deep());
+            }
             let mut sorted: Vec<(&String, &Value)> = entries.iter().collect();
             sorted.sort_unstable_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
             out.push('{');
@@ -306,7 +369,7 @@ fn write_value(out: &mut String, value: &Value) -> Result<()> {
                 }
                 write_string(out, key);
                 out.push(':');
-                write_value(out, item)?;
+                write_value(out, item, depth + 1)?;
             }
             out.push('}');
         }
@@ -451,5 +514,42 @@ mod tests {
         assert_eq!(out, "\"a\\\"b\\\\c\\n\\t\\u0001\\u001f\u{7f}/\u{2028}\u{e9}\u{1f600}\"");
         // serde_json writes the same.
         assert_eq!(out, serde_json::to_string("a\"b\\c\n\t\u{1}\u{1f}\u{7f}/\u{2028}\u{e9}\u{1f600}").unwrap());
+    }
+
+    fn one_page(fields: Value) -> Content {
+        let mut object = fields.as_object().cloned().unwrap();
+        object.insert(TYPE_KEY.into(), Value::String("Page".into()));
+        Content { kit: "kit.content".into(), doc_id: DocId::new(), schema_version: 1, version: None, objects: [("p".to_owned(), object)].into_iter().collect() }
+    }
+
+    /// `levels` arrays nested in each other.
+    fn nested(levels: usize) -> Value {
+        let mut value = Value::Array(Vec::new());
+        for _ in 1..levels {
+            value = Value::Array(vec![value]);
+        }
+        value
+    }
+
+    #[test]
+    fn encode_refuses_integers_beyond_two_to_the_53_and_values_nested_too_deep() {
+        assert!(matches!(encode(&one_page(serde_json::json!({ "box": { "deep": [u64::MAX] } }))), Err(KdmError::Encoding(_))));
+        // A field's value sits at depth 4: 124 levels reach the limit, 125 pass it.
+        let at_limit = encode(&one_page(serde_json::json!({ "box": nested(MAX_DEPTH - FIELD_DEPTH + 1) }))).unwrap();
+        assert!(parse(&at_limit, "KDM content").is_ok(), "serde_json reads what the writer writes at the limit");
+        assert!(matches!(encode(&one_page(serde_json::json!({ "box": nested(MAX_DEPTH - FIELD_DEPTH + 2) }))), Err(KdmError::Encoding(_))));
+        // `encode` leaves out a field holding null.
+        let written = String::from_utf8(encode(&one_page(serde_json::json!({ "kind": null, "name": "x" }))).unwrap()).unwrap();
+        assert!(written.contains("\"p\":{\"$type\":\"Page\",\"name\":\"x\"}\n"), "{written}");
+    }
+
+    #[test]
+    fn parse_refuses_a_key_written_twice_at_any_depth_and_a_byte_order_mark() {
+        assert!(parse(br#"{"a":{"b":[{"c":1,"d":2}]}}"#, "x").is_ok());
+        let twice_cases: [&[u8]; 3] = [br#"{"a":1,"a":2}"#, br#"{"a":{"b":[{"c":1,"c":1}]}}"#, br#"{"a":1,"\u0061":2}"#];
+        for twice in twice_cases {
+            assert!(matches!(parse(twice, "x"), Err(KdmError::Encoding(_))), "{}", String::from_utf8_lossy(twice));
+        }
+        assert!(matches!(parse(b"\xEF\xBB\xBF{}", "x"), Err(KdmError::Encoding(_))));
     }
 }
