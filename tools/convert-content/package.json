@@ -1,0 +1,11 @@
+{
+  "name": "kition-convert-content",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "One-off: converts a kit sample's old Loro content snapshot to content.json (plain model, data model 7.4). Deleted once every kit has landed.",
+  "type": "module",
+  "bin": "./convert.mjs",
+  "dependencies": {
+    "@kition/sdk": "npm:@kitionstage/sdk@0.5.2-stage.21"
+  }
+}
