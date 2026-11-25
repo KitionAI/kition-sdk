@@ -78,6 +78,11 @@ pub(crate) fn checked(op: Op, store: &Store, schema: &Schema) -> Result<Op> {
             Op::MapSet { id, field, key, value, was }
         }
         Op::TreeCreate { ref id, ref field, ref node, .. } => {
+            // A node names a live object, as a transaction's does: the change made it before this
+            // operation, or the document holds it.
+            if !store.contains(node) {
+                return Err(KdmError::Stale(format!("object `{node}` does not exist: a node of {id}.{field} names a live object")));
+            }
             if let Some((ty, def)) = kind(store, schema, id, field, FieldKind::Tree)? {
                 check_target(store, ty, field, def, node.as_str())?;
             }

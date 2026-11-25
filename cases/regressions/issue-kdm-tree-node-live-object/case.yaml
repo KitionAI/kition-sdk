@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-kdm-tree-node-live-object
+feature: sdk.model.plain-store
+intent: >-
+  A tree node names a live object. A transaction's tree_create of an object that does not exist (never made, or deleted earlier in it) is refused (not-found); an imported or merged treeCreate naming an object the document does not hold when it applies (none, made later in the change, or deleted by the document since the draft forked) is refused whole (stale), changing nothing; an undo puts back no node for an object deleted since. Before, each was accepted and left a node naming no object.
+layer: gate
+source: { kind: synthetic, from: review of the plain KDM (266e0de), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: a_transaction_places_no_node_for_an_object_that_does_not_exist }
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: an_import_placing_a_node_for_a_missing_object_is_refused_whole }
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: a_merge_placing_a_node_for_an_object_the_document_deleted_is_refused }
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: an_undo_puts_back_no_node_for_an_object_deleted_since }
+  - cargo-test: { package: kition-kdm, test: replica, filter: an_import_placing_a_node_without_an_object_is_refused_and_the_tree_reads_as_before }
+  - cargo-test: { package: kition-kdm, test: replica, filter: references_lists_and_trees_refuse_an_existing_target_of_another_type }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

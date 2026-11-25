@@ -231,7 +231,9 @@ fn write_tree(tx: &mut Tx<'_>, id: &ObjectId, field: &str, value: &Value, live: 
     // Pre-order: a parent's node exists (or was created, or was skipped) before its children's.
     let mut skipped: BTreeSet<ObjectId> = BTreeSet::new();
     for (object, parent) in &want {
-        let gone = !node_of.contains_key(object) && !live.contains_key(object.as_str());
+        // A node names a live object: one the state does not hold, or did not make (of a type the
+        // schema does not declare), gets none.
+        let gone = !node_of.contains_key(object) && (!live.contains_key(object.as_str()) || !tx.exists(object));
         if gone || parent.as_ref().is_some_and(|parent| skipped.contains(parent)) {
             skipped.insert(object.clone());
             continue;

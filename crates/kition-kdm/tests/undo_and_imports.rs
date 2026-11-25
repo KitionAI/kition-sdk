@@ -216,3 +216,94 @@ fn a_merge_the_schema_refuses_is_refused_whole() {
     assert!(matches!(error, KdmError::InvalidValue { .. }), "{error:?}");
     assert_eq!((live.version(), live.state_json().unwrap()), before);
 }
+
+// ---- A tree node names a live object ----
+
+#[test]
+fn a_transaction_places_no_node_for_an_object_that_does_not_exist() {
+    let mut replica = replica();
+    let (page, shapes) = outline(&mut replica, 1);
+    let before = (replica.version(), replica.state_json().unwrap());
+    let never = ObjectId::from_string("never-made");
+    let error = replica.transact(&person(), |tx| tx.tree_create(&page, "outline", None, &never)).unwrap_err();
+    assert!(matches!(error, KdmError::NotFound(ref found) if found == "never-made"), "{error:?}");
+    // Deleted earlier in the same transaction: gone as well.
+    let error = replica
+        .transact(&person(), |tx| {
+            let made = tx.create("Shape", fields(json!({ "kind": "rect", "x": 0, "y": 0 })))?;
+            tx.delete(&made)?;
+            tx.tree_create(&page, "outline", None, &made)
+        })
+        .unwrap_err();
+    assert!(matches!(error, KdmError::NotFound(_)), "{error:?}");
+    assert_eq!((replica.version(), replica.state_json().unwrap()), before, "a refused transaction changed the document");
+    assert_eq!(tree(&replica, &page), roots(&[&shapes[0]]));
+}
+
+#[test]
+fn an_import_placing_a_node_for_a_missing_object_is_refused_whole() {
+    let mut replica = replica();
+    let (page, shapes) = outline(&mut replica, 1);
+    let page = page.as_str();
+    let before = (replica.version(), replica.state_json().unwrap());
+    let refused = [
+        ("a node naming no object", json!([{ "op": "treeCreate", "id": page, "field": "outline", "node": "nowhere", "parent": null, "index": 1 }])),
+        (
+            "a node placed before its object is made",
+            json!([
+                { "op": "treeCreate", "id": page, "field": "outline", "node": "n1", "parent": null, "index": 1 },
+                { "op": "create", "id": "n1", "object": { "$type": "Shape", "kind": "rect", "x": 0, "y": 0 } }
+            ]),
+        ),
+    ];
+    for (what, ops) in refused {
+        let error = replica.import_changes(&change(&replica, ops)).unwrap_err();
+        assert!(matches!(error, KdmError::Stale(ref reason) if reason.contains("does not exist")), "{what}: {error:?}");
+        assert_eq!((replica.version(), replica.state_json().unwrap()), before, "{what}: a refused import changed the document");
+    }
+    // Made first in the same change, it is placed.
+    replica
+        .import_changes(&change(
+            &replica,
+            json!([
+                { "op": "create", "id": "n1", "object": { "$type": "Shape", "kind": "rect", "x": 0, "y": 0 } },
+                { "op": "treeCreate", "id": page, "field": "outline", "node": "n1", "parent": null, "index": 1 }
+            ]),
+        ))
+        .unwrap();
+    let made = ObjectId::from_string("n1");
+    assert_eq!(tree(&replica, &ObjectId::from_string(page)), roots(&[&shapes[0], &made]));
+}
+
+#[test]
+fn a_merge_placing_a_node_for_an_object_the_document_deleted_is_refused() {
+    let mut live = replica();
+    let (page, _) = outline(&mut live, 1);
+    let loose = live.transact(&person(), |tx| tx.create("Shape", fields(json!({ "kind": "rect", "x": 5, "y": 5 })))).unwrap();
+    let base = live.version();
+    let mut draft = live.fork(ActorId::from_u64(9).unwrap()).unwrap();
+    draft.transact(&agent(), |tx| tx.tree_create(&page, "outline", None, &loose).map(drop)).unwrap();
+    live.transact(&person(), |tx| tx.delete(&loose)).unwrap();
+    let before = (live.version(), live.state_json().unwrap());
+    let error = live.merge_changes(&draft.export_changes(&base).unwrap(), &agent()).unwrap_err();
+    assert!(matches!(error, KdmError::Stale(_)), "{error:?}");
+    assert_eq!((live.version(), live.state_json().unwrap()), before, "a refused merge changed the document");
+    assert!(!String::from_utf8(live.snapshot().unwrap()).unwrap().contains(loose.as_str()));
+}
+
+#[test]
+fn an_undo_puts_back_no_node_for_an_object_deleted_since() {
+    let mut replica = replica();
+    let (page, shapes) = outline(&mut replica, 1);
+    let shape = shapes[0].clone();
+    let placed = node(&replica, &page, &shape);
+    // The agent takes the shape out of the outline; then the person deletes the shape.
+    replica.transact(&agent(), |tx| tx.tree_delete(&page, "outline", &placed)).unwrap();
+    replica.transact(&person(), |tx| tx.delete(&shape)).unwrap();
+    // Undoing the agent's step has no node to put back: the snapshot (which holds the state
+    // exactly, data model C10) names the shape nowhere.
+    replica.undo_in(kition_kdm::UndoScope::Agent).unwrap();
+    assert!(!replica.exists(&shape));
+    assert_eq!(tree(&replica, &page), Vec::new());
+    assert!(!String::from_utf8(replica.snapshot().unwrap()).unwrap().contains(shape.as_str()));
+}

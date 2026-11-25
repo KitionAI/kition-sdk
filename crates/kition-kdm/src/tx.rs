@@ -465,10 +465,15 @@ impl<'a> Tx<'a> {
     }
 
     /// Adds the node of `object` under `parent` (`None`: a root), last among its siblings. A tree
-    /// holds an object once: a second node for it is refused ([`KdmError::InvalidValue`]).
+    /// holds an object once: a second node for it is refused ([`KdmError::InvalidValue`]). A node
+    /// names a live object: one that does not exist (never made, or deleted) is refused
+    /// ([`KdmError::NotFound`]); create it first, in this transaction or an earlier one.
     pub fn tree_create(&mut self, id: &ObjectId, field: &str, parent: Option<&NodeRef>, object: &ObjectId) -> Result<NodeRef> {
         let name = self.container_field(id, field, FieldKind::Tree)?;
         self.check_item(id, name, object)?;
+        if !self.exists(object) {
+            return Err(KdmError::NotFound(object.to_string()));
+        }
         let (ty, _, _) = self.field(id, field)?;
         let tree = self.tree_mut(id, name)?;
         if let Some(parent) = parent

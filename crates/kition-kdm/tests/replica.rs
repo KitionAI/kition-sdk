@@ -364,11 +364,11 @@ fn trees_list_their_nodes_parent_first_in_sibling_order() {
     assert_eq!(named, vec![objects[0].clone(), objects[2].clone(), objects[1].clone(), objects[3].clone()]);
 }
 
-/// A document whose page outline holds a node naming no object of the document (with a child)
-/// before a normal node. No transaction makes one (a deleted object leaves its trees), and content
-/// naming one is refused, so it comes from an imported change whose tree operations name an
-/// object the document does not hold.
-fn page_with_an_objectless_node() -> (Replica, ObjectId) {
+/// A document whose page outline holds the node of `s`, and an import that would put a node
+/// naming no object of the document (with a child, `t`) before it. No transaction makes one (a
+/// deleted object leaves its trees, a missing one is refused) and content naming one is refused;
+/// the import is refused too, changing nothing. Answers the document and its page.
+fn page_refusing_an_objectless_node() -> (Replica, ObjectId) {
     let mut replica = replica();
     let id = |text: &str| ObjectId::from_string(text.to_owned());
     replica
@@ -396,20 +396,23 @@ fn page_with_an_objectless_node() -> (Replica, ObjectId) {
             ]
         }]
     });
-    replica.import_changes(changes.to_string().as_bytes()).unwrap();
+    let before = (replica.version(), replica.state_json().unwrap());
+    let error = replica.import_changes(changes.to_string().as_bytes()).unwrap_err();
+    assert!(matches!(error, KdmError::Stale(ref reason) if reason.contains("`gone` does not exist")), "{error:?}");
+    assert_eq!((replica.version(), replica.state_json().unwrap()), before, "a refused import changed the document");
     (replica, id("p"))
 }
 
 #[test]
-fn tree_reads_skip_a_node_without_an_object_and_its_subtree() {
-    let (replica, page) = page_with_an_objectless_node();
+fn an_import_placing_a_node_without_an_object_is_refused_and_the_tree_reads_as_before() {
+    let (replica, page) = page_refusing_an_objectless_node();
     let entries = replica.tree(&page, "outline").unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].object.as_str(), "s");
     assert_eq!(entries[0].parent, None);
     let state = replica.state_json().unwrap();
     assert_eq!(state["objects"]["p"]["outline"], json!([{ "children": [], "object": "s" }]));
-    // Saved, the node goes with its subtree (data model 7.4, C13), and the file reads back.
+    // Saved, the file holds the one node and reads back.
     let saved = String::from_utf8(replica.content_snapshot().unwrap()).unwrap();
     assert!(saved.contains("\"outline\":[[0,\"s\"]]"), "{saved}");
     let read = Replica::load(schema(), saved.as_bytes(), ActorId::from_u64(2).unwrap()).unwrap();
@@ -542,7 +545,8 @@ fn references_lists_and_trees_refuse_an_existing_target_of_another_type() {
             })
             .unwrap_err()
     ));
-    // Matching and missing targets are accepted: a dangling reference is a validation state.
+    // Matching and missing targets of references and lists are accepted: a dangling reference is
+    // a validation state. A tree node names a live object, so a missing one is refused.
     let missing = kition_kdm::ObjectId::new();
     replica
         .transact(&person(), |tx| {
@@ -550,11 +554,13 @@ fn references_lists_and_trees_refuse_an_existing_target_of_another_type() {
             tx.list_insert(&a, "l", 0, &b)?;
             tx.list_insert(&a, "l", 1, &missing)?;
             tx.tree_create(&a, "t", None, &b)?;
-            tx.tree_create(&a, "t", None, &missing)?;
             Ok(())
         })
         .unwrap();
-    assert_eq!(replica.list(&a, "l").unwrap(), vec![b, missing]);
+    assert_eq!(replica.list(&a, "l").unwrap(), vec![b.clone(), missing.clone()]);
+    let error = replica.transact(&person(), |tx| tx.tree_create(&a, "t", None, &missing)).unwrap_err();
+    assert!(matches!(error, KdmError::NotFound(ref found) if found == missing.as_str()), "{error:?}");
+    assert_eq!(replica.tree(&a, "t").unwrap().into_iter().map(|entry| entry.object).collect::<Vec<_>>(), vec![b]);
 }
 
 /// A page whose `shapes` list holds a shape id and a number: content written by hand, as no KDM

@@ -349,7 +349,11 @@ value) changed, not only a list or tree it holds.
 
 *Deleted objects in trees*. A tree names each object with at most one node:
 the node is the object's id, and `tree_create` of an object the tree already
-holds is refused (`invalid-value`). Deleting an object (`Tx::delete`) takes
+holds is refused (`invalid-value`). A node names a live object: `tree_create`
+of one that does not exist (never made, or deleted) is refused (`not-found`),
+an imported or merged `treeCreate` naming an object the document does not hold
+when it applies is `stale` (a change makes the object before it places it),
+and an undo puts back no node for an object deleted since. Deleting an object (`Tx::delete`) takes
 its node out of every tree holding it; the change records each place
 (`trees`: holder, field, parent, index), so an undo puts it back where it
 was. An object whose node has children naming live objects is not deleted

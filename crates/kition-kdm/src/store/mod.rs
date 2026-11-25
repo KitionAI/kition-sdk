@@ -821,7 +821,8 @@ impl Store {
             }
             Op::TreeCreate { id, field, node, parent, index } => {
                 let tree = self.tree(&id, &field).ok()?;
-                if tree.is_some_and(|tree| tree.contains(&node)) {
+                // A node of an object deleted since has nothing to name.
+                if !self.contains(&node) || tree.is_some_and(|tree| tree.contains(&node)) {
                     return None;
                 }
                 let parent = parent.filter(|parent| tree.is_some_and(|tree| tree.contains(parent)));
