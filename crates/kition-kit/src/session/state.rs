@@ -35,6 +35,10 @@ pub fn take_file(ours: &mut Replica, file: &Replica) -> Result<bool> {
     if ours.doc_id() != file.doc_id() {
         return Err(kition_kdm::KdmError::WrongDocument { expected: ours.doc_id().to_string(), found: file.doc_id().to_string() }.into());
     }
+    // Most often the file holds the stored state: compared in the store, no state is built.
+    if ours.same_state(file) {
+        return Ok(false);
+    }
     let (before, after) = (state(ours)?, state(file)?);
     if before == after {
         return Ok(false);

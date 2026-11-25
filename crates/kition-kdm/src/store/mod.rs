@@ -421,6 +421,11 @@ impl Store {
         Ok(store)
     }
 
+    /// Whether both stores hold one document's same objects (the tree index follows from them).
+    pub(crate) fn same_objects(&self, other: &Self) -> bool {
+        self.doc_id == other.doc_id && self.kit == other.kit && self.schema_version == other.schema_version && self.objects == other.objects
+    }
+
     pub(crate) fn object(&self, id: &ObjectId) -> Option<&Object> {
         self.objects.get(id).map(|object| &**object)
     }

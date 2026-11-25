@@ -160,8 +160,8 @@ features:
     dimension: [data-safety, function, performance]
     priority: P0
     status: has
-    paths: [crates/kition-kdm/src/store/**, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/content.rs, crates/kition-kdm/src/ids.rs, crates/kition-kdm/tests/versions.rs, crates/kition-kdm/tests/large/**, crates/kition-kdm/tests/large_map_memory.rs, crates/kition-kdm/tests/large_objects_memory.rs, crates/kition-kdm/tests/large_documents.rs]
-    cases: [sdk.model.plain-store/ordered-changes, regressions/issue-kdm-undo-trimmed-log, regressions/issue-kdm-undo-tree-places, regressions/issue-kdm-import-schema-checks, regressions/issue-kdm-linear-costs, regressions/issue-kdm-undo-after-undo, regressions/issue-kdm-redo-order, regressions/issue-kdm-large-documents]
+    paths: [crates/kition-kdm/src/store/**, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/content.rs, crates/kition-kdm/src/ids.rs, crates/kition-kdm/tests/versions.rs, crates/kition-kdm/tests/large/**, crates/kition-kdm/tests/large_map_memory.rs, crates/kition-kdm/tests/large_objects_memory.rs, crates/kition-kdm/tests/large_documents.rs, crates/kition-kdm/src/tool_ids.rs, crates/kition-kdm/tests/reply_costs.rs, crates/kition-kit/src/session/web.rs]
+    cases: [sdk.model.plain-store/ordered-changes, regressions/issue-kdm-undo-trimmed-log, regressions/issue-kdm-undo-tree-places, regressions/issue-kdm-import-schema-checks, regressions/issue-kdm-linear-costs, regressions/issue-kdm-undo-after-undo, regressions/issue-kdm-redo-order, regressions/issue-kdm-large-documents, regressions/issue-kdm-reply-costs]
     since: "2026-11-24"
   - id: sdk.model.undo-outcome
     title: An undo or a redo answers which steps it took off its stack, the steps passed over and the one taken back, each by its footprint
@@ -177,7 +177,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/merge.rs, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/store/transform.rs, crates/kition-kdm/tests/merge_rules.rs, crates/kition-kdm/tests/draft.rs, docs/platform/data-model.md]
-    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes]
+    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes, regressions/issue-kdm-compare-costs]
     since: "2026-11-25"
   - id: sdk.model.change-list-reader
     title: "@kition/kdm reads a change list (readChangeList): each change's number, actor, origin and operations"
@@ -200,8 +200,8 @@ features:
     dimension: [data-safety, conversion]
     priority: P0
     status: has
-    paths: [crates/kition-kdm/src/content.rs, crates/kition-kdm/tests/content.rs, crates/kition-kdm/tests/fixtures/content/**, docs/platform/data-model.md]
-    cases: [sdk.model.content-encoding/canonical-bytes]
+    paths: [crates/kition-kdm/src/content.rs, crates/kition-kdm/tests/content.rs, crates/kition-kdm/tests/load_from.rs, crates/kition-kdm/tests/fixtures/content/**, docs/platform/data-model.md]
+    cases: [sdk.model.content-encoding/canonical-bytes, sdk.model.content-encoding/load-from]
     since: "2026-11-24"
   - id: sdk.host.document-fork
     title: A host reads the docId a file carries and forks a file into a new document through the kit (Kit Process Protocol document.identity, document.fork)

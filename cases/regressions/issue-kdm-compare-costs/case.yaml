@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-kdm-compare-costs
+feature: sdk.model.draft-merge
+intent: >-
+  A draft's comparison (compareChanges, Replica::compare_changes) and a merge's summary (mergeChanges, Replica::diff_since) read only the objects the merge writes and equal diff_states of the two whole states in every merging case and seed of the merge rules; a file read again whose state is the stored one is told apart in the store (Replica::same_state) without building either state. Before, each built the document's whole JSON state twice.
+layer: gate
+source: { kind: synthetic, from: plan 2026-11-24 plain model, state_json callers, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_rules }
+  - cargo-test: { package: kition-kit, test: model, filter: a_draft_is_compared_and_merged_through_the_engine_members }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

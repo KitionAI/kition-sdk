@@ -1150,7 +1150,7 @@ impl<D: KitDocument + Send + 'static> Headless<D> {
         let index = self.position(id)?;
         let open = &mut self.docs[index];
         let replica = read(&mut open.doc, &mut open.exchange).map_err(|error| model_error(&error))?;
-        Ok(kition_kit::kdm::tool_ids::ToolIds::of_replica(replica).show_json(&value))
+        Ok(kition_kit::kdm::tool_ids::ToolIds::show_reply(replica, &value))
     }
 }
 
@@ -1636,7 +1636,7 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
                     kition_kit::kdm::diff::diff_states(&plan.before_model, &now).without_texts().with_leaf_edits(replica.schema()).with_tool_ids(
                         replica.schema(),
                         &kition_kit::kdm::tool_ids::ToolIds::of_state(replica.schema(), &plan.before_model),
-                        &kition_kit::kdm::tool_ids::ToolIds::of_replica(replica),
+                        &replica.tool_ids(),
                     )
                 }
                 .to_recorded_json(replica.schema());

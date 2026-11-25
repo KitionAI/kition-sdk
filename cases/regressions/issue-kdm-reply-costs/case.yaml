@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-kdm-reply-costs
+feature: sdk.model.plain-store
+intent: >-
+  An agent's reply named in tool ids (an engine's modelReply, every ai/inspect, document/check and ai/run reply) costs about the reply, not the document: a reply naming no object of the replica comes back as it is without reading the tool ids (100 replies on a 100,000-object document well under a second), one naming objects reads them once per state (Replica::tool_ids, also used by model/describe, model/batch and receipts), and a change of the state, an undo included, reads them again, so an object made after the first reply is named. Before, every reply built the tool ids of the whole document (Kition Sheet measured 1.5 to 3.7 s a reply at 200,000 cells).
+layer: gate
+source: { kind: issue, from: Kition Sheet modelReply timing at 200,000 cells, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: reply_costs }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+timeout_s: 300
+since: "2026-11-25"

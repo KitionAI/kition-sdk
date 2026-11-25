@@ -679,7 +679,10 @@ bytes it read. What a kit whose file holds its model does:
 1. **Save.** `KitDocument::save(&self)` writes `content_snapshot()` into the
    file, inside its container.
 2. **Open, file alone.** `Replica::load(schema, content, actor)`: a replica
-   of the file's state on a new lineage, at `seq` 0.
+   of the file's state on a new lineage, at `seq` 0. `Replica::load_from(schema,
+   reader, actor)` reads the same bytes from a reader in chunks (a container's
+   entry streamed as it unpacks), so a large `content.json` is never held whole
+   beside the store; it answers and refuses what `load` does.
 3. **Open, with the host's stored snapshot** (`openReplica`):
    `Replica::load` of the snapshot, then `kition_kit::session::take_file(&mut
    stored, &file)`: nothing when both hold the same state; otherwise the

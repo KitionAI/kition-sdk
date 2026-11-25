@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.content-encoding/load-from
+feature: sdk.model.content-encoding
+intent: >-
+  Replica::load_from reads content from a reader in chunks, so a large content.json streamed from a container is never held whole beside the store: every fixture read one, two, three, seven or 4,096 bytes at a time is the replica Replica::load makes of its bytes (same version, snapshot and content bytes), what load refuses load_from refuses with the same kind of error, a failing reader is an encoding error, and a 20,000-entry document streamed 4 KB at a time saves to its bytes.
+layer: gate
+source: { kind: synthetic, from: plan 2026-11-24 plain model, large documents, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: load_from }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

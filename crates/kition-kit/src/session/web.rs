@@ -1,6 +1,5 @@
 //! The contract 2 members of the JavaScript class, as plain functions the export macro wraps.
 
-use kition_kdm::diff::diff_states;
 use kition_kdm::tool_ids::ToolIds;
 use kition_kdm::{Origin, UndoScope, Version};
 use serde_json::{Value, json};
@@ -130,8 +129,7 @@ pub fn __author_schema_version<D: KitSessionDocument>(document: &D) -> Option<u3
 #[doc(hidden)]
 pub fn __model_reply<D: KitSessionDocument>(document: &D, value: &str) -> Result<String, String> {
     let value: Value = serde_json::from_str(value).map_err(|error| format!("the reply is not JSON: {error}"))?;
-    let ids = ToolIds::of_replica(document.session().replica());
-    Ok(if ids.is_active() { ids.show_json(&value) } else { value }.to_string())
+    Ok(ToolIds::show_reply(document.session().replica(), &value).to_string())
 }
 
 /// An origin in the KDM's commit form, the JSON array `[kind, principal, label]`.
@@ -147,30 +145,25 @@ pub fn __execute_as<D: KitSessionDocument>(document: &mut D, command: &str, para
     KitSessionDocument::execute_as(document, command, params, &origin).map(|value| value.to_string())
 }
 
-/// The canonical state of the document's replica.
-fn state_json<D: KitSessionDocument>(document: &D) -> Result<Value, String> {
-    document.session().replica().state_json().map_err(|error| error.to_string())
-}
-
 /// A draft's changes taken into the document as one undo step of the person, recorded with
 /// `origin` (`[kind, principal, label]`): `{"damage": Damage, "summary": StateDiff}`, the summary
 /// the comparison of the document's states before and after. A refusal fails with the KDM's message.
 #[doc(hidden)]
 pub fn __merge_changes<D: KitSessionDocument>(document: &mut D, changes: &[u8], origin: &str) -> Result<String, String> {
     let origin = origin_of(origin)?;
-    let before = state_json(document)?;
+    let since = document.session().replica().version();
     let damage = KitSessionDocument::merge_changes(document, changes, &origin)?;
-    let after = state_json(document)?;
-    Ok(json!({ "damage": damage, "summary": diff_states(&before, &after).to_json() }).to_string())
+    // What the merge and the kit's repair after it changed, read only at the objects they wrote,
+    // not two whole states (the log holds `since`: it keeps at least the merge).
+    let summary = document.session().replica().diff_since(&since).map_err(|error| error.to_string())?;
+    Ok(json!({ "damage": damage, "summary": summary.to_json() }).to_string())
 }
 
 /// What merging a draft's changes would change in the document now, as `StateDiff` JSON; nothing
 /// changes. Refuses what the merge refuses.
 #[doc(hidden)]
 pub fn __compare_changes<D: KitSessionDocument>(document: &D, changes: &[u8]) -> Result<String, String> {
-    let before = state_json(document)?;
-    let after = document.session().replica().merged_state(changes).map_err(|error| error.to_string())?;
-    Ok(diff_states(&before, &after).to_json().to_string())
+    Ok(document.session().replica().compare_changes(changes).map_err(|error| error.to_string())?.to_json().to_string())
 }
 
 /// Writes the state `snapshot` holds (a snapshot or the content of this document, as a checkpoint

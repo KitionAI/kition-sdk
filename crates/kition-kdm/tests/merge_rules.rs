@@ -9,6 +9,7 @@ mod common;
 use std::collections::{BTreeMap, BTreeSet};
 
 use common::{fields, person, schema};
+use kition_kdm::diff::diff_states;
 use kition_kdm::{ActorId, DocId, KdmError, MergeAt, NodeRef, ObjectId, Origin, Replica, TreeEntry};
 use serde_json::{Value, json};
 
@@ -59,9 +60,14 @@ fn merge(live: &mut Replica, draft: &Replica, base: &kition_kdm::Version) -> Val
     let before = live.state_json().expect("state");
     let preview = live.merged_state(&changes).expect("preview");
     assert_eq!(live.state_json().expect("state"), before, "a preview changes nothing");
+    // The comparison read at the objects the merge writes is the comparison of the whole states.
+    let compared = live.compare_changes(&changes).expect("compare").to_json();
+    assert_eq!(compared, diff_states(&before, &preview).to_json(), "compare_changes");
+    let since = live.version();
     live.merge_changes(&changes, &agent()).expect("merge");
     let merged = live.state_json().expect("state");
     assert_eq!(merged, preview, "the preview is the merge");
+    assert_eq!(live.diff_since(&since).expect("diff since").to_json(), compared, "diff_since");
     if merged == before {
         // The draft's edits changed nothing here (a move to where the item was, a key both set
         // to one value): an undo passes over such a step (data model 6.5) to the person's own.

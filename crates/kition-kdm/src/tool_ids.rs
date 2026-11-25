@@ -123,6 +123,29 @@ impl Source for State<'_> {
     }
 }
 
+/// Whether `value` holds an id of an object of `replica`: as a string, a key, or a `:`-separated
+/// part of a key (the forms [`ToolIds::show_json`] renames). Iterative, so a reply of any depth.
+fn names_an_object(replica: &Replica, value: &Value) -> bool {
+    let named = |text: &str| replica.exists(&ObjectId::from_string(text));
+    let mut stack = vec![value];
+    while let Some(value) = stack.pop() {
+        match value {
+            Value::String(text) if named(text) => return true,
+            Value::Array(items) => stack.extend(items),
+            Value::Object(members) => {
+                for (key, member) in members {
+                    if named(key) || (key.contains(':') && key.split(':').any(named)) {
+                        return true;
+                    }
+                    stack.push(member);
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// One object's tool id as rendered: its type, the id, and the value it ends with.
 #[derive(Clone, Debug)]
 struct Named {
@@ -448,6 +471,18 @@ impl ToolIds {
     /// How the object is named at the tool interface: its tool id, else its object id.
     pub fn show(&self, id: &ObjectId) -> String {
         self.tool_id(id).map_or_else(|| id.to_string(), str::to_owned)
+    }
+
+    /// [`ToolIds::show_json`] of `value` with `replica`'s tool ids ([`Replica::tool_ids`], read
+    /// once per state), reading none when the schema declares no tool ids or `value` names no
+    /// object of the replica (no string, key or `:`-separated part of a key is an object id):
+    /// then `value` as it is, which is what `show_json` would answer. An agent's replies pass
+    /// through here, so a reply naming nothing costs its own size, not the document's.
+    pub fn show_reply(replica: &Replica, value: &Value) -> Value {
+        if !replica.schema().has_tool_ids() || !names_an_object(replica, value) {
+            return value.clone();
+        }
+        replica.tool_ids().show_json(value)
     }
 
     /// References nested in JSON/maps use the same names as direct references. Only exact

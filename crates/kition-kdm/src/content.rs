@@ -167,6 +167,34 @@ pub(crate) fn read(bytes: &[u8], what: &str, schema: &Schema) -> Result<Read> {
     Ok(read)
 }
 
+/// [`read`] of the bytes `reader` yields, taken in chunks as the parser needs them, so the caller
+/// need not hold the whole content beside the store it fills. A failure to read them is
+/// [`KdmError::Encoding`].
+pub(crate) fn read_from(mut reader: impl std::io::Read, what: &str, schema: &Schema) -> Result<Read> {
+    let failed_io = |error: std::io::Error| KdmError::Encoding(format!("not {what}: {error}"));
+    // The first three bytes, for the byte order mark.
+    let mut head = [0u8; 3];
+    let mut held = 0;
+    while let Some(rest) = head.get_mut(held..).filter(|rest| !rest.is_empty()) {
+        match reader.read(rest) {
+            Ok(0) => break,
+            Ok(count) => held += count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(failed_io(error)),
+        }
+    }
+    let start = head.get(..held).unwrap_or_default();
+    if start == [0xEF, 0xBB, 0xBF] {
+        return Err(KdmError::Encoding(format!("not {what}: the bytes start with a byte order mark")));
+    }
+    let failed = |error: serde_json::Error| KdmError::Encoding(format!("not {what}: {error}"));
+    let bytes = std::io::BufReader::with_capacity(64 << 10, std::io::Read::chain(start, reader));
+    let mut deserializer = serde_json::Deserializer::from_reader(bytes);
+    let read = Top { schema }.deserialize(&mut deserializer).map_err(failed)?;
+    deserializer.end().map_err(failed)?;
+    Ok(read)
+}
+
 /// Content from what [`read`] read (a file's content, or a snapshot). Refuses
 /// ([`KdmError::Encoding`]) what is not this encoding: an unknown or missing header key, a header
 /// value of the wrong shape, a UUID not in lowercase hyphenated form, an object without a string

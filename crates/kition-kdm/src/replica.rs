@@ -14,6 +14,7 @@ use crate::store::op::{Change, Op, inverse_all};
 use crate::store::scalar::Scalar;
 use crate::store::transform::{edits_any, exclude, inverse_with_places, sequences_of, through};
 use crate::store::{Field, Store};
+use crate::tool_ids::ToolIds;
 use crate::{ActorId, Changes, DocId, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
 
 /// The undo steps a scope keeps; the oldest beyond go.
@@ -289,6 +290,9 @@ pub struct Replica {
     changed: Changes,
     /// The newest schema version a change this replica applied was written under (rule M5a).
     author_schema: Option<u32>,
+    /// The tool ids of the current state, once read ([`Replica::tool_ids`]); every change of the
+    /// state drops them ([`Replica::state_changed`]).
+    tool_ids: std::sync::Mutex<Option<Arc<ToolIds>>>,
 }
 
 impl Replica {
@@ -334,7 +338,26 @@ impl Replica {
             grouping: false,
             changed: Changes::default(),
             author_schema: None,
+            tool_ids: std::sync::Mutex::new(None),
         }
+    }
+
+    /// Drops what was read from the state before it changed (the tool ids).
+    fn state_changed(&mut self) {
+        *self.tool_ids.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+
+    /// The tool ids of the current state ([`ToolIds::of_replica`]), read once per state: calls
+    /// with no change between them answer one table without reading the document again (an
+    /// engine names every agent reply with them, `modelReply`).
+    pub fn tool_ids(&self) -> Arc<ToolIds> {
+        let mut held = self.tool_ids.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(ids) = held.as_ref() {
+            return Arc::clone(ids);
+        }
+        let ids = Arc::new(ToolIds::of_replica(self));
+        *held = Some(Arc::clone(&ids));
+        ids
     }
 
     /// Opens content (a file's `content.json`, on a new line of changes) or a snapshot (the
@@ -344,6 +367,20 @@ impl Replica {
     /// bytes that are not content.
     pub fn load(schema: Arc<Schema>, bytes: &[u8], actor: ActorId) -> Result<Self> {
         let read = content::read(bytes, "KDM content", &schema)?;
+        Self::loaded(schema, read, actor)
+    }
+
+    /// [`Replica::load`] of the bytes `reader` yields, read in chunks as the parser needs them: a
+    /// large `content.json` streamed from a file or a container's entry is never held whole beside
+    /// the store it fills. Answers and refuses what `load` does for the same bytes (an error
+    /// reading them is [`KdmError::Encoding`]).
+    pub fn load_from(schema: Arc<Schema>, reader: impl std::io::Read, actor: ActorId) -> Result<Self> {
+        let read = content::read_from(reader, "KDM content", &schema)?;
+        Self::loaded(schema, read, actor)
+    }
+
+    /// The replica of what [`content::read`] read.
+    fn loaded(schema: Arc<Schema>, read: content::Read, actor: ActorId) -> Result<Self> {
         if read.top.as_ref().is_some_and(|top| top.contains_key("changes")) {
             return Err(KdmError::Encoding("not a snapshot: these are changes only (load a snapshot or content)".into()));
         }
@@ -431,6 +468,7 @@ impl Replica {
     /// Logs an applied change as the next one (an undo or a redo with the changes it `cancels`);
     /// answers its `seq`.
     fn commit(&mut self, origin: &Origin, ops: Ops, schema_version: u32, cancels: Vec<u64>) -> u64 {
+        self.state_changed();
         self.seq += 1;
         let size = if ops.inverted { 96 } else { 96 + size_of_ops(&ops.ops) };
         self.author_schema = self.author_schema.max(Some(schema_version));
@@ -617,6 +655,7 @@ impl Replica {
             }
             match self.store.apply_all_checked(change.ops, &self.schema) {
                 Ok(applied) => {
+                    self.state_changed();
                     changed.extend(changes_of(&applied));
                     self.seq = change.seq;
                     let ops = Ops::plain(applied);
@@ -668,6 +707,7 @@ impl Replica {
         }
         self.log.truncate(seq);
         self.seq = seq;
+        self.state_changed();
         Ok(())
     }
 
@@ -718,6 +758,7 @@ impl Replica {
             }
         }
         self.store = store;
+        self.state_changed();
         self.author_schema = self.author_schema.max(version.author_schema_version.and_then(|author| u32::try_from(author).ok()));
         self.lineage = version.lineage;
         self.seq = version.seq;
@@ -1103,6 +1144,55 @@ impl Replica {
         merged.state_json()
     }
 
+    /// What merging `changes` (a draft's) would change in this replica now, without changing it:
+    /// [`crate::diff::diff_states`] of the state now and [`Replica::merged_state`], read only at
+    /// the objects the merge writes instead of building both whole states (a draft's comparison,
+    /// `compareChanges`). Refuses what the merge refuses.
+    pub fn compare_changes(&self, changes: &[u8]) -> Result<crate::diff::StateDiff> {
+        let mut merged = self.fork(self.actor)?;
+        merged.log = self.log.clone();
+        let touched = merged.merge_changes(changes, &Origin::system("merged-state"))?;
+        diff_of_objects(&self.store, &merged.store, &self.schema, &touched)
+    }
+
+    /// [`crate::diff::diff_states`] of the state at `since` (a version this replica reached and its
+    /// log holds, else [`KdmError::HistoryMissing`]) and the state now, read only at the objects
+    /// the changes since then wrote: what a merge and the kit's repair after it changed, for the
+    /// summary a merge answers.
+    pub fn diff_since(&self, since: &Version) -> Result<crate::diff::StateDiff> {
+        if !self.version().includes(since) {
+            return Err(KdmError::HistoryMissing(VERSION_NOT_HELD.into()));
+        }
+        let before = self.fork_at(since, self.actor)?;
+        let touched = self.touched_since(since.0.map_or(0, |(_, seq)| seq));
+        diff_of_objects(&before.store, &self.store, &self.schema, &touched)
+    }
+
+    /// The objects the logged changes after `seq` wrote: each operation's object, and the owners
+    /// of the trees a creation or deletion placed or took a node in.
+    fn touched_since(&self, seq: u64) -> BTreeSet<ObjectId> {
+        let mut touched: BTreeSet<ObjectId> = BTreeSet::new();
+        for entry in self.log.after(seq) {
+            for op in entry.ops.forward() {
+                if let Some(id) = op.object() {
+                    touched.insert(id.clone());
+                }
+                if let Op::Delete { trees, .. } | Op::Create { trees, .. } = &op {
+                    touched.extend(trees.iter().map(|place| place.owner.clone()));
+                }
+            }
+        }
+        touched
+    }
+
+    /// Whether this replica and `other` hold the same objects, field by field (and one document,
+    /// kit and minimum schema version), compared in the store without building either state: when
+    /// true, their [`Replica::state_json`] are equal. (When false they may still be, when one
+    /// holds list entries or tree nodes naming no object that the other's content left out.)
+    pub fn same_state(&self, other: &Replica) -> bool {
+        self.store.same_objects(&other.store)
+    }
+
     /// The collisions that refuse merging `changes` (a draft's) into this replica now
     /// ([`Replica::merge_changes`], data model 6.6, rules D2 to D8), each naming the object, the
     /// field and the map key, list item or tree node; empty when the merge would apply. Refuses
@@ -1231,18 +1321,7 @@ impl Replica {
             return Ok(crate::diff::diff_objects(&[], &Map::new(), &Map::new(), &|_| None, false));
         }
         let before = self.fork_at(since, self.actor)?;
-        let seq = since.0.map_or(0, |(_, seq)| seq);
-        let mut touched: BTreeSet<ObjectId> = BTreeSet::new();
-        for entry in self.log.after(seq) {
-            for op in entry.ops.forward() {
-                if let Some(id) = op.object() {
-                    touched.insert(id.clone());
-                }
-                if let Op::Delete { trees, .. } | Op::Create { trees, .. } = &op {
-                    touched.extend(trees.iter().map(|place| place.owner.clone()));
-                }
-            }
-        }
+        let touched = self.touched_since(since.0.map_or(0, |(_, seq)| seq));
         let read = |store: &Store| -> Result<Map<String, Value>> {
             let mut objects = Map::new();
             for id in &touched {
@@ -1259,7 +1338,7 @@ impl Replica {
             read::object_type(&self.store, &id).or_else(|_| read::object_type(&before.store, &id)).ok()
         };
         let diff = crate::diff::diff_objects(&ids, &old, &new, &type_of_id, false).with_leaf_edits(schema);
-        Ok(diff.with_tool_ids(schema, &crate::tool_ids::ToolIds::of_replica(&before), &crate::tool_ids::ToolIds::of_replica(self)))
+        Ok(diff.with_tool_ids(schema, &ToolIds::of_replica(&before), &self.tool_ids()))
     }
 
     /// SHA-256 of the canonical state, as lowercase hex.
@@ -1267,6 +1346,31 @@ impl Replica {
         let digest = Sha256::digest(self.state_json()?.to_string().as_bytes());
         Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
     }
+}
+
+/// [`crate::diff::diff_states`] of two states of one document, `before` and `after`, read only at
+/// `touched` (the objects every change between them wrote), nodes naming no object left out as
+/// `diff_states` leaves them.
+fn diff_of_objects(before: &Store, after: &Store, schema: &Schema, touched: &BTreeSet<ObjectId>) -> Result<crate::diff::StateDiff> {
+    let read = |store: &Store| -> Result<Map<String, Value>> {
+        let mut objects = Map::new();
+        for id in touched {
+            if store.contains(id) {
+                let mut object = read::object_json(store, schema, id)?;
+                crate::diff::with_live_nodes(&mut object, &|node: &str| store.contains(&ObjectId::from_string(node)));
+                objects.insert(id.to_string(), object);
+            }
+        }
+        Ok(objects)
+    };
+    let (old, new) = (read(before)?, read(after)?);
+    let mut ids: Vec<String> = touched.iter().map(ToString::to_string).collect();
+    ids.sort();
+    let type_of_id = |id: &str| {
+        let id = ObjectId::from_string(id);
+        read::object_type(after, &id).or_else(|_| read::object_type(before, &id)).ok()
+    };
+    Ok(crate::diff::diff_objects(&ids, &old, &new, &type_of_id, true))
 }
 
 /// The objects and fields applied operations wrote, one touch per object sorted by id (see
