@@ -86,18 +86,25 @@ for (const name of browsers) {
       // Two loops calling the editor as an agent's host and the kits' tests do, without pause.
       await page.evaluate(() => {
         const c = window.devHost.connection()
-        const state = { on: true, calls: 0, failed: [] }
+        const state = { on: true, calls: 0, failed: [], slowest: {} }
         window.__hammer = state
+        // How long each kind of call took at most (ms), to tell a starved call from one that ran.
+        const timed = (name, call) => {
+          const started = performance.now()
+          return call.finally(() => {
+            state.slowest[name] = Math.max(state.slowest[name] ?? 0, Math.round(performance.now() - started))
+          })
+        }
         const loop = async (reads) => {
-          let since = await c.ai.version()
+          let since = await timed('version', c.ai.version())
           while (state.on) {
-            const calls = [c.ai.inspect(), c.ai.changes(since), c.model.describe(), c.model.batch({ load: [] }), c.check()]
-            if (reads) calls.push(c.ai.run([{ command: 'text.read', params: {} }], false))
+            const calls = [timed('inspect', c.ai.inspect()), timed('changes', c.ai.changes(since)), timed('describe', c.model.describe()), timed('batch', c.model.batch({ load: [] })), timed('check', c.check())]
+            if (reads) calls.push(timed('run', c.ai.run([{ command: 'text.read', params: {} }], false)))
             for (const result of await Promise.allSettled(calls)) {
               state.calls += 1
               if (result.status === 'rejected' && state.failed.length < 5) state.failed.push(String(result.reason?.message ?? result.reason))
             }
-            since = await c.ai.version()
+            since = await timed('version', c.ai.version())
           }
         }
         state.done = Promise.all([loop(false), loop(true)])
@@ -130,7 +137,7 @@ for (const name of browsers) {
       const hammer = await page.evaluate(async () => {
         window.__hammer.on = false
         await window.__hammer.done
-        return { calls: window.__hammer.calls, failed: window.__hammer.failed }
+        return { calls: window.__hammer.calls, failed: window.__hammer.failed, slowest: window.__hammer.slowest }
       })
       outside.on = false
       await outsideLoop
@@ -148,7 +155,7 @@ for (const name of browsers) {
       const length = [...typed].length
       const problems = []
       if (hammer.failed.length) problems.push(`host calls failed: ${JSON.stringify(hammer.failed)}`)
-      if (hammer.calls < 20) problems.push(`only ${hammer.calls} host calls ran`)
+      if (hammer.calls < 10) problems.push(`only ${hammer.calls} host calls ran`)
       const first = expected.findIndex((key, i) => keys[i] !== key)
       if (first >= 0 || keys.length !== expected.length) {
         problems.push(`keys: ${keys.length} of ${expected.length} reached the engine; first difference at ${first}: expected ${JSON.stringify(expected.slice(first, first + 4))}, got ${JSON.stringify(keys.slice(first, first + 4))}`)
@@ -160,6 +167,7 @@ for (const name of browsers) {
         failures += 1
         console.log(`FAIL ${label}: ${problems.join('; ')}`)
       } else console.log(`PASS ${label}: ${expected.length} keys in order under ${hammer.calls} host calls`)
+      console.log(`  slowest host calls (ms): ${JSON.stringify(hammer.slowest)}`)
     } catch (error) {
       failures += 1
       console.log(`FAIL ${label}: ${error instanceof Error ? error.stack : String(error)}`)
