@@ -1,0 +1,13 @@
+format: 1
+id: regressions/issue-kdm-undo-trimmed-log
+feature: sdk.model.plain-store
+intent: >-
+  An undo step whose changes the replica's log no longer holds is dropped when the log trims, so an undo never carries a step over an incomplete log (it turned "Xabc" into "c").
+layer: gate
+source: { kind: synthetic, from: review of the plain KDM (ccaf383), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: undo_steps_older_than_the_log_are_dropped_when_the_log_trims }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

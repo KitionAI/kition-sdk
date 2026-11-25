@@ -8,6 +8,7 @@
 //! ([`KdmError::Stale`]), and answers the operation as applied, with what its inverse
 //! ([`op::inverse`]) needs.
 
+pub(crate) mod check;
 pub(crate) mod op;
 pub(crate) mod text;
 pub(crate) mod transform;
@@ -719,6 +720,22 @@ impl Store {
         Ok(applied)
     }
 
+    /// [`Store::apply_all`] for operations from another replica: each checked against the schema
+    /// on the state it applies to ([`check::checked`]) before it applies.
+    pub(crate) fn apply_all_checked(&mut self, ops: Vec<Op>, schema: &Schema) -> Result<Vec<Op>> {
+        let mut applied = Vec::with_capacity(ops.len());
+        for op in ops {
+            match check::checked(op, self, schema).and_then(|op| self.apply(op, schema)) {
+                Ok(done) => applied.push(done),
+                Err(error) => {
+                    self.revert(&applied, schema);
+                    return Err(error);
+                }
+            }
+        }
+        Ok(applied)
+    }
+
     /// Undoes applied operations, last first.
     pub(crate) fn revert(&mut self, applied: &[Op], schema: &Schema) {
         for op in op::inverse_all(applied.iter()) {
@@ -732,7 +749,24 @@ impl Store {
     /// nothing left to act on (its object, node or item gone).
     pub(crate) fn fit(&self, op: Op) -> Option<Op> {
         match op {
-            Op::Create { ref id, .. } => (!self.contains(id)).then_some(op),
+            Op::Create { id, object, trees } => {
+                if self.contains(&id) {
+                    return None;
+                }
+                // Each place fitted as a `TreeCreate`'s is: a parent no longer in the tree makes a
+                // root, the index is clamped to the siblings, and a tree whose owner is gone is
+                // left out.
+                let trees = trees
+                    .into_iter()
+                    .filter_map(|place| {
+                        let tree = self.tree(&place.owner, &place.field).ok()?;
+                        let parent = place.parent.filter(|parent| tree.is_some_and(|tree| tree.contains(parent)));
+                        let siblings = tree.map_or(0, |tree| tree.children(parent.as_ref()).len());
+                        Some(TreePlace { index: place.index.min(siblings), parent, owner: place.owner, field: place.field })
+                    })
+                    .collect();
+                Some(Op::Create { id, object, trees })
+            }
             Op::Delete { ref id, .. } => {
                 let free = self
                     .holders(id)

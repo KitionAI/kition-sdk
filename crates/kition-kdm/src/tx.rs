@@ -21,7 +21,7 @@ const VALUE_DEPTH: usize = crate::content::MAX_DEPTH - 9;
 
 /// The refusal of a value nested deeper than [`VALUE_DEPTH`], checked without recursion (before
 /// anything that walks the value recursively).
-fn nesting_refusal(ty: &str, field: &str, value: &Value) -> Result<()> {
+pub(crate) fn nesting_refusal(ty: &str, field: &str, value: &Value) -> Result<()> {
     let mut open = vec![(value, 1_usize)];
     while let Some((value, depth)) = open.pop() {
         match value {
@@ -202,26 +202,39 @@ impl<'a> Tx<'a> {
         Ok(())
     }
 
-    /// Refuses to delete `id` when a node naming it, in any tree field that may hold it, has a
-    /// child.
+    /// Refuses to delete `id` when a node naming it, in any tree field that holds it, has a live
+    /// child. Looks only at the trees that hold `id`: those of the document (the store's index of
+    /// tree members) and those this transaction staged, so deleting `k` objects costs about `k`
+    /// lookups, not `k` passes over the document.
     fn refuse_live_children(&self, id: &ObjectId) -> Result<()> {
-        let ty = self.type_of(id)?;
-        let schema: &'a Schema = self.schema;
-        for (owner_type, def) in &schema.types {
-            for (field, field_def) in &def.fields {
-                if field_def.kind != FieldKind::Tree || field_def.of.as_deref().is_some_and(|of| of != ty) {
-                    continue;
+        let mut trees: Vec<(ObjectId, &'a str)> = Vec::new();
+        for (owner, field) in self.store.holders(id) {
+            if let Ok((_, name, _)) = self.field(owner, field) {
+                trees.push((owner.clone(), name));
+            }
+        }
+        trees.extend(self.overlay.trees.iter().filter(|(_, state)| state.contains(id)).map(|((owner, name), _)| (owner.clone(), *name)));
+        trees.sort_unstable();
+        trees.dedup();
+        let live = |child: &ObjectId| child != id && self.exists(child);
+        for (owner, name) in trees {
+            if !self.exists(&owner) {
+                continue;
+            }
+            let has_child = match self.overlay.trees.get(&(owner.clone(), name)) {
+                Some(state) => {
+                    let under = |child: &ObjectId| state.parent(child).flatten().as_ref() == Some(id);
+                    state.committed.is_some_and(|tree| tree.children(Some(id)).iter().any(|child| under(child) && live(child)))
+                        || state.parents.iter().any(|(child, parent)| parent.as_ref() == Some(id) && under(child) && live(child))
                 }
-                for owner in self.objects_of_type(owner_type) {
-                    let (children, _) = self.tree_view(&owner, field)?;
-                    if children.get(&Some(id.clone())).is_some_and(|children| children.iter().any(|child| child != id && self.exists(child))) {
-                        return Err(KdmError::InvalidValue {
-                            ty: owner_type.clone(),
-                            field: field.clone(),
-                            reason: format!("`{id}` has children in the tree: delete or move them first"),
-                        });
-                    }
-                }
+                None => matches!(self.store.field(&owner, name), Some(Field::Tree(tree)) if tree.children(Some(id)).iter().any(live)),
+            };
+            if has_child {
+                return Err(KdmError::InvalidValue {
+                    ty: self.type_of(&owner)?.to_owned(),
+                    field: name.to_owned(),
+                    reason: format!("`{id}` has children in the tree: delete or move them first"),
+                });
             }
         }
         Ok(())

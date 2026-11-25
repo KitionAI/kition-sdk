@@ -655,10 +655,9 @@ fn list_items_naming_no_object_are_left_out_when_saved_and_refused_when_read() {
     assert_bytes(&read.content_snapshot().unwrap(), expected.as_bytes(), "saved again");
     // A snapshot holds the state exactly: a replica loaded from it at its version holds the entry,
     // and the kit's removal of it, made on the writer, imports.
-    let follower = Replica::load(schema(), &replica.snapshot().unwrap(), actor()).unwrap();
+    let mut follower = Replica::load(schema(), &replica.snapshot().unwrap(), actor()).unwrap();
     assert_eq!(follower.list(&id("b"), "pages").unwrap(), vec![id("p1"), id("p2")]);
     assert_bytes(&follower.snapshot().unwrap(), &replica.snapshot().unwrap(), "the snapshot saved again");
-    let mut follower = follower;
     let at = replica.version();
     replica.transact(&person(), |tx| tx.list_remove(&id("b"), "pages", 1)).unwrap();
     follower.import_changes(&replica.export_changes(&at).unwrap()).unwrap();

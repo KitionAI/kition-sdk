@@ -88,15 +88,25 @@ impl Text {
         out
     }
 
-    /// A text of these runs (marks with `null` values dropped).
+    /// A text of these runs (marks with `null` values dropped, empty runs dropped, adjacent runs
+    /// with equal marks merged), in one pass: linear in the runs' length.
     pub(crate) fn from_runs(runs: &[TextRun]) -> Self {
-        let mut text = Self::default();
+        let mut whole = String::new();
+        let mut merged: Vec<Run> = Vec::new();
         for run in runs {
+            let len = run.insert.chars().count();
+            if len == 0 {
+                continue;
+            }
             let marks: Marks = run.attributes.iter().filter(|(_, value)| !value.is_null()).map(|(key, value)| (key.clone(), value.clone())).collect();
-            let at = text.len;
-            text.insert(at, &run.insert, marks);
+            whole.push_str(&run.insert);
+            match merged.last_mut() {
+                Some(last) if last.marks == marks => last.len += len,
+                _ => merged.push(Run { len, marks }),
+            }
         }
-        text
+        let len = merged.iter().map(|run| run.len).sum();
+        Self { chunks: pieces(&whole), len, runs: merged }
     }
 
     /// A text without marks.

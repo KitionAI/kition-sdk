@@ -1,0 +1,14 @@
+format: 1
+id: regressions/issue-kdm-import-schema-checks
+feature: sdk.model.plain-store
+intent: >-
+  Imported and merged operations are checked against the schema like a transaction's (field kinds, values, integers within 2^53, nesting, item types, canonical values); a refused import or merge changes nothing.
+layer: gate
+source: { kind: synthetic, from: review of the plain KDM (ccaf383), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: an_import_the_schema_refuses_is_refused_whole }
+  - cargo-test: { package: kition-kdm, test: undo_and_imports, filter: a_merge_the_schema_refuses_is_refused_whole }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

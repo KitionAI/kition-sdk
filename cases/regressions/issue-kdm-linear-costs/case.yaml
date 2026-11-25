@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-kdm-linear-costs
+feature: sdk.model.plain-store
+intent: >-
+  Loading a text of many runs, deleting 20,000 objects of 200,000, and undoing a 100,000-operation change carried over a later edit take linear time and no deep recursion.
+layer: gate
+source: { kind: synthetic, from: review of the plain KDM (ccaf383), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: scale, filter: text_of_100000_runs_loads_in_linear_time }
+  - cargo-test: { package: kition-kdm, test: scale, filter: deleting_20000_objects_of_200000_is_linear }
+  - cargo-test: { package: kition-kdm, test: scale, filter: undoing_a_100000_operation_change_carried_over_a_later_edit_is_linear }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

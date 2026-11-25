@@ -380,7 +380,11 @@ impl Replica {
         self.seq += 1;
         let size = if ops.inverted { 96 } else { 96 + size_of_ops(&ops.ops) };
         self.author_schema = self.author_schema.max(Some(schema_version));
+        let base = self.log.base;
         self.log.push(Entry { seq: self.seq, actor: self.actor, origin: origin.clone(), schema_version, ops, size });
+        if self.log.base != base {
+            self.undo.drop_before(self.log.base);
+        }
         self.seq
     }
 
@@ -492,7 +496,10 @@ impl Replica {
     ///
     /// Changes: those this replica has already are skipped, so importing twice is harmless; the
     /// first new one must follow this replica's version, else [`KdmError::Stale`] and nothing
-    /// changes, as when an operation's precondition does not hold. A snapshot replaces the state
+    /// changes, as when an operation's precondition does not hold. Each operation is checked
+    /// against the schema as a transaction's is (a field used as another kind, a value a
+    /// transaction refuses, an item of another type): a refusal is the transaction's error
+    /// ([`KdmError::InvalidValue`]) and the whole import is refused. A snapshot replaces the state
     /// when it is on this replica's line and not behind it (or when this replica has applied no
     /// change yet), else [`KdmError::Stale`]. Bytes that are neither are [`KdmError::Encoding`];
     /// another document's are [`KdmError::WrongDocument`]; changes that raise the minimum schema
@@ -549,14 +556,18 @@ impl Replica {
                 failure = Some(KdmError::Stale(format!("change {} does not follow version {}", change.seq, self.seq)));
                 break;
             }
-            match self.store.apply_all(change.ops, &self.schema) {
+            match self.store.apply_all_checked(change.ops, &self.schema) {
                 Ok(applied) => {
                     changed.extend(changes_of(&applied));
                     self.seq = change.seq;
                     let ops = Ops::plain(applied);
                     let size = 96 + size_of_ops(&ops.ops);
                     self.author_schema = self.author_schema.max(Some(change.schema_version));
+                    let base = self.log.base;
                     self.log.push(Entry { seq: change.seq, actor: change.actor, origin: change.origin, schema_version: change.schema_version, ops, size });
+                    if self.log.base != base {
+                        self.undo.drop_before(self.log.base);
+                    }
                 }
                 Err(error) => {
                     failure = Some(error);
@@ -950,9 +961,10 @@ impl Replica {
     /// list the other side also edited would land in the wrong place. Also refused: another
     /// document's changes ([`KdmError::WrongDocument`]), changes that do not follow a version of
     /// this replica ([`KdmError::Stale`]), and changes that raise the minimum schema version beyond
-    /// this replica's ([`KdmError::NewerSchema`]). A refused merge changes nothing.
+    /// this replica's ([`KdmError::NewerSchema`]), and operations the schema refuses, checked as
+    /// [`Replica::import_changes`] checks them. A refused merge changes nothing.
     pub fn merge_changes(&mut self, changes: &[u8], origin: &Origin) -> Result<BTreeSet<ObjectId>> {
-        let value: Value = serde_json::from_slice(changes).map_err(|error| KdmError::Encoding(format!("not KDM changes: {error}")))?;
+        let value = content::parse(changes, "KDM changes")?;
         let doc_id = DocId::parse(value.get("docId").and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("not KDM changes: no `docId`".into()))?)?;
         if doc_id != self.store.doc_id {
             return Err(KdmError::WrongDocument { expected: self.store.doc_id.to_string(), found: doc_id.to_string() });
@@ -991,7 +1003,7 @@ impl Replica {
             }
         }
         let schema = Arc::clone(&self.schema);
-        let applied = self.store.apply_all(ops, &schema)?;
+        let applied = self.store.apply_all_checked(ops, &schema)?;
         if self.store.schema_version > u64::from(schema.schema_version) {
             let found = self.store.schema_version;
             self.store.revert(&applied, &schema);
@@ -1080,6 +1092,10 @@ fn conflicts(theirs: &[Op], ours: &[Op]) -> Vec<String> {
         let mut objects = BTreeSet::new();
         let mut deleted = BTreeSet::new();
         for op in ops {
+            // Placing or taking a node in a tree writes the owner's tree field.
+            if let Op::Create { trees, .. } | Op::Delete { trees, .. } = op {
+                fields.extend(trees.iter().map(|place| (place.owner.clone(), place.field.to_string())));
+            }
             let Some(id) = op.object() else { continue };
             objects.insert(id.clone());
             match (op, op.field()) {
@@ -1230,6 +1246,21 @@ impl Histories {
         match scope {
             UndoScope::Person => &mut self.person,
             UndoScope::Agent => &mut self.agent,
+        }
+    }
+
+    /// Drops the undo and redo steps with a part older than `base`, the log's first change: an
+    /// undo carries a part's inverse over every change logged after it ([`through`]), and the log
+    /// no longer holds all of those, so the transform would be silently wrong.
+    fn drop_before(&mut self, base: u64) {
+        for history in [&mut self.person, &mut self.agent] {
+            let held = |step: &Step| step.parts.iter().all(|part| part.seq >= base);
+            let had = history.undo.len();
+            history.undo.retain(held);
+            history.redo.retain(held);
+            if history.undo.len() < had && history.undo.is_empty() {
+                history.grouped = false;
+            }
         }
     }
 

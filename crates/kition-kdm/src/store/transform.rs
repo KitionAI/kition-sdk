@@ -6,21 +6,38 @@
 //! is one line, so this is a plain transform of one sequence of operations against another, not a
 //! merge.
 //!
-//! Only operations on the same text or list field affect each other; any other operation passes
-//! unchanged. Positions that no longer fit are fitted when the undo applies ([`super::Store::fit`]).
+//! Tree positions are carried the same way: a node's place among its siblings is a position in
+//! the sequence of the parent's children, which tree operations, and creations and deletions of
+//! objects that are nodes, insert into and remove from ([`tree_pair`]).
+//!
+//! Only operations on the same text, list or tree field affect each other; any other operation
+//! passes unchanged. Positions that no longer fit are fitted when the undo applies
+//! ([`super::Store::fit`]). The transform walks the operations with loops, not recursion, so a
+//! change of any length transforms in time linear in its length for each operation since that
+//! touches its fields.
 
 use std::collections::HashSet;
 
-use super::op::Op;
+use super::op::{Name, Op, TreePlace};
 use crate::ObjectId;
+
+/// The text, list or tree fields an operation edits the positions of: its own field for a text,
+/// list or tree operation, and the trees it places its object in for a creation or deletion.
+fn sequences(op: &Op) -> Vec<(&ObjectId, &str)> {
+    match op {
+        Op::Create { trees, .. } | Op::Delete { trees, .. } => trees.iter().map(|place| (&place.owner, &*place.field)).collect(),
+        Op::TreeCreate { id, field, .. } | Op::TreeMove { id, field, .. } | Op::TreeDelete { id, field, .. } => vec![(id, &**field)],
+        op if is_sequence_edit(op) => op.object().zip(op.field()).map(|(id, field)| (id, &**field)).into_iter().collect(),
+        _ => Vec::new(),
+    }
+}
 
 /// `ops` (applied in order on a state) carried over `later` (applied in order on that same
 /// state), so they apply in order after `later`; and whether any of `later` moved them. List
 /// moves come out as the removal and the insertion they are.
 pub(crate) fn through(ops: Vec<Op>, later: &[Op]) -> (Vec<Op>, bool) {
-    let fields: HashSet<(&ObjectId, &str)> = ops.iter().filter(|op| is_sequence_edit(op)).filter_map(|op| Some((op.object()?, &**op.field()?))).collect();
-    let touching: Vec<&Op> =
-        later.iter().filter(|op| is_sequence_edit(op) && op.object().zip(op.field()).is_some_and(|(id, field)| fields.contains(&(id, &**field)))).collect();
+    let fields: HashSet<(&ObjectId, &str)> = ops.iter().flat_map(sequences).collect();
+    let touching: Vec<&Op> = later.iter().filter(|op| sequences(op).iter().any(|field| fields.contains(field))).collect();
     if touching.is_empty() {
         return (ops, false);
     }
@@ -55,31 +72,48 @@ fn split_move(op: Op) -> Vec<Op> {
 }
 
 /// Two sequences of operations made on one state (neither holding a list move), transformed
-/// against each other: `a` to apply after `b`, and `b` to apply after `a` ([`pair`]).
+/// against each other: `a` to apply after `b`, and `b` to apply after `a` ([`pair`]). Each
+/// operation of `a` passes through all of `b` in a loop; only an operation [`pair`] cut in pieces
+/// goes round again, for its pieces.
 fn xform(a: Vec<Op>, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
-    match (a.len(), b.len()) {
-        (0, _) | (_, 0) => (a, b),
-        (1, 1) => {
-            let (Some(one), Some(other)) = (a.into_iter().next(), b.into_iter().next()) else { return (Vec::new(), Vec::new()) };
-            pair(one, other)
-        }
-        (1, _) => {
-            let mut b = b.into_iter();
-            let first: Vec<Op> = b.next().into_iter().collect();
-            let rest: Vec<Op> = b.collect();
-            let (a, first) = xform(a, first);
-            let (a, rest) = xform(a, rest);
-            (a, first.into_iter().chain(rest).collect())
-        }
-        _ => {
-            let mut a = a.into_iter();
-            let first: Vec<Op> = a.next().into_iter().collect();
-            let rest: Vec<Op> = a.collect();
-            let (first, b) = xform(first, b);
-            let (rest, b) = xform(rest, b);
-            (first.into_iter().chain(rest).collect(), b)
-        }
+    let mut b = b;
+    let mut out = Vec::with_capacity(a.len());
+    for op in a {
+        let (pieces, moved) = through_one(op, b);
+        out.extend(pieces);
+        b = moved;
     }
+    (out, b)
+}
+
+/// One operation carried through the sequence `b`: the operation (perhaps in pieces) to apply
+/// after `b`, and `b` to apply after it.
+fn through_one(op: Op, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
+    let mut pieces = vec![op];
+    let mut moved = Vec::with_capacity(b.len());
+    for other in b {
+        let (next, others) = pieces_against(pieces, other);
+        pieces = next;
+        moved.extend(others);
+    }
+    (pieces, moved)
+}
+
+/// The pieces of one operation (a sequence) against one other operation.
+fn pieces_against(mut pieces: Vec<Op>, other: Op) -> (Vec<Op>, Vec<Op>) {
+    if pieces.len() == 1
+        && let Some(piece) = pieces.pop()
+    {
+        return pair(piece, other);
+    }
+    let mut others = vec![other];
+    let mut out = Vec::with_capacity(pieces.len());
+    for piece in pieces {
+        let (moved, rest) = through_one(piece, others);
+        out.extend(moved);
+        others = rest;
+    }
+    (out, others)
 }
 
 /// The number of characters of an insertion.
@@ -91,6 +125,10 @@ fn chars(text: &str) -> usize {
 /// to apply after `a`. At one position, `b`'s text comes first and `a`'s list item does. Answers
 /// none for an operation left with nothing to do.
 fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
+    if share_a_tree(&a, &b) {
+        let (a, b) = tree_pair(a, b);
+        return (vec![a], vec![b]);
+    }
     if !addresses_same_sequence(&a, &b) {
         return (vec![a], vec![b]);
     }
@@ -223,4 +261,99 @@ fn with_index(op: Op, index: usize) -> Op {
 /// Drops deletions of no characters.
 fn nonempty(ops: Vec<Op>) -> Vec<Op> {
     ops.into_iter().filter(|op| !matches!(op, Op::TextDelete { count: 0, .. })).collect()
+}
+
+/// One position a tree operation inserts a node at, or removes one from: the tree (its owner and
+/// field), the parent (`None`: the roots) and the index among the parent's children.
+struct Slot {
+    owner: ObjectId,
+    field: Name,
+    parent: Option<ObjectId>,
+    index: usize,
+    insert: bool,
+}
+
+/// The positions `op` removes nodes from and inserts them at, in the order it does: a move
+/// removes, then inserts.
+fn slots(op: &Op) -> Vec<Slot> {
+    let slot = |owner: &ObjectId, field: &Name, parent: &Option<ObjectId>, index: usize, insert: bool| Slot {
+        owner: owner.clone(),
+        field: field.clone(),
+        parent: parent.clone(),
+        index,
+        insert,
+    };
+    match op {
+        Op::TreeCreate { id, field, parent, index: Some(index), .. } => vec![slot(id, field, parent, *index, true)],
+        Op::TreeDelete { id, field, was: Some((parent, index)), .. } => vec![slot(id, field, parent, *index, false)],
+        Op::TreeMove { id, field, parent, index, was, .. } => {
+            let removed = was.as_ref().map(|(from, at)| slot(id, field, from, *at, false));
+            let inserted = index.map(|at| slot(id, field, parent, at, true));
+            removed.into_iter().chain(inserted).collect()
+        }
+        Op::Create { trees, .. } => trees.iter().map(|place| slot(&place.owner, &place.field, &place.parent, place.index, true)).collect(),
+        Op::Delete { trees, .. } => trees.iter().map(|place| slot(&place.owner, &place.field, &place.parent, place.index, false)).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// `op` with the indexes of its [`slots`] set to `indexes`, in the same order.
+fn with_slots(op: Op, indexes: Vec<usize>) -> Op {
+    let mut next = indexes.into_iter();
+    let mut take = |index: usize| next.next().unwrap_or(index);
+    match op {
+        Op::TreeCreate { id, field, node, parent, index } => Op::TreeCreate { id, field, node, parent, index: index.map(&mut take) },
+        Op::TreeDelete { id, field, node, was } => Op::TreeDelete { id, field, node, was: was.map(|(parent, index)| (parent, take(index))) },
+        Op::TreeMove { id, field, node, parent, index, was } => {
+            let was = was.map(|(from, at)| (from, take(at)));
+            Op::TreeMove { id, field, node, parent, index: index.map(&mut take), was }
+        }
+        Op::Create { id, object, trees } => {
+            Op::Create { id, object, trees: trees.into_iter().map(|place| TreePlace { index: take(place.index), ..place }).collect() }
+        }
+        Op::Delete { id, was, trees } => {
+            Op::Delete { id, was, trees: trees.into_iter().map(|place| TreePlace { index: take(place.index), ..place }).collect() }
+        }
+        other => other,
+    }
+}
+
+/// Whether both operations place nodes in one tree.
+fn share_a_tree(a: &Op, b: &Op) -> bool {
+    let theirs = slots(b);
+    slots(a).iter().any(|mine| theirs.iter().any(|other| mine.owner == other.owner && mine.field == other.field))
+}
+
+/// Two operations made on one state that place nodes in one tree, transformed against each
+/// other: each position of `a` (in order) passes through each position of `b`, as list positions
+/// do. At one position, `a`'s node comes first.
+fn tree_pair(a: Op, b: Op) -> (Op, Op) {
+    let mut mine = slots(&a);
+    let mut theirs = slots(&b);
+    for one in &mut mine {
+        for other in &mut theirs {
+            shift(one, other);
+        }
+    }
+    (with_slots(a, mine.into_iter().map(|slot| slot.index).collect()), with_slots(b, theirs.into_iter().map(|slot| slot.index).collect()))
+}
+
+/// Two positions among one parent's children, made on one state, carried past each other.
+fn shift(a: &mut Slot, b: &mut Slot) {
+    if a.owner != b.owner || a.field != b.field || a.parent != b.parent {
+        return;
+    }
+    let (i, j) = (a.index, b.index);
+    match (a.insert, b.insert) {
+        (true, true) if i <= j => b.index = j + 1,
+        (true, true) => a.index = i + 1,
+        (true, false) if i <= j => b.index = j + 1,
+        (true, false) => a.index = i - 1,
+        (false, true) if j <= i => a.index = i + 1,
+        (false, true) => b.index = j - 1,
+        // Both took the node at one place (each names its node, so neither moves the other).
+        (false, false) if i == j => {}
+        (false, false) if j < i => a.index = i - 1,
+        (false, false) => b.index = j - 1,
+    }
 }

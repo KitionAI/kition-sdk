@@ -161,7 +161,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/store/**, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/tests/versions.rs]
-    cases: [sdk.model.plain-store/ordered-changes]
+    cases: [sdk.model.plain-store/ordered-changes, regressions/issue-kdm-undo-trimmed-log, regressions/issue-kdm-undo-tree-places, regressions/issue-kdm-import-schema-checks, regressions/issue-kdm-linear-costs]
     since: "2026-11-24"
   - id: sdk.model.content-encoding
     title: A person's file holds the document's content as one deterministic JSON encoding (content.json), the same bytes for the same state
