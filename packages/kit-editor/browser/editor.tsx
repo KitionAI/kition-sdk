@@ -54,6 +54,6 @@ function App({ host }: { host: HostConnection }) {
 }
 
 const root = createRoot(document.getElementById('root')!)
-void connectHost({ id: 'kit.typing', version: '0.1.0', capabilities: ['ai'], ui: defineKitUi({ menus: [], tools: [], panels: [], tabs: [], groups: [], controls: [] }) }).then((host) => {
+void connectHost({ id: 'kit.typing', version: '0.1.0', capabilities: ['ai', 'replica'], ui: defineKitUi({ menus: [], tools: [], panels: [], tabs: [], groups: [], controls: [] }) }).then((host) => {
   root.render(<App host={host} />)
 })
