@@ -177,7 +177,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-kdm/src/merge.rs, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/store/transform.rs, crates/kition-kdm/tests/merge_rules.rs, crates/kition-kdm/tests/draft.rs, crates/kition-kdm/tests/undo_scopes.rs, crates/kition-kit/src/session/mod.rs, crates/kition-kit/src/session/web.rs, crates/kition-kit/tests/session.rs, docs/platform/data-model.md, docs/platform/kits/engine.md]
-    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes, sdk.model.draft-merge/undo-scope, sdk.model.draft-merge/session-lists, regressions/issue-kdm-compare-costs]
+    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes, sdk.model.draft-merge/undo-scope, sdk.model.draft-merge/session-lists, sdk.model.draft-merge/repair-in-step, regressions/issue-kdm-compare-costs]
     since: "2026-11-25"
   - id: sdk.model.change-list-reader
     title: "@kition/kdm reads a change list (readChangeList): each change's number, actor, origin and operations"

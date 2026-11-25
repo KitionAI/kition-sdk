@@ -146,10 +146,12 @@ pub trait KitModel: Sized {
     /// `replica`, rather than rebuilding it (E11). If it fails, the session reloads the view.
     fn apply(&mut self, replica: &Replica, changed: &BTreeSet<ObjectId>, blobs: &dyn BlobSource) -> Result<Damage>;
     /// Deterministic repair after a merge (E14), such as dropping list entries of deleted
-    /// objects; answers whether it wrote anything. It reads and writes through `tx`, inside the
-    /// session's `system` transaction, and has no `self`: the view is stale until the merge and
-    /// the repair are applied to it together. Every replica runs it, so it must give the same
-    /// writes for the same state.
+    /// objects; answers whether it wrote anything. It reads and writes through `tx` and has no
+    /// `self`: the view is stale until the change and the repair are applied to it together. After
+    /// a draft's merge or a restore it runs inside that change, so its writes are part of the same
+    /// undo step (data model 6.6, D9); after an import, an undo or a redo, in the session's own
+    /// `system` transaction. Every replica runs it, so it must give the same writes for the same
+    /// state.
     fn validate(tx: &mut Tx<'_>, changed: &BTreeSet<ObjectId>) -> Result<bool>;
     /// A new document from a file (E13); bulk content goes in `Replica::create_with` (P2).
     fn import(name: &str, bytes: &[u8], blobs: &mut dyn BlobSink, actor: ActorId) -> Result<Replica>;
@@ -258,6 +260,23 @@ impl<M: KitModel> KitSession<M> {
         Ok((outcome, self.settle()?))
     }
 
+    /// [`Replica::undo_depth`]: how many undo steps `scope` holds. A kit that keeps an undo label
+    /// of its own per step keeps this many (a `model/batch` is one step, its commands included).
+    pub fn undo_depth(&self, scope: UndoScope) -> usize {
+        self.replica.undo_depth(scope)
+    }
+
+    /// [`Replica::redo_depth`].
+    pub fn redo_depth(&self, scope: UndoScope) -> usize {
+        self.replica.redo_depth(scope)
+    }
+
+    /// [`Replica::in_undo_group`]: whether an undo group (a `model/batch`) is open, so a command
+    /// run now joins the group's step instead of adding one.
+    pub fn in_undo_group(&self) -> bool {
+        self.replica.in_undo_group()
+    }
+
     pub fn can_undo_in(&self, scope: UndoScope) -> bool {
         self.replica.can_undo_in(scope)
     }
@@ -313,21 +332,39 @@ impl<M: KitModel> KitSession<M> {
     }
 
     /// Takes a draft's changes (its changes since it was forked) into this document as one
-    /// transaction with `origin` (`Replica::merge_changes`): one undo step, the edits made here
-    /// since the fork kept. Repairs the result and applies it to the view like
-    /// [`KitSession::import_changes`]. Add the draft's blobs first.
+    /// transaction with `origin` (`Replica::merge_changes_repaired`): one undo step, the edits made
+    /// here since the fork kept. The kit's repair ([`KitModel::validate`]) of the merged state is
+    /// part of that change and that step (data model 6.6, D9): one undo gives back the exact state
+    /// before the merge, one redo the exact repaired state. A repair that fails refuses the merge,
+    /// which changes nothing. Applies the result to the view. Add the draft's blobs first.
     ///
     /// Answers the undo scope the step was recorded in with the damage: the person's, also for an
     /// agent's `origin` (KitModel M12a: the person accepted the draft), `None` when no step was
     /// recorded. A kit that keeps undo labels or a history of its own records the step there.
     pub fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<(Option<UndoScope>, Damage)> {
-        let merged = self.replica.merge_changes(bytes, origin)?;
-        Ok((merged.scope, self.settle()?))
+        let mut kit_error = None;
+        let merged = self.replica.merge_changes_repaired(bytes, origin, |tx, changed| {
+            M::validate(tx, changed).map(drop).map_err(|error| match error {
+                KitError::Kdm(error) => error,
+                other => {
+                    kit_error = Some(other);
+                    KdmError::Engine("the kit's repair of the merge failed".into())
+                }
+            })
+        });
+        if let Some(error) = kit_error {
+            return Err(error);
+        }
+        let merged = merged?;
+        let changed = self.replica.take_changed();
+        Ok((merged.scope, self.refresh(&changed)?))
     }
 
     /// Writes the state `snapshot` holds (a snapshot or content of this document, as a host's
     /// checkpoint keeps it) over the document as one transaction with `origin` ([`write_state`],
-    /// keyed by object id): one undo step of the person for a person's origin. Nothing changes
+    /// keyed by object id), the kit's repair ([`KitModel::validate`]) of the restored state in it:
+    /// one undo step of the person for a person's origin, whose undo gives back the exact state
+    /// before. Nothing changes
     /// when the states are equal. Refuses ([`KdmError::WrongDocument`]) another document's.
     pub fn restore_state(&mut self, snapshot: &[u8], origin: &Origin) -> Result<Damage> {
         let schema = M::schema();
@@ -339,7 +376,13 @@ impl<M: KitModel> KitSession<M> {
         if now == then {
             return Ok(Damage::None);
         }
-        self.execute(origin, |_, tx| write_state(tx, &schema, &now, &then)).map(|((), damage)| damage)
+        // The kit's repair of the restored state is part of the restore's one change and undo step.
+        let changed: BTreeSet<ObjectId> = now.keys().chain(then.keys()).filter(|id| now.get(*id) != then.get(*id)).map(ObjectId::from_string).collect();
+        self.execute(origin, |_, tx| {
+            write_state(tx, &schema, &now, &then)?;
+            M::validate(tx, &changed).map(drop)
+        })
+        .map(|((), damage)| damage)
     }
 
     /// The document's state with its version ([`Replica::snapshot`]): for the host's store,

@@ -557,3 +557,52 @@ fn a_draft_that_appends_merges_with_a_shape_the_document_appended_meanwhile() {
     assert!(live.undo().unwrap().0);
     assert_eq!(ids(&live), start);
 }
+
+/// A draft that deletes a shape but not its list entry leaves an entry the kit's repair removes:
+/// the repair is part of the merge's one undo step (data model 6.6, D9), so the person's one Undo
+/// gives back the exact state before the merge and one Redo the exact repaired state.
+#[test]
+fn a_merges_repair_is_part_of_its_undo_step() {
+    let mut live = first();
+    let base = live.version();
+    let gone = ids(&live)[1].clone();
+    let mut draft = live.fork(actor(9), Box::new(MemoryBlobs::default())).unwrap();
+    draft.execute(&Origin::agent("user:a"), |_, tx| Ok(tx.delete(&gone)?)).unwrap();
+    let before = live.state_hash().unwrap();
+    let (scope, damage) = live.merge_changes(&draft.export_changes(&base).unwrap(), &Origin::agent("user:a")).unwrap();
+    assert_eq!((scope, damage), (Some(UndoScope::Person), Damage::Full));
+    assert!(!live.replica().exists(&gone));
+    assert!(!live.replica().list(&board(), "shapes").unwrap().contains(&gone), "the repair removed the entry");
+    let repaired = live.state_hash().unwrap();
+    assert_view_follows_replica(&live);
+    assert!(live.undo().unwrap().0);
+    assert_eq!(live.state_hash().unwrap(), before, "one undo: the exact state before the merge");
+    assert!(live.replica().exists(&gone) && live.replica().list(&board(), "shapes").unwrap().contains(&gone));
+    assert!(!live.can_undo(), "the merge and its repair were one step");
+    assert_view_follows_replica(&live);
+    assert!(live.redo().unwrap().0);
+    assert_eq!(live.state_hash().unwrap(), repaired, "one redo: the exact repaired state");
+    assert_view_follows_replica(&live);
+}
+
+/// A stored state whose list names a deleted shape: the restore writes it and the kit's repair
+/// removes the entry in the same change, so one Undo gives back the exact state before.
+#[test]
+fn a_restores_repair_is_part_of_its_undo_step() {
+    let mut a = first();
+    let (kept, gone) = (ids(&a)[0].clone(), ids(&a)[1].clone());
+    a.execute(&person("a"), |_, tx| Ok(tx.delete(&gone)?)).unwrap();
+    let stored = a.snapshot().unwrap();
+    a.execute(&person("a"), |_, tx| Ok(tx.list_remove(&board(), "shapes", 1)?)).unwrap();
+    let (added, _) = a.execute(&person("a"), |_, tx| add_shape(tx, 70.0, "lime")).unwrap();
+    let before = a.state_hash().unwrap();
+    let damage = a.restore_state(&stored, &person("a")).unwrap();
+    assert_ne!(damage, Damage::None);
+    assert_eq!(a.replica().list(&board(), "shapes").unwrap(), vec![kept.clone()], "the stored state, repaired");
+    assert!(!a.replica().exists(&added));
+    assert_view_follows_replica(&a);
+    assert!(a.undo().unwrap().0);
+    assert_eq!(a.state_hash().unwrap(), before, "one undo: the exact state before the restore");
+    assert_eq!(a.replica().list(&board(), "shapes").unwrap(), vec![kept, added]);
+    assert_view_follows_replica(&a);
+}

@@ -234,7 +234,13 @@ passes the draft's agent origin (`["agent", principal, label]`, Kit UI protocol
 says where it went (`"person"`, or `null` when nothing was recorded), as
 `Replica::merge_changes` (`DraftMerge::scope`) and `KitSession::merge_changes`
 answer it: an engine that keeps an undo history of its own records the step in
-that scope, never in the scope of the origin's kind. `restoreState(snapshot, origin)` writes
+that scope, never in the scope of the origin's kind. The kit's repair of a merged
+or restored state is part of that one change and undo step (data model 6.6,
+D9): one Undo gives back the exact state before, one Redo the exact repaired
+state. An engine that keeps an undo label of its own per step keeps as many as
+`KitSession::undo_depth(scope)` (`Replica::undo_depth`) answers after each
+command, batch, merge, undo and redo: a `model/batch` is one step, the commands
+in it included (`in_undo_group()` is true while it runs). `restoreState(snapshot, origin)` writes
 a checkpoint's state over the document as one change (Kit UI protocol
 `replica/restore`), and `changesSince(since)` answers a write's receipt,
 `{ changes }`, or `{ changes: null, unavailable }` when the replica's log does
