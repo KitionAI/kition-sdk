@@ -60,7 +60,7 @@ const editor = await KitionEmbed.mount(element, {
 
 [`examples/embed-app`](examples/embed-app) is a page with its own file list that embeds the Note
 editor (above); its **Run script** button edits the open note through the object model (right).
-Co-editing goes through a `kition-sync/1` server. The full guide is
+The full guide is
 [docs/sdk/embed.md](docs/sdk/embed.md).
 
 ## Kits
@@ -195,13 +195,11 @@ The packages share one version, the SDK's (`sdk.json`), and are published under 
 | [`@kition/script`](packages/script) | The object model for scripts and extensions, in browsers and Node |
 | [`@kition/extensions`](packages/extensions) | The extension host: manifests, sandboxed workers, declared permissions |
 | [`@kition/sync`](packages/sync) | Client for the open sync protocol `kition-sync/1` |
-| [`@kition/kdm`](packages/kdm) | The Kit Data Model, the replicated document model kits declare their documents in |
+| [`@kition/kdm`](packages/kdm) | The Kit Data Model, read-only: a kit document's typed objects as its engine writes them |
 | [`@kition/kit-editor`](packages/kit-editor) | Build a kit's own editor: host connection, session, engine canvas, shared components |
-| [`@kition/kit-engine`](packages/kit-engine) | The engine contract in TypeScript, for a kit's engine worker |
 | [`@kition/kit-host`](packages/kit-host) | The host's side of the Kit UI protocol |
 | [`@kition/kit-ui-protocol`](packages/kit-ui-protocol) | Kit UI protocol message types |
 | [`@kition/kit-dev-host`](packages/kit-dev-host) | A development host to run a kit's editor without Kition |
-| [`@kition/convergence`](packages/convergence) | Multi-replica convergence scenarios for TypeScript engines |
 
 The Rust crates are used as git dependencies of this repository, pinned by commit
 (`kition-kit = { git = "https://github.com/KitionAI/kition-sdk", rev = "<commit>" }`):
@@ -213,7 +211,7 @@ The Rust crates are used as git dependencies of this repository, pinned by commi
 | [`kition-headless`](crates/kition-headless), [`kition-kit-server`](crates/kition-kit-server) | Serve a `KitDocument` headless over the Kit Process Protocol |
 | [`kition-kits`](crates/kition-kits) | The servers behind `kition mcp` and `kition serve`: kits as agent tools, drafts, guarded writes |
 | [`kition-kit-host`](crates/kition-kit-host), [`kition-kit-process-protocol`](crates/kition-kit-process-protocol) | Launch kit processes and speak their protocol |
-| [`kition-convergence`](crates/kition-convergence), [`kition-env`](crates/kition-env) | Convergence suite; kits as training and evaluation environments |
+| [`kition-convergence`](crates/kition-convergence), [`kition-env`](crates/kition-env) | Performance suite; kits as training and evaluation environments |
 
 ## Quick start
 

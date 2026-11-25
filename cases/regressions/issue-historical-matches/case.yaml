@@ -10,7 +10,6 @@ steps:
   - cargo-test: { package: kition-kdm, test: changes, filter: deleted_json_basis_ }
   - cargo-test: { package: kition-kits, test: premise_guard, filter: conditional_recipients_ }
   - cargo-test: { package: kition-kits, test: premise_guard, filter: conditional_recipients_, env: { KITION_TEST_READER: editor } }
-  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

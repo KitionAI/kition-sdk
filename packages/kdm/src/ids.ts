@@ -54,80 +54,33 @@ export const newObjectId = (): ObjectId => uuidV7()
 /** A new document id: a document's durable identity, never changed by renaming or moving its file. */
 export const newDocId = (): string => uuidV7()
 
-/** The engine reserves 2^64 - 1. */
-const RESERVED_ACTOR = (1n << 64n) - 1n
-
-/** Checks an actor id: an unsigned 64-bit integer other than the reserved 2^64 - 1. */
-export function checkActor(actor: bigint): bigint {
-  if (typeof actor !== 'bigint') throw errors.encoding('an actor id is a bigint')
-  if (actor === RESERVED_ACTOR) throw errors.encoding('actor id u64::MAX is reserved')
-  if (actor < 0n || actor > RESERVED_ACTOR) throw errors.encoding(`actor id ${actor} is not an unsigned 64-bit integer`)
-  return actor
-}
-
-/** A fresh actor for one writable replica session; the top bit is clear because the engine reserves 2^64 - 1. */
-export function randomActor(): bigint {
-  const bytes = new Uint8Array(8)
-  crypto.getRandomValues(bytes)
-  return BigInt(`0x${hex(bytes)}`) >> 1n
-}
-
-/** What a handle names: an engine node, or the `index`-th node created by transaction `tx`, resolved once that commits. */
-interface NodeState {
-  id: string | null
-  readonly pending?: { readonly tx: number; readonly index: number }
-}
-
-/** The state of every genuine handle. A handle not in it was not made by the KDM, and names no node. */
-const NODES = new WeakMap<NodeRef, NodeState>()
-
 /** Only this module constructs handles. */
 const CONSTRUCT = Symbol('NodeRef')
 
 /**
- * A node of a tree field. Valid in the replica that returned it and in every replica that has
- * the change that created it.
- *
- * A node created inside a transaction has no engine id until the transaction commits; its handle
- * resolves then. Handles compare (`equals`) by resolved node; two unresolved handles are equal only
- * if they are the same handle. A handle from a failed transaction never resolves, and using it is
- * a `not-found` error. Handles cannot be constructed or changed outside the KDM.
+ * A node of a tree field, as `Replica.tree` lists it: it names the object that is the node (one
+ * node per object in a tree). Handles compare with `equals`; they cannot be constructed outside
+ * the KDM.
  */
 export class NodeRef {
-  /** The engine's id of the node once it exists in the document; `null` before. Read-only. */
-  declare readonly id: string | null
+  /** The node's object id. */
+  declare readonly id: string
 
   /** @internal */
-  constructor(token: symbol, state: NodeState) {
-    if (token !== CONSTRUCT) throw new TypeError('NodeRef handles come from Tx.treeCreate and Replica.tree')
-    NODES.set(this, state)
-    Object.defineProperty(this, 'id', { value: state.id, enumerable: true, writable: false, configurable: state.id === null })
+  constructor(token: symbol, id: string) {
+    if (token !== CONSTRUCT) throw new TypeError('NodeRef handles come from Replica.tree')
+    Object.defineProperty(this, 'id', { value: id, enumerable: true, writable: false, configurable: false })
   }
 
   equals(other: NodeRef): boolean {
-    if (this.id !== null || other.id !== null) return this.id === other.id
-    return this === other
+    return this.id === other.id
   }
 }
 
-/** @internal A handle of a node in the document. */
-export const committedNode = (id: string): NodeRef => new NodeRef(CONSTRUCT, { id })
+/** @internal The handle of the node of object `id`. */
+export const nodeOf = (id: string): NodeRef => new NodeRef(CONSTRUCT, id)
 
-/** @internal A handle of the `index`-th node transaction `tx` creates. */
-export const pendingNode = (tx: number, index: number): NodeRef => new NodeRef(CONSTRUCT, { id: null, pending: { tx, index } })
-
-/** @internal What a handle names, or `undefined` for an object the KDM did not make. */
-export const nodeState = (node: NodeRef): Readonly<NodeState> | undefined => NODES.get(node)
-
-/** @internal Resolves a pending handle once, when its transaction applies. */
-export function resolveNode(node: NodeRef, id: string): void {
-  const state = NODES.get(node)
-  if (!state || state.id !== null) return
-  state.id = id
-  Object.defineProperty(node, 'id', { value: id, enumerable: true, writable: false, configurable: false })
-}
-
-/** One node of a tree field, as `Replica.tree` and `Tx.tree` list it. */
+/** One node of a tree field, as `Replica.tree` lists it. */
 export interface TreeEntry {
   node: NodeRef
   /** The object the node names. */

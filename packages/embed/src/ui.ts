@@ -3,7 +3,7 @@
  * do as one mode, and the people the page names (`KitEmbed 1.1`).
  */
 import type { KitUiConfig, KitUiElement } from '@kition/kit-ui-protocol'
-import type { EmbedComment, EmbedCommentThread, EmbedPresence, EmbedUi, EmbedUser, IdentityProvider, PermissionMode, Presence } from './types'
+import type { EmbedComment, EmbedCommentThread, EmbedUi, EmbedUser, IdentityProvider, PermissionMode } from './types'
 
 const RANK: Record<PermissionMode, number> = { view: 0, comment: 1, edit: 2 }
 
@@ -46,10 +46,6 @@ export class People {
 
   constructor(private readonly identity: IdentityProvider | undefined) {}
 
-  get serves() {
-    return Boolean(this.identity?.users)
-  }
-
   /** The people `identity.users` knows among `ids`. */
   async lookup(ids: string[]): Promise<Map<string, EmbedUser>> {
     const users = this.identity?.users
@@ -75,11 +71,6 @@ export class People {
     return found
   }
 
-  /** The room's peers with the page's names and avatars for them: by the user their presence names, else their principal. */
-  async presence(peers: Presence[]): Promise<EmbedPresence[]> {
-    return namePeers(peers, this.serves ? await this.lookup(peers.map(peerUserId)) : new Map())
-  }
-
   /** The threads with each comment's author as the page names them. */
   async threads(threads: Array<Omit<EmbedCommentThread, 'comments'> & { comments: EmbedComment[] }>): Promise<EmbedCommentThread[]> {
     const users = await this.lookup(threads.flatMap((thread) => thread.comments.map((comment) => comment.author)))
@@ -91,21 +82,4 @@ export class People {
       }),
     }))
   }
-}
-
-/** The user a peer's presence names (`@kition/embed` sets `{ kit, user }`), when it does. */
-function ownUser(peer: Presence): EmbedUser | undefined {
-  const user = (peer.state as { user?: unknown } | null)?.user as EmbedUser | undefined
-  return user && typeof user.id === 'string' && typeof user.name === 'string' ? user : undefined
-}
-
-const peerUserId = (peer: Presence) => ownUser(peer)?.id ?? peer.principalId
-
-/** Peers with `user`: as `users` names them, else as their own presence does. */
-export function namePeers(peers: Presence[], users: Map<string, EmbedUser>): EmbedPresence[] {
-  return peers.map((peer) => {
-    const named = users.get(peerUserId(peer)) ?? users.get(peer.principalId)
-    const user = named ?? ownUser(peer)
-    return user ? { ...peer, name: named?.name || peer.name, user } : { ...peer }
-  })
 }

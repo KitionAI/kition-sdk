@@ -15,7 +15,7 @@
   },
   "include": [
     "packages/kit-ui-protocol/src", "packages/kit-host/src", "packages/kit-editor/src", "packages/kit-dev-host/src",
-    "packages/kdm/src", "packages/kdm/test", "packages/kit-engine/src", "packages/kit-engine/test", "packages/convergence/src", "packages/convergence/test", "packages/kdm/prototypes", "packages/kdm/bench",
+    "packages/kdm/src", "packages/kdm/test", "packages/kdm/prototypes", "packages/kdm/bench",
     "packages/sync/src", "packages/sync/test", "packages/embed-server/src", "packages/embed-server/test", "packages/embed/src", "packages/embed/test",
     "packages/script/src", "packages/script/test", "packages/script/kits",
     "packages/extensions/src", "packages/extensions/test",

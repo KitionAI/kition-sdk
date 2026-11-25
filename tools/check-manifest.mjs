@@ -19,8 +19,7 @@
 // built engine and checks that the manifest matches it: the class exists, contractVersion()
 // matches engine.contract, a contract 2 engine has the session members, and every declared extra
 // exists. With --convergence, it reads the report the kit's
-// convergence test wrote (kition-convergence for Rust engines, @kition/convergence for
-// TypeScript ones, both through KITION_CONVERGENCE_REPORT) for L6.
+// convergence test wrote (kition-convergence, through KITION_CONVERGENCE_REPORT) for L6.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

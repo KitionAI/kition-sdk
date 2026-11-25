@@ -7,6 +7,7 @@ import type { RasterRect } from './rasterViewport'
 import { replicaToOpen, writeWithReplica } from './replica'
 import { ReadOnlyError } from './readOnly'
 import type { Origin } from '@kition/kdm'
+import type { RestoreOrigin } from '@kition/kit-ui-protocol'
 
 /**
  * One or more edits the canvas has not been handed yet: `revision` moves by one with each refresh,
@@ -129,16 +130,6 @@ export type KitDocumentOptions = {
   readOnly?: boolean
   canComment?: boolean
   /**
-   * The kit's declaration that its engine merges a newer file into its stored replica when it
-   * opens (`open_with_replica`, `openReplica`; the note's does), Kit UI protocol UI-R1: the host's
-   * stored replica opens with the file whatever its `fileStamp`, and when the file changed outside
-   * since, the engine records the difference as one `system` change labelled `import`. The
-   * document keeps its id, comment threads and history, and its checkpoints stay available (the
-   * replica's lineage continues). Off: a stored replica opens only with the file it was saved
-   * with; after a change outside, the file opens plainly and its history starts over.
-   */
-  replicaMergesFile?: boolean
-  /**
    * The file changed on disk while the document has no unsaved edits. Answers `true` when the kit
    * took the change in itself (the open engine merged the file, keeping its undo history and the
    * editor's scroll position; the engine's `info` is read again after); `false`, or a failure, reopens the document from the file as
@@ -184,7 +175,7 @@ function errorText(error: unknown) {
  * version the document reloads, unless there are unsaved edits, which raise
  * `conflict`. `describe` turns the engine's `inspect()` JSON into what the
  * kit's editor shows; `host` reads and writes the file, and keeps its replica when it can
- * (`replicaRead`, `replicaWrite`): the document then opens with the replica saved with the file.
+ * (`replicaRead`, `replicaWrite`): the document then opens with the stored replica (UI-R1).
  * `options.readOnly` opens it for viewing: the engine refuses edits and `save` refuses to write;
  * `options.canComment` (a commenter) lets the manifest's `commentCommands` through all the same.
  * See `KitDocumentOptions` for the rest.
@@ -192,7 +183,6 @@ function errorText(error: unknown) {
 export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, path: string, active: boolean, describe: (info: KitEngineInfo) => T, options: KitDocumentOptions = {}) {
   const readOnly = options.readOnly === true
   const canComment = readOnly && options.canComment === true
-  const mergesFile = options.replicaMergesFile === true
   const followRef = useRef(options.followFile)
   followRef.current = options.followFile
   const docRef = useRef<KitEngine | null>(null)
@@ -250,7 +240,7 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     try {
       const { bytes, stamp } = await host.read(path)
       if (!isCurrent()) return
-      const stored = await replicaToOpen(host, path, stamp, mergesFile)
+      const stored = await replicaToOpen(host, path)
       if (!isCurrent()) return
       const started = performance.now()
       const name = path.split('/').filter(Boolean).pop() || path
@@ -271,7 +261,7 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     } finally {
       busyRef.current = false
     }
-  }, [canComment, host, manifest, mergesFile, path, readOnly, refresh])
+  }, [canComment, host, manifest, path, readOnly, refresh])
 
   useEffect(() => {
     let current = true
@@ -491,9 +481,20 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
         if (docRef.current === open) refresh()
         return damage
       },
+      /** Writes a stored state (a checkpoint's) over the document, one step of the person's undo (`replica/restore`). */
+      restore: (snapshot: ArrayBuffer, blobs: ArrayBuffer, origin: RestoreOrigin) =>
+        ordered(async () => {
+          const open = opened()
+          if (readOnly) throw new ReadOnlyError('the restore')
+          try {
+            return await open.replicaRestore(snapshot, blobs, origin)
+          } finally {
+            if (docRef.current === open) refresh()
+          }
+        }),
       docId: () => opened().replicaDocId(),
     }
-  }, [refresh])
+  }, [ordered, readOnly, refresh])
 
   /**
    * The object model answered by the kit (`kitModel.ts`), for the host's `model/*`: a batch runs
@@ -505,16 +506,16 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
       return docRef.current
     }
     return {
-      describe: (schema: object | null) => opened().modelDescribe(schema),
+      describe: () => opened().modelDescribe(),
       /** The replica's version (C3b), after the commands still on their way. */
       version: () => ordered(() => opened().modelVersion()),
       /** What changed since the version `since`, after the commands still on their way (C3b). */
-      changes: (since: string, schema: object | null) => ordered(() => opened().modelChanges(since, schema)),
-      batch: (request: Record<string, unknown>, schema: object | null) =>
+      changes: (since: string) => ordered(() => opened().modelChanges(since)),
+      batch: (request: Record<string, unknown>) =>
         ordered(async () => {
           const open = opened()
           try {
-            return await open.modelBatch(request, schema)
+            return await open.modelBatch(request)
           } finally {
             if (docRef.current === open) refresh()
           }
@@ -548,16 +549,16 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
           const engine = await KitEngine.open(manifest, name, owned, host.lend?.(path) ?? null, { stored: replica, follow: true }, false)
           return { engine, base }
         }),
-      merge: (changes: ArrayBuffer, blobs: ArrayBuffer, origin: Origin, schema: object | null) =>
+      merge: (changes: ArrayBuffer, blobs: ArrayBuffer, origin: Origin) =>
         ordered(async () => {
           const open = opened()
           try {
-            return await open.replicaMerge(changes, blobs, origin, schema)
+            return await open.replicaMerge(changes, blobs, origin)
           } finally {
             if (docRef.current === open) refresh()
           }
         }),
-      compare: (changes: ArrayBuffer, schema: object | null) => opened().replicaCompare(changes, schema),
+      compare: (changes: ArrayBuffer) => opened().replicaCompare(changes),
     }
   }, [host, manifest, ordered, path, readOnly, refresh])
 

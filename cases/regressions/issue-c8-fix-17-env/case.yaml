@@ -9,7 +9,7 @@ steps:
   - cargo-test: { package: kition-env, test: generate, filter: declared_json_text_members }
   - cargo-test: { package: kition-kits, test: premise_guard, filter: identical_assignments_compact }
   - cargo-test: { package: kition-kdm, test: changes, filter: identical_assignment_footprints }
-  - exec: { cmd: [pnpm, -s, exec, vitest, run, packages/kdm/test/changes.test.ts, packages/kdm/test/schema.test.ts] }
+  - exec: { cmd: [pnpm, -s, exec, vitest, run, packages/kdm/test/schema.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

@@ -11,8 +11,8 @@ import { blobBackedReplicas } from '../src/blobs'
 import { supports } from '../../script/src/capabilities'
 import { EMBED_CAPABILITY_SETS, lendLocation, mountEmbed } from '../src/mount'
 import { memoryReplicaStore } from '../src/replicaStore'
-import type { BlobStore, EmbedCommentThread, EmbedOptions, EmbedPresence, IdentityProvider } from '../src/types'
-import { People, kitUiConfig, strictestMode } from '../src/ui'
+import type { BlobStore, EmbedCommentThread, EmbedOptions, IdentityProvider } from '../src/types'
+import { kitUiConfig, strictestMode } from '../src/ui'
 import { fakeKit, NOTE_SCHEMA } from './fakeKit'
 import { memoryStorage } from './memoryStorage'
 
@@ -24,7 +24,7 @@ function setUp(overrides: Partial<EmbedOptions> = {}, kit = fakeKit()) {
   const files = memoryStorage({ f1: 'hello' })
   const options: EmbedOptions = { kit: KIT, file: { id: 'f1', name: 'Notes.note' }, storage: files.storage, ...overrides }
   const mountKit = vi.fn(kit.mountKit)
-  const editor = mountEmbed(element, options, { mountKit, replicaStore: memoryReplicaStore })
+  const editor = mountEmbed(element, options, { mountKit })
   return { element, files, kit, mountKit, editor, mounted: () => mountKit.mock.calls.at(-1)![1] as MountOptions }
 }
 
@@ -90,7 +90,7 @@ describe('KitEmbed 1.1', () => {
   it('opens for comments only when the identity permits no more, and tells the kit who comments', async () => {
     const permissions = vi.fn(async () => ({ mode: 'comment' as const }))
     const identity: IdentityProvider = { user: () => ({ id: 'u1', name: 'Ann' }), permissions }
-    const { editor: pending, mounted, kit, files } = setUp({ identity, model: true })
+    const { editor: pending, mounted, kit, files } = setUp({ identity })
     const editor = await pending
     await editor.ready()
     expect(permissions).toHaveBeenCalledWith('f1')
@@ -102,7 +102,6 @@ describe('KitEmbed 1.1', () => {
     kit.last().comment('Looks good')
     await expect(Promise.resolve().then(() => mounted().handlers.write({ path: 'Notes.note', bytes: new ArrayBuffer(1), mode: 'save' }))).rejects.toMatchObject({ data: { reason: 'not-allowed' } })
     expect(files.text('f1')).toBe('hello')
-    expect(editor.modelPort().readOnly()).toBe(true)
   })
 
   it('applies the stricter of the permissions option and the identity', async () => {
@@ -226,7 +225,7 @@ describe('KitEmbed 1.1', () => {
 
   it('reports the comment threads with their authors as the page names them', async () => {
     const users = vi.fn(async (ids: string[]) => ids.filter((id) => id === 'u1').map((id) => ({ id, name: 'Ann Lee', avatar: 'https://example.com/ann.png' })))
-    const { editor: pending, kit } = setUp({ model: true, identity: { user: () => ({ id: 'u1', name: 'Ann' }), users } })
+    const { editor: pending, kit } = setUp({ storage: { ...memoryStorage({ f1: 'hello' }).storage, replica: memoryReplicaStore() }, identity: { user: () => ({ id: 'u1', name: 'Ann' }), users } })
     const editor = await pending
     await editor.ready()
     const heard: EmbedCommentThread[][] = []
@@ -250,24 +249,8 @@ describe('KitEmbed 1.1', () => {
     expect(users).toHaveBeenCalledTimes(1)
   })
 
-  it('names the room’s people through identity.users, asking for each id once', async () => {
-    const users = vi.fn(async (ids: string[]) => ids.filter((id) => id !== 'ghost').map((id) => ({ id, name: id.toUpperCase(), avatar: `https://example.com/${id}.png` })))
-    const people = new People({ users })
-    const peers = [
-      { principalId: 'p-alice', name: 'alice@server', color: '#111', state: { kit: 'kit.note', user: { id: 'alice', name: 'Alice' } } },
-      { principalId: 'ghost', name: 'Ghost', color: '#222', state: null },
-    ]
-    const named: EmbedPresence[] = await people.presence(peers)
-    expect(named[0]).toMatchObject({ principalId: 'p-alice', name: 'ALICE', user: { id: 'alice', name: 'ALICE', avatar: 'https://example.com/alice.png' } })
-    expect(named[1]).toEqual(peers[1])
-    await people.presence(peers)
-    expect(users).toHaveBeenCalledTimes(1)
-    // Without `users`, a peer keeps the server's name and carries the user its presence names.
-    expect((await new People(undefined).presence(peers))[0]).toMatchObject({ name: 'alice@server', user: { id: 'alice', name: 'Alice' } })
-  })
-
   it('opens the document as @kition/script’s object model in one call', async () => {
-    const { editor: pending } = setUp({ model: true })
+    const { editor: pending } = setUp({}, fakeKit('kit.note', ['ai', 'model']))
     const editor = await pending
     await editor.ready()
     const doc = await editor.document({ id: 'kit.note', schema: NOTE_SCHEMA })

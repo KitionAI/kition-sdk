@@ -22,8 +22,6 @@ steps:
   - cargo-test: { package: kition-kits, test: object_model, filter: describe_and_batch_tell_the_fields_a_batch_cannot_set }
   - cargo-test: { package: kition-kits, filter: tools::model::tests }
   - cargo-test: { package: kition-kdm, test: batch, filter: references_name_objects_that_exist }
-  - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/batch.test.ts]
 expected:
   - actual: out:exit
     compare: exit

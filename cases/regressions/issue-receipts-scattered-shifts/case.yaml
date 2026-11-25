@@ -19,8 +19,6 @@ steps:
       cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, receipts_two_hundred_objects_moved_by_one_offset_are_one_entry]
   - exec:
       cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, a_shift_of_many_objects_is_stated_once]
-  - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, footprint]
 expected:
   - actual: out:exec
     compare: exit

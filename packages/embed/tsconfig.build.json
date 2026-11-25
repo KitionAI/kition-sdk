@@ -20,9 +20,6 @@
       "@kition/sync": [
         "../sync/src/index.ts"
       ],
-      "@kition/sync/replicaVersions": [
-        "../sync/src/replicaVersions.ts"
-      ],
       "@kition/sync/openToken": [
         "../sync/src/openToken.ts"
       ]

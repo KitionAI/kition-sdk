@@ -40,8 +40,8 @@ function draftOf() {
       engines.push(engine)
       return { engine: engine as unknown as KitEngine, base: new Uint8Array([1, 2]).buffer }
     }),
-    merge: vi.fn(async (changes, _blobs, origin, schema) => {
-      merged.push({ changes: [...new Uint8Array(changes)], origin, schema })
+    merge: vi.fn(async (changes, _blobs, origin) => {
+      merged.push({ changes: [...new Uint8Array(changes)], origin })
       return summary
     }),
     compare: vi.fn(async () => summary),
@@ -57,7 +57,7 @@ describe('KitDraft', () => {
     expect(draft.info()).toEqual({ state: 'none', revision: null })
     await expect(draft.engine(false)).rejects.toThrow(/no draft/)
     await expect(draft.ready()).rejects.toThrow(/no draft/)
-    await expect(draft.merge({ kind: 'agent', principal: 'u' }, null)).rejects.toThrow(/no draft/)
+    await expect(draft.merge({ kind: 'agent', principal: 'u' })).rejects.toThrow(/no draft/)
     const [first, second] = await Promise.all([draft.engine(true), draft.engine(true)])
     expect(first).toBe(second)
     expect(host.open).toHaveBeenCalledTimes(1)
@@ -77,8 +77,8 @@ describe('KitDraft', () => {
   it('compares with the document, with both sides rendered when they can be', async () => {
     const { draft, host } = draftOf()
     await draft.engine(true)
-    expect(await draft.compare(256, { kdm: 1 })).toEqual({ summary, before: 'before', after: null })
-    expect(host.compare).toHaveBeenCalledWith(expect.any(ArrayBuffer), { kdm: 1 })
+    expect(await draft.compare(256)).toEqual({ summary, before: 'before', after: null })
+    expect(host.compare).toHaveBeenCalledWith(expect.any(ArrayBuffer))
     expect(host.preview).toHaveBeenCalledWith(256)
   })
 
@@ -87,12 +87,12 @@ describe('KitDraft', () => {
     await draft.engine(true)
     await draft.ready()
     const origin = { kind: 'agent', principal: 'user:a', label: 'Merged' } as const
-    expect(await draft.merge(origin, { kdm: 1 })).toEqual({ merged: true, summary })
+    expect(await draft.merge(origin)).toEqual({ merged: true, summary })
     expect([...new Uint8Array(engines[0].exported[0])]).toEqual([1, 2])
-    expect(merged).toEqual([{ changes: [7], origin, schema: { kdm: 1 } }])
+    expect(merged).toEqual([{ changes: [7], origin }])
     expect(engines[0].disposed).toBe(true)
     expect(heard.at(-1)).toEqual({ state: 'none', revision: null })
-    await expect(draft.merge(origin, null)).rejects.toThrow(/no draft/)
+    await expect(draft.merge(origin)).rejects.toThrow(/no draft/)
   })
 
   it('discards without touching the document, and closes with it', async () => {

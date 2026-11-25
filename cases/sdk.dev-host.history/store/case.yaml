@@ -8,11 +8,10 @@ intent: >-
   and a labelled request makes a host's checkpoint the kit's, which the kit may then rename and
   delete; it lists newest first, labelled only, before a checkpoint and at most limit with more,
   refuses an unknown before as not-found, and thins only unlabelled checkpoints; an empty field
-  removes it, and too-long, unknown ids and read-only documents are refused; a replica of another
-  lineage or a file opened alone leaves earlier checkpoints listed as unavailable and refuses
-  reading them as history-missing, while for a kit that merges a newer file into its stored
-  replica (replicaMergesFile) the replica is handed over under its earlier stamp and the lineage
-  and its checkpoints continue (UI-R1); view state is kept whole per document apart from the replica,
+  removes it, and too-long, unknown ids and read-only documents are refused; each checkpoint keeps
+  the snapshot it was recorded with, readable after the file changed outside and after the file
+  was opened alone; the stored replica is handed over whatever its stamp (UI-R1); view state is
+  kept whole per document apart from the replica,
   null deletes it, a value over the limit is refused as too-large and nothing is kept, and a
   read-only document keeps it too.
 layer: gate

@@ -19,32 +19,25 @@ function fakeHost(stamp: string | null, stored: Map<string, KitStoredReplica> = 
 }
 
 describe('replicaToOpen', () => {
-  it('opens with the replica saved with the file as it is now', async () => {
+  it('opens with the stored replica', async () => {
     const stored = new Map([['a.psd', { snapshot: bytes(7), blobs: bytes(8), fileStamp: 'v1' }]])
-    const replica = await replicaToOpen(fakeHost('v1', stored), 'a.psd', 'v1')
+    const replica = await replicaToOpen(fakeHost('v1', stored), 'a.psd')
     expect(new Uint8Array(replica!.snapshot)).toEqual(new Uint8Array([7]))
     expect(new Uint8Array(replica!.blobs)).toEqual(new Uint8Array([8]))
   })
 
-  it('opens plainly when the file changed since, nothing is stored, or the host fails', async () => {
-    const stored = new Map([['a.psd', { snapshot: bytes(7), blobs: bytes(8), fileStamp: 'v1' }]])
-    expect(await replicaToOpen(fakeHost('v9', stored), 'a.psd', 'v9')).toBeNull()
-    expect(await replicaToOpen(fakeHost('v1', stored), 'b.psd', 'v1')).toBeNull()
-    expect(await replicaToOpen(fakeHost('v1', stored, { replicaRead: async () => Promise.reject(new Error('gone')) }), 'a.psd', 'v1')).toBeNull()
-    expect(await replicaToOpen(fakeHost('v1', stored, { replicaRead: undefined }), 'a.psd', 'v1')).toBeNull()
-  })
-
-  it('opens the stored replica whatever the stamp for an engine that merges the file (mergesFile)', async () => {
+  it('opens with the stored replica whatever the file\'s stamp since (UI-R1)', async () => {
     const stored = new Map([['a.md', { snapshot: bytes(7), blobs: bytes(8), fileStamp: 'v1' }]])
-    const replica = await replicaToOpen(fakeHost('v9', stored), 'a.md', 'v9', true)
+    const replica = await replicaToOpen(fakeHost('v9', stored), 'a.md')
     expect(new Uint8Array(replica!.snapshot)).toEqual(new Uint8Array([7]))
-    expect(await replicaToOpen(fakeHost('v9', stored), 'b.md', 'v9', true)).toBeNull()
+    expect(await replicaToOpen(fakeHost(null, stored), 'a.md')).not.toBeNull()
   })
 
-  it('asks the host for the stamp when the read had none', async () => {
+  it('opens plainly when nothing is stored or the host fails', async () => {
     const stored = new Map([['a.psd', { snapshot: bytes(7), blobs: bytes(8), fileStamp: 'v1' }]])
-    expect(await replicaToOpen(fakeHost('v1', stored), 'a.psd', null)).not.toBeNull()
-    expect(await replicaToOpen(fakeHost(null, stored), 'a.psd', null)).toBeNull()
+    expect(await replicaToOpen(fakeHost('v1', stored), 'b.psd')).toBeNull()
+    expect(await replicaToOpen(fakeHost('v1', stored, { replicaRead: async () => Promise.reject(new Error('gone')) }), 'a.psd')).toBeNull()
+    expect(await replicaToOpen(fakeHost('v1', stored, { replicaRead: undefined }), 'a.psd')).toBeNull()
   })
 })
 
@@ -99,7 +92,7 @@ describe('writeWithReplica', () => {
 
 describe('checkpoints and view state (Kit UI protocol sections 7m, 7n)', () => {
   const replica = { snapshot: bytes(7), blobs: bytes(8), version: bytes(9) }
-  const checkpoint = { id: 'c1', time: 1, origin: 'kit', label: 'Sent', version: 'AQ==', available: true }
+  const checkpoint = { id: 'c1', time: 1, origin: 'kit', label: 'Sent', version: 'AQ==' }
 
   it('without the capabilities, the helpers answer null and do nothing', async () => {
     const host = fakeHost('v1')
@@ -133,7 +126,7 @@ describe('checkpoints and view state (Kit UI protocol sections 7m, 7n)', () => {
         requests.push(request)
         return checkpoint
       },
-      checkpoints: { list: async () => ({ checkpoints: [checkpoint], more: false }), update: async () => checkpoint, delete: async () => undefined, read: async () => ({ checkpoint, blobs: bytes(5) }) },
+      checkpoints: { list: async () => ({ checkpoints: [checkpoint], more: false }), update: async () => checkpoint, delete: async () => undefined, read: async () => ({ checkpoint, blobs: bytes(5), snapshot: bytes(6) }) },
     })
     const recorded: unknown[] = []
     await writeWithReplica(host, 'a.kdesign', new Uint8Array([1]), replica, 'v1', { checkpoint: { label: 'Sent' }, recorded: (made) => recorded.push(made) })
@@ -144,12 +137,14 @@ describe('checkpoints and view state (Kit UI protocol sections 7m, 7n)', () => {
     expect(new Uint8Array((stored.get('a.kdesign') as KitWrittenReplica).version)).toEqual(new Uint8Array([9]))
     expect(await listCheckpoints(host, 'a.kdesign')).toEqual({ checkpoints: [checkpoint], more: false })
     expect(await deleteCheckpoint(host, 'a.kdesign', 'c1')).toBe(true)
+    // A checkpoint keeps its state: the read answers its snapshot.
+    expect(new Uint8Array((await readCheckpoint(host, 'a.kdesign', 'c1'))!.snapshot)).toEqual(new Uint8Array([6]))
   })
 
   it('a refused checkpoint does not fail the save', async () => {
     const host = fakeHost('v1', new Map(), {
       replicaWrite: async () => Promise.reject(new Error('too-long')),
-      checkpoints: { list: async () => ({ checkpoints: [], more: false }), update: async () => checkpoint, delete: async () => undefined, read: async () => ({ checkpoint, blobs: bytes(5) }) },
+      checkpoints: { list: async () => ({ checkpoints: [], more: false }), update: async () => checkpoint, delete: async () => undefined, read: async () => ({ checkpoint, blobs: bytes(5), snapshot: bytes(6) }) },
     })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const recorded: unknown[] = []

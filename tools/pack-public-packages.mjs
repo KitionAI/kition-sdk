@@ -62,13 +62,11 @@ for (const { directory, manifest } of ordered) {
   for (const target of Object.values(published.exports)) {
     for (const file of typeof target === 'string' ? [target] : Object.values(target)) assert.ok(files.includes(file.replace(/^\.\//, '')), `${published.name}: missing ${file}`)
   }
-  let bundlesLoro = false
   for (const file of files.filter((file) => /\.(?:js|mjs|ts|css|html)$/.test(file))) {
     const content = run('tar', ['-xOf', archive, `package/${file}`], root)
     assert.equal(content.status, 0)
     assert.doesNotMatch(content.stdout, /(?:\/Users\/|\/home\/|sourceMappingURL=|C8-)/, `${published.name}: ${file}`)
     if (/\.(?:[cm]?js|ts)$/.test(file)) assert.deepEqual(undeclaredImports(published, content.stdout), [], `${published.name}: ${file} has undeclared imports`)
-    bundlesLoro ||= content.stdout.includes('__wbg_lorodoc_free')
   }
   // The installers ride in @kition/cli, the same bytes as install/ (tools/build-package.mjs).
   if (published.name === '@kition/cli') {
@@ -77,7 +75,7 @@ for (const { directory, manifest } of ordered) {
       assert.equal(run('tar', ['-xOf', archive, `package/dist/${script}`], root).stdout, fs.readFileSync(path.join(root, 'install', script), 'utf8'), `${published.name}: dist/${script} is not install/${script}`)
     }
   }
-  // @kition/sdk carries the twelve library packages: it depends on none of them, and has every
+  // @kition/sdk carries the ten library packages: it depends on none of them, and has every
   // subpath tools/sdk-package.mjs gives (tools/smoke-sdk-package.mjs installs and uses it).
   if (published.name === SDK) {
     for (const section of ['dependencies', 'peerDependencies', 'optionalDependencies', 'devDependencies']) {
@@ -86,7 +84,7 @@ for (const { directory, manifest } of ordered) {
     assert.deepEqual(published.exports, sdkExports(), `${SDK}: its exports are not tools/sdk-package.mjs's`)
     assert.ok(files.includes('LICENSE'), `${SDK}: no LICENSE at the package's top`)
     assert.equal(run('tar', ['-xOf', archive, 'package/LICENSE'], root).stdout, fs.readFileSync(path.join(root, 'LICENSE'), 'utf8'), `${SDK}: its LICENSE is not the repository's`)
-    // No file names one of the old packages (the twelve, Tessera's three) to its reader: comments,
+    // No file names one of the old packages (the ten, Tessera's three) to its reader: comments,
     // messages and declarations say @kition/sdk/<subpath>. Allowed: the client names a library sends
     // a server (CLIENT_NAMES in tools/sdk-package.mjs), which the owner renames at cutover or not.
     const left = []
@@ -96,14 +94,8 @@ for (const { directory, manifest } of ordered) {
       for (const { name, line } of oldNamesIn(content.stdout)) left.push(`${file}:${line}: ${name}`)
     }
     assert.deepEqual(left, [], `${SDK} names old packages (allowed: the client names ${CLIENT_NAMES.join(', ')})`)
-    // The editor's worker names Loro's WebAssembly, a file beside it, and inlines none of it.
-    assert.deepEqual(editorWorkerProblems(files, (file) => run('tar', ['-xOf', archive, `package/${file}`], root).stdout), [], `${SDK}: its editor worker and Loro's wasm`)
-  }
-  // Bundled third-party code ships with its license (tools/build-package.mjs writes the notices).
-  if (bundlesLoro) {
-    assert.ok(files.includes('dist/THIRD_PARTY_NOTICES'), `${published.name}: bundles loro-crdt without dist/THIRD_PARTY_NOTICES`)
-    const notices = run('tar', ['-xOf', archive, 'package/dist/THIRD_PARTY_NOTICES'], root).stdout
-    assert.ok(notices.includes(fs.readFileSync(path.join(root, 'packages/kdm/node_modules/loro-crdt/LICENSE'), 'utf8').trim()), `${published.name}: THIRD_PARTY_NOTICES lacks Loro's license`)
+    // The editor's worker is one bundle, started as a worker, with nothing large inlined.
+    assert.deepEqual(editorWorkerProblems(files, (file) => run('tar', ['-xOf', archive, `package/${file}`], root).stdout), [], `${SDK}: its editor worker`)
   }
   reports.push({ name: published.name, dryRunExit: dry.status, packExit: packed.status, archive, files })
   console.log(`${published.name}: dry-run=${dry.status}, pack=${packed.status}; archive verified`)

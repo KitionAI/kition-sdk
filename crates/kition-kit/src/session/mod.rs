@@ -26,8 +26,8 @@ pub use text::{DIFF_BUDGET, TextEdit, TextRun, diff_text, write_marks, write_ric
 pub use web::KitSessionDocument;
 #[doc(hidden)]
 pub use web::{
-    __author_schema_version, __can_redo, __can_undo, __execute_as, __export_changes, __import_changes, __model_batch, __model_describe, __redo,
-    __schema_version, __snapshot, __undo, __version,
+    __author_schema_version, __can_redo, __can_undo, __changes_since, __compare_changes, __execute_as, __export_changes, __import_changes, __merge_changes,
+    __model_batch, __model_describe, __model_reply, __redo, __restore_state, __schema_version, __snapshot, __undo, __version,
 };
 
 /// A failure of a kit session: the KDM's, or the kit's own message.
@@ -303,6 +303,23 @@ impl<M: KitModel> KitSession<M> {
     pub fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<Damage> {
         self.replica.merge_changes(bytes, origin)?;
         self.settle()
+    }
+
+    /// Writes the state `snapshot` holds (a snapshot or content of this document, as a host's
+    /// checkpoint keeps it) over the document as one transaction with `origin` ([`write_state`],
+    /// keyed by object id): one undo step of the person for a person's origin. Nothing changes
+    /// when the states are equal. Refuses ([`KdmError::WrongDocument`]) another document's.
+    pub fn restore_state(&mut self, snapshot: &[u8], origin: &Origin) -> Result<Damage> {
+        let schema = M::schema();
+        let loaded = Replica::load(Arc::clone(&schema), snapshot, self.replica.actor())?;
+        if loaded.doc_id() != self.replica.doc_id() {
+            return Err(KdmError::WrongDocument { expected: self.replica.doc_id().to_string(), found: loaded.doc_id().to_string() }.into());
+        }
+        let (now, then) = (state(&self.replica)?, state(&loaded)?);
+        if now == then {
+            return Ok(Damage::None);
+        }
+        self.execute(origin, |_, tx| write_state(tx, &schema, &now, &then)).map(|((), damage)| damage)
     }
 
     /// The document's state with its version ([`Replica::snapshot`]): for the host's store,

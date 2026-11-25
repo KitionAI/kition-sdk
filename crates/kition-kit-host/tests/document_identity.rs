@@ -20,7 +20,7 @@ mod common;
 
 const LIMIT: Duration = Duration::from_secs(20);
 
-/// Where the mock's file keeps its replica: the text, this line, then the snapshot in base64.
+/// Where the mock's file keeps its replica: the text, this line, then the content in base64.
 const REPLICA_MARK: &str = "\n%%kition-mock-replica%%\n";
 
 const SECRET: &str = "SECRET-DELETED-BEFORE-THE-FORK";
@@ -163,7 +163,7 @@ async fn a_file_that_embeds_its_replica_tells_its_identity_and_forks_into_a_new_
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// regressions/issue-kdm-shallow-export: the fork is a shallow replica (KitModel M16a). The mock
+/// regressions/issue-kdm-shallow-export: the fork is a new document. The mock
 /// answers `model.export` as a kit on the change exchange does (the changes since `since`, every
 /// change without one), so a host's draft of the fork (`model.export`, then `model.open`) opens,
 /// edits through `model.batch`, and merges back with `model.import`; before, every change of a

@@ -6,7 +6,7 @@ layer: gate
 source: { kind: synthetic, from: SDK synthetic replica and editor regression suites, license: owned }
 input: []
 steps:
-  - exec: { cmd: [pnpm, -s, vitest, run, packages/kdm/test/member-history.test.ts, packages/kit-editor/src/engine/kitEngine.context.test.ts, --pool=forks, --poolOptions.forks.singleFork] }
+  - exec: { cmd: [pnpm, -s, vitest, run, packages/kit-editor/src/engine/kitEngine.context.test.ts, --pool=forks, --poolOptions.forks.singleFork] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

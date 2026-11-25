@@ -463,7 +463,7 @@ describe('useKitSession', () => {
 
       const merged = await act(async () => hostPeer.request('draft/merge', { origin: { kind: 'agent', principal: 'user:a', label: 'Merged' }, schema: { kdm: 1 } }))
       expect(merged).toEqual({ merged: true, summary: expect.objectContaining({ changed: [expect.objectContaining({ id: 'p' })] }) })
-      expect(session.draft.merge).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.any(ArrayBuffer), { kind: 'agent', principal: 'user:a', label: 'Merged' }, { kdm: 1 })
+      expect(session.draft.merge).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.any(ArrayBuffer), { kind: 'agent', principal: 'user:a', label: 'Merged' })
       expect(draftEngine.dispose).toHaveBeenCalled()
       await vi.waitFor(() => expect(heard.map((info) => (info as { state: string }).state)).toEqual(['open', 'open', 'ready', 'none']))
       expect(await hostPeer.request('draft/state', {})).toEqual({ state: 'none', revision: null })
@@ -507,7 +507,7 @@ describe('useKitSession', () => {
       const set = { op: 'set', target: 'root', field: 'title', value: 'Q3' }
       const answer = await hostPeer.request('model/batch', { origin: { kind: 'agent', principal: 'local' }, ops: [set], draft: true })
       expect(answer.results).toEqual([null])
-      expect(fakes.draftEngine.modelBatch).toHaveBeenCalledWith({ origin: { kind: 'agent', principal: 'local' }, ops: [set] }, null)
+      expect(fakes.draftEngine.modelBatch).toHaveBeenCalledWith({ origin: { kind: 'agent', principal: 'local' }, ops: [set] })
       expect(documentBatch).not.toHaveBeenCalled()
       expect(await hostPeer.request('draft/state', {})).toMatchObject({ state: 'open' })
       await hostPeer.request('model/batch', { ops: [set] })
@@ -861,7 +861,7 @@ describe('useKitSession', () => {
       expect(await hostPeer.request('ai/version', {})).toEqual({ version: 'djE=' })
       const schema = { types: {} }
       expect(await hostPeer.request('ai/changes', { since: 'djE=', schema })).toEqual({ changes: { created: [], changed: [], moved: [], deleted: [] }, version: 'djI=' })
-      expect(changes).toHaveBeenCalledWith('djE=', schema)
+      expect(changes).toHaveBeenCalledWith('djE=')
     })
 
     it('does not list changes for an engine without a replica, and refuses ai/changes', async () => {

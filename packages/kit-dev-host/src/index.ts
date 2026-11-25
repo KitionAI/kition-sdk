@@ -50,14 +50,14 @@
  * person's view state of each document (capability `view-state`, section 7n). All three live in
  * `history` (history.ts), in memory for the page load and per workspace path, apart from the
  * files: `reload` reopens the document as the workspace holds it, keeping them, while `open`
- * opens a file alone (its replica is dropped and its checkpoints become unavailable).
+ * opens a file alone (its replica is dropped; its checkpoints keep their states).
  * `reopenChanged` changes the open document's file outside the editor (a new version, as another
- * program's save) and reopens it with its replica kept, which the kit then opens or not (UI-R1);
- * `replicaMergesFile` (or `?replica-merges-file=1`) says the kit's engine merges a newer file into
- * its stored replica, so its checkpoints stay available after that. `recordCheckpoint` plays the
- * host recording its own (origin `save`, `agent`, ...).
+ * program's save) and reopens it with its replica kept, which the kit opens with, recording the
+ * file's difference as one `import` change (UI-R1). `recordCheckpoint` plays the host recording its
+ * own (origin `save`, `agent`, ...); `restoreCheckpoint` restores one as the host's "restore this
+ * version" does (`replica/restore`).
  */
-import { KitRpcError, mountKit, type KitCheckpoint, type KitConnection, type KitLinkRef, type KitLinksPickParams, type KitOpenParams, type KitGenerateErrorReason, type KitGenerateParams, type KitGenerateResult, type KitFileGrant, type KitFilesManifest, type KitFilesPickParams, type KitPeerPresence, type KitPresence, type KitSchemaReport, type KitUiConfig, type KitView } from '@kition/kit-host'
+import { KitRpcError, mountKit, type KitCheckpoint, type KitConnection, type KitLinkRef, type KitLinksPickParams, type KitOpenParams, type KitGenerateErrorReason, type KitGenerateParams, type KitGenerateResult, type KitFileGrant, type KitFilesManifest, type KitFilesPickParams, type KitPeerPresence, type KitPresence, type KitSchemaReport, type RestoreOrigin, type KitUiConfig, type KitView } from '@kition/kit-host'
 import { checkNoPaths, type PathLeak } from './checkNoPaths'
 import { base64, DevHistory, type DevCheckpointRecord } from './history'
 import { memoryFilesStorage, type MemoryFile } from './memoryFiles'
@@ -66,7 +66,7 @@ import { chooseFiles, devHostStrings, folderOf, WORKSPACE_PATH, WorkspaceFiles, 
 export { checkNoPaths, isMimeType, isPathShaped, type PathLeak } from './checkNoPaths'
 export { memoryFilesStorage, type MemoryFile } from './memoryFiles'
 export { WORKSPACE_PATH, WorkspaceFiles, formatSize } from './workspace'
-export { DEV_LABELLED_CHECKPOINTS, DEV_UNLABELLED_CHECKPOINTS, DevHistory, type DevCheckpointRecord, type DevHistoryOptions } from './history'
+export { DEV_LABELLED_CHECKPOINTS, DEV_UNLABELLED_CHECKPOINTS, DevHistory, type DevCheckpointRecord } from './history'
 
 type File = MemoryFile
 
@@ -122,14 +122,6 @@ export type DevHostOptions = {
   checkpoints?: boolean
   /** Keeps the person's view state of each document (capability `view-state`, section 7n), as `?view-state=1` does. */
   viewState?: boolean
-  /**
-   * The kit's engine merges a newer file into its stored replica (`@kition/kit-editor`'s
-   * `replicaMergesFile`, Kit UI protocol UI-R1), as `?replica-merges-file=1` says: after its file
-   * changed outside (`reopenChanged`) the kit opens with the stored replica, so the replica's
-   * lineage continues and its checkpoints stay available. Off: they become unavailable at the kit's
-   * next replica write.
-   */
-  replicaMergesFile?: boolean
 }
 
 /** A `host/open` or `host/openUrl` the editor sent, as `mountKit` checked it. */
@@ -142,8 +134,8 @@ export type DevHost = {
   lendRoot: string | null
   connection: () => KitConnection | null
   /**
-   * Opens a file in the editor, alone: its stored replica is dropped and its checkpoints become
-   * unavailable (its view state stays); `view` is where in it to show first (`document.view`).
+   * Opens a file in the editor, alone: its stored replica is dropped (its checkpoints and view
+   * state stay); `view` is where in it to show first (`document.view`).
    */
   open: (path: string, bytes: ArrayBuffer, options?: { view?: KitView }) => Promise<void>
   /**
@@ -155,9 +147,8 @@ export type DevHost = {
    * Changes the open document's file outside the editor, as another program saving it would: the
    * editor closes, the workspace takes `bytes` at a new version, and the editor reopens it with its
    * replica, checkpoints and view state kept. The host hands the stored replica over although its
-   * `fileStamp` names the earlier version; the kit decides (UI-R1): a kit whose engine merges the
-   * file records the difference as one `import` change and keeps its history, any other opens the
-   * file plainly.
+   * `fileStamp` names the earlier version (UI-R1): the kit opens with it and records the file's
+   * difference as one `import` change.
    */
   reopenChanged: (bytes: ArrayBuffer, options?: { view?: KitView }) => Promise<void>
   /** The replicas, checkpoints and view states kept (with `replica`, `checkpoints`, `viewState`): `replica(path)`, `checkpoints(path)` (newest first), `viewState(path)`. */
@@ -167,6 +158,12 @@ export type DevHost = {
    * replica version (asked of the kit) and stored replica; `null` without them or without `checkpoints`.
    */
   recordCheckpoint: (record: DevCheckpointRecord) => Promise<KitCheckpoint | null>
+  /**
+   * Restores the open document to the state checkpoint `id` keeps, as a host's "restore this
+   * version" does: `replica/restore` with its snapshot and blobs, one step of the person's undo.
+   * Answers the kit's damage.
+   */
+  restoreCheckpoint: (id: string, origin?: RestoreOrigin) => Promise<{ damage: unknown }>
   /** Every `document/changed` the editor sent. */
   changes: unknown[]
   /** Sends a UI configuration (`ui/configure`) and keeps it for the next open. */
@@ -328,7 +325,7 @@ export function startDevHost(options: DevHostOptions = {}) {
   const servesCheckpoints = options.checkpoints === true || search.get('checkpoints') === '1'
   const servesReplica = servesCheckpoints || options.replica === true || search.get('replica') === '1'
   const servesViewState = options.viewState === true || search.get('view-state') === '1'
-  const history = new DevHistory({ replicaMergesFile: options.replicaMergesFile === true || search.get('replica-merges-file') === '1' })
+  const history = new DevHistory()
   let documentPath = ''
 
   const personalKey = `kit-dev-host:personal:${location.pathname}`
@@ -378,7 +375,7 @@ export function startDevHost(options: DevHostOptions = {}) {
 
   async function open(path: string, bytes: ArrayBuffer, openOptions: { view?: KitView } = {}) {
     files.set(path, { bytes, version: 1 })
-    // A file opened alone starts without a replica (UI-R3, UI-C5).
+    // A file opened alone starts without a replica (UI-R3).
     history.forget(path)
     await mount(path, openOptions)
   }
@@ -404,6 +401,12 @@ export function startDevHost(options: DevHostOptions = {}) {
     return version ? history.record(documentPath, base64(version), record) : null
   }
 
+  async function restoreCheckpoint(id: string, origin: RestoreOrigin = { kind: 'person', principal: 'person:dev', label: 'Restore' }) {
+    if (!servesCheckpoints || !connection) throw new Error('no document with checkpoints is open')
+    const { snapshot, blobs } = await history.handlers().checkpoints.read({ path: documentPath, id })
+    return connection.replica.restore(snapshot, blobs, origin)
+  }
+
   async function mount(path: string, openOptions: { view?: KitView }) {
     connection?.close()
     connection = null
@@ -412,7 +415,7 @@ export function startDevHost(options: DevHostOptions = {}) {
     // The kit announces itself when it loads (protocol section 1); mountKit waits for that.
     frame.src = `${entry}?${Date.now()}`
     const file = files.get(path)!
-    const kept = history.handlers(path, String(file.version))
+    const kept = history.handlers()
     try {
       connection = await mountKit(frame, {
         origin: location.origin,
@@ -575,6 +578,7 @@ export function startDevHost(options: DevHostOptions = {}) {
     open,
     reload,
     reopenChanged,
+    restoreCheckpoint,
     history,
     recordCheckpoint,
     changes,

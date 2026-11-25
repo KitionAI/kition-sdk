@@ -136,8 +136,6 @@ export type KitSessionOptions = {
   agentLeaseScope?: (command: string, params: Record<string, unknown>, engine: KitEngine) => string | null | Promise<string | null>
   /** One renewal's length for an agent step's lease (milliseconds, `host/leaseAcquire`'s `ttl`); the host's own by default. */
   agentLeaseTtl?: number
-  /** The kit declares that its engine merges a newer file into its stored replica when it opens, keeping its history (UI-R1, `KitDocumentOptions.replicaMergesFile`). */
-  replicaMergesFile?: boolean
   /**
    * Takes a change of the file on disk into the open document while it has no unsaved edits
    * (`KitDocumentOptions.followFile`); without it, or when it answers `false`, the document reopens.
@@ -194,7 +192,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
   const canComment = readOnly && host.init.document.comments?.canComment === true
   const commentList = manifest.commentCommands
   const comments = useMemo(() => commentCommands(commentList, canComment), [canComment, commentList])
-  const session = useKitDocument(host.files, manifest, path, true, describe, { readOnly, canComment, replicaMergesFile: options.replicaMergesFile, followFile: options.followFile, viewState: options.viewState })
+  const session = useKitDocument(host.files, manifest, path, true, describe, { readOnly, canComment, followFile: options.followFile, viewState: options.viewState })
   const { doc, failure } = session
   // The host hears of the engine's changes, keyed on its revision and saved state, not on the
   // editor's own refreshes (a view-only command refreshes the editor without changing the document).
@@ -302,8 +300,8 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
   const draftRef = useRef<KitDraft | null>(null)
   draftRef.current ??= new KitDraft({
     open: () => latest.current.draft.open(),
-    merge: (changes, blobs, origin, schema) => latest.current.draft.merge(changes, blobs, origin, schema),
-    compare: (changes, schema) => latest.current.draft.compare(changes, schema),
+    merge: (changes, blobs, origin) => latest.current.draft.merge(changes, blobs, origin),
+    compare: (changes) => latest.current.draft.compare(changes),
     preview: async (maxSize) => {
       const open = latest.current.doc
       return open ? previewPng(open, maxSize).catch(() => null) : null
@@ -614,13 +612,13 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
     peer.handle('draft/state', () => draft.info())
     peer.handle('draft/ready', () => draft.ready())
     peer.handle('draft/reopen', () => draft.reopen())
-    peer.handle('draft/compare', (params) => draft.compare(Math.max(1, Number(params?.maxSize) || 1024), params?.schema ?? null))
-    peer.handle('draft/merge', async ({ origin, schema = null }) => {
+    peer.handle('draft/compare', (params) => draft.compare(Math.max(1, Number(params?.maxSize) || 1024)))
+    peer.handle('draft/merge', async ({ origin }) => {
       if (readOnly) throw new KitRpcError(-32000, 'the document is read-only', { reason: READ_ONLY_REASON })
       const recorded: DraftOrigin = { kind: 'agent', principal: String(origin?.principal ?? ''), ...(origin?.label ? { label: String(origin.label) } : {}) }
       running.current = { by: 'agent' }
       try {
-        const merged = await draft.merge(recorded, schema)
+        const merged = await draft.merge(recorded)
         const open = latest.current.doc
         if (open) edited({ by: 'agent' }, open.info.revision)
         if (merged.merged) latestOptions.current.draftMerged?.({ summary: merged.summary })
@@ -644,7 +642,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
         throw error
       }
     }
-    peer.handle('model/describe', (params) => modelCall(() => latest.current.model.describe(params?.schema ?? null)))
+    peer.handle('model/describe', () => modelCall(() => latest.current.model.describe()))
     // What an agent's write changed (capability `changes`, C3b): the replica's version before it,
     // and the change set since that version after it, as Kit Process Protocol's `model.version` and
     // `model.changes` answer them on the headless path.
@@ -653,11 +651,12 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
       return call()
     }
     peer.handle('ai/version', () => replicaCall(async () => ({ version: await latest.current.model.version() })))
-    peer.handle('ai/changes', (params) => replicaCall(() => latest.current.model.changes(String(params?.since ?? ''), params?.schema ?? null)))
+    peer.handle('ai/changes', (params) => replicaCall(() => latest.current.model.changes(String(params?.since ?? ''))))
     peer.handle('ai/premise', ({ method, params }) => opened().premiseRead(method, params))
     peer.handle('model/batch', (params) =>
       modelCall(async () => {
-        const { schema = null, draft: onDraft, ...request } = params ?? {}
+        // The engine describes its own schema: a host's `schema` is not passed on.
+        const { schema: _schema, draft: onDraft, ...request } = params ?? {}
         const ops = Array.isArray(request.ops) ? request.ops : []
         if (readOnly && ops.length) throw new KitModelError({ code: READ_ONLY_REASON, index: null, message: 'the document is read-only' })
         const map = await menusFor(opened())
@@ -666,11 +665,11 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
             throw new KitModelError({ code: 'command-failed', index, message: notAllowed(op.id).message })
           }
         })
-        if (onDraft !== true) return latest.current.model.batch(request, schema)
+        if (onDraft !== true) return latest.current.model.batch(request)
         // On the agent's draft (capability `draft-model`): the document, its undo history, and its
         // file are left alone. Only writes open a draft; a read answers from the one there is.
         const engine = await draftEngine(ops.length > 0)
-        const answer = await engine.modelBatch(request, schema)
+        const answer = await engine.modelBatch(request)
         if (ops.length) draft.edited()
         return answer
       }),
@@ -685,6 +684,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
       peer.handle('replica/version', async () => ({ version: await latest.current.replica.version() }))
       peer.handle('replica/export', ({ since }) => latest.current.replica.exportChanges(since))
       peer.handle('replica/import', async ({ changes, blobs }) => ({ damage: await latest.current.replica.importChanges(changes, blobs) }))
+      peer.handle('replica/restore', async ({ snapshot, blobs, origin }) => ({ damage: await latest.current.replica.restore(snapshot, blobs, origin) }))
       peer.handle('replica/info', async () => ({ docId: await latest.current.replica.docId() }))
     }
     return () => {

@@ -21,8 +21,6 @@ steps:
       cmd: [cargo, build, -q, -p, kition-kit-mock]
   - exec:
       cmd: [cargo, test, -q, -p, kition-kits, --test, premise_guard, --, usable_]
-  - exec:
-      cmd: [pnpm, -s, vitest, run, packages/kdm/test/changes.test.ts]
 expected:
   - actual: out:exec
     compare: exit

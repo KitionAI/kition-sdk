@@ -22,6 +22,7 @@ type EngineClass = {
 
 /** A kit engine's document, as its class exposes it. */
 export type KitEngine = EngineLike & {
+  execute: (command: string, params: string) => string
   save: (name?: string) => Uint8Array
   markSaved: () => void
   readonly dirty: boolean

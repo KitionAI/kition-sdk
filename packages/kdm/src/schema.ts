@@ -43,9 +43,9 @@ export interface FieldDef {
   /**
    * A `ref` field whose object is part of the object holding it (a shape's text body), as the items
    * of a `list` or `tree` field always are; a ref without it only points (a picture's shared media).
-   * A `map` field declared `owns` holds, under each key, the objects its value names (`mapHeld`):
+   * A `map` field declared `owns` holds, under each key, the objects its value names:
    * a table's cells, each value naming the cell's text body. Change sets attribute a change of an
-   * object without a tool id to the nearest object holding it (`diffWithToolIds`).
+   * object without a tool id to the nearest object holding it.
    */
   owns?: boolean
   /** Batch deletion of a node also deletes descendants of this tree, child-first. */
@@ -60,34 +60,6 @@ export interface FieldDef {
   display?: { kind: 'time'; perSecond: number; fps?: number }
   /** Whether a training environment may sample an edit of it, as the Rust `FieldDef::sample`. */
   sample?: boolean
-}
-
-/** Whether the objects `def` holds are parts of its object: a `list` or `tree` field, or a `ref` or `map` declared `owns` (as the Rust `FieldDef::owning`). */
-export const owning = (def: FieldDef): boolean => def.kind === 'list' || def.kind === 'tree' || ((def.kind === 'ref' || def.kind === 'map') && def.owns === true)
-
-/**
- * As the Rust `FieldDef::map_held`: the objects an owning `map` field's value `map` holds, each with
- * its place: the value under a key when it is a string naming an object (`<key>`), else each member
- * of an object value that is one (`<key>.<member>`), keys and members in order.
- */
-export function mapHeld(map: unknown, exists: (id: string) => boolean): Array<[string, string]> {
-  const isEntries = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-  const names = (value: unknown): string | null => (typeof value === 'string' && value !== '' && exists(value) ? value : null)
-  const out: Array<[string, string]> = []
-  if (!isEntries(map)) return out
-  for (const key of Object.keys(map).sort(compareKeys)) {
-    const value = map[key]
-    const id = names(value)
-    if (id !== null) {
-      out.push([id, key])
-    } else if (isEntries(value)) {
-      for (const member of Object.keys(value).sort(compareKeys)) {
-        const held = names(value[member])
-        if (held !== null) out.push([held, `${key}.${member}`])
-      }
-    }
-  }
-  return out
 }
 
 /** How a mark grows when text is inserted at one of its ends. */
@@ -319,19 +291,6 @@ function badMarkKey(key: string): string | null {
 
 /** Whether `def` is a `text` field that declares marks. */
 export const hasMarks = (def: FieldDef): boolean => def.kind === 'text' && def.marks !== undefined && Object.keys(def.marks).length > 0
-
-/** Every mark key the schema declares with its expand: each key has one expand in a schema. */
-export function markExpands(schema: Schema): Map<string, Expand> {
-  const out = new Map<string, Expand>()
-  for (const ty of sortedKeys(schema.types)) {
-    const fields = schema.types[ty].fields
-    for (const name of sortedKeys(fields)) {
-      const marks = fields[name].marks ?? {}
-      for (const key of sortedKeys(marks)) out.set(key, marks[key].expand)
-    }
-  }
-  return out
-}
 
 /** The schema as written, checked for shape only: what the Rust crate's deserialization accepts. */
 function readSchema(raw: unknown): Schema {
@@ -658,18 +617,6 @@ function checkLimits(ty: string, field: string, value: JsonValue, limits: { mini
   if (typeof value !== 'number') return
   const units = limits.multipleOf !== undefined ? value / limits.multipleOf : 0
   if ((limits.minimum !== undefined && value < limits.minimum) || (limits.maximum !== undefined && value > limits.maximum) || !Number.isFinite(units) || Math.abs(units - Math.round(units)) > 1e-9) throw errors.invalidValue(ty, field, 'is outside minimum/maximum or is not a multipleOf the declared step')
-}
-
-export function checkMapEntry(schema: Schema, ty: string, field: string, key: string, value: JsonValue): void {
-  const def = fieldDef(schema, ty, field)
-  if (def.of !== undefined && (typeof value !== 'string' || value === '')) throw errors.invalidValue(ty, field, `map entry \`${key}\` expects the id of a \`${def.of}\``)
-  for (const [path, limits] of Object.entries(def.members ?? {})) {
-    for (const leaf of memberValues({ [key]: value }, path)) {
-      if (Array.isArray(leaf) || isRecord(leaf) || (leaf === null && limits.nullable)) continue
-      if (typeof leaf !== 'number') throw errors.invalidValue(ty, field, `map entry \`${key}\` requires a number`)
-      checkLimits(ty, field, leaf, limits)
-    }
-  }
 }
 
 /** How many of an enum's values a refusal lists before it counts the rest. */

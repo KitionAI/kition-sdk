@@ -1,17 +1,8 @@
 /**
- * A `ts-worker` engine module for the loader's tests: `@kition/kit-engine`'s class for a one-field
- * document, and a default export that records what it was given.
+ * A `ts-worker` engine module for the loader's tests: a document class for a one-field document
+ * written in plain JavaScript (the engine contract's members it is asked for), and a default
+ * export that records what it was given.
  */
-import { newDocId, parseSchema, Replica, system } from '@kition/kdm'
-import { kitEngineClass } from '@kition/kit-engine'
-
-const schema = parseSchema({
-  kdm: 1,
-  kit: 'kit.notes',
-  schemaVersion: 1,
-  root: 'Notes',
-  types: { Notes: { fields: { title: { kind: 'string' } } } },
-})
 
 export const prepared = []
 
@@ -19,13 +10,59 @@ export default async function prepare(init) {
   prepared.push(init)
 }
 
-export const NotesDocument = kitEngineClass({
-  schema,
-  load: (replica) => ({ title: String(replica.get(replica.objectsOfType('Notes')[0], 'title')) }),
-  apply: () => ({ kind: 'full' }),
-  command: () => null,
-  commands: () => [],
-  import: (_name, bytes, actor) =>
-    Replica.createWith(schema, newDocId(), actor, system('import'), (tx) => tx.create('Notes', { title: new TextDecoder().decode(bytes) })).replica,
-  export: (view) => new TextEncoder().encode(view.title),
-})
+const COMMANDS = [
+  { id: 'edit.undo', title: 'Undo', menu: ['Edit'], shortcut: 'Cmd+Z', mutates: true, enabled: false },
+  { id: 'edit.redo', title: 'Redo', menu: ['Edit'], shortcut: 'Cmd+Shift+Z', mutates: true, enabled: false },
+]
+
+export class NotesDocument {
+  constructor(title) {
+    this.title = title
+    this.revision = 0n
+    this.dirty = false
+    this.width = 1
+    this.height = 1
+  }
+
+  static open(_name, bytes) {
+    return new NotesDocument(new TextDecoder().decode(bytes))
+  }
+
+  render() {
+    return new Uint8Array(4)
+  }
+
+  renderArea() {
+    return new Uint8Array(4)
+  }
+
+  execute() {
+    return 'null'
+  }
+
+  inspect() {
+    return JSON.stringify({ title: this.title, canUndo: false, canRedo: false })
+  }
+
+  commands() {
+    return JSON.stringify(COMMANDS)
+  }
+
+  save() {
+    return new TextEncoder().encode(this.title)
+  }
+
+  markSaved() {
+    this.dirty = false
+  }
+
+  version() {
+    return new Uint8Array(0)
+  }
+
+  exportChanges() {
+    return new TextEncoder().encode(JSON.stringify({ title: this.title }))
+  }
+
+  free() {}
+}

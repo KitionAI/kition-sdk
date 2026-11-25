@@ -1,4 +1,4 @@
-// @kition/sdk: the mapping from the twelve library packages to its subpaths (tools/sdk-package.mjs),
+// @kition/sdk: the mapping from the ten library packages to its subpaths (tools/sdk-package.mjs),
 // its package.json, and the codemod that moves a consumer to it (tools/migrate-to-sdk.mjs).
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -18,11 +18,11 @@ afterEach(() => {
   for (const dir of scratch.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-describe('@kition/sdk: one package for the twelve library packages', () => {
-  it('maps each of the twelve packages to one subpath, and mirrors every export and executable they have', () => {
+describe('@kition/sdk: one package for the ten library packages', () => {
+  it('maps each of the ten packages to one subpath, and mirrors every export and executable they have', () => {
     expect(PARTS.map((part) => part.name).sort()).toEqual([
-      '@kition/convergence', '@kition/embed', '@kition/embed-server', '@kition/extensions', '@kition/kdm', '@kition/kit-dev-host',
-      '@kition/kit-editor', '@kition/kit-engine', '@kition/kit-host', '@kition/kit-ui-protocol', '@kition/script', '@kition/sync',
+      '@kition/embed', '@kition/embed-server', '@kition/extensions', '@kition/kdm', '@kition/kit-dev-host',
+      '@kition/kit-editor', '@kition/kit-host', '@kition/kit-ui-protocol', '@kition/script', '@kition/sync',
     ])
     for (const part of PARTS) expect(manifestOf(part).name).toBe(part.name)
     const list = subpaths()
@@ -58,8 +58,7 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(sdk.exports['./editor/styles.css']).toBe('./dist/lib/kit-editor/styles.css')
     expect(sdk.exports['./embed']).toEqual({ types: './dist/types/embed/src/index.d.ts', import: './dist/standalone/index.js' })
     expect(sdk.sideEffects).toContain('*.css')
-    // The object model and the extension host are library builds, sharing Loro and the KDM with
-    // /kdm and /sync; the self-contained object model is /script/standalone, beside /embed.
+    // The object model and the extension host are library builds, sharing the KDM with /kdm; the self-contained object model is /script/standalone, beside /embed.
     expect(sdk.exports['./script']).toEqual({ types: './dist/types/script/src/index.d.ts', import: './dist/lib/script/index.js' })
     expect(sdk.exports['./script/kits/note']).toEqual({ types: './dist/types/script/kits/note.d.ts', import: './dist/lib/script/kits/note.js' })
     expect(sdk.exports['./extensions']).toEqual({ types: './dist/types/extensions/src/index.d.ts', import: './dist/lib/extensions/index.js' })
@@ -71,14 +70,14 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(spawnSync(process.execPath, [path.join(root, 'tools/sdk-package.mjs'), '--check'], { encoding: 'utf8' }).status).toBe(0)
   })
 
-  it('depends on no other @kition library package: loro-crdt as kdm has it, React and @kition/tessera optional peers', () => {
+  it('depends on no package: React and @kition/tessera optional peers', () => {
     for (const section of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
       for (const name of Object.keys(sdk[section] ?? {})) expect(name.startsWith('@kition/') && name !== TESSERA, `${section}: ${name}`).toBe(false)
     }
-    expect(sdk.dependencies).toEqual({ 'loro-crdt': read('packages/kdm/package.json').dependencies['loro-crdt'] })
+    expect(sdk.dependencies).toBeUndefined()
     expect(Object.keys(sdk.peerDependencies).sort()).toEqual([TESSERA, 'react', 'react-dom'])
     for (const name of Object.keys(sdk.peerDependencies)) expect(sdk.peerDependenciesMeta[name], name).toEqual({ optional: true })
-    // The twelve packages keep Tessera's three old packages; @kition/sdk's one peer takes their range.
+    // The ten packages keep Tessera's three old packages; @kition/sdk's one peer takes their range.
     const editor = read('packages/kit-editor/package.json')
     expect(Object.keys(editor.dependencies).filter((name) => name.startsWith('@kition/tessera')).sort()).toEqual(OLD_TESSERA)
     for (const name of OLD_TESSERA) expect(sdk.peerDependencies[TESSERA], name).toBe(editor.dependencies[name])
@@ -112,29 +111,22 @@ describe('@kition/sdk: one package for the twelve library packages', () => {
     expect(oldNamesIn(renameOldNames('@kition/embed-server @kition/tessera-icons/react @kition/kit-ui-protocol'))).toEqual([])
   })
 
-  it("ships Loro's WebAssembly as a file beside the editor's worker, named as a bundler finds it, never inlined", () => {
+  it("ships the editor's worker as one file, started as a bundler finds it, with nothing large inlined", () => {
     const worker = 'dist/lib/assets/kitEngine.worker-AbC_1-x.js'
-    const wasm = 'dist/lib/assets/loro_wasm_bg-Gulzks_0.wasm'
     const editor = 'dist/lib/kit-editor/index.js'
-    const glue = 'async function init(n) { return WebAssembly.instantiateStreaming(fetch(n), {}) }\n'
     const good = {
-      [worker]: `${glue}init(new URL("./loro_wasm_bg-Gulzks_0.wasm", import.meta.url))\n`,
-      [wasm]: '\0asm',
+      [worker]: 'self.onmessage = () => undefined\n',
       [editor]: 'const w = new Worker(new URL("../assets/kitEngine.worker-AbC_1-x.js", import.meta.url), { type: "module" })\nconst v = new Worker(new URL(\'../assets/kitEngine.worker-AbC_1-x.js\', import.meta.url), { type: "module" })\n',
     }
     const problems = (files) => editorWorkerProblems(Object.keys(files), (file) => files[file])
     expect(problems(good)).toEqual([])
-    // Library mode's inlining: no wasm file, the module as base64 in the worker.
-    const inlined = { [worker]: `${glue}init(new URL("data:application/wasm;base64,${'A'.repeat(70000)}", import.meta.url))\n`, [editor]: good[editor] }
-    expect(problems(inlined)).toEqual([expect.stringMatching(/0 Loro wasm files .*inlines Loro again/)])
-    expect(problems({ ...inlined, [wasm]: '\0asm' })).toEqual([expect.stringMatching(/does not name .*loro_wasm_bg-Gulzks_0\.wasm/), expect.stringMatching(/inlines a large data: URL/)])
-    expect(problems({ ...good, [worker]: `${glue}const x = "data:font/woff2;base64,${'B'.repeat(70000)}"\n${good[worker]}` })).toEqual([expect.stringMatching(/inlines a large data: URL/)])
-    // Library mode's worker URL, which a bundler copies as an opaque file (without the wasm).
+    // Library mode's inlining: a WebAssembly module as base64 in the worker.
+    expect(problems({ ...good, [worker]: `init(new URL("data:application/wasm;base64,${'A'.repeat(70000)}", import.meta.url))\n` })).toEqual([expect.stringMatching(/inlines a large data: URL/)])
+    expect(problems({ ...good, [worker]: `const x = "data:font/woff2;base64,${'B'.repeat(70000)}"\n${good[worker]}` })).toEqual([expect.stringMatching(/inlines a large data: URL/)])
+    // Library mode's worker URL, which a bundler copies as an opaque file.
     const ignored = 'new Worker(new URL(/* @vite-ignore */ "" + new URL("../assets/kitEngine.worker-AbC_1-x.js", import.meta.url).href, import.meta.url), { type: "module" })'
     expect(problems({ ...good, [editor]: `${good[editor]}${ignored}\n` })).toEqual([expect.stringMatching(/names .* 3 times, 2 of them as new Worker/)])
     expect(problems({ ...good, [editor]: 'nothing' })).toEqual([expect.stringMatching(/no chunk of @kition\/sdk starts/)])
-    // loro-crdt/browser's loader: a blocking request and a synchronous compile.
-    expect(problems({ ...good, [worker]: 'throw new Error("loro-crdt browser build requires XMLHttpRequest for synchronous WASM loading.")\nnew WebAssembly.Module(new URL("./loro_wasm_bg-Gulzks_0.wasm", import.meta.url))' })).toEqual([expect.stringMatching(/as loro-crdt\/browser does/)])
     expect(problems({ ...good, [worker.replace('AbC', 'Two')]: good[worker] })).toEqual([expect.stringMatching(/2 editor workers/)])
     // The built package, when it is there, is as the check wants it.
     const built = path.join(root, 'packages/sdk')
@@ -156,7 +148,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
       "const note = await import('@kition/script/kits/note')",
       "const server = require('@kition/embed-server/callbacks')",
       "vi.mock('@kition/sync/openToken', () => ({}))",
-      'export default { resolve: { dedupe: [`@kition/kit-engine`, "@kition/kit-host"] } }',
+      'export default { resolve: { dedupe: [`@kition/kit-dev-host`, "@kition/kit-host"] } }',
       "import { Button } from '@kition/tessera-ui'",
       "import kit from '@kition/kit-note-ui/note-ui/kit.json'",
       "const cli = '@kition/cli'",
@@ -181,8 +173,8 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     // Eight specifiers, and the two package names of the dedupe list, which become the package once.
     expect(changes).toHaveLength(10)
     expect(notes).toEqual([{ line: 13, text: "@kition/embed (unquoted, as in a comment): it is @kition/sdk/embed now, of the package @kition/sdk (// see @kition/embed's README)" }])
-    const quoted = migrateText("const name = '@kition/kit-engine'\n")
-    expect(quoted.notes).toEqual([{ line: 1, text: "@kition/kit-engine is named here as something other than an import (const name = '@kition/kit-engine'); change it by hand: the package is @kition/sdk, this subpath @kition/sdk/engine" }])
+    const quoted = migrateText("const name = '@kition/kit-host'\n")
+    expect(quoted.notes).toEqual([{ line: 1, text: "@kition/kit-host is named here as something other than an import (const name = '@kition/kit-host'); change it by hand: the package is @kition/sdk, this subpath @kition/sdk/host" }])
     const more = migrateText("declare module '@kition/kdm' {}\nconst at = import.meta.resolve('@kition/embed')\nconst all = await vi.importActual(\n'@kition/kit-host')\n")
     expect(more.text).toBe("declare module '@kition/sdk/kdm' {}\nconst at = import.meta.resolve('@kition/sdk/embed')\nconst all = await vi.importActual(\n'@kition/kit-host')\n")
     expect(more.notes).toHaveLength(1)
@@ -229,10 +221,10 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
   it('writes exactly the specs given for @kition/sdk and @kition/tessera (a rehearsal\'s npm aliases), also over entries the project has', () => {
     const sdkSpec = 'npm:@kitionstage/sdk@0.5.2-stage.4'
     const tesseraSpec = 'npm:@kitionstage/tessera@0.1.1-stage.3'
-    // A kit's web/package.json as the kits have it: the editor, the engine, the host and Tessera's icons.
+    // A kit's web/package.json as the kits have it: the editor, the host and Tessera's icons.
     const kit = {
       name: 'kition-note-web',
-      dependencies: { '@kition/kdm': '^0.1.0', '@kition/kit-editor': '^0.1.0', '@kition/kit-engine': '^0.1.0', '@kition/kit-host': '^0.1.0', '@kition/kit-ui-protocol': '^0.1.0', '@kition/tessera-icons': '^0.1.0', react: '^19.0.0' },
+      dependencies: { '@kition/kdm': '^0.1.0', '@kition/kit-editor': '^0.1.0', '@kition/kit-host': '^0.1.0', '@kition/kit-ui-protocol': '^0.1.0', '@kition/tessera-icons': '^0.1.0', react: '^19.0.0' },
       devDependencies: { '@kition/kit-dev-host': '^0.1.0', vite: '^6.0.0' },
     }
     const moved = migrateManifest(kit, { sdkSpec, tesseraSpec })
@@ -264,7 +256,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(ran.status, ran.stderr).toBe(0)
     expect(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).dependencies).toEqual(moved.manifest.dependencies)
     // Written, and the place left for a person listed with its line (exit 0 without --check).
-    expect(ran.stdout).toContain(`needs a person: 1 place(s)\n  ${path.relative(process.cwd(), path.join(dir, 'package.json'))}:9: @kition/tessera-icons: Tessera is one package now`)
+    expect(ran.stdout).toContain(`needs a person: 1 place(s)\n  ${path.relative(process.cwd(), path.join(dir, 'package.json'))}:8: @kition/tessera-icons: Tessera is one package now`)
     for (const bad of [[dir, '--sdk-spec'], [dir, '--tessera-spec', '--check'], [dir, '--version', '^1.0.0']]) expect(spawnSync(process.execPath, [tool, ...bad], { encoding: 'utf8' }).status, bad.join(' ')).toBe(2)
   })
 
@@ -339,7 +331,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
       '    ],',
       "    include: ['@kition/kit-editor > use-sync-external-store/shim', '@kition/kit-editor > @kition/tessera-ui'],",
       '  },',
-      "  ssr: { noExternal: ['@kition/kit-engine'] },",
+      "  ssr: { noExternal: ['@kition/kit-ui-protocol'] },",
       "  build: { rollupOptions: { external: ['@kition/kit-host', 'react'] } },",
       "  other: { name: '@kition/kit-dev-host > x' },",
       '}',
@@ -378,7 +370,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
       "const alias = { '@kition/sdk/editor': path.join(sdk, 'kition-sdk/packages/kit-editor/src') }",
       "const { runModeSmoke } = await import('../../kition-sdk/packages/kit-dev-host/src/modeSmoke.mjs')",
       "const { checkUiIds } = await import(new URL('packages/kit-dev-host/src/checkUiIds.mjs', base).href)",
-      "const engine = path.join(sdk, 'packages', 'kit-engine')",
+      "const host = path.join(sdk, 'packages', 'kit-host')",
       "import { x } from '@kition/sdk/editor' // @kition/sdk is fine",
     ].join('\n')
     const { text, changes, notes } = migrateText(source)
@@ -392,39 +384,39 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     expect(notes[4].text).toContain("a path into kition-sdk's packages/kit-editor/src")
     expect(notes[5].text).toContain("a path into kition-sdk's packages/kit-dev-host/src/modeSmoke.mjs: import @kition/sdk/dev-host/mode-smoke instead")
     expect(notes[6].text).toContain('import @kition/sdk/dev-host/check-ui-ids instead')
-    expect(notes[7].text).toContain("a path into kition-sdk's packages/kit-engine")
+    expect(notes[7].text).toContain("a path into kition-sdk's packages/kit-host")
   })
 
   it('rewrites specifiers dynamic loaders take (a dev server\'s ssrLoadModule, createRequire\'s and a plugin\'s resolve, a runner\'s import, jiti, import() with a comment); lists <old>/package.json', () => {
-    // kition-layout's web/tests/collab.mjs before its move (ea0050f0^), and the other loaders' forms.
+    // A dev server's loader, and the other loaders' forms.
     const source = [
-      "const { SyncClient, startRelay, SyncRpcError } = await vite.ssrLoadModule('@kition/sync')",
-      "const { LORO_REPLICA_VERSIONS: versions } = await vite.ssrLoadModule('@kition/sync/replicaVersions')",
+      "const { SyncClient, SyncRpcError } = await vite.ssrLoadModule('@kition/sync')",
+      "const { decodeOpenToken } = await vite.ssrLoadModule('@kition/sync/openToken')",
       'const editor = await server.ssrLoadModule("@kition/kit-editor")',
       "const smoke = createRequire(import.meta.url).resolve('@kition/kit-dev-host/mode-smoke')",
       "const kdm = await import(/* @vite-ignore */ '@kition/kdm')",
       "const id = await this.resolve('@kition/sync', importer)",
       "const sync = await runner.import('@kition/sync')",
-      "const loaded = jiti('@kition/kit-engine')",
-      "const manifest = require.resolve('@kition/kit-engine/package.json')",
+      "const loaded = jiti('@kition/kit-host')",
+      "const manifest = require.resolve('@kition/kit-host/package.json')",
       "const label = '@kition/kdm'",
     ].join('\n')
     const { text, changes, notes } = migrateText(source)
     expect(text.split('\n')).toEqual([
-      "const { SyncClient, startRelay, SyncRpcError } = await vite.ssrLoadModule('@kition/sdk/sync')",
-      "const { LORO_REPLICA_VERSIONS: versions } = await vite.ssrLoadModule('@kition/sdk/sync/replicaVersions')",
+      "const { SyncClient, SyncRpcError } = await vite.ssrLoadModule('@kition/sdk/sync')",
+      "const { decodeOpenToken } = await vite.ssrLoadModule('@kition/sdk/sync/openToken')",
       'const editor = await server.ssrLoadModule("@kition/sdk/editor")',
       "const smoke = createRequire(import.meta.url).resolve('@kition/sdk/dev-host/mode-smoke')",
       "const kdm = await import(/* @vite-ignore */ '@kition/sdk/kdm')",
       "const id = await this.resolve('@kition/sdk/sync', importer)",
       "const sync = await runner.import('@kition/sdk/sync')",
-      "const loaded = jiti('@kition/sdk/engine')",
-      "const manifest = require.resolve('@kition/kit-engine/package.json')",
+      "const loaded = jiti('@kition/sdk/host')",
+      "const manifest = require.resolve('@kition/kit-host/package.json')",
       "const label = '@kition/kdm'",
     ])
     expect(changes).toHaveLength(8)
     expect(notes).toEqual([
-      { line: 9, text: '@kition/kit-engine/package.json: @kition/sdk exports no package.json; resolve one of its subpaths (@kition/sdk/engine) or read packages/sdk/package.json by hand' },
+      { line: 9, text: '@kition/kit-host/package.json: @kition/sdk exports no package.json; resolve one of its subpaths (@kition/sdk/host) or read packages/sdk/package.json by hand' },
       { line: 10, text: "@kition/kdm is named here as something other than an import (const label = '@kition/kdm'); change it by hand: the package is @kition/sdk, this subpath @kition/sdk/kdm" },
     ])
   })
@@ -488,7 +480,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     }
     fs.mkdirSync(path.join(repo, '.git'))
     write('AGENTS.md', "- `web/` is a React app on `@kition/kit-editor` (kition-sdk's\n")
-    write('docs/development.md', 'Links @kition/kdm, @kition/kit-editor and @kition/kit-engine.\n')
+    write('docs/development.md', 'Links @kition/kdm, @kition/kit-editor and @kition/kit-host.\n')
     write('cases/x/case.yaml', 'intent: >-\n  relayed by @kition/sync\n')
     write('golden_word/a.md', '@kition/kit-editor\n')
     write('target/b.md', '@kition/kit-editor\n')
@@ -504,7 +496,7 @@ describe('migrate-to-sdk: a consumer moved to @kition/sdk', () => {
     const where = (list) => list.map(({ file, line }) => `${path.relative(repo, file)}:${line}`).sort()
     expect(where(mentionsLeft(web))).toEqual(['AGENTS.md:1', 'cases/x/case.yaml:2', 'docs/development.md:1', 'web/README.md:1', 'web/fixtures/note.json:1'])
     expect(where(mentionsLeft(web, { repo: false }))).toEqual(['web/README.md:1', 'web/fixtures/note.json:1'])
-    expect(mentionsLeft(web).find(({ file }) => file.endsWith('development.md')).text).toBe('@kition/kdm -> @kition/sdk/kdm, @kition/kit-editor -> @kition/sdk/editor, @kition/kit-engine -> @kition/sdk/engine (Links @kition/kdm, @kition/kit-editor and @kition/kit-engine.)')
+    expect(mentionsLeft(web).find(({ file }) => file.endsWith('development.md')).text).toBe('@kition/kdm -> @kition/sdk/kdm, @kition/kit-editor -> @kition/sdk/editor, @kition/kit-host -> @kition/sdk/host (Links @kition/kdm, @kition/kit-editor and @kition/kit-host.)')
     expect(mentionsLeft(web).find(({ file }) => file.endsWith('note.json')).text).toContain('@kition\\/kdm -> @kition/sdk/kdm')
     const tool = path.join(root, 'tools/migrate-to-sdk.mjs')
     const checked = spawnSync(process.execPath, [tool, web, '--check'], { encoding: 'utf8', cwd: repo })

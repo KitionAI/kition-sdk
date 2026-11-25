@@ -559,8 +559,8 @@ export type KitEditorOptions = {
   /** Where failures go; an error toast when unset. */
   report?: KitReport
   /**
-   * The kit's own undo history, when it is more than its engine's: an editor that edits a page
-   * replica (`WorkerRelay`) next to its engine has steps in both. The frame's Undo and Redo
+   * The kit's own undo history, when it is more than its engine's: an editor that keeps steps of
+   * its own next to its engine's has steps in both. The frame's Undo and Redo
    * (buttons, menus, shortcuts, the Focus bar) then show and run this history instead of the
    * engine's `edit.undo` and `edit.redo`, still under the host's configuration.
    */

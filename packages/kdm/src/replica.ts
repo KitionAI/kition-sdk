@@ -1,1584 +1,397 @@
-import { decodeImportBlobMeta, isContainer as isEngineContainer, LoroDoc, UndoManager, VersionVector, type ContainerID, type ImportStatus, type LoroEventBatch, type LoroTreeNode, type PeerID } from 'loro-crdt'
-import { canonicalText, compareKeys } from './canonical'
-import { checkString } from './args'
-import { open, sameBytes, Version, wrap } from './envelope'
+/**
+ * A read-only replica of a document (plan 2026-11-24, section 4). The Rust KDM is the only writer:
+ * a replica here loads its content or a snapshot, follows the changes it exports, in order, and
+ * reads objects with the same answers as the Rust `Replica`.
+ */
+import { canonical, canonicalText, compareKeys } from './canonical'
+import { docIdOf, parseChangeList } from './change'
+import { decodeContent, type Content } from './content'
 import { errors, KdmError } from './errors'
-import { checkActor, committedNode, uuidFromBytes, uuidToBytes, type NodeRef, type ObjectId, type TreeEntry } from './ids'
-import { configure, type TextRun } from './marks'
-import { checkOrigin, decodeCommit, decodeOrigin, encodeCommit, system, undoScopeOf, type Origin, type OriginKind, type UndoScope } from './origin'
-import * as read from './read'
-import { KDM_VERSION, type Schema } from './schema'
-import { diffObjects, diffWithToolIds, withLeafEdits, withTextSpans, type StateDiff } from './diff'
-import { ToolIds } from './toolIds'
-import { Tx } from './tx'
+import { nodeOf, type NodeRef, type ObjectId, type TreeEntry } from './ids'
+import { readJson } from './json'
+import type { TextRun } from './marks'
+import { pushRun } from './marks'
+import { fieldDef, hasMarks, KDM_VERSION, typeDef, type Expand, type FieldDef, type FieldKind, type Schema } from './schema'
+import { opObjects, Store, StoredObject, TYPE_KEY, type Field, type Undo } from './store'
+import type { Text } from './text'
+import type { JsonValue } from './value'
+import { Version } from './version'
 
-/**
- * The origin given to the partial operations of a transaction the engine refused while applying
- * it, and to their reversal, so the undo history never records either.
- */
-const ROLLBACK = 'kdm-rollback'
+/** What an import answers for changes of another line; the Rust crate says the same. */
+const OTHER_LINE = "the changes continue another line of changes (another replica's history)"
+/** What an import answers for changes that went another way from the same version; the Rust crate says the same. */
+const DIVERGED = "the changes went another way from this replica's version"
+/** The changes whose actors a replica remembers, to tell a change it has from another of the same number. */
+const ACTORS_KEPT = 10_000
 
-/**
- * The commit origin of `system` transactions (repairs, migrations). They are not undo steps: undo
- * skips them like changes from another replica, and they survive the undo of earlier transactions.
- */
-const SYSTEM: Origin['kind'] = 'system'
-const IMPORT: Origin['kind'] = 'import'
+const isRecord = (value: unknown): value is Record<string, JsonValue> => value !== null && typeof value === 'object' && !Array.isArray(value)
 
-/** A text change as the engine reports it, in UTF-16 code units; `attributes` are the marks it sets (`null`: removed). */
-export type TextDelta =
-  | { retain: number; attributes?: Record<string, unknown> }
-  | { insert: string; attributes?: Record<string, unknown> }
-  | { delete: number }
+function checkString(what: string, value: unknown): asserts value is string {
+  if (typeof value !== 'string') throw new KdmError('invalid-value', `${what} must be a string, not ${value === null ? 'null' : typeof value}`)
+}
 
-/** An engine failure while applying operations that validation accepted. */
-const applyingFailed = (error: unknown): KdmError => errors.engine(`applying a validated transaction failed: ${error instanceof Error ? error.message : String(error)}`)
+/** The store of `content`, checked against `schema` (the Rust `Replica::checked_store`). */
+function checkedStore(schema: Schema, content: Content): Store {
+  if (content.kit !== schema.kit) throw errors.schema(`the document belongs to "${content.kit}", not \`${schema.kit}\``)
+  if (content.schemaVersion > schema.schemaVersion) throw errors.newerSchema(content.schemaVersion, schema.schemaVersion)
+  const store = Store.fromContent(content, schema)
+  checkProjectedStorage(store, schema)
+  return store
+}
 
-const engineMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
-
-/** What an import into a shallow replica answers for changes that depend on history before its root; the Rust crate says the same. */
-const CHANGES_BEFORE_ROOT = "the changes depend on history before this shallow replica's root; rebase it on a newer snapshot"
-/** What a shallow replica answers for a fork at an earlier version; the Rust crate says the same. */
-/** What `changesSince` answers for a version its history does not hold; the Rust `changes_since` says the same. */
-const VERSION_NOT_HELD = "the version is not in this replica's history (another document's, or the document was replaced since)"
-
-const VERSION_BEFORE_ROOT = "the version is before this shallow replica's root; read earlier versions from the server"
-/** What `rebase` answers for a snapshot older than a shallow replica's root; the Rust crate says the same. */
-const SNAPSHOT_BEFORE_ROOT = "the snapshot is older than this shallow replica's root; rebase it on a newer one"
-
-/** The label of a content seal's `system` change (`Replica.seal`). */
-const CONTENT_SEAL = 'content-seal'
-/** The label of the `system` change that makes a copy (`Replica.copyAsNewDocument`). */
-const NEW_DOCUMENT = 'new-document'
-/** The label of the `system` change of a rebirth (`Replica.rebirth`). */
-const REBIRTH = 'rebirth'
-/** The labels of the `system` changes that seal a version (`Replica.isSealed`); the Rust crate has the same. */
-const SEALS: readonly string[] = [CONTENT_SEAL, NEW_DOCUMENT, REBIRTH]
-/** What `sealedContentSnapshot` answers for a replica that is not sealed; the Rust crate says the same. */
-const NOT_SEALED = 'is not sealed: seal the replica first (seal), or take content_snapshot'
-/** What `rebirth` answers while changes are pending; the Rust crate says the same. */
-const PENDING_REBIRTH = 'has pending changes, which a rebirth would lose: fetch what they depend on first'
-
-/** An engine failure while importing bytes: `history-missing` for changes a shallow replica lacks the history of, `encoding` otherwise. */
-const importing = (error: unknown): KdmError =>
-  engineMessage(error).includes('not included in the shallow history') ? errors.historyMissing(CHANGES_BEFORE_ROOT) : errors.encoding(engineMessage(error))
-
-/**
- * Runs `run` while observing which objects change. Change events are observed only during the
- * call: a document-wide subscription makes large local transactions slow to commit.
- */
-function observeChanges<T>(doc: LoroDoc, run: () => T): { value: T; changed: Set<ObjectId>; registers: Register[] } {
-  const found = new Set<ObjectId>()
-  const registers: Register[] = []
-  const unsubscribe = doc.subscribe((batch: LoroEventBatch) => {
-    for (const event of batch.events) {
-      if (event.path[0] !== read.OBJECTS) continue
-      if (event.path.length >= 2) {
-        found.add(String(event.path[1]))
-        if (event.diff.type === 'map') {
-          for (const [key, value] of Object.entries(event.diff.updated)) if (!isEngineContainer(value)) registers.push(registerKey(event.target, key))
-        }
-      } else if (event.diff.type === 'map') for (const key of Object.keys(event.diff.updated)) found.add(key)
+/** Refuses projected objects, and projected membership, in a stored document. */
+function checkProjectedStorage(store: Store, schema: Schema): void {
+  const projected = (ty: string | undefined) => ty !== undefined && Object.hasOwn(schema.types, ty) && schema.types[ty].projected === true
+  if (!Object.values(schema.types).some((def) => def.projected)) return
+  for (const object of store.objects.values()) {
+    if (!Object.hasOwn(schema.types, object.ty)) continue
+    const def = schema.types[object.ty]
+    if (def.projected) throw errors.invalidValue(object.ty, '$type', 'projected objects are computed by the kit, never stored')
+    for (const [name, field] of Object.entries(def.fields)) {
+      if (projected(field.of) && object.fields.has(name)) throw errors.invalidValue(object.ty, name, 'projected membership is computed by the kit, never stored')
     }
-  })
-  try {
-    return { value: run(), changed: found, registers }
-  } finally {
-    unsubscribe()
   }
 }
 
-/**
- * A register: one key of a map container inside an object (a register field, or one key of a
- * `map` field), as `<container id>\u0000<key>`.
- */
-type Register = string
-
-const registerKey = (container: string, key: string): Register => `${container}\u0000${key}`
-
-const registerParts = (register: Register): [string, string] => {
-  const at = register.indexOf('\u0000')
-  return [register.slice(0, at), register.slice(at + 1)]
-}
-
-const sorted = (ids: Iterable<ObjectId>): Set<ObjectId> => new Set([...ids].sort(compareKeys))
-
-/** Checks the object id and field name a read takes. */
-function checkField(id: unknown, field: unknown): void {
-  checkString('an object id', id)
-  checkString('a field name', field)
-}
-
-function checkFunction(f: unknown): void {
-  if (typeof f !== 'function') throw new KdmError('invalid-value', 'a transaction needs a function')
-}
-
-/** Whether `doc` is full, or shallow with its state at its root recording that root as its birth (`Replica.carriesWholeHistory`). */
-function carriesWholeHistory(doc: LoroDoc): boolean {
-  if (!doc.isShallow()) return true
-  const root = Version.fromEngine(doc.shallowSinceVV())
-  // The engine here exports no state alone, so a fork of the document is read at its root.
-  const atRoot = doc.fork()
-  try {
-    atRoot.checkout(doc.shallowSinceFrontiers())
-    const birth = atRoot.getMap(read.BIRTH).get(read.BIRTH_ROOT)
-    return birth instanceof Uint8Array && Version.decode(birth).equals(root)
-  } catch {
-    return false
-  } finally {
-    atRoot.free()
+/** A stored object's state, comparable with `===`. */
+function objectText(object: StoredObject): string {
+  const fields: Record<string, unknown> = { [TYPE_KEY]: object.ty }
+  for (const [name, field] of object.fields) {
+    switch (field.kind) {
+      case 'value':
+        fields[name] = field.value
+        break
+      case 'text':
+        fields[name] = field.text.pieces()
+        break
+      case 'list':
+        fields[name] = field.items
+        break
+      case 'map':
+        fields[name] = Object.fromEntries(field.entries)
+        break
+      case 'tree':
+        fields[name] = field.tree.preorder()
+        break
+    }
   }
+  return canonicalText(fields)
 }
 
-/** One copy of one document; the TypeScript twin of the Rust `Replica`. */
 export class Replica {
-  private readonly docIdBytes: Uint8Array
-  private undoManagers: Histories
-  private changed = new Set<ObjectId>()
-  /** Set while a transaction's function runs: nothing else may change the document then. */
-  private busy = false
-  /** Set between `beginUndoGroup` and `endUndoGroup`. */
-  private grouping = false
-  /** The open undo group's run, which its undo steps carry (rule M12b). */
-  private readonly runs: Runs = { current: null, next: 1, replaying: false, popped: null, pending: [], groups: new Map() }
-  /**
-   * Set when a shallow replica refused an import (`newer-schema`) after the engine applied it: the
-   * engine cannot rebuild a shallow document at an earlier version, so the replica refuses every
-   * later change and export with the same error (standard 2.0 rule M16a).
-   */
-  private closedBy: KdmError | null = null
-  /**
-   * For each replica whose changes an import could not apply yet, the counter just past the last
-   * of them. They are applied (and no longer pending) once `version` reaches it.
-   */
-  private readonly pending = new Map<PeerID, number>()
-  /**
-   * Registers an import changed: the candidates for another replica's later write, which an undo
-   * or redo must keep (M12). Pruned at each undo and redo.
-   */
-  private importedRegisters = new Set<Register>()
-  /**
-   * Registers an undo or redo put back to another replica's value, with that value: still that
-   * replica's write for the next undo or redo, though this replica wrote it last.
-   */
-  private keptRegisters = new Map<Register, unknown>()
-  /**
-   * The value this replica last wrote to each register (`undefined`: deleted it). Another
-   * replica's later write of the same value is not a change an undo must keep (a script's own undo
-   * that puts back this replica's value, for instance).
-   */
-  private ownRegisters = new Map<Register, unknown>()
-  /**
-   * The undo scope of this replica's last write to each register (`null`: a `system` or `import`
-   * transaction), with the value written. An undo in one scope keeps the value another scope wrote
-   * later, as it keeps another replica's (M12a). Pruned at each undo and redo.
-   */
-  private localWrites = new Map<Register, { by: UndoScope | null; value: unknown }>()
-  /**
-   * The engine bytes a shallow replica was loaded from, with their version: the engine here forks
-   * a shallow document only as a whole, so `forkAt` builds an earlier version from them and the
-   * changes after them (a version from theirs on).
-   */
-  private loadedFrom: { version: Version; engine: Uint8Array } | null = null
+  private store: Store
+  private lineage: string | null
+  private seq: number
+  /** The actor of each change this replica applied, by its number (the newest `ACTORS_KEPT`). */
+  private actors = new Map<number, string>()
 
   private constructor(
-    private doc: LoroDoc,
-    docIdBytes: Uint8Array,
     readonly schema: Schema,
-    readonly actor: bigint,
+    store: Store,
+    version: Version,
   ) {
-    read.checkProjectedStorage(doc,schema)
-    this.docIdBytes = docIdBytes.slice()
-    doc.setPeerId(actor)
-    this.undoManagers = histories(doc, this.runs)
-  }
-
-  /** A new, empty document. Only one replica creates a document; others `load` it. */
-  static create(schema: Schema, docId: string, actor: bigint): Replica {
-    return Replica.createWith(schema, docId, actor, system('create'), () => undefined).replica
+    this.store = store
+    this.lineage = version.lineage
+    this.seq = version.seq
   }
 
   /**
-   * A new document whose initial content `build` writes in the creating commit, before undo
-   * history starts: file imports and other bulk builds. Undo bookkeeping grows faster than
-   * linearly with a transaction's size, so bulk content must not go through `transact`.
-   * `build` is staged like a transaction; if it throws, no document is made.
+   * Opens content (a file's `content.json`; its version is empty, and only a snapshot imports
+   * next) or a snapshot (the version it holds). Refuses (`schema`) a document of another kit or
+   * of another KDM version, (`newer-schema`) one whose minimum schema version (rule M20) is newer
+   * than `schema`'s, and (`encoding`) bytes that are not content.
    */
-  static createWith<R>(schema: Schema, docId: string, actor: bigint, origin: Origin, build: (tx: Tx) => R): { replica: Replica; result: R } {
-    checkOrigin(origin)
-    checkFunction(build)
-    const idBytes = uuidToBytes(docId)
-    checkActor(actor)
-    const doc = new LoroDoc()
-    doc.setPeerId(actor)
-    configure(doc, schema)
-    // Written before `build` runs, so its transaction reads the document's schema version.
-    const meta = doc.getMap(read.META)
-    meta.set('docId', uuidFromBytes(idBytes))
-    meta.set('kit', schema.kit)
-    meta.set(read.SCHEMA_VERSION, schema.schemaVersion)
-    meta.set('kdm', KDM_VERSION)
-    const { result, staged } = Tx.stage(doc, schema, build)
-    // The new document is discarded on failure, so nothing needs reverting.
-    try {
-      staged.apply(doc, schema, () => undefined)
-    } catch (error) {
-      throw applyingFailed(error)
-    }
-    doc.commit({ origin: commitOrigin(origin.kind), message: encodeCommit(origin, schema.schemaVersion) })
-    return { replica: new Replica(doc, idBytes, schema, actor), result }
+  static load(schema: Schema, bytes: Uint8Array): Replica {
+    const value = readJson(bytes, 'not KDM content')
+    if (isRecord(value) && value.changes !== undefined) throw errors.encoding('not a snapshot: these are changes only (load a snapshot or content)')
+    const content = decodeContent(value)
+    const store = checkedStore(schema, content)
+    const version = content.version ? Version.at(content.version.lineage, content.version.seq) : Version.empty()
+    return new Replica(schema, store, version)
   }
 
-  /**
-   * Opens a snapshot (or a full change export) as a new writable replica of `actor`. Refuses
-   * (`schema`) a document of another kit or of another KDM version, and (`newer-schema`) one whose
-   * minimum schema version (rule M20) is newer than `schema`'s; bytes that are not a KDM snapshot
-   * are `encoding` errors.
-   *
-   * A snapshot holds the changes its replica applied, not those still pending on it (see
-   * `hasPendingChanges`): the loaded replica has none pending, and fetches those changes again
-   * when it syncs.
-   */
-  static load(schema: Schema, bytes: Uint8Array, actor: bigint): Replica {
-    checkActor(actor)
-    const { docId, engine } = open(bytes)
-    const doc = new LoroDoc()
-    configure(doc, schema)
-    let status: ImportStatus
-    try {
-      status = doc.import(engine)
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    const metaMap = doc.getMap(read.META)
-    const meta = (key: string): unknown => {
-      const value = metaMap.get(key)
-      return value === undefined || isEngineContainer(value) ? null : value
-    }
-    const kit = meta('kit')
-    if (kit === null) throw errors.encoding('not a snapshot: meta.kit is missing (load a snapshot or a full export, not changes only)')
-    if (kit !== schema.kit) throw errors.schema(`the document belongs to ${canonicalText(kit)}, not \`${schema.kit}\``)
-    const kdm = meta('kdm')
-    if (kdm !== KDM_VERSION) throw errors.schema(`the document uses kdm ${canonicalText(kdm)}; this build reads ${KDM_VERSION}`)
-    const found = read.minSchemaVersion(doc)
-    if (found === null) {
-      throw errors.schema(`the document has schema version ${canonicalText(meta(read.SCHEMA_VERSION))}; this kit reads schema versions up to ${schema.schemaVersion}`)
-    }
-    if (found > schema.schemaVersion) throw errors.newerSchema(found, schema.schemaVersion)
-    // The envelope and the document must agree; anything else is corrupt or forged bytes.
-    const stored = meta('docId')
-    let storedBytes: Uint8Array | null = null
-    try {
-      storedBytes = typeof stored === 'string' ? uuidToBytes(stored) : null
-    } catch {
-      storedBytes = null
-    }
-    if (!storedBytes || !sameBytes(storedBytes, docId)) throw errors.encoding(`the bytes are labelled as document ${uuidFromBytes(docId)}, but hold another`)
-    const replica = new Replica(doc, docId, schema, actor)
-    replica.notePending(status)
-    if (doc.isShallow() && !replica.hasPendingChanges()) replica.loadedFrom = { version: replica.version(), engine: engine.slice() }
-    return replica
-  }
-
-  /** The document's durable identity, as a lowercase hyphenated UUID. */
   get docId(): string {
-    return uuidFromBytes(this.docIdBytes)
+    return this.store.docId
+  }
+
+  get kit(): string {
+    return this.store.kit
   }
 
   version(): Version {
-    return Version.fromEngine(this.doc.oplogVersion())
+    return this.lineage === null ? Version.empty() : Version.at(this.lineage, this.seq)
   }
 
-  /**
-   * The document's minimum schema version (rule M20): the version it was created with, or the
-   * largest one a transaction raised it to (`Tx.raiseSchemaVersion`). Never more than this
-   * replica's schema version: loads and imports refuse such documents.
-   */
+  /** The document's minimum schema version (rule M20). */
   minSchemaVersion(): number {
-    return read.minSchemaVersion(this.doc) ?? 0
+    return this.store.schemaVersion
   }
 
   /**
-   * The newest schema version any change of this replica was written under (rule M5a: every
-   * commit records its author's schema version), or `null` when no change records one (they all
-   * predate the rule). A version above this replica's schema means someone edits the document
-   * with a newer kit: objects of types this schema lacks read as their `$type` only and refuse
-   * edits here (`unknown-type`), and a host asks the person to update the kit. A shallow replica
-   * (rule M16a) sees only the changes after its root.
+   * Applies changes or a snapshot the Rust KDM exported and answers the objects whose state
+   * changed, sorted (the Rust `Replica::import_changes`).
+   *
+   * Changes: those this replica has already are skipped, so importing twice is harmless; the first
+   * new one must follow this replica's version, else `stale` and nothing changes, as when an
+   * operation's precondition does not hold. A snapshot replaces the state when it is on this
+   * replica's line and not behind it (or when this replica has applied no change yet), else
+   * `stale`. Bytes that are neither are `encoding`; another document's are `wrong-document`;
+   * changes that raise the minimum schema version above this replica's schema are
+   * `newer-schema`. A refused import changes nothing.
    */
-  authorSchemaVersion(): number | null {
-    let newest: number | null = null
-    for (const changes of this.doc.getAllChanges().values()) {
-      for (const change of changes) {
-        const version = change.message ? (decodeCommit(change.message)?.schemaVersion ?? null) : null
-        if (version !== null && (newest === null || version > newest)) newest = version
-      }
-    }
-    return newest
+  importChanges(bytes: Uint8Array): ObjectId[] {
+    const value = readJson(bytes, 'not KDM changes')
+    const docId = docIdOf(value)
+    if (docId !== this.store.docId) throw errors.wrongDocument(this.store.docId, docId)
+    const record = value as Record<string, JsonValue>
+    if (record.changes !== undefined) return this.importChangeList(record)
+    if (record.objects !== undefined) return this.importSnapshot(record)
+    throw errors.encoding('not KDM changes: neither changes nor a snapshot')
   }
 
-  /**
-   * Runs `f` as one transaction: one commit, one undo step, one origin. Operations are staged while
-   * `f` runs and applied only if it returns: if `f` throws, the document, its version, and its
-   * exports are unchanged and the error propagates. `f` must be synchronous.
-   */
-  transact<R>(origin: Origin, f: (tx: Tx) => R): R {
-    this.idle()
-    this.checkOpen()
-    checkOrigin(origin)
-    checkFunction(f)
-    this.busy = true
-    let stage: { result: R; staged: ReturnType<typeof Tx.stage>['staged'] }
-    try {
-      stage = Tx.stage(this.doc, this.schema, f)
-    } finally {
-      this.busy = false
+  private importChangeList(value: Record<string, JsonValue>): ObjectId[] {
+    const list = parseChangeList(value, this.schema)
+    if (list.lineage !== this.lineage) throw errors.stale(OTHER_LINE)
+    if (list.after > this.seq) throw errors.stale(`the changes follow version ${list.after}; this replica is at ${this.seq}`)
+    const mine = this.actors.get(list.after)
+    if (list.afterActor !== null && mine !== undefined && mine !== list.afterActor) throw errors.stale(DIVERGED)
+    const start = this.seq
+    const undos: Undo[] = []
+    const applied: number[] = []
+    const changed = new Set<ObjectId>()
+    const expandOf = (ty: string, field: string, key: string): Expand | undefined => {
+      if (!Object.hasOwn(this.schema.types, ty)) return undefined
+      const def = this.schema.types[ty].fields
+      return Object.hasOwn(def, field) ? def[field].marks?.[key]?.expand : undefined
     }
-    const { result, staged } = stage
-    if (staged.empty) return result
-    if (staged.raisesSchema && origin.kind !== SYSTEM) {
-      throw errors.invalidValue('$meta', 'schemaVersion', `is raised only in a \`system\` transaction, not \`${origin.kind}\``)
-    }
-    const before = this.doc.frontiers()
-    const touched = new Set<ObjectId>()
     try {
-      staged.apply(this.doc, this.schema, (id) => touched.add(id))
-    } catch (error) {
-      // Validation should have made this impossible: an operation the overlay accepted was refused
-      // by the engine, so this is a validation bug. Some operations may already be applied and the
-      // engine cannot abort, so they are committed and reverted. Both commits reach other replicas,
-      // and the reversal can overwrite a collaborator's concurrent edits to the same fields; that
-      // is the cost of this last-resort path.
-      this.doc.commit({ origin: ROLLBACK })
-      if (!sameFrontiers(this.doc.frontiers(), before)) {
-        try {
-          this.doc.revertTo(before)
-        } catch (revertError) {
-          throw errors.engine(engineMessage(revertError))
+      for (const change of list.changes) {
+        if (change.seq <= this.seq) {
+          const held = this.actors.get(change.seq)
+          if (held !== undefined && held !== change.actor) throw errors.stale(DIVERGED)
+          continue
         }
-        this.doc.commit({ origin: ROLLBACK, message: encodeCommit(system('rollback'), this.schema.schemaVersion) })
+        if (change.seq !== this.seq + 1) throw errors.stale(`change ${change.seq} does not follow version ${this.seq}`)
+        for (const op of change.ops) {
+          const owners = op.op === 'delete' ? this.store.treeOwners(op.id) : []
+          undos.push(this.store.apply(op, expandOf))
+          for (const id of opObjects(op)) changed.add(id)
+          for (const id of owners) changed.add(id)
+        }
+        this.seq = change.seq
+        this.actors.set(change.seq, change.actor)
+        applied.push(change.seq)
       }
-      throw applyingFailed(error)
+      if (this.store.schemaVersion > this.schema.schemaVersion) throw errors.newerSchema(this.store.schemaVersion, this.schema.schemaVersion)
+      checkProjectedStorage(this.store, this.schema)
+    } catch (error) {
+      for (const undo of undos.reverse()) undo()
+      for (const seq of applied) this.actors.delete(seq)
+      this.seq = start
+      throw error
     }
-    this.runs.pending = staged.undoTouches
-    const scope = undoScopeOf(origin.kind)
-    if (this.runs.current !== null && scope !== null) {
-      const key = `${scope}:${this.runs.current}`
-      this.runs.groups.set(key, mergeTouches(this.runs.groups.get(key) ?? [], staged.undoTouches))
+    for (const seq of this.actors.keys()) {
+      if (this.actors.size <= ACTORS_KEPT) break
+      this.actors.delete(seq)
     }
-    this.doc.commit({ origin: commitOrigin(origin.kind), message: encodeCommit(origin, this.schema.schemaVersion) })
-    for (const id of touched) this.changed.add(id)
-    this.noteOwnWrites(staged.registerWrites, undoScopeOf(origin.kind))
-    return result
+    return [...changed].sort(compareKeys)
+  }
+
+  private importSnapshot(value: Record<string, JsonValue>): ObjectId[] {
+    const content = decodeContent(value)
+    const version = content.version
+    if (!version) throw errors.stale('content without a version continues no line of changes')
+    const fresh = this.seq === 0 && this.actors.size === 0
+    if (!(fresh || (version.lineage === this.lineage && version.seq >= this.seq))) {
+      throw errors.stale(`the snapshot is not ahead of this replica on its line (it is at ${version.seq})`)
+    }
+    if (version.lineage === this.lineage && version.seq === this.seq) return []
+    const store = checkedStore(this.schema, content)
+    const changed = new Set<ObjectId>()
+    for (const [id, object] of this.store.objects) {
+      const next = store.objects.get(id)
+      if (!next || objectText(next) !== objectText(object)) changed.add(id)
+    }
+    for (const id of store.objects.keys()) if (!this.store.objects.has(id)) changed.add(id)
+    this.store = store
+    this.lineage = version.lineage
+    this.seq = version.seq
+    this.actors = new Map()
+    return [...changed].sort(compareKeys)
   }
 
   exists(id: ObjectId): boolean {
     checkString('an object id', id)
-    try {
-      read.objectMap(this.doc, id)
-      return true
-    } catch {
-      return false
-    }
+    return this.store.objects.has(id)
   }
 
   objectType(id: ObjectId): string {
     checkString('an object id', id)
-    return read.objectType(this.doc, id)
+    const object = this.store.objects.get(id)
+    if (!object) throw errors.notFound(id)
+    return object.ty
+  }
+
+  /** The object and field `field` of `id`, checked against the schema to be of `kind` (`null`: a register). */
+  private field(id: ObjectId, field: string, kind: FieldKind | null): { object: StoredObject; def: FieldDef; held: Field | undefined } {
+    checkString('an object id', id)
+    checkString('a field name', field)
+    const object = this.store.objects.get(id)
+    if (!object) throw errors.notFound(id)
+    const def = fieldDef(this.schema, object.ty, field)
+    if (kind === null) {
+      if (def.kind === 'text' || def.kind === 'list' || def.kind === 'map' || def.kind === 'tree') {
+        throw errors.invalidValue(object.ty, field, 'is a container; read it with its accessor')
+      }
+    } else if (def.kind !== kind) throw errors.invalidValue(object.ty, field, `is not a ${kind} field`)
+    const held = object.fields.get(field)
+    if (held && kind !== null && held.kind !== kind) throw errors.engine(`${id}.${field} holds the wrong kind of value`)
+    return { object, def, held }
   }
 
   get(id: ObjectId, field: string): unknown {
-    checkField(id, field)
-    return read.register(this.doc, this.schema, id, field)
+    const { held } = this.field(id, field, null)
+    return held?.kind === 'value' ? canonical(held.value) : null
+  }
+
+  private textOf(id: ObjectId, field: string): { text: Text | null; def: FieldDef } {
+    const { held, def } = this.field(id, field, 'text')
+    return { text: held?.kind === 'text' ? held.text : null, def }
   }
 
   text(id: ObjectId, field: string): string {
-    checkField(id, field)
-    return read.container(this.doc, this.schema, id, field, 'text')?.toString() ?? ''
+    return this.textOf(id, field).text?.string() ?? ''
   }
 
   /**
    * A text field as runs of characters with equal marks (rule M19), in order: adjacent runs differ
    * in their marks, no run is empty, and only the field's declared marks appear. A field that
-   * declares no marks reads as one unmarked run (none when empty). Positions are counted in UTF-16
-   * code units (`insert.length`).
+   * declares no marks reads as one unmarked run (none when empty). Positions here are UTF-16 code
+   * units (`insert.length`).
    */
   textDelta(id: ObjectId, field: string): TextRun[] {
-    checkField(id, field)
-    return read.textRuns(this.doc, this.schema, id, field)
+    const { text, def } = this.textOf(id, field)
+    return text ? runsOf(text, def) : []
   }
 
   /** The length of a text field in UTF-16 code units. */
   textLength(id: ObjectId, field: string): number {
-    checkField(id, field)
-    return read.container(this.doc, this.schema, id, field, 'text')?.length ?? 0
+    return this.text(id, field).length
   }
 
   list(id: ObjectId, field: string): ObjectId[] {
-    checkField(id, field)
-    const list = read.container(this.doc, this.schema, id, field, 'list')
-    return list ? read.listItems(list.toArray()) : []
+    const { held } = this.field(id, field, 'list')
+    return held?.kind === 'list' ? [...held.items] : []
   }
 
   /** One key of a map field, or `null`. */
   mapGet(id: ObjectId, field: string, key: string): unknown {
-    checkField(id, field)
     checkString('a map key', key)
-    const map = read.container(this.doc, this.schema, id, field, 'map')
-    return map ? read.storedValue(map.get(key)) : null
+    const { held } = this.field(id, field, 'map')
+    return held?.kind === 'map' && held.entries.has(key) ? canonical(held.entries.get(key)) : null
   }
 
-  /**
-   * A map field's keys and values, sorted by key (code point order, as in the canonical state),
-   * each as `mapGet` reads it. Reads the whole map.
-   */
+  /** A map field's keys and values, sorted by key (code point order, as in the canonical state). */
   mapEntries(id: ObjectId, field: string): Array<[string, unknown]> {
-    checkField(id, field)
-    const map = read.container(this.doc, this.schema, id, field, 'map')
-    return map ? read.mapEntries(map) : []
+    const { held } = this.field(id, field, 'map')
+    if (held?.kind !== 'map') return []
+    return [...held.entries.keys()].sort(compareKeys).map((key) => [key, canonical(held.entries.get(key))])
   }
 
   /**
    * The tree's nodes in pre-order (each parent before its children, siblings in order). A node
-   * that names no object is skipped with its subtree, as in `stateJson`.
+   * naming an object the document does not hold is skipped with its subtree, as in `stateJson`.
    */
   tree(id: ObjectId, field: string): TreeEntry[] {
-    checkField(id, field)
+    const { held } = this.field(id, field, 'tree')
+    if (held?.kind !== 'tree') return []
     const out: TreeEntry[] = []
-    const tree = read.container(this.doc, this.schema, id, field, 'tree')
-    const visit = (nodes: LoroTreeNode[] | undefined, parent: NodeRef | null) => {
-      for (const node of nodes ?? []) {
-        const object = read.nodeObject(node)
-        if (object === null) continue
-        const ref = committedNode(node.id)
-        out.push({ node: ref, object, parent })
-        visit(node.children(), ref)
-      }
+    const tree = held.tree
+    const stack: Array<{ node: ObjectId; parent: NodeRef | null }> = [...tree.children(null)].reverse().map((node) => ({ node, parent: null }))
+    while (stack.length) {
+      const { node, parent } = stack.pop()!
+      if (!this.store.objects.has(node)) continue
+      const ref = nodeOf(node)
+      out.push({ node: ref, object: node, parent })
+      const children = tree.children(node)
+      for (let index = children.length - 1; index >= 0; index -= 1) stack.push({ node: children[index], parent: ref })
     }
-    if (tree) visit(tree.roots(), null)
     return out
   }
 
-  /**
-   * Ids of the objects of type `ty`, sorted. One pass over the objects, so it suits large
-   * documents; it costs O(objects) per call.
-   */
+  /** Ids of the objects of type `ty`, sorted. One pass over the objects. */
   objectsOfType(ty: string): ObjectId[] {
     checkString('a type name', ty)
-    return read.objectsOfType(this.doc, ty)
+    const out: ObjectId[] = []
+    for (const [id, object] of this.store.objects) if (object.ty === ty) out.push(id)
+    return out.sort(compareKeys)
   }
 
-  /**
-   * The changes this replica has that a replica at `since` lacks, labelled with this document's id.
-   *
-   * With `Version.empty()` (every change) the bytes always `load` as this document. A shallow
-   * replica (rule M16a) has no changes before its root, so for a `since` that does not reach its
-   * root (the empty version above all) it answers its snapshot: its state at the root with every
-   * change after it, which loads as a shallow replica with the same root and imports into any
-   * replica that has the root, as these changes would. On a full replica, and for a `since` at or
-   * after the root, the bytes are the changes alone.
-   */
-  exportChanges(since: Version = Version.empty()): Uint8Array {
-    this.checkOpen()
-    if (!(since instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
-    if (!this.reachesRoot(since)) return this.snapshot()
-    let bytes: Uint8Array
-    try {
-      bytes = this.doc.export({ mode: 'update', from: since.toEngine() })
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    return wrap(this.docIdBytes, bytes)
-  }
-
-  /**
-   * Applies changes from another replica or from storage, in any order, any number of times.
-   * Answers the objects whose state changed. Bytes that are not a KDM export are `encoding`
-   * errors; changes of another document are `wrong-document` errors and change nothing.
-   *
-   * Changes that raise the document's minimum schema version (rule M20) above this replica's
-   * schema are `newer-schema` errors and change nothing: the state, the version, the exports, and
-   * the changes still pending are as before the import. The engine cannot check changes without
-   * applying them, so the replica is rebuilt from its history before the import; that clears its
-   * undo and redo history, and `subscribeText` listeners stop receiving changes. A build that
-   * meets this error is too old for the document: the host stops syncing and asks for an update.
-   * A shallow replica cannot be rebuilt so: it keeps the changes and refuses every later change
-   * and export with this error, and the host reopens the document from what it stored.
-   *
-   * On a shallow replica, changes that depend on history before its root (made by a replica that
-   * had not seen the root yet) are `history-missing` errors and change nothing; see `rebase`.
-   */
-  importChanges(bytes: Uint8Array): Set<ObjectId> {
-    this.idle()
-    this.checkOpen()
-    const { docId, engine } = open(bytes)
-    if (!sameBytes(docId, this.docIdBytes)) throw errors.wrongDocument(this.docId, uuidFromBytes(docId))
-    const before = this.doc.oplogFrontiers()
-    let failure: unknown = null
-    const { value: status, changed, registers } = observeChanges(this.doc, () => {
-      try {
-        return this.doc.import(engine)
-      } catch (error) {
-        failure = error
-        return null
-      }
-    })
-    try {
-      read.checkProjectedStorage(this.doc,this.schema)
-    } catch (error) {
-      if (this.doc.isShallow()) this.closedBy=error as KdmError
-      else this.restore(before)
-      throw error
-    }
-    const found = read.minSchemaVersion(this.doc)
-    if (found !== null && found > this.schema.schemaVersion) {
-      const error = errors.newerSchema(found, this.schema.schemaVersion)
-      if (this.doc.isShallow()) {
-        this.closedBy = error
-        throw error
-      }
-      this.restore(before)
-      throw error
-    }
-    if (status === null) throw importing(failure)
-    // Without an undo or redo step no undo reaches what the import wrote: a later step writes
-    // such a register before its own undo can, and then it is this replica's. Loading a document
-    // replays its stored changes this way.
-    const hasSteps = (['person', 'agent'] as const).some((scope) => this.undoManagers[scope].canUndo() || this.undoManagers[scope].canRedo())
-    if (hasSteps) for (const register of registers) this.importedRegisters.add(register)
-    this.notePending(status)
-    for (const id of changed) this.changed.add(id)
-    this.reopenUndoGroup()
-    return sorted(changed)
-  }
-
-  /**
-   * Whether this replica holds imported changes it could not apply yet, because they depend on
-   * changes it has not received. Importing changes out of order is legitimate (they are applied as
-   * soon as what they depend on arrives); a replica that stays in this state is missing changes,
-   * which a sync from `version` fetches. Pending changes are not in `version`, the state, or the
-   * exports.
-   */
-  hasPendingChanges(): boolean {
-    const applied = this.doc.oplogVersion()
-    for (const [peer, end] of this.pending) if ((applied.get(peer) ?? 0) < end) return true
-    return false
-  }
-
-  /** The objects changed since the last call, by local transactions, imports, undo, and redo. */
-  takeChanged(): Set<ObjectId> {
-    const out = sorted(this.changed)
-    this.changed = new Set()
-    return out
-  }
-
-  /** A compacted copy of the whole document, for fast loading and new replicas. */
-  snapshot(): Uint8Array {
-    this.checkOpen()
-    let bytes: Uint8Array
-    try {
-      bytes = this.doc.export({ mode: 'snapshot' })
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    return wrap(this.docIdBytes, bytes)
-  }
-  /**
-   * A **shallow snapshot** (standard 2.0 rule M16a): the document's current state with only the
-   * history after `at`, for a device that holds a large document without its whole history. `load`
-   * opens it as a shallow replica, which edits, exports, imports, and merges like a full one;
-   * history before its root stays with whoever holds it (the sync server).
-   *
-   * The root is the latest version at or before `at` that every later change descends from (the
-   * engine moves it back past changes made concurrently with `at`, so they stay in the retained
-   * history); `Version.empty()` keeps the whole history. `at` must be a version this replica has
-   * (`invalid-value` otherwise); on a shallow replica, an `at` before its own root is its root.
-   */
-  shallowSnapshot(at: Version): Uint8Array {
-    this.checkOpen()
-    if (!(at instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
-    if (!this.version().includes(at)) throw errors.invalidValue('$shallow', 'version', 'names changes this replica does not have')
-    const frontiers = this.reachesRoot(at) ? this.doc.vvToFrontiers(at.toEngine()) : this.doc.shallowSinceFrontiers()
-    let bytes: Uint8Array
-    try {
-      bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers })
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    return wrap(this.docIdBytes, bytes)
-  }
-
-  /**
-   * The document's **content**: what a kit writes into a person's file (data model, "A file holds
-   * no history"). `seal`s this replica first, then answers a shallow snapshot rooted at the seal:
-   * the current state, and of the history only the seal's one operation. `load` opens it as this
-   * document (same `docId`, version, object ids), which edits, imports later changes, and merges
-   * like any shallow replica; changes made before the seal that it does not hold are
-   * `history-missing`.
-   *
-   * What the bytes keep of the history: the seal (a `system` change labelled `content-seal`, its
-   * lamport number and a zero timestamp, since the KDM records no times) and the actor (peer) ids
-   * inside element ids. No deleted content, no overwritten value, no person's or agent's origin.
-   * Exporting again with no change in between commits nothing and answers the same bytes. The seal
-   * is a real change: push it to the history store and the room like any other. The bytes carry
-   * the document's whole history (sync protocol S20) only when the last change is its birth
-   * (`rebirth`, `copyAsNewDocument`). As the Rust `Replica::content_snapshot`.
-   */
-  contentSnapshot(): Uint8Array {
-    this.seal()
-    return this.sealedContentSnapshot()
-  }
-
-  /**
-   * `contentSnapshot` of a replica already sealed. Refuses (`invalid-value`) a replica whose last
-   * change is no seal. As the Rust `Replica::sealed_content_snapshot`.
-   */
-  sealedContentSnapshot(): Uint8Array {
-    this.checkOpen()
-    if (!this.isSealed()) throw errors.invalidValue('$content', 'version', NOT_SEALED)
-    // A read creates an engine root map the first time it names one (an empty root container is
-    // part of the state the export writes): every root the KDM reads exists before the export, so
-    // the bytes do not depend on what was read since the last change. As the Rust crate.
-    for (const root of [read.META, read.OBJECTS, read.SEAL, read.BIRTH, read.SCHEMA_RAISES]) this.doc.getMap(root)
-    let bytes: Uint8Array
-    try {
-      bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() })
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    return wrap(this.docIdBytes, bytes)
-  }
-
-  /**
-   * Seals the current version for `contentSnapshot`: unless the last change already is a seal
-   * (nothing changed since), commits one `system` change (label `content-seal`) that depends on
-   * every head and writes the version it closes into the root map `seal`, outside the canonical
-   * state. Answers whether it committed one. The seal is an ordinary change of this replica's actor
-   * (in `version`, `exportChanges`, the history store and the room) and never an undo step. As the
-   * Rust `Replica::seal`.
-   */
-  seal(): boolean {
-    this.idle()
-    this.checkOpen()
-    if (this.isSealed()) return false
-    try {
-      this.doc.getMap(read.SEAL).set(read.SEAL_VERSION, Version.fromEngine(this.doc.oplogVersion()).encode())
-      this.doc.commit({ origin: SYSTEM, message: encodeCommit(system(CONTENT_SEAL), this.schema.schemaVersion) })
-    } catch (error) {
-      throw errors.engine(engineMessage(error))
-    }
-    this.reopenUndoGroup()
-    return true
-  }
-
-  /** Whether the version has one head and that head's change is a seal (`content-seal`, `new-document` or `rebirth`, by the KDM). */
-  isSealed(): boolean {
-    const heads = this.doc.oplogFrontiers()
-    if (heads.length !== 1) return false
-    const message = this.doc.getChangeAt(heads[0])?.message
-    const decoded = typeof message === 'string' ? decodeCommit(message) : null
-    return decoded !== null && decoded.origin.kind === 'system' && SEALS.includes(decoded.origin.label ?? '')
-  }
-
-  /**
-   * Makes this replica's current version the document's **birth** (sync protocol S20), for a
-   * document known only from a file that holds no history (`contentSnapshot`): commits one
-   * `system` change (label `rebirth`) that depends on every head and records its own root as the
-   * birth, then roots this replica there, a shallow replica of the same `docId` that
-   * `carriesWholeHistory`. Answers whether it did; a replica that already carries the whole history
-   * is left as it is. It declares that no replica holds history before this version: a host calls
-   * it only for a document with no history store and no room. Clears the undo and redo history,
-   * like any load, and `subscribeText` listeners stop receiving changes. Refuses (`invalid-value`)
-   * while changes are pending. As the Rust `Replica::rebirth`.
-   */
-  rebirth(): boolean {
-    this.idle()
-    this.checkOpen()
-    if (this.carriesWholeHistory()) return false
-    if (this.hasPendingChanges()) throw errors.invalidValue('$rebirth', 'version', PENDING_REBIRTH)
-    let bytes: Uint8Array
-    try {
-      // The change has one operation, so the engine roots the shallow document at it: the root
-      // (as `shallowRoot` answers it) is the version before that operation, every head included,
-      // with this actor's entry at the operation's counter.
-      const birth = new Map(this.doc.oplogVersion().toJSON())
-      const peer = this.actor.toString() as PeerID
-      birth.set(peer, birth.get(peer) ?? 0)
-      this.doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, Version.fromEngine(VersionVector.parseJSON(birth)).encode())
-      this.doc.commit({ origin: SYSTEM, message: encodeCommit(system(REBIRTH), this.schema.schemaVersion) })
-      bytes = this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() })
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    const reborn = Replica.load(this.schema, wrap(this.docIdBytes, bytes), this.actor)
-    if (!reborn.carriesWholeHistory()) throw errors.engine('the reborn replica is not rooted at the birth it records')
-    freeHistories(this.undoManagers)
-    this.doc = reborn.doc
-    this.undoManagers = reborn.undoManagers
-    this.loadedFrom = reborn.loadedFrom
-    this.importedRegisters.clear()
-    this.keptRegisters.clear()
-    this.ownRegisters.clear()
-    this.localWrites.clear()
-    this.reopenUndoGroup()
-    return true
-  }
-
-  /** Whether this replica holds only part of the document's history: it was loaded from a `shallowSnapshot` (or a snapshot of a shallow replica). */
-  isShallow(): boolean {
-    return this.doc.isShallow()
-  }
-
-  /**
-   * The version a shallow replica's retained history starts at (its root): it has every change
-   * after it, and none of the history it summarizes. `null` for a full replica.
-   */
-  shallowRoot(): Version | null {
-    return this.doc.isShallow() ? Version.fromEngine(this.doc.shallowSinceVV()) : null
-  }
-
-  /**
-   * Whether this replica carries the **document's whole history** (sync protocol S20): it is full,
-   * or it is shallow and its root is the document's birth, so no replica of the document can hold
-   * changes before it. A copy made by `copyAsNewDocument` is born at its root, and every replica
-   * loaded from it, its snapshots and its drafts keep that root; a shallow snapshot taken later
-   * (`shallowSnapshot` after more changes) does not.
-   *
-   * The birth is the version the copy recorded in the change that made it, read from this
-   * replica's state **at its root**: a change after the root, which any client may make, never
-   * counts, and a value written in such a change could only name a version before the root it is
-   * part of. A server that trusts no client decides from the bytes alone. Shallow documents that
-   * record no birth (copies made before it was recorded) do not carry it. As the Rust
-   * `Replica::carries_whole_history`.
-   */
-  carriesWholeHistory(): boolean {
-    this.checkOpen()
-    return carriesWholeHistory(this.doc)
-  }
-
-  /**
-   * The origins of the changes the document `bytes` hold (a snapshot, a content snapshot, or an
-   * export of changes), read without a schema: one entry per change, `null` for a change whose
-   * commit message is not a KDM origin. A change is the engine's: consecutive transactions of one
-   * replica with the same origin may be one change. A content snapshot holds one, its seal. An
-   * export of changes that depend on changes it lacks lists none of them. Bytes that are not a KDM export, or that do not decode, are `encoding` errors. As the Rust
-   * `Replica::snapshot_origins`.
-   */
-  static snapshotOrigins(bytes: Uint8Array): (Origin | null)[] {
-    const { engine } = open(bytes)
-    const doc = new LoroDoc()
-    try {
-      doc.import(engine)
-      return [...doc.getAllChanges().values()].flat().map((change) => (typeof change.message === 'string' ? decodeOrigin(change.message) : null))
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    } finally {
-      doc.free()
-    }
-  }
-
-  /**
-   * `carriesWholeHistory` of the document `bytes` (a snapshot or a full export) hold, read without
-   * a schema, as a sync server reads a room's first state (rule S20). Bytes that are not a KDM
-   * export, or that do not decode, are `encoding` errors. As the Rust
-   * `Replica::snapshot_carries_whole_history`.
-   */
-  static snapshotCarriesWholeHistory(bytes: Uint8Array): boolean {
-    const { engine } = open(bytes)
-    const doc = new LoroDoc()
-    try {
-      if (decodeImportBlobMeta(engine, true).mode !== 'shallow-snapshot') return true
-      doc.import(engine)
-    } catch (error) {
-      doc.free()
-      throw errors.encoding(engineMessage(error))
-    }
-    try {
-      return carriesWholeHistory(doc)
-    } finally {
-      doc.free()
-    }
-  }
-
-  /**
-   * Whether this replica's history reaches `version`, so it can read that version itself (`forkAt`,
-   * `changesSince`): always on a full replica; on a shallow one, when `version` includes its root
-   * and the root's own operation (the seal, for a replica opened from a content snapshot). It says
-   * nothing about whether the replica has the version's changes (`version().includes` does). As the
-   * Rust `Replica::reaches`; this engine forks a shallow replica at such a version only from the
-   * version it was loaded at on (`forkAt`).
-   */
-  reaches(version: Version): boolean {
-    if (!this.reachesRoot(version)) return false
-    if (!this.doc.isShallow()) return true
-    const vv = version.toEngine()
-    return this.doc.shallowSinceFrontiers().every((id) => (vv.get(id.peer) ?? 0) > id.counter)
-  }
-
-  /** Whether `version` is at or after this replica's shallow root: always, on a full replica. */
-  private reachesRoot(version: Version): boolean {
-    const root = this.shallowRoot()
-    return root === null || version.includes(root)
-  }
-
-  /**
-   * The earliest version whose state this replica can read (`forkAt`, `changesSince`):
-   * `Version.empty()` on a full replica; on a shallow one opened from a content snapshot, the
-   * version the file was sealed at (its root with the root's own operation, the seal), where its
-   * state is the file's content. As the Rust `Replica::earliest_readable`, except that this engine
-   * forks a shallow document only as a whole (see `forkAt`): a shallow replica loaded from a later
-   * snapshot (a host's stored replica that grew since the file) reads from the version it was
-   * loaded at, and one loaded with changes pending only at its current version. `historySince`
-   * lists the changes from the Rust version on in every case. Nothing of it is written into any
-   * bytes.
-   */
-  earliestReadable(): Version {
-    this.checkOpen()
-    if (!this.doc.isShallow()) return Version.empty()
-    return this.loadedFrom?.version ?? this.version()
-  }
-
-  /**
-   * The changes this replica holds after `since`, oldest first: each with its origin (`null` for a
-   * change whose commit message is not a KDM origin) and the version it makes with every change it
-   * depends on (`forkAt` that version reads the state just after it, where this engine can read
-   * it). `since` is a version this replica has and `reaches` (on a shallow replica, its root with
-   * the seal or later); others are `history-missing`. A change is the engine's: consecutive
-   * transactions of one replica with the same origin may be one change. The order is causal;
-   * concurrent changes are ordered by their Lamport number, then by actor. As the Rust
-   * `Replica::history_since`.
-   */
-  historySince(since: Version): HistoryChange[] {
-    this.idle()
-    this.checkOpen()
-    if (!(since instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
-    if (!this.version().includes(since)) throw errors.historyMissing(VERSION_NOT_HELD)
-    if (!this.reaches(since)) throw errors.historyMissing(VERSION_BEFORE_ROOT)
-    const from = since.toEngine().toJSON()
-    const found: { lamport: number; peer: bigint; change: HistoryChange }[] = []
-    for (const [peer, end] of this.doc.oplogVersion().toJSON()) {
-      let counter = from.get(peer) ?? 0
-      while (counter < end) {
-        const change = this.doc.getChangeAt({ peer, counter })
-        const last = { peer, counter: change.counter + change.length - 1 }
-        found.push({
-          lamport: change.lamport,
-          peer: BigInt(peer),
-          change: { origin: typeof change.message === 'string' ? decodeOrigin(change.message) : null, version: Version.fromEngine(this.doc.frontiersToVV([last])) },
-        })
-        counter = change.counter + change.length
-      }
-    }
-    found.sort((a, b) => a.lamport - b.lamport || (a.peer < b.peer ? -1 : a.peer > b.peer ? 1 : 0))
-    return found.map(({ change }) => change)
-  }
-
-  /**
-   * Replaces this replica's document with `snapshot` (a full or shallow snapshot of the same
-   * document, as a server answers it) plus every change this replica has that `snapshot` lacks,
-   * and answers the objects whose state changed. For a shallow replica whose import failed with
-   * `history-missing`: a newer snapshot from the server holds the changes it could not take,
-   * rooted early enough for them, and this replica's own changes (pushed or not) are kept on top.
-   * The state is what importing every change of both would give.
-   *
-   * Refuses (`wrong-document`) a snapshot of another document, what `load` refuses, and
-   * (`history-missing`) a shallow snapshot whose root is after changes of this replica it lacks; a
-   * refused rebase changes nothing. Clears the undo and redo history, like any load, and
-   * `subscribeText` listeners stop receiving changes.
-   */
-  rebase(snapshot: Uint8Array): Set<ObjectId> {
-    this.idle()
-    this.checkOpen()
-    const { docId } = open(snapshot)
-    if (!sameBytes(docId, this.docIdBytes)) throw errors.wrongDocument(this.docId, uuidFromBytes(docId))
-    const base = Replica.load(this.schema, snapshot, this.actor)
-    if (!base.version().includes(this.version())) {
-      base.importChanges(this.exportChanges(base.version()))
-      // This replica is shallow and the snapshot is older than its root: the changes in between
-      // are in neither.
-      if (!base.version().includes(this.version())) throw errors.historyMissing(SNAPSHOT_BEFORE_ROOT)
-    }
-    const objects = (state: unknown): Record<string, unknown> => ((state as { objects?: Record<string, unknown> }).objects ?? {})
-    const before = objects(this.stateJson())
-    const after = objects(base.stateJson())
-    const changed = new Set<ObjectId>()
-    for (const id of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (canonicalText(before[id] ?? null) !== canonicalText(after[id] ?? null) || (id in before) !== (id in after)) changed.add(id)
-    }
-    freeHistories(this.undoManagers)
-    this.doc = base.doc
-    this.undoManagers = base.undoManagers
-    this.loadedFrom = base.loadedFrom
-    this.importedRegisters.clear()
-    this.keptRegisters.clear()
-    this.ownRegisters.clear()
-    this.localWrites.clear()
-    for (const [peer, end] of base.pending) this.pending.set(peer, Math.max(end, this.pending.get(peer) ?? 0))
-    this.prunePending()
-    this.reopenUndoGroup()
-    for (const id of changed) this.changed.add(id)
-    return sorted(changed)
-  }
-
-
-  /**
-   * Undoes the person's last transaction on this replica (the `person` scope, M12a). Changes from
-   * other replicas and from other scopes (an agent's) are kept, including later changes to the
-   * same object and to the same field: a register another replica or scope wrote after the undone
-   * transaction keeps that value (M12). The objects it changes are reported by `takeChanged`.
-   */
-  undo(): boolean {
-    return this.undoIn('person')
-  }
-
-  /** Redoes the person's last undone transaction, keeping other replicas' and scopes' later changes and reporting what it changes like `undo`. */
-  redo(): boolean {
-    return this.redoIn('person')
-  }
-
-  /** Undoes the last transaction of `scope` on this replica, like `undo` for the person. */
-  undoIn(scope: UndoScope): boolean {
-    const manager = () => this.undoManagers[checkScope(scope)]
-    return this.history(scope, () => this.replayRun(() => manager().topUndoValue(), () => manager().undo()))
-  }
-
-  /** Redoes the last undone transaction of `scope`, like `redo` for the person. */
-  redoIn(scope: UndoScope): boolean {
-    const manager = () => this.undoManagers[checkScope(scope)]
-    return this.history(scope, () => this.replayRun(() => manager().topRedoValue(), () => manager().redo()))
-  }
-
-  /**
-   * One undo (or redo) of a run (rule M12b): the top step, and every step under it of the same undo
-   * group, which an import split. Each undo or redo step it makes carries the run on.
-   */
-  private replayRun(top: () => unknown, step: () => boolean): boolean {
-    this.runs.replaying = true
-    try {
-      const run = runOf(top())
-      const any = step()
-      let did = any
-      while (did && run !== null && runOf(top()) === run) did = step()
-      return any
-    } finally {
-      this.runs.replaying = false
-      this.runs.popped = null
-    }
-  }
-
-  /** Whether `undo` has a transaction of the person to undo. */
-  canUndo(): boolean {
-    return this.canUndoIn('person')
-  }
-
-  /** Whether `redo` has an undone transaction of the person to redo. */
-  canRedo(): boolean {
-    return this.canRedoIn('person')
-  }
-
-  /** Whether `undoIn(scope)` has a transaction to undo. */
-  canUndoIn(scope: UndoScope): boolean {
-    this.idle()
-    return this.undoManagers[checkScope(scope)].canUndo()
-  }
-
-  /** Whether `redoIn(scope)` has an undone transaction to redo. */
-  canRedoIn(scope: UndoScope): boolean {
-    this.idle()
-    return this.undoManagers[checkScope(scope)].canRedo()
-  }
-
-  /** The original objects and fields of the next undo step, including its whole group. */
-  undoTouchesIn(scope: UndoScope): UndoTouch[] {
-    this.idle()
-    return this.historyTouches(scope, this.undoManagers[checkScope(scope)].topUndoValue())
-  }
-
-  /** The original objects and fields of the next redo step. Reading leaves both histories intact. */
-  redoTouchesIn(scope: UndoScope): UndoTouch[] {
-    this.idle()
-    return this.historyTouches(scope, this.undoManagers[checkScope(scope)].topRedoValue())
-  }
-
-  private historyTouches(scope: UndoScope, value: unknown): UndoTouch[] {
-    const meta = metaOf(value)
-    return structuredClone(meta?.run != null ? this.runs.groups.get(`${scope}:${meta.run}`) ?? meta.touches : meta?.touches ?? [])
-  }
-
-  /**
-   * Starts an undo group: the transactions until `endUndoGroup` undo and redo as one step. Groups
-   * do not nest (`invalid-value`). An undo or a redo ends the open group first, so undo while
-   * grouping reverts the group as one step. It stays one undo step when other replicas' changes
-   * arrive while it is open, also when they touch what the group changed (rule M12b): one undo
-   * takes back all of it and keeps their changes. A group spans
-   * both undo scopes (M12a): the person's transactions in it are one person step, and an agent's
-   * are one agent step.
-   */
-  beginUndoGroup(): void {
-    this.idle()
-    if (this.grouping) throw errors.invalidValue('$undo', 'group', 'is already open')
-    try {
-      this.undoManagers.person.groupStart()
-    } catch (error) {
-      throw errors.engine(engineMessage(error))
-    }
-    try {
-      this.undoManagers.agent.groupStart()
-    } catch (error) {
-      this.undoManagers.person.groupEnd()
-      throw errors.engine(engineMessage(error))
-    }
-    this.grouping = true
-    this.runs.current = this.runs.next
-    this.runs.next += 1
-  }
-
-  /** Ends the open undo group; does nothing when none is open. */
-  endUndoGroup(): void {
-    this.idle()
-    this.closeUndoGroup()
-  }
-
-  /** Drops the person's redo stack, keeping the undo stack. */
-  clearRedo(): void {
-    this.idle()
-    this.undoManagers.person.clearRedo()
-  }
-
-  /** Follows one text field: `listener` gets each change with whether this replica made it. */
-  subscribeText(id: ObjectId, field: string, listener: (delta: TextDelta[], local: boolean) => void): () => void {
-    checkField(id, field)
-    const text = read.container(this.doc, this.schema, id, field, 'text')
-    if (!text) throw errors.notFound(`${id}.${field}`)
-    return text.subscribe((batch) => {
-      for (const event of batch.events) {
-        if (event.diff.type === 'text') listener(event.diff.diff as TextDelta[], batch.by === 'local')
-      }
-    })
-  }
-
-  /**
-   * A draft of this document (standard 2.0 A12): a new writable replica of `actor` holding every
-   * change this one has, with no undo history. Edits made on it stay there until `mergeChanges`
-   * takes them into another replica of the document.
-   */
-  fork(actor: bigint): Replica {
-    return this.forkAt(this.version(), actor)
-  }
-
-  /**
-   * A draft of this document as it was at `version` (see `fork`); `version` must be one this
-   * replica has reached. A shallow replica forks at its current version, and at any version from
-   * the one it was loaded at on (a replica opened from a file's content snapshot: every version
-   * since the file), as a shallow replica with the same root; other versions are
-   * `history-missing`. The Rust `fork_at` serves every version from the root on: this engine forks
-   * a shallow document only as a whole, so an earlier version is built from the loaded bytes.
-   */
-  forkAt(version: Version, actor: bigint): Replica {
-    this.idle()
-    this.checkOpen()
-    checkActor(actor)
-    if (!(version instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
-    if (!this.version().includes(version)) throw errors.invalidValue('$draft', 'version', 'names changes this replica does not have')
-    let doc: LoroDoc
-    if (this.doc.isShallow() && !version.equals(this.version())) {
-      doc = this.shallowForkAt(version)
-    } else {
-      try {
-        doc = this.doc.isShallow() ? this.doc.fork() : this.doc.forkAt(this.doc.vvToFrontiers(version.toEngine()))
-      } catch (error) {
-        throw errors.engine(engineMessage(error))
-      }
-    }
-    configure(doc, this.schema)
-    return new Replica(doc, this.docIdBytes, this.schema, actor)
-  }
-
-  /** A shallow document at `version`: the bytes this replica was loaded from, then its changes after them up to `version`. */
-  private shallowForkAt(version: Version): LoroDoc {
-    const from = this.loadedFrom
-    if (from === null || !version.includes(from.version)) throw errors.historyMissing(VERSION_BEFORE_ROOT)
-    const doc = new LoroDoc()
-    try {
-      doc.import(from.engine)
-      const have = doc.oplogVersion().toJSON()
-      const spans: { id: { peer: PeerID; counter: number }; len: number }[] = []
-      for (const [peer, end] of version.toEngine().toJSON()) {
-        const start = have.get(peer) ?? 0
-        if (end > start) spans.push({ id: { peer, counter: start }, len: end - start })
-      }
-      if (spans.length > 0) doc.import(this.doc.export({ mode: 'updates-in-range', spans }))
-    } catch (error) {
-      doc.free()
-      throw errors.engine(engineMessage(error))
-    }
-    if (!Version.fromEngine(doc.oplogVersion()).equals(version)) {
-      doc.free()
-      throw errors.historyMissing(VERSION_BEFORE_ROOT)
-    }
-    return doc
-  }
-
-  /**
-   * A copy of this document as a **new document** (data model, "A copy is a new document"): the
-   * same objects, ids and content under the new permanent `docId`, as a writable replica of
-   * `actor`. For a template instantiated twice, a copied file, or the same bytes stored twice: each
-   * copy is its own document, with its own co-editing room. Unlike `fork` (a draft of the same
-   * document, merged back), a copy never merges with its source or another copy: `importChanges`,
-   * `mergeChanges` and `rebase` refuse each other's bytes (`wrong-document`).
-   *
-   * Answers a replica, as `fork` does, so a host edits it or stores its `snapshot`. The copy is a
-   * shallow replica (rule M16a) rooted at its own first change: it holds the current state and no
-   * history, so no deleted content, no earlier version and not the source's `docId` travel with
-   * it; it forks only at its current version, and `changesSince` a version before the copy is
-   * `history-missing`. Its undo and redo histories are empty. Object ids, tree node ids and every
-   * value are kept; a blob is its content-addressed reference, so it resolves wherever the
-   * source's blobs do (a host whose blob store is per document copies the referenced blobs too).
-   *
-   * There is no option to keep the history: the copy would share the source's change ids with
-   * another document's, every earlier version of it would name the source's `docId`, and deleted
-   * content would travel. Refuses (`invalid-value`) a `docId` equal to this document's. The
-   * changes still pending on this replica are not in the copy. The Rust crate's
-   * `Replica::copy_as_new_document` does the same.
-   */
-  copyAsNewDocument(docId: string, actor: bigint): Replica {
-    this.idle()
-    this.checkOpen()
-    const idBytes = uuidToBytes(docId)
-    checkActor(actor)
-    if (sameBytes(idBytes, this.docIdBytes)) throw errors.invalidValue('$copy', 'docId', "is this document's; a copy needs a new one")
-    let bytes: Uint8Array
-    try {
-      // The current state alone first, so the change that writes the new id is the copy's first
-      // and only change, never one the engine merges with the source's last.
-      const doc = new LoroDoc()
-      configure(doc, this.schema)
-      doc.import(this.doc.export({ mode: 'shallow-snapshot', frontiers: this.doc.oplogFrontiers() }))
-      doc.setPeerId(actor)
-      // The change records the copy's root below, its birth: the engine roots a shallow document
-      // at its last operation, which is this change's second write, this actor's next operation
-      // but one, so the root (as `shallowRoot` answers it) is known before the change.
-      const birth = new Map(doc.oplogVersion().toJSON())
-      const peer = actor.toString() as PeerID
-      birth.set(peer, (birth.get(peer) ?? 0) + 1)
-      doc.getMap(read.META).set('docId', uuidFromBytes(idBytes))
-      doc.getMap(read.BIRTH).set(read.BIRTH_ROOT, Version.fromEngine(VersionVector.parseJSON(birth)).encode())
-      doc.commit({ origin: SYSTEM, message: encodeCommit(system(NEW_DOCUMENT), this.schema.schemaVersion) })
-      // Rooted after that change: the source's id is overwritten, not kept as history.
-      bytes = doc.export({ mode: 'shallow-snapshot', frontiers: doc.oplogFrontiers() })
-    } catch (error) {
-      throw errors.encoding(engineMessage(error))
-    }
-    const copy = Replica.load(this.schema, wrap(idBytes, bytes), actor)
-    if (!copy.carriesWholeHistory()) throw errors.engine('the copy is not rooted at the birth it records')
-    return copy
-  }
-
-  /**
-   * The canonical state this replica would have after importing `changes`, without changing it:
-   * the "after" of a draft's comparison (`diffStates`). Refuses what `mergeChanges` refuses.
-   */
-  mergedState(changes: Uint8Array): unknown {
-    this.idle()
-    this.checkOpen()
-    return read.stateJson(this.mergedDoc(changes), this.schema)
-  }
-
-  /**
-   * Takes another replica's changes (a draft's, made on a `fork`) into this one as one transaction
-   * of its own, with `origin`: one undo step of the person (unless `origin` is `system` or `import`; M12a). The result
-   * is the state a CRDT import would give, so edits made here (or imported) since the draft was
-   * forked are kept; only the operations that turn this state into the merged one are written,
-   * under this replica's actor. Answers the objects that changed.
-   *
-   * The draft's changes themselves are not imported: merging the same changes twice writes their
-   * effect twice, so a host merges a draft once. Refuses (`invalid-value`) changes that depend on
-   * changes this replica lacks, changes of another document (`wrong-document`), and changes that
-   * raise the minimum schema version beyond this replica's (`newer-schema`); a refused merge
-   * changes nothing.
-   */
-  mergeChanges(changes: Uint8Array, origin: Origin): Set<ObjectId> {
-    this.idle()
-    this.checkOpen()
-    checkOrigin(origin)
-    const scope = undoScopeOf(origin.kind)
-    const merged = this.mergedDoc(changes)
-    const from = this.doc.oplogFrontiers()
-    const to = merged.oplogFrontiers()
-    if (sameFrontiers(from, to)) return new Set()
-    let diff: ReturnType<LoroDoc['diff']>
-    try {
-      diff = merged.diff(from, to)
-    } catch (error) {
-      throw errors.engine(engineMessage(error))
-    }
-    let failure: unknown = null
-    const { changed, registers } = observeChanges(this.doc, () => {
-      try {
-        this.doc.applyDiff(diff)
-      } catch (error) {
-        failure = error
-        return
-      }
-      // A draft's merge is the person's step even when an agent made the draft (M12a, KitAgent A14).
-      this.doc.commit({ origin: scope === null ? origin.kind : 'person', message: encodeCommit(origin, this.schema.schemaVersion) })
-    })
-    if (failure !== null) {
-      // The engine refused part of a difference it computed itself: put back what it applied,
-      // outside the undo history, as `transact` does.
-      this.doc.commit({ origin: ROLLBACK })
-      if (!sameFrontiers(this.doc.oplogFrontiers(), from)) {
-        this.doc.revertTo(from)
-        this.doc.commit({ origin: ROLLBACK, message: encodeCommit(system('rollback'), this.schema.schemaVersion) })
-      }
-      throw errors.engine(engineMessage(failure))
-    }
-    for (const register of registers) {
-      const now = this.registerValue(register)
-      if (now.container) continue
-      this.ownRegisters.set(register, now.value)
-      this.localWrites.set(register, { by: scope === null ? null : 'person', value: now.value })
-    }
-    for (const id of changed) this.changed.add(id)
-    return sorted(changed)
-  }
-
-  /** A copy of this document with `changes` imported, checked as `mergeChanges` checks them. */
-  private mergedDoc(changes: Uint8Array): LoroDoc {
-    const { docId, engine } = open(changes)
-    if (!sameBytes(docId, this.docIdBytes)) throw errors.wrongDocument(this.docId, uuidFromBytes(docId))
-    const merged = this.doc.fork()
-    configure(merged, this.schema)
-    let status: ImportStatus
-    try {
-      status = merged.import(engine)
-    } catch (error) {
-      throw importing(error)
-    }
-    if (status.pending && status.pending.size > 0) throw errors.invalidValue('$draft', 'changes', 'depend on changes this replica does not have')
-    read.checkProjectedStorage(merged,this.schema)
-    const found = read.minSchemaVersion(merged)
-    if (found !== null && found > this.schema.schemaVersion) throw errors.newerSchema(found, this.schema.schemaVersion)
-    return merged
-  }
-
-  /**
-   * What changed since `since` (a version this replica reached), as a write's receipt: a
-   * `StateDiff` without `texts`, values cut to excerpts, objects named by their tool ids where the
-   * schema declares them (OM9). Only the objects the changes since then touched are read, here and
-   * in a fork at `since`; the answer equals `diffStates` of the two whole states. A version this
-   * replica's history does not hold is a `history-missing` error. As the Rust `changes_since`.
-   */
-  changesSince(since: Version, options: {textSpans?:boolean} = {}): StateDiff {
-    this.idle()
-    this.checkOpen()
-    if (!(since instanceof Version)) throw new KdmError('invalid-value', 'a version must be a `Version`')
-    if (!this.version().includes(since)) throw errors.historyMissing(VERSION_NOT_HELD)
-    if (since.equals(this.version())) return diffObjects([], {}, {}, () => null, false)
-    const before = this.forkAt(since, this.actor)
-    const probe = this.forkAt(since, this.actor)
-    const touched = [...probe.importChanges(this.exportChanges(since))].sort(compareKeys)
-    const typeIn = (doc: LoroDoc, id: ObjectId): string | null => {
-      try {
-        return read.objectType(doc, id)
-      } catch {
-        return null
-      }
-    }
-    const objectsOf = (doc: LoroDoc): Record<string, unknown> => {
-      const out: Record<string, unknown> = {}
-      for (const id of touched) if (typeIn(doc, id) !== null) out[id] = read.objectJson(doc, this.schema, id)
-      return out
-    }
-    const typeOfId = (id: string): string | null => typeIn(this.doc, id) ?? typeIn(before.doc, id)
-    const old={objects:objectsOf(before.doc)},now={objects:objectsOf(this.doc)}
-    let diff = withLeafEdits(diffObjects(touched, old.objects, now.objects, typeOfId, false), this.schema)
-    if(options.textSpans) diff=withTextSpans(diff,old,now)
-    return diffWithToolIds(diff, this.schema, ToolIds.ofReplica(before), ToolIds.ofReplica(this))
-  }
-
-  /** The whole document in canonical form; see `stateText`. */
+  /** The whole document in canonical form (`{meta, objects}`), as the Rust `state_json`; see `stateText`. */
   stateJson(): unknown {
-    return read.stateJson(this.doc, this.schema)
+    const objects: Record<string, unknown> = {}
+    for (const id of [...this.store.objects.keys()].sort(compareKeys)) objects[id] = this.objectJson(id)
+    return {
+      meta: { docId: this.store.docId, kdm: KDM_VERSION, kit: this.store.kit, schemaVersion: this.store.schemaVersion },
+      objects,
+    }
   }
 
-  /** The canonical state as text; equal to the Rust `state_json().to_string()` for the same changes. */
+  /** The canonical state as text; equal to the Rust `state_json().to_string()` for the same document. */
   stateText(): string {
     return canonicalText(this.stateJson())
   }
 
-  /**
-   * Replaces the document with its history up to `frontiers`, dropping every change applied since.
-   * Changes still pending stay recorded in `pending`: they are missing again, and a sync fetches
-   * them.
-   */
-  private restore(frontiers: Frontiers): void {
-    let doc: LoroDoc
-    try {
-      doc = this.doc.forkAt(frontiers)
-    } catch (error) {
-      throw errors.engine(engineMessage(error))
-    }
-    configure(doc, this.schema)
-    doc.setPeerId(this.actor)
-    freeHistories(this.undoManagers)
-    this.doc = doc
-    this.undoManagers = histories(doc, this.runs)
-    // No undo history is left to protect registers from.
-    this.importedRegisters.clear()
-    this.keptRegisters.clear()
-    this.ownRegisters.clear()
-    this.localWrites.clear()
-    this.reopenUndoGroup()
-  }
-
-  /** Records the changes an import left pending, and forgets those applied since. */
-  private notePending(status: ImportStatus): void {
-    for (const [peer, { end }] of status.pending ?? []) this.pending.set(peer, Math.max(end, this.pending.get(peer) ?? 0))
-    this.prunePending()
-  }
-
-  /** Forgets the pending changes applied since they were recorded. */
-  private prunePending(): void {
-    if (this.pending.size === 0) return
-    const applied = this.doc.oplogVersion()
-    for (const [peer, end] of this.pending) if ((applied.get(peer) ?? 0) >= end) this.pending.delete(peer)
-  }
-
-  /** Throws the error that closed this shallow replica, if one did (see `importChanges`). */
-  private checkOpen(): void {
-    if (this.closedBy) throw this.closedBy
-  }
-
-  private idle(): void {
-    if (this.busy) throw errors.engine('the document cannot change while a transaction runs; transactions do not nest')
-  }
-
-  private closeUndoGroup(): void {
-    if (!this.grouping) return
-    this.undoManagers.person.groupEnd()
-    this.undoManagers.agent.groupEnd()
-    this.grouping = false
-    this.runs.current = null
-  }
-
-  /**
-   * After an import, makes sure the open group is still open in the engine: the engine ends it
-   * when the import changes what the group changed, and then the group goes on as a new one.
-   * Starting a group the engine still has open changes nothing; if the engine can start none, no
-   * group is open any more.
-   */
-  private reopenUndoGroup(): void {
-    if (!this.grouping) return
-    const start = (manager: UndoManager): boolean => {
-      try {
-        manager.groupStart()
-        return true
-      } catch (error) {
-        return engineMessage(error).includes('already an active undo group')
-      }
-    }
-    if (!(start(this.undoManagers.person) && start(this.undoManagers.agent))) {
-      this.undoManagers.person.groupEnd()
-      this.undoManagers.agent.groupEnd()
-      this.grouping = false
-    }
-  }
-
-  private history(scope: UndoScope, run: () => boolean): boolean {
-    this.idle()
-    this.checkOpen()
-    this.closeUndoGroup()
-    // Who wrote each register's current value, when an undo must keep it: another replica
-    // (`undefined`), or another scope of this one.
-    const others: Array<[Register, unknown, UndoScope | null | undefined]> = this.othersRegisters().map(([register, value]) => [register, value, undefined])
-    for (const [register, value, by] of this.otherScopesRegisters(scope)) others.push([register, value, by])
-    const { value, changed, registers } = observeChanges(this.doc, () => {
-      try {
-        return run()
-      } catch (error) {
-        throw errors.engine(engineMessage(error))
-      }
-    })
-    for (const id of changed) this.changed.add(id)
-    for (const register of registers) {
-      const now = this.registerValue(register)
-      if (now.container) continue
-      this.ownRegisters.set(register, now.value)
-      this.localWrites.set(register, { by: scope, value: now.value })
-    }
-    // The engine's inverse operation sets a register back even when another replica or another
-    // scope wrote it later; put those back to that value, in a `system` commit (not an undo step),
-    // so the result is as if the undo had skipped them.
-    const touched = new Set(registers)
-    let restored = false
-    for (const [register, kept, by] of others) {
-      if (!touched.has(register)) continue
-      const now = this.registerValue(register)
-      if (now.container || sameValue(now.value, kept)) continue
-      const [container, key] = registerParts(register)
-      const map = this.doc.getContainerById(container as ContainerID) as unknown as { set(key: string, value: unknown): void; delete(key: string): void }
-      if (kept === undefined) map.delete(key)
-      else map.set(key, kept)
-      // Another scope's write stays that scope's, for its own undo and for this scope's next one.
-      if (by !== undefined) this.localWrites.set(register, { by, value: kept })
-      else {
-        this.localWrites.delete(register)
-        this.keptRegisters.set(register, kept)
-      }
-      restored = true
-    }
-    if (restored) this.doc.commit({ origin: SYSTEM, message: encodeCommit(system('keep-later-changes'), this.schema.schemaVersion) })
-    return value
-  }
-
-  /**
-   * The registers whose current value this replica wrote in another scope than `scope` (or in a
-   * `system` or `import` transaction), with that value and its scope. Forgets the writes whose value
-   * was changed since by anyone.
-   */
-  private otherScopesRegisters(scope: UndoScope): Array<[Register, unknown, UndoScope | null]> {
-    const out: Array<[Register, unknown, UndoScope | null]> = []
-    const me = String(this.actor) as PeerID
-    for (const [register, write] of this.localWrites) {
-      const now = this.registerValue(register)
-      if (now.container || !sameValue(now.value, write.value) || now.lastEditor !== me) this.localWrites.delete(register)
-      else if (write.by !== scope) out.push([register, now.value, write.by])
-    }
-    return out
-  }
-
-  /** A register's value now (`undefined`: absent), and whether it holds a container instead. */
-  private registerValue(register: Register): { value: unknown; container: boolean; lastEditor: PeerID | undefined } {
-    const [container, key] = registerParts(register)
-    const map = this.doc.getContainerById(container as ContainerID) as unknown as
-      | { get(key: string): unknown; getLastEditor(key: string): PeerID | undefined }
-      | undefined
-    if (!map) return { value: undefined, container: false, lastEditor: undefined }
-    const value = map.get(key)
-    return { value, container: isEngineContainer(value), lastEditor: map.getLastEditor(key) }
-  }
-
-  /**
-   * The registers whose current value another replica wrote, with that value (`undefined`:
-   * deleted there): an import changed them and another peer wrote them last, or an earlier undo or
-   * redo kept them for another replica and nothing changed them since. Prunes both candidate sets
-   * of registers that are this replica's own again.
-   */
-  private othersRegisters(): Array<[Register, unknown]> {
-    const out: Array<[Register, unknown]> = []
-    const me = String(this.actor) as PeerID
-    for (const [register, kept] of this.keptRegisters) {
-      const now = this.registerValue(register)
-      if (!now.container && sameValue(now.value, kept)) out.push([register, kept])
-      else this.keptRegisters.delete(register)
-    }
-    for (const register of this.importedRegisters) {
-      if (this.keptRegisters.has(register)) continue
-      const now = this.registerValue(register)
-      if (now.container || now.lastEditor === undefined || now.lastEditor === me) this.importedRegisters.delete(register)
-      // Another replica wrote this replica's own value again: nothing to keep.
-      else if (!(this.ownRegisters.has(register) && sameValue(this.ownRegisters.get(register), now.value))) out.push([register, now.value])
-    }
-    return out
-  }
-
-  /** Records the registers a local transaction of `scope` wrote, with their values. */
-  private noteOwnWrites(writes: ReadonlyArray<{ id: ObjectId; field: string | null; key: string; value: unknown }>, scope: UndoScope | null): void {
-    for (const { id, field, key, value } of writes) {
-      let container: string
-      try {
-        const object = read.objectMap(this.doc, id)
-        if (field === null) container = object.id
-        else {
-          const map = object.get(field)
-          if (!isEngineContainer(map) || map.kind() !== 'Map') continue
-          container = map.id
+  /** One object in canonical form: `$type` and every schema field (an object of a type the schema does not declare: its `$type` only). */
+  private objectJson(id: ObjectId): Record<string, unknown> {
+    const object = this.store.objects.get(id) as StoredObject
+    const out: Record<string, unknown> = { [TYPE_KEY]: object.ty }
+    if (!Object.hasOwn(this.schema.types, object.ty)) return out
+    const def = typeDef(this.schema, object.ty)
+    for (const name of Object.keys(def.fields)) {
+      const field = def.fields[name]
+      const held = object.fields.get(name)
+      let value: unknown
+      switch (field.kind) {
+        case 'text': {
+          const text = held?.kind === 'text' ? held.text : null
+          value = hasMarks(field) ? (text ? runsOf(text, field) : []) : (text?.string() ?? '')
+          break
         }
-      } catch {
-        continue
+        case 'list':
+          value = held?.kind === 'list' ? [...held.items] : []
+          break
+        case 'tree':
+          value = held?.kind === 'tree' ? held.tree.toJson((node) => this.store.objects.has(node)) : []
+          break
+        case 'map':
+          value = held?.kind === 'map' ? Object.fromEntries(held.entries) : {}
+          break
+        default:
+          value = held?.kind === 'value' ? held.value : null
       }
-      this.ownRegisters.set(registerKey(container, key), value)
-      this.localWrites.set(registerKey(container, key), { by: scope, value })
+      Object.defineProperty(out, name, { value, enumerable: true, writable: true, configurable: true })
     }
+    return out
   }
 }
 
-type Frontiers = ReturnType<LoroDoc['frontiers']>
-
-/** Register values are JSON values: equal when their canonical texts are. */
-const sameValue = (a: unknown, b: unknown): boolean => a === b || (a !== undefined && b !== undefined && canonicalText(a) === canonicalText(b))
-
-/** The engine's origin of its own undo and redo commits: for the other scope's history, a change it did not make. */
-const ENGINE_UNDO = 'undo'
-
-/**
- * The engine's commit origin for a transaction of `kind`: the name of the undo scope it joins
- * (M12a), or its kind when it is no undo step. Only the undo histories read it; it is local to the
- * replica and never exported (the commit message carries the origin).
- */
-const commitOrigin = (kind: OriginKind): string => undoScopeOf(kind) ?? kind
-
-/** A replica's undo histories, one per undo scope (M12a). */
-type Histories = Record<UndoScope, UndoManager>
-
-/**
- * The undo group runs of a replica (rule M12b): `current` is the open group's, which each new undo
- * step takes; while an undo or redo replays (`replaying`), the step it makes takes the run of the
- * step it popped (`popped`), so a run undone stays one run to redo.
- */
-export type UndoTouch = { id: ObjectId; fields: string[] | null }
-
-/**
- * One change of a replica's history, as `Replica.historySince` lists it: who made it (`null` for
- * a change whose commit message is not a KDM origin) and the version it makes with every change it
- * depends on.
- */
-export type HistoryChange = { origin: Origin | null; version: Version }
-type UndoMeta = { run: number | null; touches: UndoTouch[] }
-type Runs = { current: number | null; next: number; replaying: boolean; popped: UndoMeta | null; pending: UndoTouch[]; groups: Map<string, UndoTouch[]> }
-
-const metaOf = (value: unknown): UndoMeta | null => value && typeof value === 'object' && 'touches' in value ? value as UndoMeta : null
-const runOf = (value: unknown): number | null => metaOf(value)?.run ?? null
-
-function mergeTouches(into: UndoTouch[], more: UndoTouch[]): UndoTouch[] {
-  const merged = new Map<string, Set<string> | null>()
-  for (const touch of [...into, ...more]) {
-    const fields = merged.get(touch.id)
-    merged.set(touch.id, fields === null || touch.fields === null ? null : new Set([...(fields ?? []), ...touch.fields]))
+/** The runs of a text as field `def` reads them: only its declared marks; one unmarked run for a field that declares none. */
+function runsOf(text: Text, def: FieldDef): TextRun[] {
+  const out: TextRun[] = []
+  if (!hasMarks(def)) {
+    pushRun(out, text.string(), undefined)
+    return out
   }
-  return [...merged].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([id, fields]) => ({ id, fields: fields === null ? null : [...fields].sort() }))
-}
-
-/** The undo history of `scope`: it skips the other scope's transactions, and its undo and redo, as another replica's. */
-const undoManagerOf = (doc: LoroDoc, scope: UndoScope, runs: Runs): UndoManager =>
-  new UndoManager(doc, {
-    mergeInterval: 0,
-    excludeOriginPrefixes: [ROLLBACK, SYSTEM, IMPORT, scope === 'person' ? 'agent' : 'person', ENGINE_UNDO],
-    onPush: () => {
-      if (runs.replaying) return { value: runs.popped, cursors: [] }
-      const touches = runs.current === null ? mergeTouches([], runs.pending) : runs.groups.get(`${scope}:${runs.current}`) ?? runs.pending
-      return { value: { run: runs.current, touches }, cursors: [] }
-    },
-    onPop: (_isUndo, meta) => {
-      runs.popped = metaOf(meta?.value)
-    },
-  })
-
-const histories = (doc: LoroDoc, runs: Runs): Histories => ({ person: undoManagerOf(doc, 'person', runs), agent: undoManagerOf(doc, 'agent', runs) })
-
-const freeHistories = (histories: Histories): void => {
-  histories.person.free()
-  histories.agent.free()
-}
-
-/** Checks a scope given at run time. */
-function checkScope(scope: UndoScope): UndoScope {
-  if (scope !== 'person' && scope !== 'agent') throw new KdmError('invalid-value', 'an undo scope is "person" or "agent"')
-  return scope
-}
-
-const sameFrontiers = (a: Frontiers, b: Frontiers): boolean => {
-  const key = (frontiers: Frontiers) => frontiers.map((id) => `${id.counter}@${id.peer}`).sort().join(',')
-  return key(a) === key(b)
+  const declared = def.marks ?? {}
+  for (const piece of text.pieces()) {
+    let attributes: Record<string, JsonValue> | undefined
+    for (const key of Object.keys(piece.attributes)) {
+      if (!Object.hasOwn(declared, key)) continue
+      attributes ??= {}
+      Object.defineProperty(attributes, key, { value: canonical(piece.attributes[key]), enumerable: true, writable: true, configurable: true })
+    }
+    pushRun(out, piece.insert, attributes)
+  }
+  return out
 }

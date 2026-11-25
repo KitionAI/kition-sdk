@@ -9,7 +9,6 @@ steps:
   - exec: { cmd: [cargo, build, -q, -p, kition-kit-mock] }
   - cargo-test: { package: kition-kits, test: space_guard, filter: mixed_public_private_coverage_keeps_the_earliest_private_value }
   - cargo-test: { package: kition-kits, test: space_guard, filter: mixed_public_private_coverage_keeps_the_earliest_private_value, env: { KITION_TEST_READER: editor } }
-  - exec: { cmd: [pnpm, -s, vitest, run, packages/kdm/test/changes.test.ts, -t, keeps public and private coverage before values, --pool=forks, --poolOptions.forks.singleFork] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

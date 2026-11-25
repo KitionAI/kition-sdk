@@ -3,19 +3,57 @@
  * The engine worker's read-only guard (`document.readOnly`), driven through its `handle` with a
  * fake kit module document: which calls it refuses by rule, and the backstop that undoes and refuses
  * an allowed call that still committed to the replica.
+ *
+ * The comment backstop reads what a change touched with `@kition/kdm`'s `ChangeAudit`; here the
+ * fake engine's change exports are tokens (`{"after": seq}` or `{"snapshot": seq}`) and a stand-in
+ * audit reads the object types each change of the fake engine's log touched.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KitModuleDocument, KitModuleManifest } from './kitModule'
-import { COMMENT_THREAD_TYPE_DEF, COMMENT_TYPE_DEF, Replica, Version, type Tx, addThread, commentThreads, newDocId, parseSchema, person } from '@kition/kdm'
 import { commentCommands, editsDocument, isReadOnlyError, refusedReadOnly } from './readOnly'
 
-const fake = vi.hoisted(() => ({ doc: null as unknown }))
+const fake = vi.hoisted(() => ({ doc: null as unknown, log: [] as string[][] }))
 vi.mock('./kitModule', async (actual) => ({
   ...(await actual<typeof import('./kitModule')>()),
   loadKitModule: async () => ({}),
   openKitModuleDocument: () => fake.doc,
   createKitModuleDocument: () => fake.doc,
 }))
+
+vi.mock('@kition/kdm', () => {
+  type Token = { snapshot?: number; after?: number }
+  const read = (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes)) as Token
+  /** Follows the fake engine's log (`fake.log`, the object types each change touched, in order). */
+  class ChangeAudit {
+    private constructor(private seq: number) {}
+    static load(bytes: Uint8Array) {
+      const token = read(bytes)
+      if (token.snapshot === undefined) throw new Error('not a snapshot')
+      return new ChangeAudit(token.snapshot)
+    }
+    version() {
+      return { encode: () => new Uint8Array([this.seq]) }
+    }
+    follow(bytes: Uint8Array) {
+      this.touched(bytes)
+    }
+    touched(bytes: Uint8Array) {
+      const token = read(bytes)
+      if (token.snapshot !== undefined) {
+        this.seq = token.snapshot
+        return { objects: new Map<string, string | null>(), outside: true }
+      }
+      if (token.after !== this.seq) throw new Error('stale')
+      const objects = new Map<string, string | null>()
+      fake.log.slice(this.seq).forEach((types, index) => types.forEach((type) => objects.set(`${this.seq + index}:${type}`, type)))
+      this.seq = fake.log.length
+      return { objects, outside: false }
+    }
+  }
+  const touchesOnlyComments = (touched: { objects: Map<string, string | null>; outside: boolean }) =>
+    !touched.outside && [...touched.objects.values()].every((type) => type === 'CommentThread' || type === 'Comment')
+  return { ChangeAudit, touchesOnlyComments }
+})
 
 const { handle } = await import('./kitEngine.worker')
 
@@ -241,14 +279,6 @@ describe('the comment commands of a read-only session', () => {
   })
 })
 
-const KDM_SCHEMA = parseSchema({
-  kdm: 1,
-  kit: 'kit.test',
-  schemaVersion: 1,
-  root: 'Doc',
-  types: { Doc: { fields: { body: { kind: 'text' } } }, CommentThread: COMMENT_THREAD_TYPE_DEF, Comment: COMMENT_TYPE_DEF },
-})
-
 const KDM_CATALOG: Catalog = [
   { id: 'comment.add', mutates: true },
   { id: 'comment.sneak', mutates: true },
@@ -257,20 +287,60 @@ const KDM_CATALOG: Catalog = [
   { id: 'file.save', mutates: false },
 ]
 
+/** One step of the fake engine's history: what it does, how it is taken back, and the object types it touches. */
+type Step = { apply: () => void; revert: () => void; types: string[] }
+
 /**
- * A document on a real KDM replica: `comment.add` opens a thread, `comment.sneak` opens one and
- * edits the text as well, `text.insert` edits the text; the session's undo takes the last back.
- * `lazy`: the replica is made when its version is first asked for, as an engine's is.
+ * A document whose replica is a text and its comment threads, with a log of the object types each
+ * change touched (`fake.log`) and an undo history of its own: `comment.add` opens a thread,
+ * `comment.sneak` opens one and edits the text as well, `text.insert` edits the text; the session's
+ * undo takes the last back. `ownerEdit` is another person's edit in the same history. `lazy`: the
+ * replica is made when its version is first asked for, as an engine's is.
  */
 function kdmDocument(lazy = false) {
-  const replica = Replica.create(KDM_SCHEMA, newDocId(), 1n)
-  const root = replica.transact(person('owner'), (tx) => {
-    const id = tx.create('Doc', {})
-    tx.textInsert(id, 'body', 0, 'Hello')
-    return id
-  })
+  fake.log = []
+  const doc_ = { body: 'Hello', threads: 0 }
+  const undoSteps: Step[] = []
+  const redoSteps: Step[] = []
   const state = { ran: [] as string[], undone: 0, dirty: false, made: !lazy }
-  const comment = (tx: Tx) => void addThread(tx, { object: root, field: 'body' }, { author: 'carol', body: 'Why?', created: '2026-10-19T10:00:00Z' })
+  const run = (step: Step) => {
+    step.apply()
+    fake.log.push(step.types)
+  }
+  const write = (step: Step) => {
+    run(step)
+    undoSteps.push(step)
+    redoSteps.length = 0
+  }
+  const comment = (): Step => ({ apply: () => void (doc_.threads += 1), revert: () => void (doc_.threads -= 1), types: ['CommentThread', 'Comment'] })
+  const insert = (at: number, text: string, types = ['Doc']): Step => {
+    let was = ''
+    return {
+      apply: () => {
+        was = doc_.body
+        doc_.body = doc_.body.slice(0, at) + text + doc_.body.slice(at)
+      },
+      revert: () => void (doc_.body = was),
+      types,
+    }
+  }
+  const undo = () => {
+    const step = undoSteps.pop()
+    if (!step) return false
+    step.revert()
+    fake.log.push(step.types)
+    redoSteps.push(step)
+    return true
+  }
+  const redo = () => {
+    const step = redoSteps.pop()
+    if (!step) return false
+    run(step)
+    undoSteps.push(step)
+    return true
+  }
+  // The owner's edit before the session: in the history, not the commenter's.
+  write(insert(5, ''))
   const doc = {
     width: 10,
     height: 10,
@@ -284,22 +354,23 @@ function kdmDocument(lazy = false) {
     renderArea: () => new Uint8Array(),
     execute: (command: string) => {
       state.ran.push(command)
-      const writes: Record<string, (tx: Tx) => void> = {
+      const writes: Record<string, () => Step> = {
         'comment.add': comment,
-        'comment.sneak': (tx) => {
-          comment(tx)
-          tx.textInsert(root, 'body', 5, '!')
+        'comment.sneak': () => {
+          const thread = comment()
+          const text = insert(5, '!')
+          return { apply: () => (thread.apply(), text.apply()), revert: () => (text.revert(), thread.revert()), types: ['CommentThread', 'Comment', 'Doc'] }
         },
-        'text.insert': (tx) => tx.textInsert(root, 'body', 5, '?'),
+        'text.insert': () => insert(5, '?'),
       }
-      const write = writes[command]
-      if (write) {
-        replica.transact(person('carol'), write)
+      const made = writes[command]
+      if (made) {
+        write(made())
         state.dirty = true
       }
-      // The engine's own history: the replica's, which holds this replica's edits.
-      if (command === 'edit.undo') replica.undo()
-      if (command === 'edit.redo') replica.redo()
+      // The engine's own history, which holds this replica's edits.
+      if (command === 'edit.undo') undo()
+      if (command === 'edit.redo') redo()
       return '{}'
     },
     inspect: () => '{}',
@@ -314,29 +385,35 @@ function kdmDocument(lazy = false) {
     },
     version: () => {
       state.made = true
-      return replica.version().encode()
+      return new Uint8Array([fake.log.length])
     },
-    exportChanges: (since: Uint8Array) => replica.exportChanges(since.byteLength ? Version.decode(since) : Version.empty()),
-    importChanges: (changes: Uint8Array) => {
-      replica.importChanges(changes)
+    exportChanges: (since: Uint8Array) => new TextEncoder().encode(JSON.stringify(since.byteLength ? { after: since[0] } : { snapshot: fake.log.length })),
+    importChanges: () => {
+      fake.log.push(['Doc'])
       return '{"kind":"full"}'
     },
     addBlobs: () => undefined,
     blobs: () => new Uint8Array(),
     undo: () => {
       state.undone += 1
-      replica.undo()
+      undo()
       return '{"done":true}'
     },
     redo: () => {
-      replica.redo()
+      redo()
       return '{"done":true}'
     },
-    canUndo: () => replica.canUndo(),
-    canRedo: () => replica.canRedo(),
+    canUndo: () => undoSteps.length > 0,
+    canRedo: () => redoSteps.length > 0,
   }
   fake.doc = doc as unknown as KitModuleDocument
-  return { replica, root, state }
+  return {
+    state,
+    text: () => doc_.body,
+    threads: () => doc_.threads,
+    canUndo: () => undoSteps.length > 0,
+    ownerEdit: (text: string) => write(insert(0, text)),
+  }
 }
 
 const commenting = { ...manifest, commentCommands: ['comment.add', 'comment.sneak', 'edit.undo', 'file.save'] } as KitModuleManifest
@@ -351,10 +428,10 @@ describe('the engine worker, read-only for a commenter', () => {
   })
 
   it('runs a comment command, which stays and leaves nothing to save', async () => {
-    const { replica, state } = kdmDocument()
+    const { threads, state } = kdmDocument()
     await openAs('commenter')
     const answer = await execute('comment.add')
-    expect(commentThreads(replica)).toHaveLength(1)
+    expect(threads()).toBe(1)
     expect(state.undone).toBe(0)
     expect((answer.value as { info: { dirty: boolean } }).info.dirty).toBe(false)
     // The file is not a commenter's to save.
@@ -362,91 +439,91 @@ describe('the engine worker, read-only for a commenter', () => {
   })
 
   it("makes the replica for a commenter's first comment, where comments live", async () => {
-    const { replica, state } = kdmDocument(true)
+    const { threads, state } = kdmDocument(true)
     await openAs('commenter')
     await execute('comment.add')
     expect(state.made).toBe(true)
-    expect(commentThreads(replica)).toHaveLength(1)
+    expect(threads()).toBe(1)
     expect(state.undone).toBe(0)
   })
 
   it('refuses a comment command for a viewer and runs none of it', async () => {
-    const { replica, state } = kdmDocument()
+    const { threads, state } = kdmDocument()
     await openAs('viewer')
     expect(isReadOnlyError(await refusal(execute('comment.add')))).toBe(true)
     expect(state.ran).toEqual([])
-    expect(commentThreads(replica)).toHaveLength(0)
+    expect(threads()).toBe(0)
   })
 
   it('refuses every edit that is not a comment command, the history and file commands even when listed', async () => {
-    const { replica, root, state } = kdmDocument()
+    const { text, state } = kdmDocument()
     await openAs('commenter')
     for (const command of ['text.insert', 'edit.undo', 'file.save']) expect(isReadOnlyError(await refusal(execute(command))), command).toBe(true)
     expect(state.ran).toEqual([])
-    expect(replica.text(root, 'body')).toBe('Hello')
+    expect(text()).toBe('Hello')
   })
 
   it("undoes and redoes the commenter's own comments, and nothing before them", async () => {
-    const { replica, root } = kdmDocument()
+    const { text, threads, canUndo } = kdmDocument()
     await openAs('commenter')
     const history = (answer: { value: unknown }) => {
       const { canUndo, canRedo } = (answer.value as { info: { canUndo: boolean; canRedo: boolean } }).info
       return { canUndo, canRedo }
     }
     // Nothing of theirs yet: the owner's edit before the session is not theirs to undo.
-    expect(replica.canUndo()).toBe(true)
+    expect(canUndo()).toBe(true)
     expect(isReadOnlyError(await refusal(execute('edit.undo')))).toBe(true)
     expect(history(await execute('comment.add'))).toEqual({ canUndo: true, canRedo: false })
     expect(history(await execute('edit.undo'))).toEqual({ canUndo: false, canRedo: true })
-    expect(commentThreads(replica)).toHaveLength(0)
+    expect(threads()).toBe(0)
     expect(history(await execute('edit.redo'))).toEqual({ canUndo: true, canRedo: false })
-    expect(commentThreads(replica)).toHaveLength(1)
+    expect(threads()).toBe(1)
     expect(isReadOnlyError(await refusal(execute('edit.redo')))).toBe(true)
     await execute('edit.undo')
     // The comment is undone; another Undo would reach the text, and is refused before it runs.
     expect(isReadOnlyError(await refusal(execute('edit.undo')))).toBe(true)
-    expect(replica.text(root, 'body')).toBe('Hello')
-    expect(commentThreads(replica)).toHaveLength(0)
+    expect(text()).toBe('Hello')
+    expect(threads()).toBe(0)
     // A new comment drops what was undone: nothing is left to redo.
     await execute('comment.add')
     expect(isReadOnlyError(await refusal(execute('edit.redo')))).toBe(true)
-    expect(commentThreads(replica)).toHaveLength(1)
+    expect(threads()).toBe(1)
   })
 
   it("takes back and refuses an Undo whose engine history reaches past the commenter's comments", async () => {
-    const { replica, root } = kdmDocument()
+    const { text, threads, ownerEdit } = kdmDocument()
     await openAs('commenter')
     await execute('comment.add')
     // An engine whose own history holds an edit that is not the commenter's above their comment.
-    replica.transact(person('owner'), (tx) => tx.textInsert(root, 'body', 0, '> '))
+    ownerEdit('> ')
     const error = await refusal(execute('edit.undo'))
     expect(isReadOnlyError(error)).toBe(true)
     expect(String((error as Error).message)).toMatch(/changed more than comments/)
-    expect(replica.text(root, 'body')).toBe('> Hello')
-    expect(commentThreads(replica)).toHaveLength(1)
+    expect(text()).toBe('> Hello')
+    expect(threads()).toBe(1)
   })
 
   it('refuses Undo and Redo for a viewer', async () => {
-    const { replica } = kdmDocument()
+    const { text } = kdmDocument()
     await openAs('viewer')
     expect(isReadOnlyError(await refusal(execute('edit.undo')))).toBe(true)
     expect(isReadOnlyError(await refusal(execute('edit.redo')))).toBe(true)
-    expect(replica.text(replica.objectsOfType('Doc')[0], 'body')).toBe('Hello')
+    expect(text()).toBe('Hello')
   })
 
   it('undoes and refuses a comment command that changed the content too', async () => {
-    const { replica, root, state } = kdmDocument()
+    const { text, threads, state, ownerEdit } = kdmDocument()
     await openAs('commenter')
     const error = await refusal(execute('comment.sneak'))
     expect(isReadOnlyError(error)).toBe(true)
     expect(String((error as Error).message)).toMatch(/changed more than comments/)
     expect(state.undone).toBe(1)
-    expect(replica.text(root, 'body')).toBe('Hello')
-    expect(commentThreads(replica)).toHaveLength(0)
+    expect(text()).toBe('Hello')
+    expect(threads()).toBe(0)
     // What came before (the undo, another replica's edits) is not held against the next comment.
-    replica.transact(person('owner'), (tx) => tx.textInsert(root, 'body', 0, '> '))
+    ownerEdit('> ')
     await execute('comment.add')
-    expect(commentThreads(replica)).toHaveLength(1)
+    expect(threads()).toBe(1)
     expect(state.undone).toBe(1)
   })
 })
@@ -474,15 +551,14 @@ describe('the engine worker, editable', () => {
 
 describe('the engine worker, schema versions (KitModel rule M5a)', () => {
   it('reads them when a document opens and after imports, for an engine that answers them', async () => {
-    const { replica } = kdmDocument()
+    kdmDocument()
     let author: number | null = null
     Object.assign(fake.doc as object, { schemaVersion: () => 1, authorSchemaVersion: () => author })
     const opened = await handle({ method: 'open', manifest, name: 'a.pptx', bytes: new ArrayBuffer(1), lent: null, replica: null })
     expect((opened.value as { schema: unknown }).schema).toEqual({ reads: 1, newestAuthor: null })
     // A newer kit's change arrives from the room.
     author = 3
-    const changes = replica.exportChanges(Version.empty())
-    const imported = await handle({ method: 'replicaImport', changes: changes.slice().buffer, blobs: new ArrayBuffer(0) })
+    const imported = await handle({ method: 'replicaImport', changes: new Uint8Array([1]).buffer, blobs: new ArrayBuffer(0) })
     expect((imported.value as { info: { schema: unknown } }).info.schema).toEqual({ reads: 1, newestAuthor: 3 })
     // The person's own edits do not read them again.
     author = 4

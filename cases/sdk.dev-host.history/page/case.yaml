@@ -7,9 +7,9 @@ intent: >-
   view state and a host checkpoint from recordCheckpoint survive devHost.reload, which reopens the
   document as its last save left it; devHost.reopenChanged closes the editor, gives the file new
   bytes at a new version and reopens it with the stored replica handed over under its earlier
-  stamp, after which a kit that does not merge the file starts another lineage while one declared
-  with ?replica-merges-file=1 keeps its checkpoints available (UI-R1); devHost.open starts the file
-  alone (no replica, its checkpoints unavailable, the view state kept).
+  stamp (UI-R1), its checkpoints kept; devHost.restoreCheckpoint hands a checkpoint's snapshot and
+  blobs to the kit with replica/restore as the person; devHost.open starts the file alone (no
+  replica, the checkpoints and the view state kept).
 layer: gate
 dimension: function
 source:

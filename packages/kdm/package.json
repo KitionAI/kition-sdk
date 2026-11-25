@@ -1,7 +1,7 @@
 {
   "name": "@kition/kdm",
   "version": "0.5.2",
-  "description": "Kit Data Model for TypeScript engines and hosts: the same replicated document model as the kition-kdm crate.",
+  "description": "Kit Data Model reader for TypeScript hosts and pages: loads a document's content or snapshot, follows the changes the kition-kdm crate exports, and reads its objects.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -14,11 +14,7 @@
     "build": "node ../../tools/build-package.mjs",
     "prepack": "pnpm run build"
   },
-  "dependencies": {
-    "loro-crdt": "1.16.4"
-  },
   "devDependencies": {
-    "@codemirror/state": "^6.5.0",
     "@types/node": "^22.20.5"
   },
   "repository": {
@@ -35,9 +31,7 @@
     "kit",
     "khp",
     "kdm",
-    "crdt",
-    "document-model",
-    "collaboration"
+    "document-model"
   ],
   "types": "./dist/index.d.ts",
   "publishConfig": {

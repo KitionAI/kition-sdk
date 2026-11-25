@@ -326,6 +326,7 @@ describe('mountKit', () => {
       kit.handle('replica/version', () => ({ version: new Uint8Array([4, 2]).buffer }))
       kit.handle('replica/export', ({ since }) => ({ changes: new Uint8Array([since.byteLength]).buffer, blobs: new ArrayBuffer(0) }))
       kit.handle('replica/import', ({ changes }) => ({ damage: { rects: changes.byteLength } }))
+      kit.handle('replica/restore', ({ snapshot, blobs, origin }) => ({ damage: { rects: snapshot.byteLength + blobs.byteLength, origin } }))
     })
     const connection = await mountKit(frame, {
       origin: '*',
@@ -347,6 +348,9 @@ describe('mountKit', () => {
     expect(new Uint8Array(await connection.replica.version())).toEqual(new Uint8Array([4, 2]))
     expect(new Uint8Array((await connection.replica.exportChanges(new ArrayBuffer(3))).changes)).toEqual(new Uint8Array([3]))
     expect(await connection.replica.importChanges(new ArrayBuffer(5), new ArrayBuffer(0))).toEqual({ damage: { rects: 5 } })
+    // An earlier state, written over the document as one step of the person's undo (replica/restore).
+    const person = { kind: 'person', principal: 'user:ann', label: 'Restore' } as const
+    expect(await connection.replica.restore(new ArrayBuffer(6), new ArrayBuffer(1), person)).toEqual({ damage: { rects: 7, origin: person } })
     kit!.notify('replica/changed', { version: new Uint8Array([4, 3]).buffer })
     await vi.waitFor(() => expect(versions).toEqual([[4, 3]]))
     connection.close()
@@ -392,7 +396,7 @@ describe('mountKit', () => {
     connection.close()
   })
 
-  it('serves leases to a kit, tells it of changes, and hears its conflicts', async () => {
+  it('serves leases to a kit, tells it of changes, and hears its schema reports', async () => {
     let kit: KitSidePeer | null = null
     let offered: string[] = []
     const frame = fakeFrame((port) => {
@@ -403,7 +407,6 @@ describe('mountKit', () => {
       })
     })
     const held: string[] = []
-    const conflicts: unknown[] = []
     const schemas: unknown[] = []
     const alice = { principalId: 'p1', name: 'Alice', self: false }
     const connection = await mountKit(frame, {
@@ -423,7 +426,6 @@ describe('mountKit', () => {
           release: ({ scope }) => void held.splice(held.indexOf(scope), 1),
           list: () => [{ scope: 'busy', holder: alice }],
         },
-        conflicts: (params) => conflicts.push(params),
         schema: (params) => schemas.push(params),
       }),
     })
@@ -440,8 +442,6 @@ describe('mountKit', () => {
     side.on('lease/changed', (params) => changes.push(params))
     connection.leasesChanged([{ scope: 'busy', holder: alice }])
     await vi.waitFor(() => expect(changes).toEqual([{ leases: [{ scope: 'busy', holder: alice }] }]))
-    side.notify('document/conflicts', { conflicts: [{ id: 'conflict:1', kind: 'pdf.droppedEdit', summary: 'An edit was dropped' }] })
-    await vi.waitFor(() => expect(conflicts).toEqual([{ conflicts: [{ id: 'conflict:1', kind: 'pdf.droppedEdit', summary: 'An edit was dropped' }] }]))
     // A newer kit edited the document (section 7f): only a well-formed report of a newer schema reaches the host.
     side.notify('document/schema', { reads: 2, newestAuthor: 2 })
     side.notify('document/schema', { reads: 1, newestAuthor: 'three' } as never)

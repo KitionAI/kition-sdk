@@ -1,8 +1,8 @@
 # @kition/kdm
 
-The Kit Data Model (KDM) for TypeScript kit engines and hosts: a replicated document of typed
-objects, validated against the kit's schema, with transactions, origins and undo. It is the same
-document model as the `kition-kdm` Rust crate, so both read and write the same bytes.
+The Kit Data Model (KDM) reader for TypeScript hosts and pages: it loads a document's content
+(`content.json`) or a snapshot, follows the changes a kit's engine exports (the `kition-kdm` Rust
+crate is the only writer), and reads the document's objects with the same answers as the crate.
 An ES module with type declarations, for Node and for bundlers.
 
 ```sh
@@ -10,16 +10,16 @@ npm i @kition/kdm
 ```
 
 ```ts
-import { newDocId, parseSchema, person, Replica } from '@kition/kdm'
+import { parseSchema, Replica } from '@kition/kdm'
 
 const schema = parseSchema({
   kdm: 1, kit: 'kit.example', schemaVersion: 1, root: 'Page',
   types: { Page: { fields: { title: { kind: 'string' } } } },
 })
-const doc = Replica.create(schema, newDocId(), 1n)
-const page = doc.transact(person('user:ann'), (tx) => tx.create('Page', { title: 'One' }))
-doc.get(page, 'title') // 'One'
-const bytes = doc.snapshot() // load again with Replica.load(schema, bytes, actor)
+const doc = Replica.load(schema, engine.snapshot())
+doc.importChanges(engine.exportChanges(doc.version().encode())) // the changes since, in order
+const [page] = doc.objectsOfType('Page')
+doc.get(page, 'title')
 ```
 
 Documentation: https://developer.kition.ai/docs

@@ -17,8 +17,6 @@ input: []
 steps:
   - exec:
       cmd: [cargo, test, -q, -p, kition-kdm, --test, changes, a_set_takes_a_path_to_a_held_objects_field]
-  - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts, -t, path]
 expected:
   - actual: out:exec
     compare: exit

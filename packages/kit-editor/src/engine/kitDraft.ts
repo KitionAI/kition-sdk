@@ -13,8 +13,10 @@ import type { KitEngine } from './kitEngine'
 export type KitDraftHost = {
   /** Starts the draft's engine on a fork of the document; `base` is the version it forked at. */
   open: () => Promise<{ engine: KitEngine; base: ArrayBuffer }>
-  merge: (changes: ArrayBuffer, blobs: ArrayBuffer, origin: DraftOrigin, schema: object | null) => Promise<DraftSummary>
-  compare: (changes: ArrayBuffer, schema: object | null) => Promise<DraftSummary>
+  /** Takes the draft's changes into the document through its engine's `mergeChanges`. */
+  merge: (changes: ArrayBuffer, blobs: ArrayBuffer, origin: DraftOrigin) => Promise<DraftSummary>
+  /** What merging them would change, through the engine's `compareChanges`. */
+  compare: (changes: ArrayBuffer) => Promise<DraftSummary>
   /** A PNG of the live document (base64), or null when its engine cannot render. */
   preview: (maxSize: number) => Promise<string | null>
   /** Hears every change of the draft's state (`draft/changed`). */
@@ -129,11 +131,11 @@ export class KitDraft {
   }
 
   /** The comparison of the draft with the document now: what merging it changes, and both rendered. */
-  compare(maxSize: number, schema: object | null): Promise<DraftComparison> {
+  compare(maxSize: number): Promise<DraftComparison> {
     return this.serial(async () => {
       const open = this.need()
       const { changes } = await this.changes(open)
-      const summary = await this.host.compare(changes, schema)
+      const summary = await this.host.compare(changes)
       const [before, after] = [await this.host.preview(maxSize), await previewOrNull(open.engine, maxSize)]
       return { summary, before, after }
     })
@@ -143,11 +145,11 @@ export class KitDraft {
    * Takes the draft into the document as one undo step recorded as `origin`, and closes it. Only
    * on the person's explicit approval (the host's to ensure); never a model's call.
    */
-  merge(origin: DraftOrigin, schema: object | null): Promise<{ merged: boolean; summary: DraftSummary }> {
+  merge(origin: DraftOrigin): Promise<{ merged: boolean; summary: DraftSummary }> {
     return this.serial(async () => {
       const open = this.need()
       const { changes, blobs } = await this.changes(open)
-      const summary = await this.host.merge(changes, blobs, origin, schema)
+      const summary = await this.host.merge(changes, blobs, origin)
       this.close()
       return { merged: true, summary }
     })

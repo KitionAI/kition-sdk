@@ -15,7 +15,7 @@ input: []
 steps:
   - cargo-test: { package: kition-kdm, test: new_document }
   - cargo-test: { package: kition-kdm, test: cross_language }
-  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/new-document.test.ts, packages/kdm/test/cross-language.test.ts] }
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/cross-language.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 timeout_s: 60

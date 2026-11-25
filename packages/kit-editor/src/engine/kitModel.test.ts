@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 /**
- * The object model answered by the kit (capability `model`), driven through the engine worker's
- * `handle` with a fake contract 2 engine that keeps a real KDM replica: a script's batch runs on
- * the worker's scratch replica, reaches the engine as changes, and is one step of the person's
- * undo history, in order with the engine's own steps.
+ * The object model answered by the kit (capability `model`), drafts merged into the document, and
+ * restores, driven through the engine worker's `handle` with a fake contract 2 engine that answers
+ * the engine members itself (`modelDescribe`, `modelBatch`, `mergeChanges`, `compareChanges`,
+ * `restoreState`) with canned JSON, as `export_kit_session!` does. An engine without one of them
+ * still opens and edits; the feature is refused.
  */
-import { parseSchema, person, Replica, Version } from '@kition/kdm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import testSchema from '../../../../crates/kition-kdm/tests/fixtures/test-schema.json'
 import type { KitEngineInfo, KitEngineRequest } from './kitEngine'
 import { KitModelError } from './kitModel'
 import type { KitModuleDocument, KitModuleManifest } from './kitModule'
+import { KitEngineRefusal, UNSUPPORTED_REASON } from './refusal'
 
 const fake = vi.hoisted(() => ({ doc: null as unknown }))
 vi.mock('./kitModule', async (actual) => ({
@@ -22,35 +22,27 @@ vi.mock('./kitModule', async (actual) => ({
 
 const { handle } = await import('./kitEngine.worker')
 
-const schema = testSchema as object
-const schemaText = JSON.stringify(testSchema)
-
 const CATALOG = [
   { id: 'page.rename', title: 'Rename', menu: [], shortcut: null, mutates: true, enabled: true },
-  { id: 'shape.paint', title: 'Paint', menu: [], shortcut: null, mutates: true, enabled: true },
-  { id: 'shape.add', title: 'Add shape', menu: [], shortcut: null, mutates: true, enabled: true },
   { id: 'edit.undo', title: 'Undo', menu: [], shortcut: null, mutates: true, enabled: true },
   { id: 'edit.redo', title: 'Redo', menu: [], shortcut: null, mutates: true, enabled: true },
 ]
 
+type Members = Partial<Pick<KitModuleDocument, 'modelBatch' | 'modelDescribe' | 'mergeChanges' | 'compareChanges' | 'restoreState'>>
+
 /**
- * A contract 2 engine: its replica (another actor than the worker's scratch one) is the document,
- * `page.rename` is the person's edit, and Undo and Redo are its replica's own (they never reach
- * changes it imported, as a real kit's history does not).
+ * A contract 2 engine: its title is the document, `page.rename` the person's edit, and its version
+ * one byte that every write moves. `members` are the engine members it answers; without them it
+ * has none.
  */
-function makeEngine(options: { modelBatch?: (request: string) => string }) {
-  const replica = Replica.create(parseSchema(schemaText), '01920000-0000-7000-8000-0000000000dd', 7n)
-  replica.transact(person('user:a'), (tx) => {
-    tx.create('Page', { title: 'One' }, { id: 'page' })
-  })
+function makeEngine(members: Members = {}) {
+  const state = { title: 'One', seq: 0, undo: [] as string[], blobs: [] as number[][] }
   let revision = 0n
-  const moved = <T,>(value: T) => {
+  const moved = () => {
     revision += 1n
-    return value
+    state.seq += 1
   }
-  const ran: Array<{ id: string; params: string; origin: string | null }> = []
-  const doc: KitModuleDocument & { replica: Replica } = {
-    replica,
+  const doc: KitModuleDocument = {
     width: 1,
     height: 1,
     get revision() {
@@ -60,48 +52,34 @@ function makeEngine(options: { modelBatch?: (request: string) => string }) {
     render: () => new Uint8Array(),
     renderArea: () => new Uint8Array(),
     execute: (command, params) => {
-      ran.push({ id: command, params, origin: null })
       if (command === 'page.rename') {
-        replica.transact(person('user:a'), (tx) => tx.set('page', 'title', (JSON.parse(params) as { title: string }).title))
-        return moved('{}')
+        state.undo.push(state.title)
+        state.title = (JSON.parse(params) as { title: string }).title
+        moved()
+        return '{}'
       }
-      if (command === 'edit.undo') return JSON.stringify({ done: moved(replica.undo()) })
-      if (command === 'edit.redo') return JSON.stringify({ done: moved(replica.redo()) })
+      if (command === 'edit.undo') {
+        const was = state.undo.pop()
+        if (was !== undefined) {
+          state.title = was
+          moved()
+        }
+        return JSON.stringify({ done: was !== undefined })
+      }
       throw new Error(`unknown command \`${command}\``)
     },
-    executeAs: (command, params, origin) => {
-      ran.push({ id: command, params, origin })
-      if (command === 'shape.add') {
-        // One undo step of the engine: a shape in the page's list and at the root of its outline.
-        const { id } = JSON.parse(params) as { id: string }
-        replica.transact(person('user:a'), (tx) => {
-          tx.create('Shape', { kind: 'rect', x: 0, y: 0 }, { id })
-          tx.listInsert('page', 'shapes', tx.listItems('page', 'shapes').length, id)
-          tx.treeCreate('page', 'outline', null, id)
-        })
-        return moved(JSON.stringify({ added: id }))
-      }
-      if (command !== 'shape.paint') throw new Error(`unknown command \`${command}\``)
-      const { shape, fill } = JSON.parse(params) as { shape: string; fill: string }
-      replica.transact(person('user:a'), (tx) => tx.set(shape, 'fill', fill))
-      return moved(JSON.stringify({ painted: shape }))
-    },
-    inspect: () => JSON.stringify({ canUndo: replica.canUndo(), canRedo: replica.canRedo() }),
+    inspect: () => JSON.stringify({ canUndo: state.undo.length > 0, canRedo: false, title: state.title }),
     commands: () => JSON.stringify(CATALOG),
     save: () => new Uint8Array([1]),
     markSaved: () => undefined,
     free: () => undefined,
-    canUndo: () => replica.canUndo(),
-    canRedo: () => replica.canRedo(),
-    version: () => replica.version().encode(),
-    exportChanges: (since) => replica.exportChanges(since.byteLength ? Version.decode(since) : Version.empty()),
-    importChanges: (changes) => {
-      replica.importChanges(changes)
-      return moved('{"kind":"full"}')
-    },
-    ...(options.modelBatch ? { modelBatch: options.modelBatch, modelDescribe: () => '{"capability":"KitObjectModel 1.0"}' } : {}),
+    version: () => new Uint8Array([state.seq]),
+    exportChanges: () => new Uint8Array(),
+    importChanges: () => '{"kind":"full"}',
+    addBlobs: (blobs) => void state.blobs.push([...blobs]),
+    ...members,
   }
-  return { doc, replica, ran }
+  return { doc, state, moved }
 }
 
 const manifest = { kitId: 'kit.test', module: 'kit_test', documentClass: 'TestDocument' } as KitModuleManifest
@@ -116,233 +94,208 @@ async function call(request: KitEngineRequest) {
   return (await handle(request)).value
 }
 
-const batch = async (request: Record<string, unknown>) => (await call({ method: 'modelBatch', request, schema })) as { answer: { refs: Record<string, string>; results: unknown[]; loaded: Array<{ fields: Record<string, unknown> }>; version: ArrayBuffer | null }; info: KitEngineInfo }
+const batch = async (request: Record<string, unknown>) => (await call({ method: 'modelBatch', request })) as { answer: { refs: Record<string, string>; results: unknown[]; loaded: Array<{ fields: Record<string, unknown> }>; version: ArrayBuffer | null }; info: KitEngineInfo }
 const execute = async (command: string, params: Record<string, unknown> = {}) => (await call({ method: 'execute', command, params })) as { result: string; info: KitEngineInfo }
 
-/** The engine's document as the test reads it: the page's title and its shapes' fills. */
-function seen(replica: Replica) {
-  const shapes = replica.list('page', 'shapes') as string[]
-  return { title: replica.get('page', 'title'), shapes: shapes.map((id) => replica.get(id, 'fill') ?? null) }
-}
+/** What a refused call rejected with. */
+const failure = (promise: Promise<unknown>) => promise.then(() => null, (error: unknown) => error)
 
 describe('the object model in the kit', () => {
-  let current: ReturnType<typeof makeEngine>
+  /** An engine answering the object model: a batch renames the page as the batch asks, one write. */
+  function modelEngine() {
+    const requests: string[] = []
+    const engine = makeEngine({
+      modelDescribe: () => JSON.stringify({ capability: 'KitObjectModel 1.0', root: 'Page', rootId: 'page', commands: CATALOG }),
+      modelBatch: (request) => {
+        requests.push(request)
+        if (request.includes('"bad"')) throw new Error(JSON.stringify({ code: 'invalid-op', index: 0, message: 'unknown op `bad`' }))
+        if (request.includes('nowhere')) throw new Error(JSON.stringify({ code: 'not-found', index: 1, message: '`nowhere` is not in the document' }))
+        const parsed = JSON.parse(request) as { ops?: Array<{ value?: string }> }
+        const title = parsed.ops?.find((op) => typeof op.value === 'string')?.value
+        if (title) {
+          engine.state.undo.push(engine.state.title)
+          engine.state.title = title
+          engine.moved()
+        }
+        return JSON.stringify({ refs: { $s: 'shape-1' }, results: [null], loaded: [{ fields: { title: engine.state.title } }] })
+      },
+    })
+    return { ...engine, requests }
+  }
+
+  let current: ReturnType<typeof modelEngine>
   beforeEach(async () => {
-    current = makeEngine({})
+    current = modelEngine()
     await open(current.doc)
   })
 
-  it('says how the engine answers it', async () => {
-    expect((await open(current.doc)).model).toBe('replica')
-    expect((await open(makeEngine({ modelBatch: () => '{}' }).doc)).model).toBe('engine')
-    expect((await open({ ...makeEngine({}).doc, exportChanges: undefined } as unknown as KitModuleDocument)).model).toBeNull()
+  it('says how the engine answers it: itself, or not at all', async () => {
+    expect((await open(current.doc)).model).toBe('engine')
+    expect((await open(makeEngine().doc)).model).toBeNull()
+    expect((await open(makeEngine({ modelBatch: () => '{}' }).doc)).model).toBeNull()
   })
 
-  it('runs a batch on the document: writes, commands as the origin, references, and reads', async () => {
-    const { answer, info } = await batch({
-      ops: [
-        { op: 'create', type: 'Shape', in: 'root.shapes', fields: { kind: 'rect', x: 1, y: 2 }, ref: '$s' },
-        { op: 'set', target: 'root', field: 'title', value: 'Two' },
-        { op: 'command', id: 'shape.paint', params: { shape: '$s', fill: '#5645d4' } },
-      ],
-      load: [{ target: '$s', fields: ['fill', 'x'] }],
-    })
-    expect(seen(current.replica)).toEqual({ title: 'Two', shapes: ['#5645d4'] })
-    expect(answer.results[2]).toEqual({ painted: answer.refs.$s })
-    expect(answer.loaded[0].fields).toEqual({ fill: '#5645d4', x: 1 })
-    expect(new Uint8Array(answer.version!)).toEqual(current.replica.version().encode())
-    expect(current.ran.at(-1)?.origin).toBe('["extension","script",null]')
+  it("runs a batch through the engine's own object model and answers its version after it", async () => {
+    const { answer, info } = await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }], load: [{ target: 'root', fields: ['title'] }] })
+    expect(JSON.parse(current.requests[0]!)).toEqual({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }], load: [{ target: 'root', fields: ['title'] }] })
+    expect(answer.refs).toEqual({ $s: 'shape-1' })
+    expect(answer.loaded[0]!.fields).toEqual({ title: 'Two' })
+    expect(new Uint8Array(answer.version!)).toEqual(new Uint8Array([1]))
     expect(info.canUndo).toBe(true)
-    const described = (await call({ method: 'modelDescribe', schema })) as { rootId: string; root: string; commands: unknown[] }
+    expect(info.inspected.title).toBe('Two')
+    const described = (await call({ method: 'modelDescribe' })) as { rootId: string; root: string; commands: unknown[] }
     expect(described).toMatchObject({ root: 'Page', rootId: 'page' })
     expect(described.commands).toHaveLength(CATALOG.length)
   })
 
-  it('a script batch is one undo step', async () => {
-    await execute('page.rename', { title: 'Person' })
-    await batch({
-      ops: [
-        { op: 'create', type: 'Shape', in: 'root.shapes', fields: { kind: 'rect', x: 1, y: 2 } },
-        { op: 'create', type: 'Shape', in: 'root.shapes', fields: { kind: 'ellipse', x: 3, y: 4, fill: 'red' } },
-        { op: 'set', target: 'root', field: 'title', value: 'Script' },
-      ],
-    })
-    expect(seen(current.replica)).toEqual({ title: 'Script', shapes: [null, 'red'] })
-    // One Undo takes the whole batch back, and only it.
-    let undone = await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'Person', shapes: [] })
-    expect(undone.info.canUndo).toBe(true)
-    expect(undone.info.canRedo).toBe(true)
-    // The next Undo is the person's own edit.
-    undone = await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [] })
-    // Redo comes back in the same order.
-    await execute('edit.redo')
-    expect(seen(current.replica)).toEqual({ title: 'Person', shapes: [] })
-    const redone = await execute('edit.redo')
-    expect(seen(current.replica)).toEqual({ title: 'Script', shapes: [null, 'red'] })
-    expect(redone.info.canRedo).toBe(false)
-  })
-
-  it("undoes the person's later edit first, then the script's", async () => {
-    await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Script' }, { op: 'create', type: 'Shape', in: 'root.shapes', fields: { kind: 'rect', x: 1, y: 2 } }] })
-    await execute('page.rename', { title: 'Person' })
-    await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'Script', shapes: [null] })
-    await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [] })
-    expect((await execute('edit.undo')).info.canUndo).toBe(false)
-  })
-
-  it('redoes script steps after Undo passed the command that made their objects, and Redo brought it back', async () => {
-    // The command makes `made` (an engine step); the script's model operations then change it, add
-    // a shape under it in the outline, and move it in the tree (a script step).
-    await batch({
-      ops: [
-        { op: 'command', id: 'shape.add', params: { id: 'made' } },
-        { op: 'set', target: 'made', field: 'fill', value: '#5645d4' },
-        { op: 'text.insert', target: 'made', field: 'label', index: 0, text: 'Hello' },
-        { op: 'set', target: 'root', field: 'title', value: 'Script' },
-        { op: 'create', type: 'Shape', in: 'root.outline', parent: 'made', ref: '$child', fields: { kind: 'ellipse', x: 1, y: 1 } },
-        { op: 'list.insert', target: 'root', field: 'shapes', item: '$child' },
-      ],
-    })
-    // A second script step after it.
-    await batch({ ops: [{ op: 'set', target: 'made', field: 'x', value: 5 }] })
-    const done = current.replica.stateText()
-    expect(seen(current.replica)).toEqual({ title: 'Script', shapes: ['#5645d4', null] })
-    expect(current.replica.tree('page', 'outline').map((entry) => entry.object)).toEqual(['made', expect.any(String)])
-
-    // Undo both script steps, then the command: nothing is left.
-    await execute('edit.undo')
-    await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [null] })
-    await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [] })
-
-    // Redo all: the command, then both script steps, made again on the shape the command brought back.
-    let redone = await execute('edit.redo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [null] })
-    redone = await execute('edit.redo')
-    expect(redone.result).toBe(JSON.stringify({ done: true }))
-    expect(seen(current.replica)).toEqual({ title: 'Script', shapes: ['#5645d4', null] })
-    redone = await execute('edit.redo')
-    expect(redone.result).toBe(JSON.stringify({ done: true }))
-    expect(redone.info.canRedo).toBe(false)
-    expect(current.replica.stateText()).toBe(done)
-
-    // The steps made again undo and redo as before, also across the command once more.
-    await execute('edit.undo')
-    await execute('edit.undo')
-    await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [] })
-    await execute('edit.redo')
-    await execute('edit.redo')
-    await execute('edit.redo')
-    expect(current.replica.stateText()).toBe(done)
-    expect((await execute('edit.redo')).info.canRedo).toBe(false)
-  })
-
-  it("an edit of the person's drops the script steps to redo", async () => {
-    await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Script' }] })
-    await execute('edit.undo')
-    expect((await execute('page.rename', { title: 'Person' })).info.canRedo).toBe(false)
-    await execute('edit.redo')
-    expect(seen(current.replica).title).toBe('Person')
-  })
-
-  it('refuses a bad operation with its index and changes nothing', async () => {
-    const failed = await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }, { op: 'set', target: 'nowhere', field: 'title', value: 'x' }] }).catch((error: unknown) => error)
+  it("passes the engine's refusals on with their index, and changes nothing", async () => {
+    const failed = await failure(batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }, { op: 'set', target: 'nowhere', field: 'title', value: 'x' }] }))
     expect(failed).toBeInstanceOf(KitModelError)
     expect((failed as KitModelError).data).toMatchObject({ code: 'not-found', index: 1 })
-    expect(seen(current.replica).title).toBe('One')
+    expect(current.state.title).toBe('One')
+    const bad = await failure(batch({ ops: [{ op: 'bad' }] }))
+    expect((bad as KitModelError).data).toEqual({ code: 'invalid-op', index: 0, message: 'unknown op `bad`' })
   })
 
-  it('refuses writes to a read-only document and answers reads', async () => {
+  it('refuses writes to a read-only document before the engine, and answers reads', async () => {
     await open(current.doc, true)
-    const refused = await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }] }).catch((error: unknown) => error)
+    const refused = await failure(batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }] }))
     expect((refused as KitModelError).data).toMatchObject({ code: 'read-only' })
+    expect(current.requests).toHaveLength(0)
     const { answer } = await batch({ load: [{ target: 'root', fields: ['title'] }] })
-    expect(answer.loaded[0].fields).toEqual({ title: 'One' })
-    expect(seen(current.replica).title).toBe('One')
+    expect(answer.loaded[0]!.fields).toEqual({ title: 'One' })
+    expect(current.state.title).toBe('One')
+    expect(current.requests).toHaveLength(1)
   })
 
-  it("prefers the engine's own object model, and passes its refusals on", async () => {
-    const requests: string[] = []
-    const own = makeEngine({
-      modelBatch: (request) => {
-        requests.push(request)
-        if (request.includes('"bad"')) throw new Error(JSON.stringify({ code: 'invalid-op', index: 0, message: 'unknown op `bad`' }))
-        return JSON.stringify({ refs: {}, results: [null], loaded: [] })
-      },
-    })
-    await open(own.doc)
-    const { answer } = await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }] })
-    expect(answer.results).toEqual([null])
-    expect(JSON.parse(requests[0])).toEqual({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Two' }] })
-    const failed = await batch({ ops: [{ op: 'bad' }] }).catch((error: unknown) => error)
-    expect((failed as KitModelError).data).toEqual({ code: 'invalid-op', index: 0, message: 'unknown op `bad`' })
-    await open(own.doc, true)
-    const refused = await batch({ ops: [{ op: 'set', target: 'root', field: 'title', value: 'Three' }] }).catch((error: unknown) => error)
-    expect((refused as KitModelError).data.code).toBe('read-only')
-    expect(requests).toHaveLength(2)
+  it('an engine without modelBatch opens and edits, and refuses the object model', async () => {
+    const plain = makeEngine()
+    const info = await open(plain.doc)
+    expect(info.model).toBeNull()
+    const renamed = await execute('page.rename', { title: 'Edited' })
+    expect(renamed.info.inspected.title).toBe('Edited')
+    expect(renamed.info.canUndo).toBe(true)
+    await expect(call({ method: 'modelBatch', request: { ops: [] } })).rejects.toThrow(/no object model/)
+    await expect(call({ method: 'modelDescribe' })).rejects.toThrow(/no object model/)
+    expect(plain.state.title).toBe('Edited')
   })
 })
 
 describe("an agent's draft merged in the kit", () => {
-  let current: ReturnType<typeof makeEngine>
+  const origin = { kind: 'agent', principal: 'user:a', label: "Merged the agent's draft" } as const
+  const DRAFT = new TextEncoder().encode('{"changes":"the draft\'s"}')
+  const SUMMARY = { created: [{ id: 'drafted', type: 'Shape', fields: ['fill'] }], changed: [{ id: 'page', type: 'Page', fields: ['shapes', 'title'] }], moved: [], deleted: [], texts: [] }
+
+  /** An engine that merges and compares drafts: the draft retitles the page `Drafted`. */
+  function draftEngine() {
+    const calls: Array<{ member: string; changes: number[]; origin?: string }> = []
+    const engine = makeEngine({
+      compareChanges: (changes) => {
+        calls.push({ member: 'compareChanges', changes: [...changes] })
+        if (new TextDecoder().decode(changes).includes('stranger')) throw new Error('the changes belong to document 0192…ee, not 0192…dd')
+        return JSON.stringify(SUMMARY)
+      },
+      mergeChanges: (changes, recorded) => {
+        calls.push({ member: 'mergeChanges', changes: [...changes], origin: recorded })
+        if (new TextDecoder().decode(changes).includes('stranger')) throw new Error('the changes belong to document 0192…ee, not 0192…dd')
+        engine.state.undo.push(engine.state.title)
+        engine.state.title = 'Drafted'
+        engine.moved()
+        return JSON.stringify({ damage: { kind: 'full' }, summary: SUMMARY })
+      },
+    })
+    return { ...engine, calls }
+  }
+  const merge = async (changes: Uint8Array, blobs = new ArrayBuffer(0)) =>
+    (await call({ method: 'replicaMerge', changes: changes.slice().buffer as ArrayBuffer, blobs, origin })) as { summary: typeof SUMMARY; info: KitEngineInfo }
+
+  let current: ReturnType<typeof draftEngine>
   beforeEach(async () => {
-    current = makeEngine({})
+    current = draftEngine()
     await open(current.doc)
   })
 
-  /** A draft of the engine's document: a fork the agent edits, and its changes since the fork. */
-  function drafted(edit: (draft: Replica) => void) {
-    const base = current.replica.version()
-    const draft = current.replica.fork(42n)
-    edit(draft)
-    return () => draft.exportChanges(base).slice().buffer as ArrayBuffer
-  }
-  const origin = { kind: 'agent', principal: 'user:a', label: "Merged the agent's draft" } as const
-  const merge = async (changes: ArrayBuffer) => (await call({ method: 'replicaMerge', changes, blobs: new ArrayBuffer(0), origin, schema })) as { summary: { created: unknown[]; changed: Array<{ id: string; fields: string[] }> }; info: KitEngineInfo }
-
-  it('compares, merges as one undo step, and keeps the person\'s edits made meanwhile', async () => {
-    const changes = drafted((draft) => {
-      draft.transact(person('user:a'), (tx) => {
-        const id = tx.create('Shape', { kind: 'rect', x: 1, y: 2, fill: 'blue' }, { id: 'drafted' })
-        tx.listInsert('page', 'shapes', 0, id)
-      })
-      draft.transact(person('user:a'), (tx) => tx.set('page', 'title', 'Drafted'))
-    })
-    // The person edits the live document while the agent works on its draft.
+  it("compares without changing the document, and merges as one undo step through the engine's members", async () => {
     await execute('page.rename', { title: 'Person' })
-    const compared = (await call({ method: 'replicaCompare', changes: changes(), schema })) as { created: Array<{ id: string }> }
+    const compared = (await call({ method: 'replicaCompare', changes: DRAFT.slice().buffer as ArrayBuffer })) as typeof SUMMARY
     expect(compared.created.map((object) => object.id)).toEqual(['drafted'])
-    expect(seen(current.replica)).toEqual({ title: 'Person', shapes: [] })
+    expect(current.state.title).toBe('Person')
 
-    const { summary, info } = await merge(changes())
-    expect(summary.created).toHaveLength(1)
+    const { summary, info } = await merge(DRAFT, new Uint8Array([7, 7]).buffer as ArrayBuffer)
     expect(summary.changed.find((object) => object.id === 'page')?.fields).toEqual(['shapes', 'title'])
-    expect(seen(current.replica)).toEqual({ title: 'Drafted', shapes: ['blue'] })
+    expect(current.calls.at(-1)).toEqual({ member: 'mergeChanges', changes: [...DRAFT], origin: JSON.stringify(['agent', 'user:a', "Merged the agent's draft"]) })
+    // The draft's blobs reach the engine before the merge.
+    expect(current.state.blobs).toEqual([[7, 7]])
+    expect(current.state.title).toBe('Drafted')
     expect(info.canUndo).toBe(true)
+    expect(info.inspected.title).toBe('Drafted')
 
-    // Undo takes the whole merge back, then the person's own rename; Redo brings the merge back.
+    // The engine's Undo takes the whole merge back, then the person's own rename.
     await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'Person', shapes: [] })
+    expect(current.state.title).toBe('Person')
     await execute('edit.undo')
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [] })
-    await execute('edit.redo')
-    await execute('edit.redo')
-    expect(seen(current.replica)).toEqual({ title: 'Drafted', shapes: ['blue'] })
+    expect(current.state.title).toBe('One')
   })
 
-  it('refuses a merge without the schema, of another document, and on a read-only document', async () => {
-    const changes = drafted((draft) => draft.transact(person('user:a'), (tx) => tx.set('page', 'title', 'Drafted')))
-    await expect(call({ method: 'replicaMerge', changes: changes(), blobs: new ArrayBuffer(0), origin, schema: null })).rejects.toBeInstanceOf(KitModelError)
-    const other = Replica.create(parseSchema(schemaText), '01920000-0000-7000-8000-0000000000ee', 3n)
-    await expect(merge(other.exportChanges().slice().buffer as ArrayBuffer)).rejects.toMatchObject({ data: { code: 'invalid-value' } })
-    expect(seen(current.replica)).toEqual({ title: 'One', shapes: [] })
+  it("refuses another document's draft as the engine does, and a merge on a read-only document", async () => {
+    const stranger = new TextEncoder().encode('{"changes":"stranger"}')
+    const refused = await failure(merge(stranger))
+    expect((refused as KitModelError).data).toMatchObject({ code: 'invalid-value' })
+    expect((refused as KitModelError).data.message).toMatch(/^the draft does not merge: the changes belong to document/)
+    await expect(call({ method: 'replicaCompare', changes: stranger.slice().buffer as ArrayBuffer })).rejects.toMatchObject({ data: { code: 'invalid-value' } })
+    expect(current.state.title).toBe('One')
     await open(current.doc, true)
-    await expect(merge(changes())).rejects.toThrow(/read-only/)
+    await expect(merge(DRAFT)).rejects.toThrow(/read-only/)
+    expect(current.calls.filter((one) => one.member === 'mergeChanges')).toHaveLength(1)
+  })
+
+  it('an engine without mergeChanges and compareChanges still opens and edits; drafts are refused as unsupported', async () => {
+    const plain = makeEngine()
+    await open(plain.doc)
+    await execute('page.rename', { title: 'Edited' })
+    const merged = await failure(merge(DRAFT))
+    expect(merged).toBeInstanceOf(KitEngineRefusal)
+    expect((merged as KitEngineRefusal).reason).toBe(UNSUPPORTED_REASON)
+    expect((merged as Error).message).toMatch(/mergeChanges/)
+    const compared = await failure(call({ method: 'replicaCompare', changes: DRAFT.slice().buffer as ArrayBuffer }))
+    expect((compared as KitEngineRefusal).reason).toBe(UNSUPPORTED_REASON)
+    expect(plain.state.title).toBe('Edited')
+  })
+})
+
+describe('a stored state restored in the kit (replica/restore)', () => {
+  const SNAPSHOT = new TextEncoder().encode('{"kdm":1,"objects":{}}')
+  const person = { kind: 'person', principal: 'user:a', label: 'Restore' } as const
+
+  it("writes the snapshot through the engine's restoreState as the person's step, after its blobs", async () => {
+    const restored: Array<{ snapshot: number[]; origin: string }> = []
+    const engine = makeEngine({
+      restoreState: (snapshot, origin) => {
+        restored.push({ snapshot: [...snapshot], origin })
+        engine.state.undo.push(engine.state.title)
+        engine.state.title = 'Restored'
+        engine.moved()
+        return '{"kind":"full"}'
+      },
+    })
+    await open(engine.doc)
+    const { damage, info } = (await call({ method: 'replicaRestore', snapshot: SNAPSHOT.slice().buffer as ArrayBuffer, blobs: new Uint8Array([3]).buffer as ArrayBuffer, origin: person })) as { damage: unknown; info: KitEngineInfo }
+    expect(damage).toEqual({ kind: 'full' })
+    expect(restored).toEqual([{ snapshot: [...SNAPSHOT], origin: JSON.stringify(['person', 'user:a', 'Restore']) }])
+    expect(engine.state.blobs).toEqual([[3]])
+    expect(info.inspected.title).toBe('Restored')
+    expect(info.canUndo).toBe(true)
+    await execute('edit.undo')
+    expect(engine.state.title).toBe('One')
+    // A read-only document restores nothing.
+    await open(engine.doc, true)
+    await expect(call({ method: 'replicaRestore', snapshot: SNAPSHOT.slice().buffer as ArrayBuffer, blobs: new ArrayBuffer(0), origin: person })).rejects.toThrow(/read-only/)
+    expect(restored).toHaveLength(1)
+  })
+
+  it('an engine without restoreState refuses it as unsupported', async () => {
+    await open(makeEngine().doc)
+    const refused = await failure(call({ method: 'replicaRestore', snapshot: SNAPSHOT.slice().buffer as ArrayBuffer, blobs: new ArrayBuffer(0), origin: person }))
+    expect((refused as KitEngineRefusal).reason).toBe(UNSUPPORTED_REASON)
   })
 })

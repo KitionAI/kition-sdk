@@ -504,3 +504,142 @@ fn a_session_answers_the_schema_it_reads_and_its_newest_author_schema() {
     model::session_batch(&mut document, &add_notes(), false).unwrap();
     assert_eq!(kition_kit::session::__author_schema_version(&document), Some(1));
 }
+
+fn set_title(session: &mut KitSession<Notes>, origin: &Origin, title: &'static str) {
+    let root = board(session.replica());
+    session.execute(origin, |_, tx| Ok(tx.set(&root, "title", json!(title))?)).unwrap();
+}
+
+fn title(document: &NotesDocument) -> Value {
+    document.0.replica().get(&board(document.0.replica()), "title").unwrap()
+}
+
+/// The engine members a draft's review uses: `compareChanges` changes nothing, `mergeChanges` takes
+/// the draft in as one undo step of the person and answers the damage and what changed, and a
+/// merge the KDM refuses fails and changes nothing.
+#[test]
+fn a_draft_is_compared_and_merged_through_the_engine_members() {
+    let mut document = open();
+    let mut draft = document.0.fork(ActorId::from_u64(2).unwrap(), Box::new(MemoryBlobs::default())).unwrap();
+    let base = draft.version();
+    set_title(&mut draft, &Origin::agent("agent:test"), "Drafted");
+    let changes = draft.export_changes(&base).unwrap();
+
+    let compared: Value = serde_json::from_str(&kition_kit::session::__compare_changes(&document, &changes).unwrap()).unwrap();
+    let root = board(document.0.replica()).to_string();
+    assert_eq!(compared["changed"][0]["id"], json!(root));
+    assert_eq!(compared["changed"][0]["edits"][0]["after"], "Drafted");
+    assert_eq!(title(&document), "Ideas", "a comparison changes nothing");
+
+    let merged: Value =
+        serde_json::from_str(&kition_kit::session::__merge_changes(&mut document, &changes, r#"["agent","agent:test",null]"#).unwrap()).unwrap();
+    assert_eq!(merged["damage"], json!({ "kind": "full" }));
+    assert_eq!(merged["summary"]["changed"][0]["id"], json!(root));
+    assert_eq!(title(&document), "Drafted");
+    // The person approved the draft: their Undo takes the whole merge back.
+    assert!(document.0.can_undo());
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(title(&document), "Ideas");
+
+    // The document and the draft both changed the title since the fork: refused, nothing changes.
+    let mut other = document.0.fork(ActorId::from_u64(3).unwrap(), Box::new(MemoryBlobs::default())).unwrap();
+    let base = other.version();
+    set_title(&mut other, &Origin::agent("agent:test"), "Other");
+    let changes = other.export_changes(&base).unwrap();
+    set_title(&mut document.0, &Origin::person("user:a"), "Mine");
+    assert!(kition_kit::session::__compare_changes(&document, &changes).is_err());
+    assert!(kition_kit::session::__merge_changes(&mut document, &changes, r#"["agent","agent:test",null]"#).is_err());
+    assert_eq!(title(&document), "Mine");
+    assert!(kition_kit::session::__merge_changes(&mut document, &changes, "not an origin").is_err());
+}
+
+/// `restoreState` writes a stored state (a snapshot, or content) over the document as one undo step
+/// of the person, keeping the object ids, and refuses another document's.
+#[test]
+fn restore_state_writes_a_stored_state_as_one_undo_step() {
+    let mut document = open();
+    model::session_batch(&mut document, &add_notes(), false).unwrap();
+    let snapshot = document.0.snapshot().unwrap();
+    let content = document.0.content_snapshot().unwrap();
+    let notes = document.0.replica().objects_of_type("Note");
+    set_title(&mut document.0, &Origin::person("user:a"), "Changed");
+    document
+        .0
+        .execute(&Origin::person("user:a"), |_, tx| {
+            let owner = tx.objects_of_type("Board").into_iter().next().ok_or("no board")?;
+            tx.list_remove(&owner, "notes", 0)?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(document.0.model().0.is_empty());
+
+    let person = r#"["person","user:a",null]"#;
+    let damage: Value = serde_json::from_str(&kition_kit::session::__restore_state(&mut document, &snapshot, person).unwrap()).unwrap();
+    assert_eq!(damage, json!({ "kind": "full" }));
+    assert_eq!(title(&document), "Ideas");
+    assert_eq!(document.0.model().0, vec!["second".to_owned()]);
+    assert_eq!(document.0.replica().objects_of_type("Note"), notes, "the restored objects keep their ids");
+    // One step: Undo brings back the state before the restore.
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(title(&document), "Changed");
+    assert!(document.0.model().0.is_empty());
+
+    // Content (no version) restores the same; a state equal to the document's changes nothing.
+    kition_kit::session::__restore_state(&mut document, &content, person).unwrap();
+    assert_eq!(title(&document), "Ideas");
+    let version = document.0.version();
+    let damage: Value = serde_json::from_str(&kition_kit::session::__restore_state(&mut document, &content, person).unwrap()).unwrap();
+    assert_eq!(damage, json!({ "kind": "none" }));
+    assert_eq!(document.0.version(), version);
+
+    // Another document's snapshot is refused and changes nothing.
+    let stranger = open().0.snapshot().unwrap();
+    assert!(kition_kit::session::__restore_state(&mut document, &stranger, person).is_err());
+    assert_eq!(document.0.version(), version);
+}
+
+/// `changesSince` answers a receipt for a version the replica's log holds, and no change set (with
+/// why) for one it does not.
+#[test]
+fn changes_since_answers_a_receipt_or_why_there_is_none() {
+    let mut document = open();
+    let since = document.0.version().encode();
+    model::session_batch(&mut document, &add_notes(), false).unwrap();
+    let answer: Value = serde_json::from_str(&kition_kit::session::__changes_since(&document, &since)).unwrap();
+    assert_eq!(answer["changes"]["created"].as_array().map(Vec::len), Some(1));
+    assert_eq!(answer["changes"]["created"][0]["type"], "Note");
+
+    let now: Value = serde_json::from_str(&kition_kit::session::__changes_since(&document, &document.0.version().encode())).unwrap();
+    assert_eq!(now["changes"]["created"], json!([]));
+
+    let stranger = open().0.version().encode();
+    let missing: Value = serde_json::from_str(&kition_kit::session::__changes_since(&document, &stranger)).unwrap();
+    assert_eq!(missing["changes"], Value::Null);
+    assert!(missing["unavailable"].as_str().is_some_and(|why| !why.is_empty()));
+    let garbled: Value = serde_json::from_str(&kition_kit::session::__changes_since(&document, &[1, 2, 3])).unwrap();
+    assert_eq!(garbled["changes"], Value::Null);
+}
+
+/// `modelReply` names an agent's reply's objects by their tool ids (keys and values, nested), keeps
+/// text that merely contains an id, leaves a reply as it is without tool ids, and never changes
+/// the document's own ids.
+#[test]
+fn model_reply_names_objects_by_their_tool_ids_and_leaves_the_document_alone() {
+    let mut document = open();
+    let plain = json!({ "target": board(document.0.replica()).to_string() });
+    let answered: Value = serde_json::from_str(&kition_kit::session::__model_reply(&document, &plain.to_string()).unwrap()).unwrap();
+    assert_eq!(answered, plain, "a schema without tool ids leaves the reply as it is");
+
+    KitSessionDocument::execute_as(&mut document, "board.new", json!({ "named": true }), &Origin::person("user:a")).unwrap();
+    let root = board(document.0.replica()).to_string();
+    let mut details = Map::new();
+    details.insert(root.clone(), json!([root.clone()]));
+    let reply = json!({ "details": details, "diagnostics": [{ "target": { "object": root.clone() } }], "literal": format!("text {root}") });
+    let shown: Value = serde_json::from_str(&kition_kit::session::__model_reply(&document, &reply.to_string()).unwrap()).unwrap();
+    assert_eq!(
+        shown,
+        json!({ "details": { "board:replacement": ["board:replacement"] }, "diagnostics": [{ "target": { "object": "board:replacement" } }], "literal": format!("text {root}") })
+    );
+    assert_eq!(board(document.0.replica()).to_string(), root, "the document keeps its own ids");
+    assert!(kition_kit::session::__model_reply(&document, "not json").is_err());
+}

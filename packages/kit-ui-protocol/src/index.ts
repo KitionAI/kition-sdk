@@ -202,25 +202,24 @@ export type WriteMode = 'save' | 'export' | 'create'
 
 /**
  * A document's replica as the host stores it (capability `replica`, protocol section 7): the KDM
- * snapshot, the blobs it references, and the stamp of the file it was saved with.
+ * snapshot (the document's content and its version, opaque bytes to the host), the blobs it
+ * references, and the stamp of the file it was saved with.
  */
 export type StoredReplica = { snapshot: ArrayBuffer; blobs: ArrayBuffer; fileStamp: string }
 
 /**
  * A replica as the kit writes it (`host/replicaWrite`): the stored replica and `version`, the
- * replica version `snapshot` holds (as `replica/version` encodes it), taken by the kit together
- * with the snapshot and the saved bytes (UI-R6). A host records a checkpoint at exactly this
- * version and never asks `replica/version` for it: by then the document may hold later edits.
+ * version `snapshot` holds (UI-R6), as `replica/version` encodes it. A host fills a checkpoint's
+ * `version` with it.
  */
 export type WrittenReplica = StoredReplica & { version: ArrayBuffer }
 
 /**
  * A checkpoint of a document's history as the host keeps it (capability `checkpoints`, protocol
- * section 7m): a name for one version of the stored replica, never a copy of the document.
- * `time` is in milliseconds since the Unix epoch; `origin` is who made it (`kit` for the kit's
- * own, the host's `save`, `agent`, ...); `version` is the replica version it names, base64, as
- * `ai/version` answers it. `available` is false when the store no longer reaches that version
- * (the replica was replaced by one of another lineage, the file was opened alone).
+ * section 7m): one state of the document, kept as the snapshot of the replica write that recorded
+ * it (`host/checkpointRead` answers it). `time` is in milliseconds since the Unix epoch; `origin`
+ * is who made it (`kit` for the kit's own, the host's `save`, `agent`, ...); `version` is the
+ * version that snapshot holds, base64, as `ai/version` answers it.
  */
 export type KitCheckpoint = {
   id: string
@@ -230,7 +229,6 @@ export type KitCheckpoint = {
   label?: string
   description?: string
   version: string
-  available: boolean
 }
 
 /** What a kit asks to record with `host/replicaWrite` (capability `checkpoints`): the write and the checkpoint are one step. */
@@ -245,7 +243,7 @@ export const CHECKPOINT_DESCRIPTION_LIMIT = 2000
 export const CHECKPOINT_LIST_LIMIT = 200
 
 /** `error.data.reason` of a refused checkpoint request (code -32000). */
-export const CHECKPOINT_ERROR_REASONS = ['not-found', 'history-missing', 'too-long', 'read-only', 'conflict'] as const
+export const CHECKPOINT_ERROR_REASONS = ['not-found', 'too-long', 'read-only', 'conflict'] as const
 export type KitCheckpointErrorReason = (typeof CHECKPOINT_ERROR_REASONS)[number]
 
 /**
@@ -392,12 +390,6 @@ export function parsePeers(value: unknown): KitPeerPresence[] {
 }
 
 /**
- * A conflict object the kit's repair pass recorded (section 7c, standard 2.0 M22): a merge it
- * could not resolve by itself, kept in the document until someone resolves it.
- */
-export type KitConflict = { id: string; kind: string; summary: string }
-
-/**
  * The schema versions of the kit's document (section 7f; standard 2.0 rule
  * M5a): `reads` is the schema version the kit's replica reads, `newestAuthor` the newest one its
  * changes were written under, which is above `reads` when a newer kit edited the document.
@@ -433,6 +425,9 @@ export type DraftSummary = {
 export type DraftComparison = { summary: DraftSummary; before: string | null; after: string | null }
 /** Who a merge is recorded as: the agent, on behalf of the person who started it. */
 export type DraftOrigin = { kind: 'agent'; principal: string; label?: string }
+
+/** Who restores an earlier state (`replica/restore`): the person, one step of their undo. */
+export type RestoreOrigin = { kind: 'person'; principal: string; label?: string }
 
 /** What a diagnostic is about (KHP A21); none set means the whole document. Pages and slides count from 1. */
 export type KitDiagnosticTarget = { objectId?: string; path?: string; page?: number; slide?: number; sheet?: string; cell?: string }
@@ -891,6 +886,12 @@ export type HostToKit = {
   'replica/import': [{ changes: ArrayBuffer; blobs: ArrayBuffer }, { damage: unknown }]
   /** The replica's own id, when the kit's engine has one; `null` otherwise. */
   'replica/info': [Record<string, never>, { docId: string | null }]
+  /**
+   * Writes the state `snapshot` holds (a checkpoint's, as `host/checkpointRead` answers it) over
+   * the document as one change of `origin`, one step of the person's undo; `blobs` are the blobs
+   * it needs. `damage` is what went stale on screen.
+   */
+  'replica/restore': [{ snapshot: ArrayBuffer; blobs: ArrayBuffer; origin: RestoreOrigin }, { damage: unknown }]
   'model/describe': [{ schema?: object }, Record<string, unknown>]
   'model/batch': [ModelBatchParams, ModelBatchResult]
   /** Whether the kit finds each anchor in the document now (capability `comment-anchors`, section 7k). */
@@ -943,8 +944,8 @@ export type KitToHost = {
   'host/checkpointUpdate': [{ path: string; id: string; label?: string; description?: string }, { checkpoint: KitCheckpoint }]
   /** Deletes one of the kit's own checkpoints (`origin: "kit"`). */
   'host/checkpointDelete': [{ path: string; id: string }, Record<string, never>]
-  /** One checkpoint and the blobs its version needs; with `state: true` also the replica's snapshot at that version. */
-  'host/checkpointRead': [{ path: string; id: string; state?: boolean }, { checkpoint: KitCheckpoint; blobs: ArrayBuffer; snapshot?: ArrayBuffer }]
+  /** One checkpoint, the snapshot it keeps, and the blobs that snapshot needs. */
+  'host/checkpointRead': [{ path: string; id: string }, { checkpoint: KitCheckpoint; blobs: ArrayBuffer; snapshot: ArrayBuffer }]
   /** The person's view state of the document (capability `view-state`, section 7n); `state: null` when none is kept or it is damaged. */
   'host/viewStateRead': [{ path: string }, KitViewState]
   /** Replaces the view state whole (last write wins); `state: null` deletes it. */
@@ -999,8 +1000,6 @@ export type KitNotifications = {
   'replica/changed': { version: ArrayBuffer }
   /** A host button was pressed (section 9). */
   'ui/action': { id: string; document: { path: string; dirty: boolean; revision: number } }
-  /** The document's unresolved conflict objects changed (section 7c): the whole list. */
-  'document/conflicts': { conflicts: KitConflict[] }
   /** A newer kit edited the document (section 7f): the host shows a notice that never blocks. */
   'document/schema': KitSchemaReport
   /** The agent's draft opened, changed, became ready or open again, or closed (capability `draft`). */

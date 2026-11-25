@@ -1,7 +1,7 @@
 import type { KitCommand, KitModuleManifest, KitModuleReplica, KitSavedReplica } from './kitModule'
 import type { LentFiles } from './lentFiles'
 import type { RasterPins } from './rasterViewport'
-import { INVALID_PARAMS_REASON, type DraftSummary, type KitDiagnostic, type ModelBatchResult } from '@kition/kit-ui-protocol'
+import { INVALID_PARAMS_REASON, type DraftSummary, type KitDiagnostic, type ModelBatchResult, type RestoreOrigin } from '@kition/kit-ui-protocol'
 import type { Origin, StateDiff } from '@kition/kdm'
 import { KitModelError, type KitModelSupport, type ModelErrorData } from './kitModel'
 import { READ_ONLY_REASON, ReadOnlyError } from './readOnly'
@@ -35,8 +35,8 @@ export type KitEngineInfo = {
    */
   context?: boolean
   /**
-   * Whether the engine keeps a replica the worker can read changes from (`version`,
-   * `exportChanges`), so the agent's write is answered with what it changed (`modelChanges`);
+   * Whether the engine says what changed since a version of its replica (`version`,
+   * `changesSince`), so the agent's write is answered with what it changed (`modelChanges`);
    * absent: it does not.
    */
   changes?: boolean
@@ -98,13 +98,14 @@ export type KitEngineRequest =
   | { method: 'replicaExport'; since: ArrayBuffer }
   | { method: 'replicaImport'; changes: ArrayBuffer; blobs: ArrayBuffer }
   | { method: 'replicaDocId' }
-  | { method: 'replicaMerge'; changes: ArrayBuffer; blobs: ArrayBuffer; origin: Origin; schema: object | null }
-  | { method: 'replicaCompare'; changes: ArrayBuffer; schema: object | null }
+  | { method: 'replicaMerge'; changes: ArrayBuffer; blobs: ArrayBuffer; origin: Origin }
+  | { method: 'replicaCompare'; changes: ArrayBuffer }
+  | { method: 'replicaRestore'; snapshot: ArrayBuffer; blobs: ArrayBuffer; origin: RestoreOrigin }
   | { method: 'modelVersion' }
-  | { method: 'modelChanges'; since: string; schema: object | null }
-  | { method: 'modelDescribe'; schema: object | null }
+  | { method: 'modelChanges'; since: string }
+  | { method: 'modelDescribe' }
+  | { method: 'modelBatch'; request: Record<string, unknown> }
   | { method: 'modelReply'; value: unknown }
-  | { method: 'modelBatch'; request: Record<string, unknown>; schema: object | null }
   | { method: 'premiseRead'; name: string; params: Record<string, unknown> }
   | { method: 'inspectAt'; context: KitCallContext; part?: number }
 
@@ -335,19 +336,31 @@ export class KitEngine {
   }
 
   /**
-   * Takes a draft's changes (and their blobs) into the document as one step of its undo history,
-   * recorded as `origin` (Kit UI protocol section 7d); `schema` is the kit's, as the host sends it.
-   * Answers what changed. A refusal rejects with a `KitModelError`.
+   * Takes a draft's changes (and their blobs) into the document as one step of the person's undo
+   * history, recorded as `origin` (Kit UI protocol section 7d), through the engine's
+   * `mergeChanges`. Answers what changed. A refusal rejects with a `KitModelError`; an engine
+   * without `mergeChanges` refuses (`unsupported`).
    */
-  async replicaMerge(changes: ArrayBuffer, blobs: ArrayBuffer, origin: Origin, schema: object | null) {
-    const { summary, info } = (await this.call({ method: 'replicaMerge', changes, blobs, origin, schema })) as { summary: DraftSummary; info: KitEngineInfo }
+  async replicaMerge(changes: ArrayBuffer, blobs: ArrayBuffer, origin: Origin) {
+    const { summary, info } = (await this.call({ method: 'replicaMerge', changes, blobs, origin })) as { summary: DraftSummary; info: KitEngineInfo }
     this.info = info
     return summary
   }
 
-  /** What merging a draft's changes would change in the document now. */
-  async replicaCompare(changes: ArrayBuffer, schema: object | null) {
-    return (await this.call({ method: 'replicaCompare', changes, schema })) as DraftSummary
+  /** What merging a draft's changes would change in the document now (the engine's `compareChanges`). */
+  async replicaCompare(changes: ArrayBuffer) {
+    return (await this.call({ method: 'replicaCompare', changes })) as DraftSummary
+  }
+
+  /**
+   * Writes the state `snapshot` holds (a checkpoint's) over the document as one change of
+   * `origin`, one step of the person's undo (`replica/restore`, the engine's `restoreState`), after
+   * adding `blobs`. Answers the damage.
+   */
+  async replicaRestore(snapshot: ArrayBuffer, blobs: ArrayBuffer, origin: RestoreOrigin) {
+    const { damage, info } = (await this.call({ method: 'replicaRestore', snapshot, blobs, origin })) as { damage: unknown; info: KitEngineInfo }
+    this.info = info
+    return damage
   }
 
   /** The replica's version, base64 (C3b): what `modelChanges` takes back. */
@@ -366,17 +379,21 @@ export class KitEngine {
   /**
    * What changed since the replica version `since` (base64), with the version now: a change set,
    * or `null` and why when the replica's history does not hold `since` (C3b, as Kit Process
-   * Protocol's `model.changes`). `schema` is the host's, as for `modelDescribe`.
+   * Protocol's `model.changes`), through the engine's `changesSince`.
    */
-  async modelChanges(since: string, schema: object | null) {
-    return (await this.call({ method: 'modelChanges', since, schema })) as KitModelChanges
+  async modelChanges(since: string) {
+    return (await this.call({ method: 'modelChanges', since })) as KitModelChanges
   }
 
-  /** `model/describe` (`kitModel.ts`); `schema` is the host's, for an engine that does not describe its own. */
-  async modelDescribe(schema: object | null) {
-    return (await this.call({ method: 'modelDescribe', schema })) as Record<string, unknown>
+  /** `model/describe` (`kitModel.ts`): the engine's own description. */
+  async modelDescribe() {
+    return (await this.call({ method: 'modelDescribe' })) as Record<string, unknown>
   }
 
+  /**
+   * An agent's reply (`ai/inspect`, `document/check`, `ai/run`) with its object ids as tool ids,
+   * through the engine's `modelReply`; as it is when the engine has none or cannot translate it.
+   */
   async agentReply<T>(value: T): Promise<T> {
     return (await this.call({ method: 'modelReply', value })) as T
   }
@@ -385,8 +402,8 @@ export class KitEngine {
    * `model/batch`: answers `{ refs, results, loaded, version }`, `version` the replica's after it
    * (null when there is none). A refused batch rejects with a `KitModelError`.
    */
-  async modelBatch(request: Record<string, unknown>, schema: object | null) {
-    const { answer, info } = (await this.call({ method: 'modelBatch', request, schema })) as { answer: ModelBatchResult; info: KitEngineInfo }
+  async modelBatch(request: Record<string, unknown>) {
+    const { answer, info } = (await this.call({ method: 'modelBatch', request })) as { answer: ModelBatchResult; info: KitEngineInfo }
     this.info = info
     return answer
   }

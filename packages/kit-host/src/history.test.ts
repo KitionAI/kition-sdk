@@ -68,9 +68,9 @@ async function refusal(request: Promise<unknown>) {
 /** A store of checkpoints as a host keeps them: the host's `save` one and the kit's own. */
 function store() {
   const checkpoints: KitCheckpoint[] = [
-    { id: 'c-save', time: 1, origin: 'save', version: 'AQ==', available: true },
-    { id: 'c-kit', time: 2, origin: 'kit', label: 'Draft 1', version: 'Ag==', available: true },
-    { id: 'c-gone', time: 3, origin: 'kit', label: 'Old lineage', version: 'Aw==', available: false },
+    { id: 'c-save', time: 1, origin: 'save', version: 'AQ==' },
+    { id: 'c-kit', time: 2, origin: 'kit', label: 'Draft 1', version: 'Ag==' },
+    { id: 'c-old', time: 3, origin: 'kit', label: 'Older one', version: 'Aw==' },
   ]
   const calls: string[] = []
   const replicas: unknown[] = []
@@ -79,7 +79,7 @@ function store() {
     replicaWrite: ({ checkpoint, ...replica }) => {
       replicas.push(replica)
       if (!checkpoint) return
-      const made: KitCheckpoint = { id: `c-${checkpoints.length}`, time: 9, origin: checkpoint.origin ?? 'kit', version: 'BA==', available: true, ...(checkpoint.label ? { label: checkpoint.label } : {}), ...(checkpoint.description ? { description: checkpoint.description } : {}) }
+      const made: KitCheckpoint = { id: `c-${checkpoints.length}`, time: 9, origin: checkpoint.origin ?? 'kit', version: 'BA==', ...(checkpoint.label ? { label: checkpoint.label } : {}), ...(checkpoint.description ? { description: checkpoint.description } : {}) }
       checkpoints.push(made)
       return { checkpoint: made }
     },
@@ -100,9 +100,9 @@ function store() {
         calls.push(`delete ${id}`)
         checkpoints.splice(checkpoints.findIndex((checkpoint) => checkpoint.id === id), 1)
       },
-      read: ({ id, state }) => {
-        calls.push(`read ${id} ${state ?? false}`)
-        return { checkpoint: checkpoints.find((checkpoint) => checkpoint.id === id)!, blobs: new Uint8Array([5]).buffer, ...(state ? { snapshot: new Uint8Array([6]).buffer } : {}) }
+      read: ({ id }) => {
+        calls.push(`read ${id}`)
+        return { checkpoint: checkpoints.find((checkpoint) => checkpoint.id === id)!, blobs: new Uint8Array([5]).buffer, snapshot: new Uint8Array([6]).buffer }
       },
     },
   }
@@ -134,7 +134,7 @@ describe('checkpoints (capability checkpoints)', () => {
     const { checkpoints, replicas, handlers } = store()
     const { kit, connection } = await mount(handlers)
     const answer = await kit.request('host/replicaWrite', { ...replica(), checkpoint: { label: 'Sent to print', description: 'the version the printer got' } })
-    expect(answer.checkpoint).toMatchObject({ origin: 'kit', label: 'Sent to print', description: 'the version the printer got', available: true })
+    expect(answer.checkpoint).toMatchObject({ origin: 'kit', label: 'Sent to print', description: 'the version the printer got' })
     expect(checkpoints).toHaveLength(4)
     expect(replicas).toHaveLength(1)
     connection.close()
@@ -171,16 +171,15 @@ describe('checkpoints (capability checkpoints)', () => {
     const { calls, handlers } = store()
     const { kit, connection } = await mount(handlers)
     const all = await kit.request('host/checkpointList', { path: PATH })
-    expect(all.checkpoints.map((checkpoint) => checkpoint.id)).toEqual(['c-gone', 'c-kit', 'c-save'])
-    expect(all.checkpoints[0].available).toBe(false)
+    expect(all.checkpoints.map((checkpoint) => checkpoint.id)).toEqual(['c-old', 'c-kit', 'c-save'])
     const labelled = await kit.request('host/checkpointList', { path: PATH, labelled: true, limit: 1 })
-    expect(labelled).toMatchObject({ checkpoints: [{ id: 'c-gone' }], more: true })
+    expect(labelled).toMatchObject({ checkpoints: [{ id: 'c-old' }], more: true })
     await kit.request('host/checkpointList', { path: PATH, limit: 100_000 })
     expect(calls).toEqual(['list false 200', 'list true 1', 'list false 200'])
     connection.close()
   })
 
-  it('refuses each reason before the handler: too-long, not-found, read-only, history-missing', async () => {
+  it('refuses each reason before the handler: too-long, not-found, read-only', async () => {
     const { calls, checkpoints, handlers } = store()
     const { kit, connection } = await mount(handlers)
     // too-long: label, description, in a record and in an update.
@@ -198,9 +197,7 @@ describe('checkpoints (capability checkpoints)', () => {
     expect(await refusal(kit.request('host/checkpointUpdate', { path: PATH, id: 'c-save', label: 'Mine now' }))).toBe('read-only')
     expect(await refusal(kit.request('host/checkpointDelete', { path: PATH, id: 'c-save' }))).toBe('read-only')
     expect(await refusal(kit.request('host/replicaWrite', { ...replica(), checkpoint: { origin: 'save' as never } }))).toBe('read-only')
-    expect(checkpoints.find((checkpoint) => checkpoint.id === 'c-save')).toEqual({ id: 'c-save', time: 1, origin: 'save', version: 'AQ==', available: true })
-    // history-missing: a version the store no longer reaches.
-    expect(await refusal(kit.request('host/checkpointRead', { path: PATH, id: 'c-gone' }))).toBe('history-missing')
+    expect(checkpoints.find((checkpoint) => checkpoint.id === 'c-save')).toEqual({ id: 'c-save', time: 1, origin: 'save', version: 'AQ==' })
     expect(calls).toEqual(['update c-kit', 'update c-kit'])
     connection.close()
   })
@@ -211,13 +208,14 @@ describe('checkpoints (capability checkpoints)', () => {
     const read = await kit.request('host/checkpointRead', { path: PATH, id: 'c-save' })
     expect(read.checkpoint.id).toBe('c-save')
     expect(new Uint8Array(read.blobs)).toEqual(new Uint8Array([5]))
-    expect(read.snapshot).toBeUndefined()
-    const state = await kit.request('host/checkpointRead', { path: PATH, id: 'c-kit', state: true })
-    expect(new Uint8Array(state.snapshot!)).toEqual(new Uint8Array([6]))
+    // Every checkpoint keeps its state: the read answers its snapshot.
+    expect(new Uint8Array(read.snapshot)).toEqual(new Uint8Array([6]))
+    const kept = await kit.request('host/checkpointRead', { path: PATH, id: 'c-kit' })
+    expect(new Uint8Array(kept.snapshot)).toEqual(new Uint8Array([6]))
     expect((await kit.request('host/checkpointUpdate', { path: PATH, id: 'c-kit', description: 'with the logo' })).checkpoint).toMatchObject({ label: 'Draft 1', description: 'with the logo' })
     expect(await kit.request('host/checkpointDelete', { path: PATH, id: 'c-kit' })).toEqual({})
-    expect(checkpoints.map((checkpoint) => checkpoint.id)).toEqual(['c-save', 'c-gone'])
-    expect(calls).toEqual(['read c-save false', 'read c-kit true', 'update c-kit', 'delete c-kit'])
+    expect(checkpoints.map((checkpoint) => checkpoint.id)).toEqual(['c-save', 'c-old'])
+    expect(calls).toEqual(['read c-save', 'read c-kit', 'update c-kit', 'delete c-kit'])
     connection.close()
   })
 
@@ -229,7 +227,7 @@ describe('checkpoints (capability checkpoints)', () => {
     expect(await refusal(kit.request('host/replicaWrite', { ...replica(), checkpoint: { label: 'x' } }))).toBe('read-only')
     expect((await kit.request('host/checkpointList', { path: PATH })).checkpoints).toHaveLength(3)
     expect((await kit.request('host/checkpointRead', { path: PATH, id: 'c-kit' })).checkpoint.id).toBe('c-kit')
-    expect(calls).toEqual(['list false 200', 'read c-kit false'])
+    expect(calls).toEqual(['list false 200', 'read c-kit'])
     connection.close()
   })
 

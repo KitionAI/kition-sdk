@@ -5,12 +5,11 @@
  * file is, and a failing engine cannot take the page down. Requests are
  * answered in the order they arrive.
  */
-import { createKitModuleDocument, kitModuleCommands, kitModuleLazyFonts, loadKitModule, openKitModuleDocument, type KitModuleDocument, type KitModuleManifest } from './kitModule'
-import type { KitCallContext, KitEngineEvent, KitEngineInfo, KitEngineRequest, KitEngineResponse, KitEngineSchema, KitToolMethod } from './kitEngine'
+import { createKitModuleDocument, kitModuleCommands, kitModuleLazyFonts, loadKitModule, openKitModuleDocument, type KitModuleDocument, type KitModuleManifest, type KitModuleReplica } from './kitModule'
+import type { KitCallContext, KitEngineEvent, KitEngineInfo, KitEngineRequest, KitEngineResponse, KitEngineSchema, KitModelChanges, KitToolMethod } from './kitEngine'
 import type { LazyFonts } from './lazyFonts'
 import { lendFiles, lendHandle } from './lentFiles'
-import { KitModelError, REDO_COMMANDS, UNDO_COMMANDS, batchWrites, modelSupport } from './kitModel'
-import type { ReplicaModel } from './kitModelRunner'
+import { KitModelError, batchWrites, modelSupport } from './kitModel'
 import { READ_ONLY_RULES, ReadOnlyError, commentCommands, commenterHistory, editsDocument } from './readOnly'
 import { KitEngineRefusal, KitParamsError, UNSUPPORTED_REASON, commandFailure, paramsRefusal } from './refusal'
 import type { ChangeAudit, Origin } from '@kition/kdm'
@@ -48,11 +47,9 @@ let kdm: Promise<typeof import('@kition/kdm')> | null = null
 let editing: Map<string, boolean> | null = null
 /** Whether the open document keeps editor state and takes a call context (`agentHooks`), read once it opens. */
 let contextHooks = false
-/** The object model over the engine's replica, once a `model/*` request came (`kitModel.ts`). */
-let model: ReplicaModel | null = null
-/** The runner module, loaded on the first request: it brings `@kition/kdm` and Loro. */
-let runner: Promise<typeof import('./kitModelRunner')> | null = null
-const premisePlans = new Map<string, { doc: KitModuleDocument; model: ReplicaModel; step: number; beforeState: unknown; before: ReturnType<ReplicaModel['checkpointForPremises']>; changes: unknown; refs: Record<string, unknown>; operations: number; bytes: number }>()
+/** A premise plan (`premiseRead` `plan`): a fork of the document in an engine of its own, and what its steps changed since it began. */
+type PremisePlan = { doc: KitModuleDocument; step: number; beforeState: unknown; before: Uint8Array; changes: unknown; refs: Record<string, unknown>; operations: number; bytes: number }
+const premisePlans = new Map<string, PremisePlan>()
 let nextPremisePlan = 0
 
 function clearPremisePlans() {
@@ -60,24 +57,39 @@ function clearPremisePlans() {
   premisePlans.clear()
 }
 
-export async function premisePlan(params: Record<string, unknown>, source?: KitModuleDocument, planSchema?: object): Promise<unknown> {
+/** A batch on a premise plan's fork, through its engine's own object model (`modelBatch`). */
+function planBatch(scratch: KitModuleDocument, request: Record<string, unknown>): { refs?: Record<string, unknown> } & Record<string, unknown> {
+  if (typeof scratch.modelBatch !== 'function') throw new KitEngineRefusal(UNSUPPORTED_REASON, "the kit's engine has no object model (modelBatch) to plan with")
+  try {
+    return JSON.parse(scratch.modelBatch(JSON.stringify(request))) as Record<string, unknown>
+  } catch (error) {
+    throw engineModelError(error) ?? error
+  }
+}
+
+/** What a premise plan's steps changed since it began (its fork's `changesSince`). */
+function planChanges(scratch: KitModuleDocument, before: Uint8Array): unknown {
+  if (typeof scratch.changesSince !== 'function') throw new KitEngineRefusal(UNSUPPORTED_REASON, "the kit's engine cannot say what a premise plan changed (changesSince)")
+  const answer = JSON.parse(scratch.changesSince(before)) as { changes: unknown; unavailable?: string }
+  if (answer.changes === null || answer.changes === undefined) throw new Error(`premise plan changes unavailable: ${answer.unavailable ?? 'no change set'}`)
+  return answer.changes
+}
+
+export async function premisePlan(params: Record<string, unknown>, source?: KitModuleDocument): Promise<unknown> {
   if (params.action === 'begin' || params.action === 'advance') {
     const steps = params.steps
     const ops = params.ops
     const bytes = JSON.stringify(params).length
     if (!Array.isArray(steps) || (ops !== undefined && !Array.isArray(ops)) || steps.length + (Array.isArray(ops) ? ops.length : 0) > 256 || bytes > 1_048_576 || params.action === 'begin' && premisePlans.size >= 16) throw new Error('premise plan limit')
     const token = params.action === 'advance' ? String(params.token) : String(++nextPremisePlan)
-    const plan = params.action === 'advance' ? premisePlans.get(token) : await (async () => {
+    const plan: PremisePlan | undefined = params.action === 'advance' ? premisePlans.get(token) : (() => {
       const open = source ?? opened()
       if (!open.forkForPremises) throw new Error('the kit cannot fork for premise planning')
       const scratch = open.forkForPremises()
       try {
         const beforeState = JSON.parse(open.editorState?.() ?? 'null') as unknown
-        const { ReplicaModel } = await modelRunner()
-        const copy = planSchema ? new ReplicaModel(scratch) : (await replicaModel(open)).forkForPremises(scratch)
-        if (planSchema) copy.describe(planSchema)
-        const before = copy.checkpointForPremises()
-        return { doc: scratch, model: copy, step: 0, beforeState, before, changes: null as unknown, refs: {} as Record<string, unknown>, operations: 0, bytes: 0 }
+        if (typeof scratch.version !== 'function') throw new Error('the kit cannot fork for premise planning: its fork keeps no replica')
+        return { doc: scratch, step: 0, beforeState, before: scratch.version(), changes: null as unknown, refs: {} as Record<string, unknown>, operations: 0, bytes: 0 }
       } catch (error) {
         scratch.free()
         throw error
@@ -97,8 +109,7 @@ export async function premisePlan(params: Record<string, unknown>, source?: KitM
           if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolve(item)]))
           return value
         }
-        const refs = (await plan.model.batch({ ops: resolve(ops) } as Parameters<ReplicaModel['batch']>[0], null, false)).refs
-        Object.assign(plan.refs, refs)
+        Object.assign(plan.refs, planBatch(plan.doc, { ops: resolve(ops) }).refs ?? {})
       }
       const scratch = plan.doc
       for (const step of steps as { command: string; params?: Record<string, unknown>; context?: KitCallContext }[]) {
@@ -113,7 +124,7 @@ export async function premisePlan(params: Record<string, unknown>, source?: KitM
           return { closed: true }
         }
       }
-      plan.changes = plan.model.changesForPremises(plan.before)
+      plan.changes = planChanges(scratch, plan.before)
       plan.step = Number(params.step ?? plan.operations)
       premisePlans.set(token, plan)
       return { token, beforeState: plan.beforeState, state: JSON.parse(scratch.editorState?.() ?? 'null') as unknown, changes: plan.changes, refs: plan.refs }
@@ -135,9 +146,12 @@ export async function premisePlan(params: Record<string, unknown>, source?: KitM
   const method = String(params.method)
   if (method === 'model.batch') {
     if (!Array.isArray(given.ops) || given.ops.length) throw new Error('premise plan only accepts model reads')
-    return plan.model.batch(given as unknown as Parameters<ReplicaModel['batch']>[0], null, true)
+    return planBatch(plan.doc, given)
   }
-  if (method === 'model.describe') return plan.model.describe(null)
+  if (method === 'model.describe') {
+    if (typeof plan.doc.modelDescribe !== 'function') throw new KitEngineRefusal(UNSUPPORTED_REASON, "the kit's engine has no object model (modelDescribe)")
+    return JSON.parse(plan.doc.modelDescribe()) as unknown
+  }
   if (!['under', 'covered', 'content', 'state', 'identity', 'derived', 'blob', 'blob-support'].includes(method)) throw new Error('unsupported premise plan read')
   if (method === 'state') return { state: JSON.parse(plan.doc.editorState?.() ?? 'null') as unknown, beforeState: plan.beforeState }
   if (!plan.doc.premiseRead) throw new Error('premise reads unavailable')
@@ -145,17 +159,6 @@ export async function premisePlan(params: Record<string, unknown>, source?: KitM
   const { on, part, time } = given as KitCallContext
   const set = { ...(on ? { on } : {}), ...(part ? { part } : {}), ...(time !== undefined ? { time } : {}) }
   return contextHooks ? inAgentState(plan.doc, { state: null, set }, read).value : read()
-}
-
-function modelRunner() {
-  runner ??= import('./kitModelRunner')
-  return runner
-}
-
-async function replicaModel(open: KitModuleDocument) {
-  const { ReplicaModel } = await modelRunner()
-  model ??= new ReplicaModel(open)
-  return model
 }
 
 /** Whether the engine's own history can undo (or redo). */
@@ -166,20 +169,11 @@ function engineCan(open: KitModuleDocument, what: 'undo' | 'redo') {
   return inspected[what === 'undo' ? 'canUndo' : 'canRedo'] === true
 }
 
-/** Runs `call`; when it changed the document, the script steps undone so far cannot be redone. */
-function personEdit<T>(open: KitModuleDocument, call: () => T): T {
-  if (!model?.canRedo()) return call()
-  const before = currentVersion(open)
-  const value = call()
-  if (!closedResult(value) && currentVersion(open) !== before) model.dropRedo()
-  return value
-}
-
 /** An origin in the engine's form, `[kind, principal, label]` (`@kition/kdm`'s `encodeOrigin`, which is loaded only when needed). */
 const encodeOrigin = (origin: Origin) => JSON.stringify([origin.kind, origin.principal, origin.label ?? null])
 
 /** The shared contract's own methods, which `invoke` must not reach around. */
-const CONTRACT = new Set(['free', 'execute', 'prepareSave', 'save', 'markSaved', 'constructor', 'open', 'create', 'openWithReplica', 'takeOutput'])
+const CONTRACT = new Set(['free', 'execute', 'save', 'markSaved', 'constructor', 'open', 'create', 'openWithReplica', 'takeOutput'])
 
 /** The replica's version when followed and made: asking an engine without one would make it. */
 function replicaVersion(open: KitModuleDocument) {
@@ -260,8 +254,6 @@ function infoKey(open: KitModuleDocument) {
     open.pinnedTop ?? 0,
     !readOnly && open.dirty,
     replica ? replica.join(',') : '',
-    model?.canUndo() ?? false,
-    model?.canRedo() ?? false,
     JSON.stringify(schema ?? null),
   ].join('|')
 }
@@ -301,10 +293,9 @@ function inspectedInfo(open: KitModuleDocument): KitEngineInfo {
     revision: Number(open.revision),
     // A viewer has nothing to save: room imports make the engine unsaved, but not the viewer's edits.
     dirty: !readOnly && open.dirty,
-    // Script steps (the object model) undo through the same Undo as the engine's own. A read-only
-    // session undoes only a commenter's own comment changes.
-    canUndo: readOnly ? commenterCan(open, 'undo') : inspected.canUndo === true || (model?.canUndo() ?? false),
-    canRedo: readOnly ? commenterCan(open, 'redo') : inspected.canRedo === true || (model?.canRedo() ?? false),
+    // A read-only session undoes only a commenter's own comment changes.
+    canUndo: readOnly ? commenterCan(open, 'undo') : inspected.canUndo === true,
+    canRedo: readOnly ? commenterCan(open, 'redo') : inspected.canRedo === true,
     inspected,
     model: modelSupport(open),
     ...(typeof open.executeAs === 'function' ? { origins: true } : {}),
@@ -349,7 +340,6 @@ function start(asReadOnly: boolean, canComment: boolean, manifest: KitModuleMani
   commentSteps = { undo: 0, redo: 0 }
   schema = doc ? readSchema(doc) : null
   editing = null
-  model = null
   contextHooks = doc ? agentHooks(doc) : false
 }
 
@@ -499,7 +489,7 @@ async function commenterStep(open: KitModuleDocument, command: string, params: R
 /** A commenter's comment command: one step of the person's own, under the comment backstop. */
 async function commentStep(open: KitModuleDocument, command: string, params: Record<string, unknown>) {
   try {
-    const { value, changed } = await commentGuarded(open, command, () => personEdit(open, () => open.execute(command, JSON.stringify(params))))
+    const { value, changed } = await commentGuarded(open, command, () => open.execute(command, JSON.stringify(params)))
     // A new step: what was undone cannot be redone any more (the engine dropped it too).
     if (changed) commentSteps = { undo: commentSteps.undo + 1, redo: 0 }
     return value
@@ -510,9 +500,9 @@ async function commentStep(open: KitModuleDocument, command: string, params: Rec
   }
 }
 
-/** Whether the engine keeps a replica the worker reads what changed from (`modelChanges`). */
+/** Whether the engine says what changed since a version of its replica (`changesSince`, for `modelChanges`). */
 function keepsChanges(open: KitModuleDocument) {
-  return typeof open.version === 'function' && typeof open.exportChanges === 'function'
+  return typeof open.version === 'function' && typeof open.changesSince === 'function'
 }
 
 /** Bytes as base64, as the agent's tools carry a replica version. */
@@ -541,9 +531,21 @@ function currentVersionBytes(open: KitModuleDocument) {
 }
 
 /** A failure of the object model as the protocol answers it. */
-async function modelError(error: unknown) {
+function modelError(error: unknown) {
   if (error instanceof KitModelError) return error
-  return new KitModelError((await modelRunner()).modelErrorData(error))
+  return new KitModelError({ code: 'invalid-value', index: null, message: error instanceof Error ? error.message : String(error) })
+}
+
+/** A draft the engine refused to merge or compare, as the protocol answers it. */
+function draftRefusal(error: unknown) {
+  return new KitModelError({ code: 'invalid-value', index: null, message: `the draft does not merge: ${error instanceof Error ? error.message : String(error)}` })
+}
+
+/** The engine's member `name` for drafts and restores, or a refusal naming it: the feature is unavailable, the document still opens and edits. */
+function engineMember<K extends 'mergeChanges' | 'compareChanges' | 'restoreState'>(open: KitModuleDocument, name: K, what: string) {
+  const method = open[name]
+  if (typeof method !== 'function') throw new KitEngineRefusal(UNSUPPORTED_REASON, `this kit's engine cannot ${what}: it has no ${name}`)
+  return method.bind(open) as NonNullable<KitModuleDocument[K]>
 }
 
 /** An engine's own batch refusal: its message is the protocol's `{code, index, message}`. */
@@ -571,17 +573,6 @@ async function executeCommand(request: Extract<KitEngineRequest, { method: 'exec
     if (!comments.has(request.command)) throw new ReadOnlyError(`\`${request.command}\``)
     return { value: { result: await commentStep(open, request.command, request.params), info: sent(info(open)) } }
   }
-  // Undo and Redo reach the script steps in order with the engine's own (`ReplicaModel`).
-  // Script steps are the person's: an agent's undo (KitModel M12a) goes to the engine alone.
-  const undo = UNDO_COMMANDS.has(request.command)
-  const redo = REDO_COMMANDS.has(request.command)
-  const agentHistory = (request.params.scope ?? (request.origin?.kind === 'agent' ? 'agent' : 'person')) === 'agent'
-  if (model && (undo || redo) && !agentHistory) {
-    const engineCanToo = engineCan(open, undo ? 'undo' : 'redo')
-    const done = undo ? model.undo(engineCanToo) : model.redo(engineCanToo)
-    // A script step that could not be taken back leaves nothing for the engine to do either.
-    if (done || !engineCanToo) return { value: { result: JSON.stringify({ done }), info: sent(info(open)) } }
-  }
   // As the origin the editor gives (an `ai/run` step runs as the agent), when the engine can.
   const origin = request.origin
   const asOrigin = origin && typeof open.executeAs === 'function'
@@ -591,17 +582,14 @@ async function executeCommand(request: Extract<KitEngineRequest, { method: 'exec
   const system = origin?.kind === 'system'
   if (system && !asOrigin) throw new KitEngineRefusal(UNSUPPORTED_REASON, `\`${request.command}\` was not run: this kit cannot keep a host's change out of the undo history`)
   const execute = asOrigin ? () => open.executeAs!(request.command, JSON.stringify(request.params), encodeOrigin(origin)) : () => open.execute(request.command, JSON.stringify(request.params))
-  // A host's change is no step of the person's, so it leaves their script steps' redo alone.
-  const step = () => guarded(open, `\`${request.command}\``, undo || redo || system ? execute : () => personEdit(open, execute))
+  const step = () => guarded(open, `\`${request.command}\``, execute)
   if (request.agent) {
     const { value: result, state } = inAgentState(open, request.agent, step)
     if (closedResult(result)) return finishClosed(open, result)
-    if (undo || redo) model?.engineMoved()
     return { value: { result, info: infoChanged(open, true), state } }
   }
   const result = step()
   if (closedResult(result)) return finishClosed(open, result)
-  if (undo || redo) model?.engineMoved()
   return { value: { result, info: infoChanged(open, true) } }
 }
 
@@ -615,11 +603,24 @@ function closedResult(value: unknown): boolean {
 function finishClosed(open: KitModuleDocument, result: unknown) {
   open.free()
   doc = null
-  model = null
   infoMade = null
   infoSent = null
   clearPremisePlans()
   return { value: { result, info: null, closed: true, state: null } }
+}
+
+/**
+ * Opens file bytes with their stored replica when given; a snapshot the engine cannot read counts
+ * as none (UI-R1): the file opens plainly.
+ */
+function openWithStored(sdk: Awaited<ReturnType<typeof loadKitModule>>, manifest: KitModuleManifest, name: string, bytes: Uint8Array, stored: KitModuleReplica | null) {
+  if (!stored) return openKitModuleDocument(sdk, manifest, name, bytes)
+  try {
+    return openKitModuleDocument(sdk, manifest, name, bytes, stored)
+  } catch (error) {
+    console.warn('[kit] the stored replica does not open; the file opens without it', error)
+    return openKitModuleDocument(sdk, manifest, name, bytes)
+  }
 }
 
 /** Answers one request; exported for tests (the worker answers through `onmessage`). */
@@ -631,7 +632,7 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
       clearPremisePlans()
       doc?.free()
       followReplica = request.replica?.follow ?? false
-      doc = openKitModuleDocument(sdk, request.manifest, request.name, new Uint8Array(request.bytes), request.replica?.stored ?? null)
+      doc = openWithStored(sdk, request.manifest, request.name, new Uint8Array(request.bytes), request.replica?.stored ?? null)
       docName = request.name
       // Another document: none of the last one's info is its.
       infoMade = null
@@ -723,8 +724,6 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'save': {
       const open = opened()
-      // The kit gets ready first: a kit whose file holds its replica seals it (data model 7.3).
-      if (!readOnly) open.prepareSave?.()
       const bytes = open.save(docName)
       return { value: { bytes: bytes.buffer, revision: Number(open.revision) }, transfer: [bytes.buffer] }
     }
@@ -736,7 +735,7 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
       }
       // These edit around the contract's checks (and the read-only rules): no editor calls them.
       if (READ_ONLY_RULES.refusedMethods.includes(request.name)) throw new Error(`the kit module's ${request.name} is not open to editors`)
-      const value = guarded(opened(), request.name, () => personEdit(opened(), () => (method as (...args: unknown[]) => unknown).apply(open, request.args)))
+      const value = guarded(opened(), request.name, () => (method as (...args: unknown[]) => unknown).apply(open, request.args))
       return ArrayBuffer.isView(value) ? { value, transfer: [value.buffer] } : { value }
     }
     case 'tool': {
@@ -745,7 +744,7 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
       if (!TOOL_METHODS.has(request.name) || typeof method !== 'function') throw new Error(`the kit module has no engine tools (${request.name})`)
       if (readOnly && READ_ONLY_RULES.refusedTools.includes(request.name)) throw new ReadOnlyError(`the engine tools' ${request.name}`)
       const before = open.revision
-      const answer = guarded(open, `the engine tools' ${request.name}`, () => personEdit(open, () => (method as (...args: unknown[]) => string).apply(open, request.args)))
+      const answer = guarded(open, `the engine tools' ${request.name}`, () => (method as (...args: unknown[]) => string).apply(open, request.args))
       const value = request.name === 'tool' ? answer : JSON.parse(answer)
       return { value: { value, info: request.settled || open.revision !== before ? sent(info(open, request.settled)) : null } }
     }
@@ -763,10 +762,8 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'saveWithReplica': {
       const open = opened()
-      // The seal first, then the file's bytes, then the store's snapshot and the version it holds,
-      // all in this one step: the store holds the seal the file is rooted at, the document's next
-      // edits follow it, and a checkpoint names exactly the saved state (UI-R6), never a later one.
-      if (!readOnly) open.prepareSave?.()
+      // The file's bytes, then the store's snapshot, its blobs and the version it holds, all in this
+      // one step: a checkpoint keeps exactly the saved state (UI-R6), never a later one.
       const bytes = open.save(docName)
       let replica: { snapshot: ArrayBuffer; blobs: ArrayBuffer; version: ArrayBuffer } | null = null
       try {
@@ -803,23 +800,33 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     case 'replicaMerge': {
       const open = opened()
       if (readOnly) throw new ReadOnlyError('the draft merge')
+      const merge = engineMember(open, 'mergeChanges', 'merge a draft')
       // An engine whose documents carry no media has no blobs to add.
       if (request.blobs.byteLength && typeof open.addBlobs === 'function') open.addBlobs(new Uint8Array(request.blobs))
-      let summary: unknown
+      let answer: { summary: unknown }
       try {
-        summary = (await replicaModel(open)).merge(new Uint8Array(request.changes), request.origin, request.schema)
+        answer = JSON.parse(merge(new Uint8Array(request.changes), encodeOrigin(request.origin))) as { summary: unknown }
       } catch (error) {
-        throw await modelError(error)
+        throw draftRefusal(error)
       }
-      return { value: { summary, info: sent(info(open)) } }
+      schema = readSchema(open) ?? schema
+      return { value: { summary: answer.summary, info: sent(info(open)) } }
     }
     case 'replicaCompare': {
-      const open = opened()
+      const compare = engineMember(opened(), 'compareChanges', 'compare a draft')
       try {
-        return { value: (await replicaModel(open)).compare(new Uint8Array(request.changes), request.schema) }
+        return { value: JSON.parse(compare(new Uint8Array(request.changes))) as unknown }
       } catch (error) {
-        throw await modelError(error)
+        throw draftRefusal(error)
       }
+    }
+    case 'replicaRestore': {
+      const open = opened()
+      if (readOnly) throw new ReadOnlyError('the restore')
+      const restore = engineMember(open, 'restoreState', 'restore an earlier state')
+      if (request.blobs.byteLength && typeof open.addBlobs === 'function') open.addBlobs(new Uint8Array(request.blobs))
+      const damage = JSON.parse(restore(new Uint8Array(request.snapshot), encodeOrigin(request.origin))) as unknown
+      return { value: { damage, info: sent(info(open)) } }
     }
     case 'modelVersion': {
       const bytes = currentVersionBytes(opened())
@@ -828,45 +835,35 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     }
     case 'modelChanges': {
       const open = opened()
-      if (!keepsChanges(open)) throw new Error("the kit's engine keeps no replica, so it cannot say what changed")
-      let found
-      try {
-        found = (await replicaModel(open)).changesSince(fromBase64(request.since), request.schema)
-      } catch (error) {
-        throw await modelError(error)
-      }
+      if (!keepsChanges(open)) throw new Error("the kit's engine cannot say what changed (it has no changesSince)")
+      const found = JSON.parse(open.changesSince!(fromBase64(request.since))) as KitModelChanges
       return { value: { ...found, version: base64(member(open, 'version')()) } }
     }
     case 'modelReply': {
+      // Only the agent's reply is named in tool ids; a reply never fails for want of them.
       const open = opened()
-      return { value: keepsChanges(open) ? (await replicaModel(open)).reply(request.value) : request.value }
+      if (typeof open.modelReply !== 'function') return { value: request.value }
+      try {
+        return { value: JSON.parse(open.modelReply(JSON.stringify(request.value))) as unknown }
+      } catch {
+        return { value: request.value }
+      }
     }
     case 'modelDescribe': {
       const open = opened()
-      const support = modelSupport(open)
-      try {
-        if (support === 'engine') {
-          if (request.schema && keepsChanges(open)) (await replicaModel(open)).describe(request.schema)
-          return { value: JSON.parse(open.modelDescribe!()) as unknown }
-        }
-        if (support === 'replica') return { value: (await replicaModel(open)).describe(request.schema) }
-      } catch (error) {
-        throw await modelError(error)
-      }
-      throw new Error("the kit's engine has no object model")
+      if (modelSupport(open) !== 'engine') throw new Error("the kit's engine has no object model")
+      return { value: JSON.parse(open.modelDescribe!()) as unknown }
     }
     case 'modelBatch': {
       const open = opened()
-      const support = modelSupport(open)
-      if (!support) throw new Error("the kit's engine has no object model")
+      if (modelSupport(open) !== 'engine') throw new Error("the kit's engine has no object model")
       // A viewer may read, never write (the engine's own batch does not know the session is read-only).
       if (readOnly && batchWrites(request.request)) throw new KitModelError({ code: 'read-only', index: null, message: 'the document is read-only' })
       let answer: Record<string, unknown>
       try {
-        if (support === 'engine') answer = JSON.parse(open.modelBatch!(JSON.stringify(request.request))) as Record<string, unknown>
-        else answer = { ...(await (await replicaModel(open)).batch(request.request, request.schema, readOnly)) }
+        answer = JSON.parse(open.modelBatch!(JSON.stringify(request.request))) as Record<string, unknown>
       } catch (error) {
-        throw engineModelError(error) ?? (await modelError(error))
+        throw engineModelError(error) ?? modelError(error)
       }
       const version = currentVersionBytes(open)
       return { value: { answer: { ...answer, version: version?.buffer ?? null }, info: sent(info(open)) }, transfer: version ? [version.buffer] : [] }

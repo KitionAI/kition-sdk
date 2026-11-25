@@ -19,7 +19,6 @@
 import { KdmError } from './errors'
 import type { ObjectId } from './ids'
 import type { Replica } from './replica'
-import type { Tx } from './tx'
 
 export const COMMENT_THREAD_TYPE = 'CommentThread'
 export const COMMENT_TYPE = 'Comment'
@@ -54,64 +53,9 @@ export type CommentAnchor = {
   [key: string]: unknown
 }
 
-/** A comment to write. `created` is ISO 8601 UTC (`new Date().toISOString()`). */
-export type NewComment = { author: string; name?: string; body: string; created: string }
-
 export type Comment = { id: ObjectId; author: string; name?: string; body: string; created: string }
 
 export type CommentThread = { id: ObjectId; anchor: CommentAnchor | null; resolved: boolean; comments: Comment[] }
-
-function commentObject(tx: Tx, comment: NewComment): ObjectId {
-  const fields: Record<string, unknown> = { author: comment.author, created: comment.created }
-  if (comment.name !== undefined) fields.name = comment.name
-  const id = tx.create(COMMENT_TYPE, fields)
-  if (comment.body) tx.textInsert(id, 'body', 0, comment.body)
-  return id
-}
-
-function checkThread(tx: Tx, thread: ObjectId) {
-  if (tx.objectType(thread) !== COMMENT_THREAD_TYPE) throw new KdmError('invalid-value', `${thread} is not a ${COMMENT_THREAD_TYPE}`)
-}
-
-/** Opens a thread at `anchor` with its first comment. */
-export function addThread(tx: Tx, anchor: CommentAnchor, comment: NewComment): { thread: ObjectId; comment: ObjectId } {
-  const thread = tx.create(COMMENT_THREAD_TYPE, { anchor, resolved: false })
-  const first = commentObject(tx, comment)
-  tx.listInsert(thread, 'comments', 0, first)
-  return { thread, comment: first }
-}
-
-/** Adds `comment` at the end of `thread`. */
-export function reply(tx: Tx, thread: ObjectId, comment: NewComment): ObjectId {
-  checkThread(tx, thread)
-  const id = commentObject(tx, comment)
-  tx.listInsert(thread, 'comments', tx.listItems(thread, 'comments').length, id)
-  return id
-}
-
-/** Resolves `thread` (or opens it again). */
-export function setResolved(tx: Tx, thread: ObjectId, resolved: boolean): void {
-  checkThread(tx, thread)
-  tx.set(thread, 'resolved', resolved)
-}
-
-/** Deletes one comment of `thread`; deleting its last comment deletes the thread. */
-export function deleteComment(tx: Tx, thread: ObjectId, comment: ObjectId): void {
-  checkThread(tx, thread)
-  const items = tx.listItems(thread, 'comments')
-  const index = items.indexOf(comment)
-  if (index < 0) throw new KdmError('not-found', comment)
-  tx.listRemove(thread, 'comments', index)
-  tx.delete(comment)
-  if (items.length === 1) tx.delete(thread)
-}
-
-/** Deletes `thread` and its comments. */
-export function deleteThread(tx: Tx, thread: ObjectId): void {
-  checkThread(tx, thread)
-  for (const comment of tx.listItems(thread, 'comments')) if (tx.exists(comment)) tx.delete(comment)
-  tx.delete(thread)
-}
 
 function asAnchor(value: unknown): CommentAnchor | null {
   return value && typeof value === 'object' && !Array.isArray(value) && typeof (value as { object?: unknown }).object === 'string' ? (value as CommentAnchor) : null
@@ -130,7 +74,7 @@ export function commentThreads(replica: Replica): CommentThread[] {
   for (const id of replica.objectsOfType(COMMENT_THREAD_TYPE)) {
     const comments: Comment[] = []
     for (const item of replica.list(id, 'comments')) {
-      // A comment a concurrent delete removed while another replica replied stays listed but gone.
+      // A deleted comment a list still names is not shown.
       if (!replica.exists(item) || replica.objectType(item) !== COMMENT_TYPE) continue
       const name = optionalString(replica.get(item, 'name'))
       comments.push({
@@ -145,23 +89,4 @@ export function commentThreads(replica: Replica): CommentThread[] {
   }
   const opened = (thread: CommentThread) => thread.comments[0]?.created ?? ''
   return threads.sort((a, b) => (opened(a) < opened(b) ? -1 : opened(a) > opened(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-}
-
-/**
- * Where a range anchor's text is now: its `range` while the text there still reads `quote`,
- * otherwise the occurrence of `quote` nearest the old start, or `null` when the quote is gone (the
- * thread then shows without a place in the text). An anchor without a range or quote answers its
- * range as is.
- */
-export function relocateAnchorRange(anchor: CommentAnchor, text: string): { start: number; end: number } | null {
-  const range = anchor.range
-  if (!range) return null
-  const quote = anchor.quote
-  if (!quote) return range.end <= text.length ? range : null
-  if (text.slice(range.start, range.end) === quote) return range
-  let best: number | null = null
-  for (let at = text.indexOf(quote); at >= 0; at = text.indexOf(quote, at + 1)) {
-    if (best === null || Math.abs(at - range.start) < Math.abs(best - range.start)) best = at
-  }
-  return best === null ? null : { start: best, end: best + quote.length }
 }

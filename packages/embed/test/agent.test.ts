@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { relayAgentPort, type JsonRpcMessage } from '../src/agent'
 import { EmbedError } from '../src/errors'
 import { EMBED_CAPABILITY_SETS, mountEmbed } from '../src/mount'
-import { memoryReplicaStore } from '../src/replicaStore'
 import type { EmbedOptions } from '../src/types'
 import { fakeKit } from './fakeKit'
 import { memoryStorage } from './memoryStorage'
@@ -21,7 +20,7 @@ function setUp(overrides: Partial<EmbedOptions> = {}, capabilities = ['ai', 'rep
   const files = memoryStorage({ f1: 'hello' })
   const kit = fakeKit('kit.note', capabilities)
   const options: EmbedOptions = { kit: KIT, file: { id: 'f1', name: 'Notes.note' }, storage: files.storage, ...overrides }
-  const editor = mountEmbed(element, options, { mountKit: vi.fn(kit.mountKit), replicaStore: memoryReplicaStore })
+  const editor = mountEmbed(element, options, { mountKit: vi.fn(kit.mountKit) })
   return { files, kit, editor }
 }
 

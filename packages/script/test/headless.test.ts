@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { BatchError, describeModel, parseSchema, person, Replica, runBatch, type Origin } from '@kition/kdm'
+import { BatchError, parseSchema, type BatchRequest, type Origin } from '@kition/kdm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { KitProtocolConnection, KitProtocolError, KitsService, openHeadless } from '../src/node'
 import type { ModelList, ModelObject, ModelText } from '../src/index'
+import { FakeKitModel } from './fakeKitModel'
 
 const schema = parseSchema(readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/test-schema.json', import.meta.url)), 'utf8'))
 const fakeKits = fileURLToPath(new URL('./fixtures/fake-kits.mjs', import.meta.url))
@@ -37,16 +38,20 @@ function scratchDir(): string {
 }
 
 /**
- * `kition-kits serve` in this process: one document in one kit, its object model answered by
- * `@kition/kdm`'s interpreter, errors in the service's shape, over a pair of streams.
+ * `kition-kits serve` in this process: one document in one kit, its object model answered by a
+ * test kit's document, errors in the service's shape, over a pair of streams.
  */
 async function fakeService() {
   const dir = scratchDir()
-  const replica = Replica.create(schema, '01920000-0000-7000-8000-0000000000dd', 9n)
-  replica.transact(person('user:a'), (tx) => {
-    tx.create('Page', { title: 'One' }, { id: 'page' })
-  })
   const ran: Array<{ id: string; origin: Origin }> = []
+  const replica = new FakeKitModel(schema, 'page', { title: 'One' }, {
+    commands: [{ id: 'page.clear', title: 'Clear', mutates: true, enabled: true }],
+    command: (id, _params, origin, kit) => {
+      ran.push({ id, origin })
+      kit.set('page', 'title', '')
+      return { cleared: true }
+    },
+  })
   const calls: Array<{ method: string; params: Record<string, unknown> }> = []
   let dirty = false
   let conflict = false
@@ -70,25 +75,11 @@ async function fakeService() {
         dirty = true
         return { changed: true, result: { origin: params.origin }, document: state() }
       case 'model.describe':
-        return { ...describeModel(replica), commands: [{ id: 'page.clear', title: 'Clear', mutates: true, enabled: true }] }
+        return replica.describe()
       case 'model.batch': {
         const { kit: _, documentId: __, ...request } = params
         try {
-          const answer = await runBatch(
-            {
-              replica: () => replica,
-              transact: (origin, write) => {
-                replica.transact(origin, write)
-              },
-              command: (id, _params, origin) => {
-                ran.push({ id, origin })
-                replica.transact(origin, (tx) => tx.set('page', 'title', ''))
-                return { cleared: true }
-              },
-              readOnly: () => false,
-            },
-            request,
-          )
+          const answer = await replica.batch(request as BatchRequest)
           if (((request.ops as unknown[] | undefined)?.length ?? 0) > 0) dirty = true
           return answer
         } catch (error) {

@@ -1,4 +1,4 @@
-/** Every failure of the KDM, with the same reasons as the variants of the Rust `KdmError`. */
+/** Every failure of the KDM reader, with the same reasons as the variants of the Rust `KdmError`. */
 export type KdmErrorReason =
   | 'schema'
   | 'unknown-type'
@@ -9,7 +9,7 @@ export type KdmErrorReason =
   | 'out-of-range'
   | 'wrong-document'
   | 'newer-schema'
-  | 'history-missing'
+  | 'stale'
   | 'encoding'
   | 'engine'
 
@@ -44,10 +44,11 @@ export const errors = {
   newerSchema: (found: number, reads: number) =>
     new KdmError('newer-schema', `the document needs schema version ${found}; this kit reads schema versions up to ${reads}`),
   /**
-   * A shallow replica (standard 2.0 rule M16a) was asked for history before its root: changes that
-   * depend on it, or a version older than it. The server keeps that history.
+   * Changes that do not follow this replica's state: they continue another version, or an
+   * operation's precondition (its object, its position, the list item at it) does not hold.
+   * Nothing was applied.
    */
-  historyMissing: (message: string) => new KdmError('history-missing', `history missing: ${message}`),
+  stale: (message: string) => new KdmError('stale', `stale: ${message}`),
   encoding: (message: string) => new KdmError('encoding', `encoding: ${message}`),
   engine: (message: string) => new KdmError('engine', `engine: ${message}`),
 }

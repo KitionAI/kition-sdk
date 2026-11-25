@@ -4,7 +4,7 @@
  * and checks it against the extension's permissions.
  */
 import type { BatchRequest, BatchResult, Schema } from '@kition/kdm'
-// The worker needs only the proxies; exchange and replica code stays in the host.
+// The worker needs only the proxies; the rest of the object model stays in the host.
 import { RequestContext, type CommandMap, type ModelObject } from '@kition/script/proxy'
 import type { KitCommandInfo } from '@kition/script'
 import type { DocumentInfo } from '../protocol'

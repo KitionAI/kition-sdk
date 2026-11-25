@@ -2,9 +2,7 @@
  * `@kition/sync`: the client for the open sync protocol `kition-sync/1` (Kition platform docs/platform/reference/sync-protocol.md).
  * `SyncClient` connects over an injectable `SyncTransport`, reconnects with backoff, re-joins
  * every joined room with the caller's latest local version, and queues pushes made while
- * offline, flushing them in order once reconnected. `startRelay` relays one document's KDM replica
- * to and from its room through it. `LORO_REPLICA_VERSIONS`, the version handling the relay needs,
- * is in `@kition/sync/replicaVersions`, loaded on demand, since it loads the CRDT engine.
+ * offline, flushing them in order once reconnected.
  */
 export { capabilitySetsOf, parseCapabilitySet, servesCapabilitySet } from './capabilities'
 export { blobHashCandidates, decodeBlobSection, encodeBlobSection, type BlobEntry } from './blobSection'
@@ -63,6 +61,4 @@ export {
 export { DocumentLeases, SyncLeases, leaseHolder, scopesCollide, type LeaseHold } from './leases'
 export { initialSaveState, mustSave, saveTransition, type SaveEvent, type SaveFailure, type SaveOutcome, type SaveState, type SaveStatus, type SaveTrigger } from './saveMachine'
 export { classifySaveError, runSave, type SaveRun, type SaveRunOptions } from './saveRun'
-export { startRelay, type Relay, type RelayOptions, type RelayReplica, type RelaySync } from './relay'
-export type { ReplicaVersions } from './replicaVersions'
 export type { ConnectionState, SyncTransport, TransportFactory } from './transport'

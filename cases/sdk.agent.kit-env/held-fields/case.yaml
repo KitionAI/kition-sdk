@@ -20,8 +20,6 @@ steps:
       cmd: [cargo, test, -q, -p, kition-env, --test, generate, a_held_objects_field_is_edited_through_its_holder]
   - exec:
       cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, describe_names_labels_displays_and_samples]
-  - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/batch.test.ts, -t, labels]
 expected:
   - actual: out:exec
     compare: exit

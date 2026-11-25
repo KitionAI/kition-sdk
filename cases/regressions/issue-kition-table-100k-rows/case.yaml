@@ -11,7 +11,6 @@ source: { kind: issue, from: Kition Table storage card (table-storage), license:
 input: []
 steps:
   - cargo-test: { package: kition-kdm, filter: a_transaction_keeps_no_notes_of_the_objects_it_creates }
-  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/undo-scopes.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 timeout_s: 120

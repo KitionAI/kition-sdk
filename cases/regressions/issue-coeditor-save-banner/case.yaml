@@ -10,7 +10,7 @@ source:
 input: []
 steps:
   - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/useKitDocument.test.tsx, packages/embed/test/managed.test.ts]
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/useKitDocument.test.tsx]
 expected:
   - actual: out:exec
     compare: exit

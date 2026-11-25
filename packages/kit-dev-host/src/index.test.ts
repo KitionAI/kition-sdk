@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { KitPeerPresence, MountOptions } from '@kition/kit-host'
 
 /** Each mountKit call's options, and the connection it answered. */
-const mounted = vi.hoisted(() => ({ calls: [] as Array<{ options: MountOptions; connection: { peersChanged: ReturnType<typeof vi.fn>; configure: ReturnType<typeof vi.fn> } }>, version: [1] }))
+const mounted = vi.hoisted(() => ({ calls: [] as Array<{ options: MountOptions; connection: { peersChanged: ReturnType<typeof vi.fn>; configure: ReturnType<typeof vi.fn> } }>, version: [1], restores: [] as unknown[] }))
 vi.mock('@kition/kit-host', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@kition/kit-host')>()),
   mountKit: async (_frame: HTMLIFrameElement, options: MountOptions) => {
-    // `replica.version` answers the kit's replica version, as `replica/version` does.
-    const connection = { kit: { id: 'kit.test', version: '1' }, capabilities: [], close: vi.fn(), configure: vi.fn(), setTheme: vi.fn(), peersChanged: vi.fn(), replica: { version: async () => new Uint8Array(mounted.version).buffer } }
+    // `replica.version` answers the kit's replica version, as `replica/version` does; `replica.restore` notes what `replica/restore` carried.
+    const restore = async (snapshot: ArrayBuffer, blobs: ArrayBuffer, origin: unknown) => {
+      mounted.restores.push({ snapshot: [...new Uint8Array(snapshot)], blobs: [...new Uint8Array(blobs)], origin })
+      return { damage: { kind: 'full' } }
+    }
+    const connection = { kit: { id: 'kit.test', version: '1' }, capabilities: [], close: vi.fn(), configure: vi.fn(), setTheme: vi.fn(), peersChanged: vi.fn(), replica: { version: async () => new Uint8Array(mounted.version).buffer, restore } }
     mounted.calls.push({ options, connection })
     return connection
   },
@@ -25,6 +29,7 @@ function page(search = '') {
 
 afterEach(() => {
   mounted.calls = []
+  mounted.restores = []
   document.body.innerHTML = ''
 })
 
@@ -204,7 +209,7 @@ describe('startDevHost', () => {
     mounted.version = [7]
     const written = await first.write({ path, bytes: new ArrayBuffer(2), mode: 'save' })
     const answer = await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, version: new Uint8Array([7]).buffer, checkpoint: { origin: 'kit', label: 'V1' } })
-    expect(answer).toMatchObject({ checkpoint: { origin: 'kit', label: 'V1', version: 'Bw==', available: true } })
+    expect(answer).toMatchObject({ checkpoint: { origin: 'kit', label: 'V1', version: 'Bw==' } })
     await first.viewState!.write({ path, state: { v: 1, page: 2 } })
     // The host's own checkpoint at a later version.
     mounted.version = [8]
@@ -216,45 +221,28 @@ describe('startDevHost', () => {
     expect(again.document.bytes!.byteLength).toBe(2)
     expect(await again.handlers.replicaRead!({ path })).toMatchObject({ fileStamp: '2' })
     const listed = await again.handlers.checkpoints!.list({ path })
-    expect(listed.checkpoints.map((checkpoint) => [checkpoint.origin, checkpoint.available])).toEqual([['save', true], ['kit', true]])
+    expect(listed.checkpoints.map((checkpoint) => checkpoint.origin)).toEqual(['save', 'kit'])
     expect(await again.handlers.viewState!.read({ path })).toEqual({ state: { v: 1, page: 2 } })
     // Changed outside the editor and reopened: new bytes at a new version, the replica handed
-    // over under its earlier stamp. This kit does not merge the file, so its next replica is
-    // another lineage.
+    // over under its earlier stamp (UI-R1).
     await window.devHost.reopenChanged(new Uint8Array([5, 6, 7]).buffer)
     const changed = mounted.calls[4]!.options
     expect((mounted.calls[3]!.connection as unknown as { close: ReturnType<typeof vi.fn> }).close).toHaveBeenCalled()
     expect(changed.document).toMatchObject({ path, version: '3' })
     expect([...new Uint8Array(changed.document.bytes!)]).toEqual([5, 6, 7])
     expect(await changed.handlers.replicaRead!({ path })).toMatchObject({ fileStamp: '2' })
-    expect((await changed.handlers.checkpoints!.list({ path })).checkpoints.every((checkpoint) => checkpoint.available)).toBe(true)
-    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3', version: new Uint8Array([8]).buffer })
-    expect(window.devHost.history.checkpoints(path).map((checkpoint) => checkpoint.available)).toEqual([false, false])
+    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3', version: new Uint8Array([9]).buffer })
+    expect(window.devHost.history.checkpoints(path).map((checkpoint) => checkpoint.origin)).toEqual(['save', 'kit'])
+    // Restoring the kit's checkpoint hands its snapshot and blobs to the kit as one step of the person.
+    const kept = window.devHost.history.checkpoints(path).find((checkpoint) => checkpoint.origin === 'kit')!
+    expect(await window.devHost.restoreCheckpoint(kept.id)).toEqual({ damage: { kind: 'full' } })
+    expect(mounted.restores).toEqual([{ snapshot: [1], blobs: [2], origin: { kind: 'person', principal: 'person:dev', label: 'Restore' } }])
     expect(await changed.handlers.viewState!.read({ path })).toEqual({ state: { v: 1, page: 2 } })
-    // Opened alone: no replica, its checkpoints no longer reached; the person's view state stays.
+    // Opened alone: no replica; the checkpoints and the person's view state stay.
     await window.devHost.open(path, new ArrayBuffer(1))
     expect(window.devHost.history.replica(path)).toBeNull()
-    expect(window.devHost.history.checkpoints(path).map((checkpoint) => checkpoint.available)).toEqual([false, false])
+    expect(window.devHost.history.checkpoints(path)).toHaveLength(2)
     expect(window.devHost.history.viewState(path)).toEqual({ state: { v: 1, page: 2 } })
-  })
-
-  it('with ?replica-merges-file=1 keeps the checkpoints available after the file changed outside (UI-R1)', async () => {
-    page('?checkpoints=1&replica-merges-file=1')
-    startDevHost()
-    const path = 'Notes.note'
-    await window.devHost.open(path, new ArrayBuffer(1))
-    const first = mounted.calls[0]!.options.handlers
-    mounted.version = [7]
-    const written = await first.write({ path, bytes: new ArrayBuffer(2), mode: 'save' })
-    await first.replicaWrite!({ path, snapshot: new Uint8Array([1]).buffer, blobs: new Uint8Array([2]).buffer, fileStamp: written.version, version: new Uint8Array([7]).buffer, checkpoint: { origin: 'kit', label: 'V1' } })
-    await window.devHost.reopenChanged(new Uint8Array([9]).buffer)
-    const changed = mounted.calls[1]!.options
-    expect(changed.document).toMatchObject({ path, version: '3' })
-    expect(await changed.handlers.replicaRead!({ path })).toMatchObject({ fileStamp: '2' })
-    // The kit's engine merged the file into the stored replica: the same lineage.
-    mounted.version = [8]
-    await changed.handlers.replicaWrite!({ path, snapshot: new Uint8Array([3]).buffer, blobs: new Uint8Array([4]).buffer, fileStamp: '3', version: new Uint8Array([8]).buffer })
-    expect(window.devHost.history.checkpoints(path).map((checkpoint) => [checkpoint.label, checkpoint.available])).toEqual([['V1', true]])
   })
 
   it('serves no KitFiles without kitFiles', async () => {

@@ -18,7 +18,6 @@
     "example:embed": "pnpm --filter @kition/embed --filter @kition/script build && node examples/embed-app/serve.mjs",
     "test:sdk:example": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-node.mjs",
     "test:sdk:headless": "pnpm --filter @kition/script build && node examples/sdk-scripts/run-headless.mjs",
-    "test:sdk:room": "pnpm --filter @kition/kdm --filter @kition/script build && node tools/private-skip.mjs examples/sdk-scripts/run-room.mjs",
     "test:embed:e2e": "pnpm --filter @kition/embed --filter @kition/script build && playwright test -c examples/embed-app/playwright.config.ts",
     "test:sdk:exit": "pnpm --filter @kition/embed --filter @kition/script build && playwright test -c examples/embed-app/playwright.exit.config.ts",
     "example:agent": "pnpm --filter @kition/script build && node examples/agent-mcp/run.mjs",

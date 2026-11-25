@@ -8,8 +8,41 @@
 import { describe, expect, it } from 'vitest'
 import type { KitModuleDocument } from './kitModule'
 import { premisePlan, replicaBlobsSince, replicaDocId } from './kitEngine.worker'
-import { newDocId, parseSchema, Replica, system } from '@kition/kdm'
-import { kitEngineClass, type KitModel } from '@kition/kit-engine'
+
+/**
+ * A document of one counter as an engine answers it: its replica's version is the number of edits
+ * (`[seq]`), `changesSince` answers the counter's edit since a version, `forkForPremises` copies it
+ * with its history, and a command (`executeAs`) runs `command` (default: adds one).
+ */
+function counterDoc(command: (doc: { value: number }, name: string) => string = (doc) => (doc.value++, '{}'), history: number[] = [0]): KitModuleDocument & { value: number } {
+  const doc = fakeDoc({
+    version: () => new Uint8Array([history.length - 1]),
+    executeAs: (name) => {
+      const answer = command(doc, name)
+      if (doc.value !== history[history.length - 1]) history.push(doc.value)
+      return answer
+    },
+    changesSince: (since) => {
+      const was = history[since[0] ?? 0]
+      if (was === undefined) return JSON.stringify({ changes: null, unavailable: 'not held' })
+      const changed = was === doc.value ? [] : [{ id: 'root', type: 'Root', fields: ['value'], edits: [{ field: 'value', before: was, after: doc.value }] }]
+      return JSON.stringify({ changes: { created: [], changed, moved: [], deleted: [] } })
+    },
+    editorState: () => 'null',
+    premiseRead: (_method, params) => JSON.stringify({ ...JSON.parse(params), value: doc.value }),
+    modelBatch: (request) => {
+      if (JSON.parse(request).ops?.length) throw new Error(JSON.stringify({ code: 'read-only', index: null, message: 'a premise plan only reads' }))
+      return JSON.stringify({ refs: {}, results: [], loaded: [] })
+    },
+    forkForPremises: () => {
+      const copy = counterDoc(command, [...history])
+      copy.value = doc.value
+      return copy
+    },
+  }) as KitModuleDocument & { value: number }
+  doc.value = history[history.length - 1]!
+  return doc
+}
 
 function fakeDoc(overrides: Partial<KitModuleDocument> = {}): KitModuleDocument {
   return {
@@ -31,48 +64,38 @@ function fakeDoc(overrides: Partial<KitModuleDocument> = {}): KitModuleDocument 
 
 describe('replicaDocId', () => {
   it('stops terminal premise plans before reading a closed engine', async () => {
-    const raw = { kdm: 1, kit: 'kit.plan', schemaVersion: 1, root: 'Root', types: { Root: { fields: { value: { kind: 'integer' } } } } }
-    const schema = parseSchema(raw)
-    const model: KitModel<null> = {
-      schema, load: () => null, apply: () => ({ kind: 'none' }), commands: () => [],
-      import: (_name, _bytes, actor) => Replica.createWith(schema, newDocId(), actor, system('open'), tx => tx.create('Root', { value: 0 })).replica,
-      export: () => new Uint8Array(),
-      command: () => { throw new Error('unexpected model command') },
-    }
-    const Document = kitEngineClass(model)
     for (const action of ['begin', 'advance']) {
-      const doc = Document.open('test', new Uint8Array()) as KitModuleDocument
-      const fork = doc.forkForPremises!.bind(doc)
       let released = 0
       let closed = false
       const executed: string[] = []
+      const doc = counterDoc((_doc, command) => {
+        if (closed) throw new Error('executing after close')
+        executed.push(command)
+        if (command === 'close.fail') throw new Error('close failed')
+        closed = command === 'close'
+        return JSON.stringify({ closed })
+      })
+      const fork = doc.forkForPremises!.bind(doc)
       doc.forkForPremises = () => {
         const scratch = fork()
         const state = scratch.editorState!.bind(scratch)
-        const changes = scratch.exportChanges!.bind(scratch)
+        const changes = scratch.changesSince!.bind(scratch)
         const free = scratch.free.bind(scratch)
-        scratch.executeAs = (command) => {
-          if (closed) throw new Error('executing after close')
-          executed.push(command)
-          if (command === 'close.fail') throw new Error('close failed')
-          closed = command === 'close'
-          return JSON.stringify({ closed })
-        }
         scratch.editorState = () => { if (closed) throw new Error('state after close'); return state() }
-        scratch.exportChanges = (since) => { if (closed) throw new Error('model after close'); return changes(since) }
+        scratch.changesSince = (since) => { if (closed) throw new Error('model after close'); return changes(since) }
         scratch.free = () => { released++; free() }
         return scratch
       }
       try {
-        await expect(premisePlan({ action: 'begin', steps: [{ command: 'close.fail' }, { command: 'later' }] }, doc, raw)).rejects.toThrow('close failed')
+        await expect(premisePlan({ action: 'begin', steps: [{ command: 'close.fail' }, { command: 'later' }] }, doc)).rejects.toThrow('close failed')
         expect(closed).toBe(false)
         expect(released).toBe(1)
         executed.length = 0
-        const first = await premisePlan({ action: 'begin', steps: [{ command: 'close.cancel' }, { command: 'before' }] }, doc, raw) as { token: string; closed?: boolean }
+        const first = await premisePlan({ action: 'begin', steps: [{ command: 'close.cancel' }, { command: 'before' }] }, doc) as { token: string; closed?: boolean }
         expect(first.closed).not.toBe(true)
         expect(executed).toEqual(['close.cancel', 'before'])
         if (action === 'begin') await premisePlan({ action: 'end', token: first.token })
-        const terminal = await premisePlan({ action, token: first.token, steps: [{ command: 'close' }, { command: 'later' }] }, doc, raw)
+        const terminal = await premisePlan({ action, token: first.token, steps: [{ command: 'close' }, { command: 'later' }] }, doc)
         expect(terminal).toEqual({ closed: true })
         expect(executed).toEqual(['close.cancel', 'before', 'close'])
         expect(released).toBe(action === 'begin' ? 3 : 2)
@@ -83,23 +106,13 @@ describe('replicaDocId', () => {
     }
   })
   it('advances a cached premise plan once per step with cumulative changes', async () => {
-    const raw = { kdm: 1, kit: 'kit.plan', schemaVersion: 1, root: 'Root', types: { Root: { fields: { value: { kind: 'integer' } } } } }
-    const schema = parseSchema(raw)
     let executions = 0
-    const model: KitModel<null> = {
-      schema, load: () => null, apply: () => ({ kind: 'none' }), commands: () => [],
-      import: (_name, _bytes, actor) => Replica.createWith(schema, newDocId(), actor, system('open'), tx => tx.create('Root', { value: 0 })).replica,
-      export: () => new Uint8Array(),
-      command: (_view, replica, _command, _params, origin) => {
-        executions++
-        const root = replica.objectsOfType('Root')[0]
-        return replica.transact(origin, tx => tx.set(root, 'value', Number(replica.get(root, 'value')) + 1))
-      },
-      premise: (_view, replica, _method, params) => ({ ...params, value: replica.get(replica.objectsOfType('Root')[0], 'value') }),
-    }
-    const Document = kitEngineClass(model)
-    const doc = Document.open('test', new Uint8Array()) as KitModuleDocument
-    const first = await premisePlan({ action: 'begin', steps: [{ command: 'increment' }], step: 1 }, doc, raw) as { token: string }
+    const doc = counterDoc((counter) => {
+      executions++
+      counter.value++
+      return '{}'
+    })
+    const first = await premisePlan({ action: 'begin', steps: [{ command: 'increment' }], step: 1 }, doc) as { token: string }
     try {
       const next = await premisePlan({ action: 'advance', token: first.token, steps: [{ command: 'increment' }], step: 2 }) as { token: string }
       expect(next.token).toBe(first.token)
@@ -114,18 +127,8 @@ describe('replicaDocId', () => {
     await expect(premisePlan({ action: 'advance', token: first.token, steps: [] })).rejects.toThrow(/unavailable/)
   })
   it('keeps a premise plan cached across reads and discards all its writes', async () => {
-    const raw = { kdm: 1, kit: 'kit.plan', schemaVersion: 1, root: 'Root', types: { Root: { fields: { value: { kind: 'integer' } } } } }
-    const schema = parseSchema(raw)
-    const model: KitModel<null> = {
-      schema, load: () => null, apply: () => ({ kind: 'none' }), commands: () => [],
-      import: (_name, _bytes, actor) => Replica.createWith(schema, newDocId(), actor, system('open'), tx => tx.create('Root', { value: 0 })).replica,
-      export: () => new Uint8Array(),
-      command: (_view, replica, _command, _params, origin) => replica.transact(origin, tx => tx.set(replica.objectsOfType('Root')[0], 'value', 1)),
-      premise: (_view, replica, _method, params) => ({ ...params, value: replica.get(replica.objectsOfType('Root')[0], 'value') }),
-    }
-    const Document = kitEngineClass(model)
-    const doc = Document.open('test', new Uint8Array()) as KitModuleDocument
-    const plan = await premisePlan({ action: 'begin', steps: [{ command: 'set' }], step: 1 }, doc, raw) as { token: string }
+    const doc = counterDoc((counter) => ((counter.value = 1), '{}'))
+    const plan = await premisePlan({ action: 'begin', steps: [{ command: 'set' }], step: 1 }, doc) as { token: string }
     try {
       const read = { action: 'read', token: plan.token, method: 'under', params: {} }
       const answer = await premisePlan(read) as { step: number; value: number; changes: unknown }
@@ -139,6 +142,12 @@ describe('replicaDocId', () => {
     }
     await expect(premisePlan({ action: 'read', token: plan.token, method: 'under' })).rejects.toThrow(/unavailable/)
     doc.free()
+  })
+  it('refuses a premise plan on a fork that cannot say what changed', async () => {
+    const doc = counterDoc()
+    const fork = doc.forkForPremises!.bind(doc)
+    doc.forkForPremises = () => Object.assign(fork(), { changesSince: undefined })
+    await expect(premisePlan({ action: 'begin', steps: [{ command: 'increment' }] }, doc)).rejects.toThrow(/changesSince/)
   })
   it('reads the SDK\'s own docId when it has one', () => {
     expect(replicaDocId(fakeDoc({ docId: 'room-1' }))).toBe('room-1')

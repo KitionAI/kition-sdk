@@ -19,8 +19,6 @@ source:
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: tool_ids }
-  - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/tool-ids.test.ts]
 expected:
   - actual: out:exit
     compare: exit

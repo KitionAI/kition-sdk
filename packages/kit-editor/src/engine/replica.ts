@@ -1,31 +1,24 @@
 /**
  * A document's KDM replica kept by the host next to its file (the Kit UI protocol's `replica`
  * capability), for files that cannot hold a replica themselves, such as PSD. The file stays the
- * document: a replica counts while the file is the one it was saved with, or, for an engine that
- * merges a newer file into it, whatever the file (UI-R1); every failure here degrades to opening
- * the file plainly, never to losing or blocking it.
+ * document: the engine opens it with the stored replica and records a file that differs as one
+ * `import` change (UI-R1); every failure here degrades to opening the file plainly, never to
+ * losing or blocking it.
  */
 import type { KitCheckpoint, KitCheckpointRequest, KitHost, KitViewState } from './kitHost'
 import type { KitModuleReplica, KitSavedReplica } from './kitModule'
 
 /**
- * The stored replica to open `path` with: the host's, when it was saved with the file as it is
- * now (`stamp`, the stamp of the bytes being opened; the host's current stamp when that is
- * unknown). Otherwise (nothing stored, the file changed elsewhere since, the host failed) none:
- * the file opens plainly, its replica is made anew on the first edit, and the next save replaces
- * the stored one. `mergesFile` is for an engine that merges what the file holds into an older
- * replica when it opens, as one `import` change (`replicaMergesFile`): the stored replica opens
- * whatever the file's stamp. The kit decides here; the host hands its replica over whatever the
- * stamp (UI-R1).
+ * The stored replica to open `path` with: the host's, whatever the file's stamp (UI-R1). None
+ * when nothing is stored or the host failed: the file opens plainly, and the next save stores the
+ * replica the engine makes. A snapshot the engine cannot read counts as none (the worker opens the
+ * file plainly then).
  */
-export async function replicaToOpen(host: KitHost, path: string, stamp: string | null, mergesFile = false): Promise<KitModuleReplica | null> {
+export async function replicaToOpen(host: KitHost, path: string): Promise<KitModuleReplica | null> {
   if (!host.replicaRead) return null
   try {
     const stored = await host.replicaRead(path)
-    if (!stored) return null
-    if (mergesFile) return { snapshot: stored.snapshot, blobs: stored.blobs }
-    const current = stamp ?? (await host.stamp(path))
-    return current && stored.fileStamp === current ? { snapshot: stored.snapshot, blobs: stored.blobs } : null
+    return stored ? { snapshot: stored.snapshot, blobs: stored.blobs } : null
   } catch {
     return null
   }
@@ -110,7 +103,7 @@ export async function deleteCheckpoint(host: KitHost, path: string, id: string) 
   return true
 }
 
-/** One checkpoint and the blobs its version needs (with `state`, the snapshot there too); `null` without the capability. */
-export async function readCheckpoint(host: KitHost, path: string, id: string, options?: { state?: boolean }) {
-  return host.checkpoints ? host.checkpoints.read(path, id, options) : null
+/** One checkpoint, the snapshot it keeps and that snapshot's blobs; `null` without the capability. */
+export async function readCheckpoint(host: KitHost, path: string, id: string) {
+  return host.checkpoints ? host.checkpoints.read(path, id) : null
 }

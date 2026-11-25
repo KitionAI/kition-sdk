@@ -3,28 +3,22 @@
  * 7n), in memory for one page load, per workspace path: the replica (`host/replicaRead`,
  * `host/replicaWrite`), its checkpoints (`host/checkpoint*`) and the person's view state
  * (`host/viewState*`). `mountKit` checks every rule a kit can break (lengths, origin, read-only
- * documents, unknown ids, unavailable versions, sizes) before these handlers run; the store keeps
- * the rest: which checkpoints exist, at which version, and which the store still reaches.
+ * documents, unknown ids, sizes) before these handlers run; the store keeps the rest: which
+ * checkpoints exist and the state each keeps.
  *
- * A checkpoint's `version` is the one the replica write carries (base64): the version its snapshot
- * holds, taken by the kit with the saved bytes (UI-R6); the store never asks `replica/version` for
- * it, since the document may hold later edits by then. The store keeps the snapshot and blobs of each write that recorded
- * one, so `host/checkpointRead` answers them (and `state: true` the snapshot) even after later
- * writes. A replica of another lineage (the kit opened the file without the stored replica, or
- * the dev host opened a file alone) makes every earlier checkpoint `available: false`. The store
- * hands the stored replica over whatever its `fileStamp` (UI-R1): the kit decides whether it opens
- * with it. A kit whose engine merges a newer file into it (`replicaMergesFile`) continues its
- * lineage after the file changed outside, so its checkpoints stay available; the dev host cannot
- * read KDM bytes, so the kit's dev page says so (`new DevHistory({ replicaMergesFile: true })`).
+ * A checkpoint keeps the snapshot and blobs of the replica write that recorded it, so
+ * `host/checkpointRead` answers them whatever was written since; its `version` is the one that
+ * write carries (base64, UI-R6). The store hands the stored replica over whatever its `fileStamp`
+ * (UI-R1): the kit opens with it and records a file that differs as one `import` change.
  */
 import { KitRpcError, KIT_CHECKPOINT_ORIGIN, type KitCheckpoint, type KitHostHandlers, type KitViewState, type StoredReplica } from '@kition/kit-host'
 
-/** The most unlabelled checkpoints kept per document; older ones are thinned. Labelled ones are kept apart (UI-C5). */
+/** The most unlabelled checkpoints kept per document; older ones are thinned. Labelled ones are kept apart. */
 export const DEV_UNLABELLED_CHECKPOINTS = 100
 /** The most labelled checkpoints kept per document. */
 export const DEV_LABELLED_CHECKPOINTS = 1000
 
-type Entry = { checkpoint: Omit<KitCheckpoint, 'available'>; lineage: number; snapshot: ArrayBuffer; blobs: ArrayBuffer }
+type Entry = { checkpoint: KitCheckpoint; snapshot: ArrayBuffer; blobs: ArrayBuffer }
 
 /** What a host records itself (`devHost.recordCheckpoint`): its own origin (`save`, `agent`, ...), or `kit` to play the kit's. */
 export type DevCheckpointRecord = { origin: string; label?: string; description?: string; author?: string }
@@ -40,46 +34,18 @@ export function base64(bytes: ArrayBuffer) {
   return btoa(text)
 }
 
-/** How the kit opens its stored replica (UI-R1). */
-export type DevHistoryOptions = {
-  /**
-   * The kit's engine merges a newer file into its stored replica (`@kition/kit-editor`'s
-   * `replicaMergesFile`): it opens with the stored replica whatever its `fileStamp`, so its next
-   * replica continues the same lineage. Off: a stored replica saved under another stamp is not
-   * opened, and the kit's next replica is another lineage.
-   */
-  replicaMergesFile?: boolean
-}
-
 /** The replica, its checkpoints and the view state of every document of one dev-host page load. */
 export class DevHistory {
-  private replicas = new Map<string, StoredReplica & { lineage: number }>()
+  private replicas = new Map<string, StoredReplica>()
   private entries = new Map<string, Entry[]>()
-  private lineages = new Map<string, number>()
   private views = new Map<string, KitViewState>()
   private nextId = 1
   private lastTime = 0
   /** The clock checkpoints are stamped with (milliseconds since the Unix epoch). */
   now: () => number = () => Date.now()
-  private readonly mergesFile: boolean
 
-  constructor(options: DevHistoryOptions = {}) {
-    this.mergesFile = options.replicaMergesFile === true
-  }
-
-  private lineage(path: string) {
-    return this.lineages.get(path) ?? 0
-  }
-
-  /** A new lineage of `path`'s replica: every checkpoint before it is no longer reached. */
-  private newLineage(path: string) {
-    const next = this.lineage(path) + 1
-    this.lineages.set(path, next)
-    return next
-  }
-
-  private view(path: string, entry: Entry): KitCheckpoint {
-    return { ...entry.checkpoint, available: entry.lineage === this.lineage(path) && this.replicas.has(path) }
+  private view(entry: Entry): KitCheckpoint {
+    return { ...entry.checkpoint }
   }
 
   private time() {
@@ -88,10 +54,9 @@ export class DevHistory {
     return this.lastTime
   }
 
-  /** The file at `path` was opened alone (or replaced): its replica is dropped and its checkpoints are no longer reached. */
+  /** The file at `path` was opened alone (or replaced): its replica is dropped; its checkpoints keep their states. */
   forget(path: string) {
     this.replicas.delete(path)
-    this.newLineage(path)
   }
 
   /** The stored replica of `path`, or `null`. */
@@ -102,7 +67,7 @@ export class DevHistory {
 
   /** Every checkpoint of `path`, newest first. */
   checkpoints(path: string): KitCheckpoint[] {
-    return [...(this.entries.get(path) ?? [])].reverse().map((entry) => this.view(path, entry))
+    return [...(this.entries.get(path) ?? [])].reverse().map((entry) => this.view(entry))
   }
 
   /** The view state kept for `path` (`{ state: null }`: none). */
@@ -123,14 +88,14 @@ export class DevHistory {
     const list = this.entries.get(path) ?? []
     this.entries.set(path, list)
     const newest = list[list.length - 1]
-    if (newest && newest.lineage === stored.lineage && newest.checkpoint.version === version) {
+    if (newest && newest.checkpoint.version === version) {
       if (request.label) {
         newest.checkpoint = { ...newest.checkpoint, origin: request.origin, label: request.label, ...(request.description !== undefined ? { description: request.description } : {}) }
         if (!newest.checkpoint.description) delete newest.checkpoint.description
       }
-      return this.view(path, newest)
+      return this.view(newest)
     }
-    const checkpoint: Entry['checkpoint'] = {
+    const checkpoint: KitCheckpoint = {
       id: `dev-checkpoint-${this.nextId++}`,
       time: this.time(),
       origin: request.origin,
@@ -139,9 +104,9 @@ export class DevHistory {
       ...(request.description ? { description: request.description } : {}),
       version,
     }
-    list.push({ checkpoint, lineage: stored.lineage, snapshot: stored.snapshot.slice(0), blobs: stored.blobs.slice(0) })
+    list.push({ checkpoint, snapshot: stored.snapshot.slice(0), blobs: stored.blobs.slice(0) })
     this.thin(list)
-    return this.view(path, list[list.length - 1]!)
+    return this.view(list[list.length - 1]!)
   }
 
   /** Drops the oldest unlabelled checkpoints over their limit, and the oldest labelled ones over theirs. */
@@ -158,16 +123,11 @@ export class DevHistory {
   }
 
   /**
-   * The `mountKit` handlers of one open document. `replicaRead` answers the stored replica whatever
-   * its `fileStamp`: the kit decides (UI-R1). `stamp` is the file's stamp when it opened: a kit that
-   * merges a newer file into its stored replica (`replicaMergesFile`) opens with it anyway and
-   * continues its lineage; any other opens with it only when it was saved under `stamp`, so
-   * otherwise its first replica write starts a new lineage. A checkpoint is recorded at the
-   * `version` the replica write carries (UI-R6).
+   * The `mountKit` handlers of a document. `replicaRead` answers the stored replica whatever its
+   * `fileStamp` (UI-R1). A checkpoint keeps the write's snapshot and blobs, at the `version` the
+   * write carries (UI-R6).
    */
-  handlers(path: string, stamp: string): Required<Pick<KitHostHandlers, 'replicaRead' | 'replicaWrite' | 'checkpoints' | 'viewState'>> {
-    const stored = this.replicas.get(path)
-    let continues = Boolean(stored && (this.mergesFile || stored.fileStamp === stamp))
+  handlers(): Required<Pick<KitHostHandlers, 'replicaRead' | 'replicaWrite' | 'checkpoints' | 'viewState'>> {
     const entry = (wanted: string, id: string) => {
       const found = (this.entries.get(wanted) ?? []).find((candidate) => candidate.checkpoint.id === id)
       // mountKit found it a moment ago: gone now is someone else's change.
@@ -177,9 +137,7 @@ export class DevHistory {
     return {
       replicaRead: ({ path: wanted }) => this.replica(wanted),
       replicaWrite: ({ path: wanted, snapshot, blobs, fileStamp, version, checkpoint }) => {
-        const lineage = wanted !== path || continues ? this.lineage(wanted) : this.newLineage(wanted)
-        if (wanted === path) continues = true
-        this.replicas.set(wanted, { snapshot: snapshot.slice(0), blobs: blobs.slice(0), fileStamp, lineage })
+        this.replicas.set(wanted, { snapshot: snapshot.slice(0), blobs: blobs.slice(0), fileStamp })
         if (!checkpoint) return
         const recorded = this.record(wanted, base64(version), { ...checkpoint, origin: KIT_CHECKPOINT_ORIGIN })
         return recorded ? { checkpoint: recorded } : {}
@@ -187,7 +145,7 @@ export class DevHistory {
       checkpoints: {
         find: ({ path: wanted, id }) => {
           const found = (this.entries.get(wanted) ?? []).find((candidate) => candidate.checkpoint.id === id)
-          return found ? this.view(wanted, found) : null
+          return found ? this.view(found) : null
         },
         list: ({ path: wanted, labelled, before, limit }) => {
           let all = this.checkpoints(wanted)
@@ -208,16 +166,16 @@ export class DevHistory {
           if (!next.label) delete next.label
           if (!next.description) delete next.description
           found.checkpoint = next
-          return { checkpoint: this.view(wanted, found) }
+          return { checkpoint: this.view(found) }
         },
         delete: ({ path: wanted, id }) => {
           const found = entry(wanted, id)
           const list = this.entries.get(wanted)!
           list.splice(list.indexOf(found), 1)
         },
-        read: ({ path: wanted, id, state }) => {
+        read: ({ path: wanted, id }) => {
           const found = entry(wanted, id)
-          return { checkpoint: this.view(wanted, found), blobs: found.blobs.slice(0), ...(state ? { snapshot: found.snapshot.slice(0) } : {}) }
+          return { checkpoint: this.view(found), blobs: found.blobs.slice(0), snapshot: found.snapshot.slice(0) }
         },
       },
       viewState: {

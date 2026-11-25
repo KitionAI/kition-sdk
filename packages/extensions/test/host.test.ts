@@ -1,56 +1,54 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { parseSchema, person, Replica, Version, type Origin } from '@kition/kdm'
+import { parseSchema, type Origin } from '@kition/kdm'
 import type { ModelPort } from '@kition/script'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ExtensionHost, RpcPeer, type ExtensionNotice, type SandboxFactory } from '../src/index'
 import { startRuntime } from '../src/runtime/index'
+import { FakeKitModel } from '../../script/test/fakeKitModel'
 
 const schema = parseSchema(readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/test-schema.json', import.meta.url)), 'utf8'))
 
-/** A kit engine stand-in (the test schema: a page with a title and shapes) with two commands. */
+/** A kit engine stand-in (the test schema: a page with a title and shapes) that answers the object model, with two commands. */
 function fakeKit(options: { readOnly?: boolean } = {}) {
-  const replica = Replica.create(schema, '01920000-0000-7000-8000-0000000000cc', 7n)
-  replica.transact(person('user:a'), (tx) => {
-    tx.create('Page', { title: 'quarterly review' }, { id: 'page' })
-  })
-  const listeners = new Set<(version: Uint8Array | null) => void>()
   const ran: Array<{ id: string; origin: Origin }> = []
-  const imports: number[] = []
-  const port: ModelPort = {
-    kitId: 'kit.test',
-    exportChanges: async (since) => replica.exportChanges(since.byteLength ? Version.decode(since) : Version.empty()),
-    importChanges: async (changes) => {
-      imports.push(changes.byteLength)
-      replica.importChanges(changes)
-      for (const listener of listeners) listener(replica.version().encode())
-    },
-    command: async (id, _params, origin) => {
+  const commands = [
+    { id: 'page.shout', title: 'Shout', mutates: true, enabled: true },
+    { id: 'page.count', title: 'Count', mutates: false, enabled: true },
+  ]
+  const replica = new FakeKitModel(schema, 'page', { title: 'quarterly review' }, {
+    readOnly: options.readOnly,
+    commands,
+    command: (id, _params, origin, kit) => {
       ran.push({ id, origin })
       if (id === 'page.shout') {
-        replica.transact(origin, (tx) => tx.set('page', 'title', String(replica.get('page', 'title')).toUpperCase()))
+        kit.set('page', 'title', String(kit.get('page', 'title')).toUpperCase())
         return { shouted: true }
       }
-      if (id === 'page.count') return { shapes: replica.list('page', 'shapes').length }
+      if (id === 'page.count') return { shapes: kit.list('page', 'shapes').length }
       throw new Error(`unknown command \`${id}\``)
     },
-    commands: async () => [
-      { id: 'page.shout', title: 'Shout', mutates: true, enabled: true },
-      { id: 'page.count', title: 'Count', mutates: false, enabled: true },
-    ],
-    readOnly: () => options.readOnly ?? false,
-    onChanged: (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
+  })
+  // Every batch that wrote to the document.
+  const writes: number[] = []
+  const port: ModelPort = {
+    kitId: 'kit.test',
+    commands: async () => commands,
+    onChanged: (listener) => replica.onChanged(listener),
+    model: {
+      describe: async () => replica.describe(),
+      batch: async (request) => {
+        const before = replica.version()[3]
+        const result = await replica.batch(request)
+        if (replica.version()[3] !== before) writes.push(request.ops?.length ?? 0)
+        return { ...result, version: replica.version() }
+      },
     },
   }
   /** A person's edit in the editor. */
-  const personEdit = (title: string) => {
-    replica.transact(person('user:a'), (tx) => tx.set('page', 'title', title))
-    for (const listener of listeners) listener(replica.version().encode())
-  }
-  return { replica, port, ran, imports, personEdit, title: () => replica.get('page', 'title') }
+  const personEdit = (title: string) => replica.edit((kit) => kit.set('page', 'title', title))
+  return { replica, port, ran, writes, personEdit, title: () => replica.get('page', 'title') }
 }
 
 const cleanups: Array<() => void> = []
@@ -140,7 +138,7 @@ describe('ExtensionHost', () => {
     expect(host.commandsFor('Slide.test')[0]).toMatchObject({ extension: 'com.example.titles', extensionName: 'Titles', title: 'Capitalize the title' })
     await expect(host.runCommand('Slide.test', 'com.example.titles', 'titles.capitalize')).resolves.toBe('Quarterly Review')
     expect(kit.title()).toBe('Quarterly Review')
-    expect(kit.imports.length).toBeGreaterThan(0)
+    expect(kit.writes.length).toBeGreaterThan(0)
     expect(started).toEqual([{ id: 'com.example.titles', connect: "'none'", disposed: false }])
     expect(notices).toEqual([{ extension: 'com.example.titles', level: 'info', title: 'Titles is ready' }])
   })
@@ -154,7 +152,7 @@ describe('ExtensionHost', () => {
     await expect(refused).rejects.toMatchObject({ code: 'permission-denied' })
     await expect(refused).rejects.toThrow(/model\.write/)
     expect(kit.title()).toBe('quarterly review')
-    expect(kit.imports).toEqual([])
+    expect(kit.writes).toEqual([])
   })
 
   it('needs commands.run for commands, and model.write too for a command that mutates', async () => {

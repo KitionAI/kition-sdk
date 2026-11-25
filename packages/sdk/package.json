@@ -21,8 +21,6 @@
     "embed",
     "editor",
     "kdm",
-    "crdt",
-    "collaboration",
     "ai-agents"
   ],
   "files": [
@@ -31,9 +29,6 @@
   "scripts": {
     "build": "node ../../tools/build-sdk.mjs",
     "prepack": "pnpm run build"
-  },
-  "dependencies": {
-    "loro-crdt": "1.16.4"
   },
   "peerDependencies": {
     "@kition/tessera": "^0.1.0",
@@ -75,10 +70,6 @@
     "./sync": {
       "types": "./dist/types/sync/src/index.d.ts",
       "import": "./dist/lib/sync/index.js"
-    },
-    "./sync/replicaVersions": {
-      "types": "./dist/types/sync/src/replicaVersions.d.ts",
-      "import": "./dist/lib/sync/replicaVersions.js"
     },
     "./sync/openToken": {
       "types": "./dist/types/sync/src/openToken.d.ts",
@@ -191,10 +182,6 @@
       "types": "./dist/types/kit-editor/src/workspaceTree.d.ts",
       "import": "./dist/lib/kit-editor/workspaceTree.js"
     },
-    "./engine": {
-      "types": "./dist/types/kit-engine/src/index.d.ts",
-      "import": "./dist/lib/kit-engine/index.js"
-    },
     "./host": {
       "types": "./dist/types/kit-host/src/index.d.ts",
       "import": "./dist/lib/kit-host/index.js"
@@ -226,14 +213,6 @@
     "./protocol": {
       "types": "./dist/types/kit-ui-protocol/src/index.d.ts",
       "import": "./dist/lib/kit-ui-protocol/index.js"
-    },
-    "./convergence": {
-      "types": "./dist/types/convergence/src/index.d.ts",
-      "import": "./dist/lib/convergence/index.js"
-    },
-    "./convergence/node": {
-      "types": "./dist/types/convergence/src/node.d.ts",
-      "import": "./dist/lib/convergence/node.js"
     }
   },
   "sideEffects": [

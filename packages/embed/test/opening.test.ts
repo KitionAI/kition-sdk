@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { KitRpcError, type MountOptions } from '@kition/kit-host'
 import { createHandlers, type DocumentFiles } from '../src/handlers'
 import { mountEmbed } from '../src/mount'
-import { memoryReplicaStore } from '../src/replicaStore'
 import type { EmbedOptions, StorageProvider } from '../src/types'
 import { fakeKit } from './fakeKit'
 import { memoryStorage } from './memoryStorage'
@@ -108,7 +107,7 @@ describe('the mounted editor', () => {
     const kit = fakeKit()
     const mountKit = vi.fn(kit.mountKit)
     const options: EmbedOptions = { kit: { id: 'kit.note', url: 'https://kits.example.com/note-ui' }, file: { id: 'f1', name: 'Notes.md' }, storage: memoryStorage({ f1: 'hello' }).storage, ...overrides }
-    const editor = mountEmbed(element, options, { mountKit, replicaStore: memoryReplicaStore })
+    const editor = mountEmbed(element, options, { mountKit })
     return { editor, mounted: () => mountKit.mock.calls.at(-1)![1] as MountOptions }
   }
 
@@ -138,7 +137,7 @@ describe('the mounted editor', () => {
     document.body.append(element)
     const kit = fakeKit('kit.note', ['ai', 'replica', 'comment-anchors'])
     const activated = vi.fn()
-    const editor = await mountEmbed(element, { kit: { id: 'kit.note', url: 'https://kits.example.com/note-ui' }, file: { id: 'f1', name: 'Notes.md' }, storage: memoryStorage({ f1: 'hello' }).storage, comments: { activated } }, { mountKit: kit.mountKit, replicaStore: memoryReplicaStore })
+    const editor = await mountEmbed(element, { kit: { id: 'kit.note', url: 'https://kits.example.com/note-ui' }, file: { id: 'f1', name: 'Notes.md' }, storage: memoryStorage({ f1: 'hello' }).storage, comments: { activated } }, { mountKit: kit.mountKit })
     const thread = { id: 't1', anchor: { ids: ['p1'], quote: 'hello' }, resolved: false, count: 2 }
     // Shown while the kit opens: sent once it has. Every kit the editor opens (again, after a
     // reconnect or a role change) opens through the same path, so it marks the latest list too.

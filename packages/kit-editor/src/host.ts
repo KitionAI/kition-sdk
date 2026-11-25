@@ -217,7 +217,7 @@ export function connectHost(kit: { id: string; version: string; capabilities?: s
                 delete: async (path, id) => {
                   await peer.request('host/checkpointDelete', { path, id })
                 },
-                read: (path, id, options = {}) => peer.request('host/checkpointRead', { path, id, ...(options.state ? { state: true } : {}) }),
+                read: (path, id) => peer.request('host/checkpointRead', { path, id }),
               }
             }
           }

@@ -31,7 +31,6 @@ const packed = () => ({
   files: ['dist'],
   // A script that fails: the copy is packed without running it.
   scripts: { build: 'node ../../tools/build-sdk.mjs', prepack: 'exit 1' },
-  dependencies: { 'loro-crdt': '1.16.4' },
   peerDependencies: { '@kition/tessera': '^0.1.0', react: '>=19', 'react-dom': '>=19' },
   peerDependenciesMeta: { '@kition/tessera': { optional: true }, react: { optional: true }, 'react-dom': { optional: true } },
   exports: { './embed': { types: './dist/embed.d.ts', import: './dist/embed.js' } },
@@ -496,8 +495,8 @@ describe('release.yml: the one path of a rehearsal and of the real release', () 
     expect(runs(workflow.jobs.target)).toContain('if [ "$REAL" != true ] || ! state=$(gh release view')
   })
 
-  it('publishes neither the twelve library packages nor the frozen DeepSeek Harness plugin', () => {
-    for (const name of ['kdm', 'kit-ui-protocol', 'embed', 'kit-engine', 'sync', 'convergence', 'script', 'extensions', 'embed-server', 'kit-host', 'kit-dev-host', 'kit-editor']) {
+  it('publishes neither the ten library packages nor the frozen DeepSeek Harness plugin', () => {
+    for (const name of ['kdm', 'kit-ui-protocol', 'embed', 'sync', 'script', 'extensions', 'embed-server', 'kit-host', 'kit-dev-host', 'kit-editor']) {
       expect(text, name).not.toContain(`target/npm-pack/${name}.tgz`)
     }
     expect(text).not.toMatch(/pack-public-packages\.mjs\s*$/m)

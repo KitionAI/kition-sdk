@@ -10,7 +10,6 @@ steps:
   - cargo-test: { package: kition-kdm, test: nested_text }
   - cargo-test: { package: kition-kits, test: premise_guard, filter: nested_raw_text_paths_ }
   - cargo-test: { package: kition-kits, test: premise_guard, filter: nested_raw_text_paths_, env: { KITION_TEST_READER: editor } }
-  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/nested-text.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

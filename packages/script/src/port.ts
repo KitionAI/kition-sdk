@@ -1,4 +1,4 @@
-import type { BatchRequest, BatchResult, Origin, ProjectedObject } from '@kition/kdm'
+import type { BatchRequest, BatchResult } from '@kition/kdm'
 
 /** One kit command as a kit's catalogue lists it. */
 export type KitCommandInfo = {
@@ -18,15 +18,13 @@ export type KitCommandInfo = {
 
 /** The document was written to its file or storage: the storage's new version, or the file it went to. */
 export type SavedEvent = { version: string | null; uri?: string }
-/** The people in the document's collaboration room, this person included, as the host knows them. */
-export type PresenceEvent = { peers: ReadonlyArray<Record<string, unknown>> }
 /** A save was refused because the file changed elsewhere since it was read: nothing was overwritten. */
 export type ConflictEvent = { message: string }
 /** The objects the person selected in the kit's editor, as KDM object ids. */
 export type SelectionEvent = { ids: string[] }
 
 /** The document events a source reports besides `changed`, and what each carries. */
-export type DocumentEvents = { saved: SavedEvent; presence: PresenceEvent; conflict: ConflictEvent; selection: SelectionEvent }
+export type DocumentEvents = { saved: SavedEvent; conflict: ConflictEvent; selection: SelectionEvent }
 export type DocumentEventName = keyof DocumentEvents
 
 /** The events a source reports: which (`events`), and how to hear one (`on`). */
@@ -38,34 +36,17 @@ export interface DocumentEventSource {
 }
 
 /**
- * A contract 2 document as the object model reaches it: the engine's change exchange and its
- * commands. Every kit editor (`KitConnection` with the `replica` capability), every kit engine
- * (`exportChanges`, `importChanges`, `executeAs`), and an `@kition/embed` editor give one.
+ * A document as the object model reaches it: a kit that answers the object model itself (`model`),
+ * and its commands. A kit editor whose connection has the `model` capability, a kit engine with
+ * `modelDescribe` and `modelBatch`, and an `@kition/embed` editor give one.
  */
 export interface ModelPort extends DocumentEventSource {
   readonly kitId: string
-  /** The engine's changes since the encoded version `since`; empty bytes ask for every change. */
-  exportChanges(since: Uint8Array): Promise<Uint8Array>
-  /** Hands the engine changes made elsewhere; it takes them as a collaborator's. */
-  importChanges(changes: Uint8Array): Promise<void>
-  /** Runs a command; answers its result. */
-  command(id: string, params: unknown, origin: Origin): Promise<unknown>
   commands(): Promise<KitCommandInfo[]>
-  /** Whether the document refuses edits. */
-  readOnly?(): boolean
-  /** Hears the engine's replica move (its version when known). */
+  /** Hears the kit's document move (its version when known). */
   onChanged?(listener: (version: Uint8Array | null) => void): () => void
-  /**
-   * The objects the kit derives from the document instead of storing them (schema types marked
-   * `projected`), as the kit reads them now. A batch on a schema that declares such types needs it.
-   */
-  projectedObjects?(): Promise<ProjectedObject[]>
-  /**
-   * The object model answered by the kit itself (the Kit UI capability `model`), when it does: a
-   * batch is then one undo step of the person's history. `openDocument` prefers it to running
-   * the batch on its own replica.
-   */
-  model?: KitModel
+  /** The kit's object model: each batch is one undo step of the person's history. */
+  model: KitModel
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * One person, no sync server: the page's own storage behind the embedded Note editor, served from
+ * One person: the page's own storage behind the embedded Note editor, served from
  * another origin. Open, edit, save, reopen; a script through the object model; and view mode
  * refuses edits.
  */

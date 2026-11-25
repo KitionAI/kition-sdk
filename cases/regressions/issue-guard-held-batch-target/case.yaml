@@ -16,7 +16,6 @@ steps:
   - exec: { cmd: [cargo, build, -p, kition-kit-mock] }
   - cargo-test: { package: kition-kits, test: premise_guard, filter: nested_holder_receipts_replay_as_batch_targets }
   - cargo-test: { package: kition-kdm, test: tool_ids }
-  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/tool-ids.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-21"

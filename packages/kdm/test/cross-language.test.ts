@@ -1,201 +1,157 @@
-/// <reference types="node" />
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { LoroDoc } from 'loro-crdt'
+/**
+ * Rust writes, TypeScript reads (plan 2026-11-24, sections 4 and 9.2): the content fixtures and
+ * the change-list fixture under `crates/kition-kdm/tests/fixtures/content/`, which
+ * `crates/kition-kdm/tests/cross_language.rs` and `tests/content.rs` check are what the Rust KDM
+ * writes, read here to the same canonical state.
+ */
 import { describe, expect, it } from 'vitest'
-import { decodeOrigin, newDocId, Replica, system, Version } from '../src/index'
-import { crateFixture, me, reasonOf, testSchema, tsPage } from './helpers'
+import { canonicalText, Replica, Version } from '../src/index'
+import { bytes, contentFixture, contentSchema, contentText, reasonOf } from './fixtures'
 
-/** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures`; never regenerated to make a test pass. */
-const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)))
+/** A state fixture in canonical text, as the Rust `state_json().to_string()` writes it. */
+const stateText = (name: string) => canonicalText(JSON.parse(contentText(name)))
 
-describe('documents made by the Rust KDM', () => {
-  it('open to the identical canonical state', () => {
-    const replica = Replica.load(testSchema(), fixture('rust-page.bin'), 9n)
-    expect(replica.docId).toBe('01920000-0000-7000-8000-000000000001')
-    expect(replica.stateText()).toBe(fixture('rust-page.json').toString('utf8'))
-  })
+const START = 'changes-start.content.json'
+const start = () => Replica.load(contentSchema(), contentFixture(START))
 
-  it('read the same through every accessor', () => {
-    const replica = Replica.load(testSchema(), fixture('rust-page.bin'), 9n)
-    const [page] = replica.objectsOfType('Page')
-    const [a, b] = replica.list(page, 'shapes')
-    expect(replica.get(page, 'title')).toBe('Fixture 页面')
-    expect(replica.text(a, 'label')).toBe('季度😀回顾')
-    expect(replica.textLength(a, 'label')).toBe(6)
-    expect(replica.get(a, 'x')).toBe(12.5)
-    expect(replica.get(b, 'transform')).toEqual({ rotate: 90, scale: [1, 2] })
-    const tree = replica.tree(page, 'outline')
-    expect(tree.map((entry) => entry.object)).toEqual([a, b])
-    expect(tree[1].parent?.equals(tree[0].node)).toBe(true)
-  })
+/** The change-list fixture as JSON, to vary for the refusals. */
+const changeList = () => JSON.parse(contentText('changes.json'))
+const encode = (value: unknown) => bytes(JSON.stringify(value))
 
-  it('keep converging when edited from TypeScript', () => {
-    const a = Replica.load(testSchema(), fixture('rust-page.bin'), 10n)
-    const b = Replica.load(testSchema(), fixture('rust-page.bin'), 11n)
-    const shape = a.objectsOfType('Shape')[0]
-    a.transact(me, (tx) => tx.textInsert(shape, 'label', 0, 'TS:'))
-    b.transact(me, (tx) => tx.set(shape, 'x', 1.25))
-    a.importChanges(b.exportChanges(a.version()))
-    b.importChanges(a.exportChanges(b.version()))
-    expect(a.stateText()).toBe(b.stateText())
-    expect(a.text(shape, 'label')).toMatch(/^TS:/)
-    expect(a.get(shape, 'x')).toBe(1.25)
-  })
-})
-
-describe('documents made by the TypeScript KDM for the Rust crate', () => {
-  /** `crates/kition-kdm/tests/cross_language.rs` checks the same pair from Rust. */
-  it('reload to the canonical state written next to them', () => {
-    const bytes = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-page.bin', import.meta.url)))
-    expect(Replica.load(testSchema(), bytes, 9n).stateText()).toBe(crateFixture('ts-page.json'))
-  })
-
-  it('are built with the awkward values the fixture is meant to hold', () => {
-    const text = tsPage().stateText()
-    for (const part of ['"x":1e+16', '"y":9100000000000000.0', '"x":0', '"z":1e-6', '"￿":2', '"😀":1', '"label":"😀b季"', 'a\ufffd"']) expect(text).toContain(part)
-  })
-})
-
-describe('shallow snapshots across the two implementations', () => {
-  /** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures shallow`. */
-  it('open a Rust-made shallow snapshot to the identical canonical state', () => {
-    const replica = Replica.load(testSchema(), fixture('rust-shallow.bin'), 9n)
-    expect(replica.isShallow()).toBe(true)
-    expect(replica.docId).toBe('01920000-0000-7000-8000-000000000001')
-    expect(replica.stateText()).toBe(fixture('rust-shallow.json').toString('utf8'))
-  })
-
-  it('keep a Rust-made shallow replica converging when edited from TypeScript', () => {
-    const a = Replica.load(testSchema(), fixture('rust-shallow.bin'), 10n)
-    const b = Replica.load(testSchema(), fixture('rust-shallow.bin'), 11n)
-    const shape = a.objectsOfType('Shape')[0]
-    a.transact(me, (tx) => tx.textInsert(shape, 'label', 0, 'TS:'))
-    b.transact(me, (tx) => tx.set(shape, 'x', 1.25))
-    a.importChanges(b.exportChanges(a.version()))
-    b.importChanges(a.exportChanges(b.version()))
-    expect(a.stateText()).toBe(b.stateText())
-    expect(a.text(shape, 'label')).toMatch(/^TS:after root/)
-  })
-
-  /** `crates/kition-kdm/tests/cross_language.rs` checks the same pair from Rust. */
-  it('write a TypeScript-made shallow snapshot that reloads to the canonical state next to it', () => {
-    const bytes = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-shallow.bin', import.meta.url)))
-    const replica = Replica.load(testSchema(), bytes, 9n)
-    expect(replica.isShallow()).toBe(true)
-    expect(replica.stateText()).toBe(crateFixture('ts-shallow.json'))
-  })
-})
-
-describe('copies as new documents across the two implementations', () => {
-  const objects = (replica: Replica): unknown => (replica.stateJson() as { objects: unknown }).objects
-
-  /** Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures new-document`: `rust-page.bin` copied. */
-  it('open a Rust-made copy as the new document with the same content', () => {
-    const copy = Replica.load(testSchema(), fixture('rust-new-document.bin'), 9n)
-    const source = Replica.load(testSchema(), fixture('rust-page.bin'), 10n)
-    expect(copy.docId).toBe('01920000-0000-7000-8000-000000000002')
-    expect(copy.isShallow()).toBe(true)
-    expect(copy.stateText()).toBe(fixture('rust-new-document.json').toString('utf8'))
-    expect(objects(copy)).toEqual(objects(source))
-    expect(reasonOf(() => copy.rebase(fixture('rust-page.bin')))).toBe('wrong-document')
-    expect(reasonOf(() => source.importChanges(copy.exportChanges(source.version())))).toBe('wrong-document')
-  })
-
-  /** `crates/kition-kdm/tests/cross_language.rs` checks the same pair from Rust. */
-  it('write a TypeScript-made copy that reloads to the canonical state next to it', () => {
-    const bytes = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-new-document.bin', import.meta.url)))
-    const copy = Replica.load(testSchema(), bytes, 9n)
-    expect(copy.docId).toBe('01920000-0000-7000-8000-0000000000ab')
-    expect(copy.stateText()).toBe(crateFixture('ts-new-document.json'))
-    expect(objects(copy)).toEqual(objects(Replica.load(testSchema(), readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-page.bin', import.meta.url))), 10n)))
-  })
-  /**
-   * regressions/issue-kdm-shallow-export: written by `cargo run -p kition-kdm --example write-fixture --
-   * packages/kdm/test/fixtures shallow-export`: the committed `rust-new-document.bin` with its page
-   * retitled, as the Rust KDM exports every change (`export_changes(&Version::empty())`).
-   */
-  /**
-   * Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures birth`:
-   * `rust-page.bin` copied and retitled, as its snapshot and as a shallow snapshot at its last
-   * version. Both implementations read the same birth (sync protocol S20); the Rust
-   * `a_typescript_copy_carries_its_whole_history_and_its_truncation_does_not` checks the TypeScript pair.
-   */
-  it('read the birth of a Rust-made copy: its snapshot carries the whole history, its truncation does not', () => {
-    const born = Replica.load(testSchema(), fixture('rust-birth.bin'), 14n)
-    const truncated = Replica.load(testSchema(), fixture('rust-birth-truncated.bin'), 15n)
-    for (const replica of [born, truncated]) {
-      expect(replica.docId).toBe('01920000-0000-7000-8000-000000000003')
-      expect(replica.isShallow()).toBe(true)
-      expect(replica.get(replica.objectsOfType('Page')[0] as string, 'title')).toBe('Born page')
-    }
-    expect(born.carriesWholeHistory()).toBe(true)
-    expect(truncated.carriesWholeHistory()).toBe(false)
-    expect(born.copyAsNewDocument(newDocId(), 16n).carriesWholeHistory()).toBe(true)
-  })
-
-  it("open a Rust-made shallow replica's export of every change as the document", () => {
-    const exported = Replica.load(testSchema(), fixture('rust-shallow-export.bin'), 11n)
-    const copy = Replica.load(testSchema(), fixture('rust-new-document.bin'), 12n)
-    expect(exported.docId).toBe('01920000-0000-7000-8000-000000000002')
-    expect(exported.isShallow()).toBe(true)
-    expect(exported.shallowRoot()?.equals(copy.shallowRoot() as Version)).toBe(true)
-    expect(exported.stateText()).toBe(fixture('rust-shallow-export.json').toString('utf8'))
-    expect(exported.get(exported.objectsOfType('Page')[0] as string, 'title')).toBe('Forked page')
-    const again = Replica.load(testSchema(), exported.exportChanges(), 13n)
-    expect(again.stateText()).toBe(exported.stateText())
-  })
-})
-
-describe('content snapshots across the two implementations', () => {
-  const NEEDLES = ['Jx4Hb8Ty3Nc6', 'Ug5Le1Fo0Dw4', 'Hs6Pn2Dc9Lx', 'Ty5Ga1Ve7Oj', 'Mz8Cu4Ki0Ef', 'Rb2Wn6Xs3Ip']
-
-  /** The commit messages of the changes a KDM export holds, read through the engine. */
-  const messages = (bytes: Uint8Array): string[] => {
-    const doc = new LoroDoc()
-    try {
-      doc.import(bytes.subarray(20))
-      return [...doc.getAllChanges().values()].flat().map((change) => change.message ?? '')
-    } finally {
-      doc.free()
-    }
+describe('content the Rust KDM writes', () => {
+  for (const name of ['empty', 'board', 'numbers', 'keys', 'snapshot']) {
+    it(`reads ${name} to its canonical state`, () => {
+      const replica = Replica.load(contentSchema(), contentFixture(`${name}.content.json`))
+      expect(replica.stateText()).toBe(stateText(`${name}.state.json`))
+    })
   }
 
-  /**
-   * Written by `cargo run -p kition-kdm --example write-fixture -- packages/kdm/test/fixtures content`:
-   * `rust-page.bin` edited by two replicas (text typed and deleted, a title overwritten), merged, as
-   * its content snapshot. The Rust `a_typescript_content_snapshot_opens_as_the_document_with_no_history`
-   * checks the TypeScript-made `ts-content.*` the same way.
-   */
-  it('open a Rust-made content snapshot as the document, with no history but its seal', () => {
-    const bytes = fixture('rust-content.bin')
-    const file = Replica.load(testSchema(), bytes, 19n)
-    expect(file.docId).toBe('01920000-0000-7000-8000-000000000001')
-    expect(file.isShallow()).toBe(true)
-    expect(file.stateText()).toBe(fixture('rust-content.json').toString('utf8'))
-    for (const needle of NEEDLES) expect(bytes.includes(Buffer.from(needle)), needle).toBe(false)
-    const held = messages(bytes)
-    expect(held).toHaveLength(1)
-    expect(decodeOrigin(held[0])).toEqual(system('content-seal'))
-    expect(file.isSealed()).toBe(true)
-    expect(file.carriesWholeHistory()).toBe(false)
-    const other = Replica.load(testSchema(), bytes, 20n)
-    const shape = file.objectsOfType('Shape')[0] as string
-    file.transact(me, (tx) => tx.textInsert(shape, 'label', 0, 'TS:'))
-    other.transact(me, (tx) => tx.set(shape, 'x', 3))
-    other.importChanges(file.exportChanges(other.version()))
-    file.importChanges(other.exportChanges(file.version()))
-    expect(file.stateText()).toBe(other.stateText())
-    expect(file.rebirth()).toBe(true)
-    expect(Replica.snapshotCarriesWholeHistory(file.contentSnapshot())).toBe(true)
+  it('reads a snapshot with its version, and content with none', () => {
+    const snapshot = Replica.load(contentSchema(), contentFixture('snapshot.content.json'))
+    expect(snapshot.version().lineage).toBe('0193a5c4-0000-7000-8000-0000000000ff')
+    expect(snapshot.version().seq).toBe(42)
+    expect(Replica.load(contentSchema(), contentFixture('empty.content.json')).version().equals(Version.empty())).toBe(true)
   })
 
-  /** `crates/kition-kdm/tests/cross_language.rs` checks the same file from Rust. */
-  it('write a TypeScript-made content snapshot that reloads to the canonical state next to it, with no history but its seal', () => {
-    const bytes = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/ts-content.bin', import.meta.url)))
-    const file = Replica.load(testSchema(), bytes, 21n)
-    expect(file.stateText()).toBe(crateFixture('ts-content.json'))
-    for (const needle of NEEDLES) expect(bytes.includes(Buffer.from(needle)), needle).toBe(false)
-    expect(messages(bytes).map((message) => decodeOrigin(message))).toEqual([system('content-seal')])
+  it('reads text positions as UTF-16 where it answers them', () => {
+    const replica = Replica.load(contentSchema(), contentFixture('keys.content.json'))
+    expect(replica.textDelta('Z9', 'body')).toEqual([{ insert: '😀 ' }, { insert: 'bold 𝄞', attributes: { bold: true } }])
+    expect(replica.textLength('Z9', 'body')).toBe('😀 bold 𝄞'.length)
+    expect(replica.mapEntries('a0', 'vars').map(([key]) => key)).toEqual(['B', '_', 'a', 'é', 'ｚ', '😀'])
+  })
+})
+
+describe('changes the Rust KDM exports', () => {
+  it('start from the snapshot the Rust test starts from', () => {
+    expect(start().stateText()).toBe(stateText('changes-start.state.json'))
+  })
+
+  it('apply every kind of operation to the state Rust reaches', () => {
+    const replica = start()
+    expect(replica.importChanges(contentFixture('changes.json'))).toEqual([
+      '0193a5c4-0000-7000-8000-0000000000a1',
+      '0193a5c4-0000-7000-8000-0000000000b1',
+      '0193a5c4-0000-7000-8000-0000000000b2',
+      '0193a5c4-0000-7000-8000-0000000000c1',
+    ])
+    expect(replica.stateText()).toBe(stateText('changes.state.json'))
+    expect(replica.version().seq).toBe(10)
+    // The deleted node is gone from the tree, and the reads agree with the state.
+    const board = '0193a5c4-0000-7000-8000-0000000000a1'
+    expect(replica.tree(board, 'outline').map((entry) => [entry.object, entry.parent?.id ?? null])).toEqual([['0193a5c4-0000-7000-8000-0000000000b1', null]])
+    expect(replica.exists('0193a5c4-0000-7000-8000-0000000000c1')).toBe(false)
+    expect(replica.text('0193a5c4-0000-7000-8000-0000000000b1', 'body')).toBe('😀there!')
+    expect(replica.text(board, 'notes')).toBe('abc')
+  })
+
+  it('skip the changes a replica has, so importing twice is harmless', () => {
+    const replica = start()
+    replica.importChanges(contentFixture('changes.json'))
+    expect(replica.importChanges(contentFixture('changes.json'))).toEqual([])
+    expect(replica.stateText()).toBe(stateText('changes.state.json'))
+  })
+
+  it('apply in parts, each following the last', () => {
+    const replica = start()
+    const list = changeList()
+    const first = { ...list, changes: list.changes.slice(0, 1) }
+    const rest = { ...list, after: { seq: 8, actor: '0000000000000007' }, changes: list.changes.slice(1) }
+    replica.importChanges(encode(first))
+    expect(replica.version().seq).toBe(8)
+    replica.importChanges(encode(rest))
+    expect(replica.stateText()).toBe(stateText('changes.state.json'))
+  })
+
+  it('are refused, changing nothing, when they follow a version the replica has not reached', () => {
+    const replica = start()
+    const list = changeList()
+    const ahead = { ...list, after: { seq: 8, actor: null }, changes: list.changes.slice(1) }
+    expect(reasonOf(() => replica.importChanges(encode(ahead)))).toBe('stale')
+    const gap = { ...list, changes: list.changes.slice(1) }
+    expect(reasonOf(() => replica.importChanges(encode(gap)))).toBe('stale')
+    expect(replica.stateText()).toBe(stateText('changes-start.state.json'))
+    expect(replica.version().seq).toBe(7)
+  })
+
+  it('are refused whole, changing nothing, when a precondition fails part way', () => {
+    const replica = start()
+    const list = changeList()
+    // The last change removes an item that is not the one at its index.
+    list.changes[2].ops[1].item = '0193a5c4-0000-7000-8000-0000000000b2'
+    expect(() => replica.importChanges(encode(list))).toThrow(/^stale: item 1 of .* is `0193a5c4-0000-7000-8000-0000000000c1`, not the one named$/)
+    expect(replica.stateText()).toBe(stateText('changes-start.state.json'))
+    expect(replica.version().seq).toBe(7)
+    // The same replica then takes the changes as they are.
+    replica.importChanges(contentFixture('changes.json'))
+    expect(replica.stateText()).toBe(stateText('changes.state.json'))
+  })
+
+  it('are refused whole on every precondition the Rust store checks, with its words', () => {
+    // [change, operation, what is changed in it, the refusal]
+    const cases: Array<[number, number, Record<string, unknown>, RegExp]> = [
+      [0, 1, { index: 9 }, /^stale: index 9 is beyond \S+\.pages's 2 items$/],
+      [0, 5, { id: '0193a5c4-0000-7000-8000-0000000000ee' }, /^stale: object `0193a5c4-0000-7000-8000-0000000000ee` does not exist$/],
+      [0, 4, { parent: '0193a5c4-0000-7000-8000-0000000000ee' }, /^stale: no parent node in \S+\.outline$/],
+      [1, 0, { index: 9 }, /^stale: index 9 is beyond \S+\.body's 8 characters$/],
+      [1, 2, { count: 10 }, /^stale: 1\+10 is beyond \S+\.body's 10 characters$/],
+      [1, 3, { end: 9 }, /^stale: 0\.\.9 is not within \S+\.body's 7 characters$/],
+      [2, 0, { to: 3 }, /^stale: index 3 is beyond \S+\.pages's 3 items$/],
+      [2, 2, { parent: '0193a5c4-0000-7000-8000-0000000000c1' }, /^moving that node would create a cycle$/],
+      [2, 2, { op: 'treeDelete', node: '0193a5c4-0000-7000-8000-0000000000b1' }, /^stale: `0193a5c4-0000-7000-8000-0000000000b1` has children in \S+\.outline$/],
+    ]
+    for (const [change, op, patch, message] of cases) {
+      const replica = start()
+      const list = changeList()
+      Object.assign(list.changes[change].ops[op], patch)
+      expect(() => replica.importChanges(encode(list)), message.source).toThrow(message)
+      expect(replica.stateText()).toBe(stateText('changes-start.state.json'))
+    }
+  })
+
+  it('are refused when they belong to another document or another line', () => {
+    const replica = start()
+    expect(reasonOf(() => replica.importChanges(encode({ ...changeList(), docId: '0193a5c4-0000-7000-8000-000000000009' })))).toBe('wrong-document')
+    expect(reasonOf(() => replica.importChanges(encode({ ...changeList(), lineage: '0193a5c4-0000-7000-8000-0000000000aa' })))).toBe('stale')
+    expect(reasonOf(() => replica.importChanges(encode({ ...changeList(), changes: [{ ...changeList().changes[0], actor: 'ffffffffffffffff' }] })))).toBe('encoding')
+    expect(reasonOf(() => replica.importChanges(encode({ ...changeList(), changes: [{ ...changeList().changes[0], ops: [{ op: 'paint' }] }] })))).toBe('encoding')
+    expect(replica.stateText()).toBe(stateText('changes-start.state.json'))
+  })
+
+  it('are refused after a change of the same number that went another way', () => {
+    const replica = start()
+    replica.importChanges(contentFixture('changes.json'))
+    const other = changeList()
+    other.changes[2].actor = '0000000000000008'
+    expect(reasonOf(() => replica.importChanges(encode(other)))).toBe('stale')
+  })
+
+  it('are refused on content, which continues no line, until a snapshot comes', () => {
+    const replica = Replica.load(contentSchema(), bytes(contentText(START).replace(/"version":\{[^}]*\},/, '')))
+    expect(replica.version().isEmpty()).toBe(true)
+    expect(reasonOf(() => replica.importChanges(contentFixture('changes.json')))).toBe('stale')
+    expect(replica.importChanges(contentFixture(START))).toEqual([])
+    expect(replica.version().seq).toBe(7)
+    replica.importChanges(contentFixture('changes.json'))
+    expect(replica.stateText()).toBe(stateText('changes.state.json'))
   })
 })

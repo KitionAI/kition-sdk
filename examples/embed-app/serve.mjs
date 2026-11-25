@@ -19,7 +19,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 import { workspaceFiles } from './workspace.mjs'
-import { syncTokens } from './sync-tokens.mjs'
 
 const { agentRelays } = process.env.EMBED_WORKSPACE ? await import('./agent-relay.mjs') : {}
 
@@ -98,17 +97,16 @@ function serveKits() {
 }
 
 /**
- * The page's own policy (E5): kit frames only from the kit origin; sockets to any sync server the
- * person types (and Vite's own); WebAssembly for the relay's version handling (Loro, inlined in
- * @kition/embed); inline styles for Vite's CSS injection in development.
+ * The page's own policy (E5): kit frames only from the kit origin; Vite's own socket and inline
+ * styles for its CSS injection in development.
  */
 const PAGE_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval'",
+  "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   `frame-src ${kitsOrigin}`,
-  "connect-src 'self' ws: wss:",
+  "connect-src 'self' ws:",
   "object-src 'none'",
   "base-uri 'self'",
 ].join('; ')
@@ -121,8 +119,6 @@ const app = await createServer({
     __WORKSPACE__: JSON.stringify(Boolean(workspace)),
   },
   plugins: [
-    // Per-user sync tokens for co-editing through Kition Server or Kition Cloud (docs/sdk/collab.md), when configured.
-    ...(process.env.KITION_SYNC_EXCHANGE || process.env.KITION_SYNC_TENANT ? [syncTokens()] : []),
     ...(workspace
       ? [
           {

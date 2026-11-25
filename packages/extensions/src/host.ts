@@ -35,6 +35,8 @@ export type HostDocument = {
   path?: string
   /** The document's object model port (`portFromConnection`, `portFromEngine`, …). */
   port: ModelPort
+  /** Whether the document refuses edits (the host opened it read-only); extensions see it as `readOnly`. */
+  readOnly?: () => boolean
   /** The kit's schema when the kit is not registered with `@kition/script` (`registerKit`). */
   schema?: object
 }
@@ -277,7 +279,7 @@ export class ExtensionHost {
   }
 
   private info(document: HostDocument, permissions: readonly string[], model: ModelDocument): DocumentInfo {
-    const readOnly = !hasPermission(permissions, 'model.write') || (document.port.readOnly?.() ?? false)
+    const readOnly = !hasPermission(permissions, 'model.write') || (document.readOnly?.() ?? false)
     const name = document.path?.split('/').pop()
     return { documentId: document.id, kitId: document.kitId, ...(name ? { name } : {}), schema: model.schema as unknown as object, readOnly }
   }

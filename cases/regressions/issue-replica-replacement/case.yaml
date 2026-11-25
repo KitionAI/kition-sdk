@@ -8,7 +8,6 @@ input: []
 steps:
   - cargo-test: { package: kition-kit, test: model, filter: exchange_follows_a_replacement_document, features: [session] }
   - cargo-test: { package: kition-headless, filter: premise_plan_can_replace_its_replica }
-  - exec: { cmd: [pnpm, -s, vitest, run, packages/script/test/replacement.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

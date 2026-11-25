@@ -33,25 +33,5 @@ const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entr
 const declarations = walk(types).filter((name) => name.endsWith('.d.ts'))
 for (const file of declarations) rewrite(file)
 
-/**
- * The KDM's declarations name Loro's types, but the package inlines Loro and its API never hands
- * one out, so it does not depend on `loro-crdt`: those names point at opaque declarations in
- * dist/types/loro-crdt.d.ts instead (Loro's own declarations do not pass `skipLibCheck: false`).
- */
-const loroImport = /import (type )?\{([^}]*)\} from 'loro-crdt';?/g
-const loroNames = new Set()
-for (const file of declarations) {
-  const text = fs.readFileSync(file, 'utf8')
-  const next = text.replace(loroImport, (_, lead, names) => {
-    for (const name of names.split(',')) if (name.trim()) loroNames.add(name.trim().replace(/^type\s+/, ''))
-    let relative = path.relative(path.dirname(file), path.join(types, 'loro-crdt')).split(path.sep).join('/')
-    if (!relative.startsWith('.')) relative = `./${relative}`
-    return `import type {${names.replace(/\btype\s+/g, '')}} from '${relative}';`
-  })
-  if (next.includes("'loro-crdt'")) throw new Error(`${path.relative(root, file)} names loro-crdt in a way this script does not rewrite`)
-  if (next !== text) fs.writeFileSync(file, next)
-}
-const opaque = [...loroNames].sort().map((name) => `export declare class ${name} {\n  private readonly __loro${name}: never\n}\n`)
-fs.writeFileSync(path.join(types, 'loro-crdt.d.ts'), `/** Loro's types, opaque: @kition/embed inlines Loro and never hands one out. */\n${opaque.join('')}`)
 fs.writeFileSync(path.join(dist, 'index.d.ts'), "export * from './types/embed/src/index'\n")
 console.log('wrote dist/index.d.ts and dist/types')

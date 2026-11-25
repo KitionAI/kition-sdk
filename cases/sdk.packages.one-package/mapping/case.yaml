@@ -2,11 +2,10 @@ format: 1
 id: sdk.packages.one-package/mapping
 feature: sdk.packages.one-package
 intent: >-
-  @kition/sdk is the twelve library packages as one, each a subpath that mirrors one of their
+  @kition/sdk is the ten library packages as one, each a subpath that mirrors one of their
   exports (and the embed server's command), with no root module; its package.json is what
-  tools/sdk-package.mjs writes, depends on no other @kition library package (loro-crdt as kdm has
-  it; React and @kition/tessera optional peers, the editor's imports of Tessera's three old
-  packages renamed to @kition/tessera/<part> by one function), and the codemod rewrites a
+  tools/sdk-package.mjs writes, depends on no package (React and @kition/tessera optional peers,
+  the editor's imports of Tessera's three old packages renamed to @kition/tessera/<part> by one function), and the codemod rewrites a
   consumer's quoted specifiers and package.json to it (adding @kition/tessera for the editor, or
   naming kition-tessera's codemod when Tessera's old packages are there) without touching a
   lockfile, with --check listing the changes and exiting 1.

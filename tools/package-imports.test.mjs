@@ -11,13 +11,6 @@ test('all public package source imports have declarations', () => {
   assert.deepEqual(result.problems, [])
 })
 
-test('editor declares the engine as a runtime dependency', () => {
-  const manifest = JSON.parse(readFileSync(new URL('../packages/kit-editor/package.json', import.meta.url), 'utf8'))
-  const sdk = JSON.parse(readFileSync(new URL('../sdk.json', import.meta.url), 'utf8'))
-  assert.equal(manifest.dependencies['@kition/kit-engine'], `^${sdk.version}`)
-  assert.equal(manifest.devDependencies?.['@kition/kit-engine'], undefined)
-})
-
 test('published imports require runtime declarations, including types and subpaths', () => {
   const manifest = { name: '@kit/editor', dependencies: { react: '*' }, devDependencies: { '@kit/engine': '*' } }
   const source = `

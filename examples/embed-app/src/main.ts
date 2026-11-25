@@ -1,12 +1,11 @@
 /**
  * An integrator's page embedding Kition's Note editor with `@kition/embed`: its own
- * file storage (memory + IndexedDB), its own users (Kition Server's development tokens, and a directory
- * that names them, `identity.users`), what each may do (`identity.permissions`), a button of its own
- * in the editors (`ui`), and, when co-editing is on, rooms on a `kition-sync/1` server it names. The
- * kit package comes from another origin (serve.mjs); nothing here reaches into its frame. Another
- * kit's package goes into `KITS` the same way.
+ * file storage (memory + IndexedDB), its own users (and a directory that names them,
+ * `identity.users`), what each may do (`identity.permissions`), and a button of its own in the
+ * editors (`ui`). The kit package comes from another origin (serve.mjs); nothing here reaches into
+ * its frame. Another kit's package goes into `KITS` the same way.
  */
-import { KitionEmbed, relayAgentPort, type CollabState, type EmbedEditor, type EmbedKit, type EmbedUser, type IdentityProvider, type PermissionMode } from '@kition/embed'
+import { KitionEmbed, relayAgentPort, type EmbedEditor, type EmbedKit, type EmbedUser, type IdentityProvider, type PermissionMode } from '@kition/embed'
 import { noteKit, type Note, type NoteCommands } from '@kition/script/kits/note'
 import { quarterlyReview } from '../../sdk-scripts/review.mjs'
 import { FileStore, type ExampleFile } from './storage'
@@ -22,8 +21,8 @@ const KITS: Record<string, EmbedKit & { extensions: string[] }> = {
 }
 
 const USERS = {
-  alice: { token: 'dev-alice', id: 'dev:alice', name: 'Alice' },
-  bob: { token: 'dev-bob', id: 'dev:bob', name: 'Bob' },
+  alice: { id: 'dev:alice', name: 'Alice' },
+  bob: { id: 'dev:bob', name: 'Bob' },
 } as const
 type UserKey = keyof typeof USERS
 
@@ -35,7 +34,7 @@ const DIRECTORY: Record<string, EmbedUser> = {
 
 const SETTINGS = 'embed-app.settings.v1'
 const HIDES = 'embed-app.hides.v1'
-type Settings = { user: UserKey; collab: boolean; server: string; mode: PermissionMode }
+type Settings = { user: UserKey; mode: PermissionMode }
 const MODES: PermissionMode[] = ['edit', 'comment', 'view']
 
 function loadSettings(): Settings {
@@ -44,8 +43,6 @@ function loadSettings(): Settings {
   const user = (params.get('user') ?? stored.user) as UserKey | undefined
   return {
     user: user && user in USERS ? user : 'alice',
-    collab: params.has('collab') ? params.get('collab') === '1' : (stored.collab ?? false),
-    server: params.get('server') ?? stored.server ?? 'ws://127.0.0.1:18300/v1/sync',
     mode: MODES.find((mode) => mode === params.get('mode')) ?? (stored.mode && MODES.includes(stored.mode) ? stored.mode : 'edit'),
   }
 }
@@ -62,15 +59,9 @@ function kitFor(name: string) {
   return key ? { key, kit: KITS[key] } : null
 }
 
-let tokenCalls = 0
 const identity: IdentityProvider = {
-  // Asked on every connection: a real page would refresh an expiring token here.
-  token: () => {
-    tokenCalls += 1
-    return USERS[settings.user].token
-  },
   user: () => ({ id: USERS[settings.user].id, name: USERS[settings.user].name }),
-  // Names and avatars for the people in a room and the authors of comments.
+  // Names and avatars for the authors of comments.
   users: (ids) => {
     usersAsked.push(...ids)
     return ids.flatMap((id) => (DIRECTORY[id] ? [DIRECTORY[id]] : []))
@@ -92,21 +83,13 @@ function report(error: unknown) {
   $('errors').append(item)
 }
 
-type Pane = { file: ExampleFile; editor: EmbedEditor; element: HTMLElement; collab: CollabState; comments: string[]; agent: AbortController }
+type Pane = { file: ExampleFile; editor: EmbedEditor; element: HTMLElement; comments: string[]; agent: AbortController }
 const panes = new Map<string, Pane>()
 
 const store: Pick<FileStore, 'list' | 'get' | 'onChange' | 'add' | 'remove' | 'provider'> = __WORKSPACE__ ? await WorkspaceFileStore.open() : await FileStore.open()
 const storage = store.provider()
 
-/** The page's own link to a room: the room's share link with the kit and file name to open it with. */
-function appLink(shareLink: string, file: ExampleFile) {
-  const url = new URL(location.origin + location.pathname)
-  url.searchParams.set('join', shareLink)
-  url.searchParams.set('name', file.name)
-  return url.href
-}
-
-async function openFile(file: ExampleFile, room?: string) {
+async function openFile(file: ExampleFile) {
   const found = kitFor(file.name)
   if (!found) throw new Error(`no kit opens ${file.name}`)
   if (panes.has(file.id)) return panes.get(file.id)!
@@ -115,9 +98,6 @@ async function openFile(file: ExampleFile, room?: string) {
   element.dataset.pane = file.name
   element.innerHTML = `<header>
       <span class="title"></span>
-      <span class="status" data-testid="pane-status" data-state="off">single-user</span>
-      <input data-testid="share-link" readonly placeholder="share link" />
-      <button class="button secondary small" data-testid="share-create">Share</button>
       <button class="button secondary small" data-testid="pane-script" hidden>Run script</button>
       <button class="button small" data-testid="pane-save">Save</button>
       <button class="button secondary small" data-testid="pane-close">Close</button>
@@ -134,7 +114,6 @@ async function openFile(file: ExampleFile, room?: string) {
     file: { id: file.id, name: file.name },
     storage,
     identity,
-    ...(settings.collab ? { collaboration: { server: settings.server, ...(room ? { room } : {}) } } : {}),
     locale: 'en-US',
     theme: { colorScheme: 'light', tokens: { '--kit-primary': '#5645d4' } },
     // The page's own button in the editor, and the person's own hides kept with the page.
@@ -143,22 +122,9 @@ async function openFile(file: ExampleFile, room?: string) {
       personal: { hide: hides()[found.kit.id] ?? [] },
       customize: ({ hide }) => localStorage.setItem(HIDES, JSON.stringify({ ...hides(), [found.kit.id]: hide })),
     },
-    // The page edits notes through the object model too (the "Run script" button).
-    model: found.key === 'note',
   })
-  const pane: Pane = { file, editor, element, collab: editor.collab.state, comments: [], agent: new AbortController() }
+  const pane: Pane = { file, editor, element, comments: [], agent: new AbortController() }
   panes.set(file.id, pane)
-  const status = element.querySelector<HTMLElement>('[data-testid="pane-status"]')!
-  editor.on('collab', (state) => {
-    pane.collab = state
-    status.dataset.state = state.status
-    status.textContent = state.status === 'off' ? 'single-user' : `${state.status}${state.role ? ` · ${state.role}` : ''}`
-  })
-  editor.on('presence', (peers) => {
-    status.title = peers.map((peer) => peer.name).join(', ')
-    element.dataset.peers = peers.map((peer) => peer.name).sort().join(',')
-    element.dataset.avatars = String(peers.filter((peer) => peer.user?.avatar).length)
-  })
   editor.on('comments', (threads) => {
     pane.comments = threads.flatMap((thread) => thread.comments.map((comment) => `${comment.user?.name ?? comment.name ?? comment.author}: ${comment.body}`))
     element.dataset.comments = String(pane.comments.length)
@@ -194,14 +160,6 @@ async function openFile(file: ExampleFile, room?: string) {
   script.hidden = found.key !== 'note'
   script.addEventListener('click', () => void runReview(file.name).catch(report))
   element.querySelector('[data-testid="pane-close"]')!.addEventListener('click', () => closeFile(file.id))
-  element.querySelector('[data-testid="share-create"]')!.addEventListener('click', () => {
-    void editor.collab
-      .shareLink('editor')
-      .then((link) => {
-        element.querySelector<HTMLInputElement>('[data-testid="share-link"]')!.value = appLink(link, store.get(file.id) ?? file)
-      })
-      .catch(report)
-  })
   editor.ready().then(
     () => (element.dataset.ready = 'true'),
     (error: unknown) => {
@@ -270,31 +228,6 @@ function closeFile(fileId: string) {
   panes.delete(fileId)
 }
 
-/** Opens a room from a link: the page's own link (with the file name), or a share link and a name. */
-async function join(text: string) {
-  let shareLink = text.trim()
-  let name = ''
-  try {
-    const url = new URL(shareLink)
-    if (url.origin === location.origin && url.searchParams.get('join')) {
-      shareLink = url.searchParams.get('join')!
-      name = url.searchParams.get('name') ?? ''
-    }
-  } catch {
-    // A document id, not a URL.
-  }
-  if (!name || !kitFor(name)) throw new Error('the link does not say which kind of document it is: paste a link this page made')
-  if (!settings.collab) {
-    settings.collab = true
-    saveSettings()
-    $<HTMLInputElement>('collab-enabled').checked = true
-  }
-  // An empty file for the room's document: the editor stores the room's replica with it, and the
-  // first save writes the document's bytes.
-  const file = await store.add(name, new Uint8Array())
-  return openFile(file, shareLink)
-}
-
 function renderFiles() {
   const list = $('files')
   list.replaceChildren()
@@ -330,24 +263,12 @@ renderFiles()
 const userSelect = $<HTMLSelectElement>('user')
 userSelect.value = settings.user
 userSelect.addEventListener('change', () => {
-  // The page's sync connection keeps the identity it was opened with: start over as the new person.
+  // The editors keep the identity they were opened with: start over as the new person.
   settings.user = userSelect.value as UserKey
   saveSettings()
   const url = new URL(location.href)
   url.searchParams.delete('user')
   location.href = url.href
-})
-const collabBox = $<HTMLInputElement>('collab-enabled')
-collabBox.checked = settings.collab
-collabBox.addEventListener('change', () => {
-  settings.collab = collabBox.checked
-  saveSettings()
-})
-const serverField = $<HTMLInputElement>('server-url')
-serverField.value = settings.server
-serverField.addEventListener('change', () => {
-  settings.server = serverField.value.trim()
-  saveSettings()
 })
 const modeSelect = $<HTMLSelectElement>('mode')
 modeSelect.value = settings.mode
@@ -360,10 +281,6 @@ $<HTMLInputElement>('upload').addEventListener('change', async (event) => {
   for (const picked of [...(input.files ?? [])]) await store.add(picked.name, new Uint8Array(await picked.arrayBuffer()))
   input.value = ''
 })
-$('join-submit').addEventListener('click', () => void join($<HTMLInputElement>('join-link').value).catch(report))
-
-const fromLink = new URLSearchParams(location.search).get('join')
-if (fromLink) void join(location.href).catch(report)
 
 const byName = (name: string) => [...panes.values()].find((pane) => pane.file.name === name) ?? null
 const fileByName = (name: string) => store.list().find((file) => file.name === name) ?? null
@@ -388,13 +305,11 @@ window.__EMBED_TEST__ = {
   saves: (name: string) => fileByName(name)?.saves ?? 0,
   /** The open editor's replica version, lowercase hex ('' without one). */
   replicaVersion: async (name: string) => hex((await byName(name)?.editor.replicaVersion()) ?? null),
-  collab: (name: string) => byName(name)?.collab ?? null,
   save: async (name: string) => byName(name)?.editor.save(),
   /** Runs the review script on an open note; answers what it did. */
   runReview: (name: string) => runReview(name),
   /** Reads an open note's text through the object model (see `readNote`). */
   readNote: (name: string) => readNote(name),
-  tokenCalls: () => tokenCalls,
   /** The comments of an open document as the page lists them (`comments` events): `<author>: <body>`. */
   comments: (name: string) => byName(name)?.comments ?? [],
   /** Runs one of the kit's commands in an open editor. */

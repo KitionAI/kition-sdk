@@ -18,8 +18,6 @@ steps:
   - exec:
       cmd: [cargo, test, -q, -p, kition-kdm, --test, batch, describe_names_derived_values_and_bad_ones_are_refused]
   - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/batch.test.ts, -t, derived]
-  - exec:
       cmd: [cargo, build, -q, -p, kition-kit-mock]
   - exec:
       cmd: [cargo, test, -q, -p, kition-kits, --test, space_guard, derived_]

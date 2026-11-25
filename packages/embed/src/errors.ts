@@ -2,12 +2,10 @@
 export class EmbedError extends Error {
   constructor(
     /**
-     * `document-open`: another editor on this page already co-edits the document; `conflict`: see
-     * `EmbedConflictError`; `unsupported`: the kit does not offer it (drafts); `read-only`: the
-     * person may not do it (also: share a room that grants access by sync token only); `no-draft`:
-     * there is no draft to merge or discard.
+     * `conflict`: see `EmbedConflictError`; `unsupported`: the kit does not offer it (drafts);
+     * `read-only`: the person may not do it; `no-draft`: there is no draft to merge or discard.
      */
-    readonly code: 'document-open' | 'conflict' | 'unsupported' | 'read-only' | 'no-draft',
+    readonly code: 'conflict' | 'unsupported' | 'read-only' | 'no-draft',
     message: string,
   ) {
     super(message)

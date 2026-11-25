@@ -51,19 +51,6 @@ importers:
         specifier: ^2.9.1
         version: 2.9.1
 
-  packages/convergence:
-    dependencies:
-      '@kition/kdm':
-        specifier: workspace:*
-        version: link:../kdm
-      '@kition/kit-engine':
-        specifier: workspace:*
-        version: link:../kit-engine
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-
   packages/embed:
     devDependencies:
       '@kition/kdm':
@@ -107,14 +94,7 @@ importers:
         version: link:../kit-ui-protocol
 
   packages/kdm:
-    dependencies:
-      loro-crdt:
-        specifier: 1.16.4
-        version: 1.16.4
     devDependencies:
-      '@codemirror/state':
-        specifier: ^6.5.0
-        version: 6.7.6
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
@@ -134,9 +114,6 @@ importers:
       '@kition/kdm':
         specifier: workspace:*
         version: link:../kdm
-      '@kition/kit-engine':
-        specifier: ^0.5.2
-        version: link:../kit-engine
       '@kition/kit-ui-protocol':
         specifier: workspace:*
         version: link:../kit-ui-protocol
@@ -155,12 +132,6 @@ importers:
       react-dom:
         specifier: '>=19'
         version: 19.3.0(react@19.3.0)
-
-  packages/kit-engine:
-    dependencies:
-      '@kition/kdm':
-        specifier: workspace:*
-        version: link:../kdm
 
   packages/kit-host:
     dependencies:
@@ -186,9 +157,6 @@ importers:
       '@kition/tessera':
         specifier: link:../../../kition-tessera/packages/tessera
         version: link:../../../kition-tessera/packages/tessera
-      loro-crdt:
-        specifier: 1.16.4
-        version: 1.16.4
       react:
         specifier: '>=19'
         version: 19.3.0
@@ -196,14 +164,7 @@ importers:
         specifier: '>=19'
         version: 19.3.0(react@19.3.0)
 
-  packages/sync:
-    dependencies:
-      '@kition/kdm':
-        specifier: workspace:*
-        version: link:../kdm
-      loro-crdt:
-        specifier: 1.16.4
-        version: 1.16.4
+  packages/sync: {}
 
 packages:
 
@@ -222,9 +183,6 @@ packages:
   '@babel/runtime@7.29.10':
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
     engines: {node: '>=6.9.0'}
-
-  '@codemirror/state@6.7.6':
-    resolution: {integrity: sha512-kAz+AncRtKuIknedxT1bq4XwXv4UowhbkHU1myPrtVb/jZtImWuV5BXzv5vK6i3kYACsdiZiQKFQQ5Mq7elW8w==}
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -550,9 +508,6 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
-
-  '@marijn/find-cluster-break@1.0.4':
-    resolution: {integrity: sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -945,9 +900,6 @@ packages:
     resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
     engines: {node: '>=16'}
 
-  loro-crdt@1.16.4:
-    resolution: {integrity: sha512-UPufMpHSEMLRVjWfCjhVbOD8nkCDwxdfVk4Uer6xTEFAcNn+X+oGYWGgIIYuAgofc8UiI0ERZUIMnP7ib/kh6w==}
-
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
 
@@ -1281,10 +1233,6 @@ snapshots:
 
   '@babel/runtime@7.29.10': {}
 
-  '@codemirror/state@6.7.6':
-    dependencies:
-      '@marijn/find-cluster-break': 1.0.4
-
   '@csstools/color-helpers@5.1.0': {}
 
   '@csstools/css-calc@2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
@@ -1453,8 +1401,6 @@ snapshots:
     optional: true
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
-
-  '@marijn/find-cluster-break@1.0.4': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
@@ -1839,8 +1785,6 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.29.10
       ts-algebra: 2.0.0
-
-  loro-crdt@1.16.4: {}
 
   loupe@3.2.1: {}
 

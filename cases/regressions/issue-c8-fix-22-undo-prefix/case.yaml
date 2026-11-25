@@ -7,7 +7,6 @@ source: { kind: issue, from: SDK regression suite, license: owned }
 input: []
 steps:
   - cargo-test: { package: kition-kdm, test: undo_scopes, filter: list_footprints }
-  - exec: { cmd: [pnpm, exec, vitest, run, packages/kdm/test/undo-scopes.test.ts] }
 expected:
   - { actual: exit, compare: exit, value: 0 }
 since: "2026-11-16"

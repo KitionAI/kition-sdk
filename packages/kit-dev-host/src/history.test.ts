@@ -29,7 +29,7 @@ const PATH = 'art/Poster.kdesign'
 const bytes = (...values: number[]) => new Uint8Array(values).buffer
 
 /**
- * Opens the document as the dev host does: the store's handlers for the file's `stamp`, and a fake
+ * Opens the document as the dev host does: the store's handlers, the file at `stamp`, and a fake
  * kit whose replica is at `kit.version` (what it answers to `replica/version`).
  */
 async function open(history: DevHistory, stamp: string, readOnly = false) {
@@ -43,7 +43,7 @@ async function open(history: DevHistory, stamp: string, readOnly = false) {
     })
     kit.handle('replica/version', () => ({ version: state.version.slice(0) }))
   })
-  const kept = history.handlers(PATH, stamp)
+  const kept = history.handlers()
   const mine = await mountKit(frame, {
     origin: '*',
     host: { name: 't', version: '1' },
@@ -81,20 +81,20 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     // The first save: a new replica, and the person names the version.
     first.state.version = bytes(7)
     const named = await save(first, '2', 10, { label: 'Sent to print', description: 'the printer got this one' })
-    expect(named.checkpoint).toMatchObject({ origin: 'kit', label: 'Sent to print', description: 'the printer got this one', version: base64(bytes(7)), available: true })
+    expect(named.checkpoint).toMatchObject({ origin: 'kit', label: 'Sent to print', description: 'the printer got this one', version: base64(bytes(7)) })
     // A later save without one records nothing, and moves the stored replica on.
     first.state.version = bytes(8)
     expect(await save(first, '3', 11)).toEqual({})
     expect(new Uint8Array(history.replica(PATH)!.snapshot)).toEqual(new Uint8Array([11]))
-    // checkpointRead answers the blobs of the version, and its snapshot with state.
-    const read = await first.kit.request('host/checkpointRead', { path: PATH, id: named.checkpoint!.id, state: true })
+    // checkpointRead answers the snapshot the checkpoint keeps and its blobs.
+    const read = await first.kit.request('host/checkpointRead', { path: PATH, id: named.checkpoint!.id })
     expect(new Uint8Array(read.blobs)).toEqual(new Uint8Array([10, 0]))
-    expect(new Uint8Array(read.snapshot!)).toEqual(new Uint8Array([10]))
+    expect(new Uint8Array(read.snapshot)).toEqual(new Uint8Array([10]))
     first.connection.close()
-    // Reloaded on the file the replica was saved with: the same lineage, the checkpoint is there.
+    // Reloaded on the file the replica was saved with: the checkpoint is there.
     const again = await open(history, '3')
     const listed = await again.kit.request('host/checkpointList', { path: PATH })
-    expect(listed).toEqual({ checkpoints: [{ ...named.checkpoint, available: true }], more: false })
+    expect(listed).toEqual({ checkpoints: [named.checkpoint], more: false })
     expect((await again.kit.request('host/checkpointRead', { path: PATH, id: named.checkpoint!.id })).checkpoint.label).toBe('Sent to print')
     expect(await again.kit.request('host/replicaRead', { path: PATH })).toMatchObject({ fileStamp: '3' })
     again.connection.close()
@@ -108,8 +108,8 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     opened.state.version = bytes(8)
     const named = (await save(opened, '2', 10, { label: 'Sent to print' }, bytes(7))).checkpoint!
     expect(named.version).toBe(base64(bytes(7)))
-    const read = await opened.kit.request('host/checkpointRead', { path: PATH, id: named.id, state: true })
-    expect(new Uint8Array(read.snapshot!)).toEqual(new Uint8Array([10]))
+    const read = await opened.kit.request('host/checkpointRead', { path: PATH, id: named.id })
+    expect(new Uint8Array(read.snapshot)).toEqual(new Uint8Array([10]))
     opened.connection.close()
   })
 
@@ -120,7 +120,7 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     await save({ kit, state }, '2', 1)
     // The host's own save checkpoint at the version the replica holds.
     const host = history.record(PATH, base64(bytes(3)), { origin: 'save' })!
-    expect(host).toMatchObject({ origin: 'save', available: true })
+    expect(host).toMatchObject({ origin: 'save', version: base64(bytes(3)) })
     expect(await refusal(kit.request('host/checkpointUpdate', { path: PATH, id: host.id, label: 'Mine' }))).toBe('read-only')
     expect(await refusal(kit.request('host/checkpointDelete', { path: PATH, id: host.id }))).toBe('read-only')
     // At the same version without a label: that checkpoint, unchanged.
@@ -185,46 +185,44 @@ describe('dev host checkpoints (capability checkpoints)', () => {
     viewer.connection.close()
   })
 
-  it('marks every earlier checkpoint unavailable when the replica is replaced by another lineage or the file is opened alone', async () => {
+  it('keeps each checkpoint\'s state readable after the file changed outside and after it was opened alone', async () => {
     const history = new DevHistory()
     const first = await open(history, '1')
     first.state.version = bytes(9)
     const made = (await save(first, '2', 1, { label: 'Kept' })).checkpoint!
     first.connection.close()
-    // The file changed under the replica (stamp 5, the replica was saved under 2): the kit opens it
-    // plainly and its next replica is another lineage.
-    const stale = await open(history, '5')
-    expect((await stale.kit.request('host/checkpointList', { path: PATH })).checkpoints[0]!.available).toBe(true)
-    await save(stale, '6', 2)
-    expect((await stale.kit.request('host/checkpointList', { path: PATH })).checkpoints).toEqual([{ ...made, available: false }])
-    expect(await refusal(stale.kit.request('host/checkpointRead', { path: PATH, id: made.id }))).toBe('history-missing')
-    // The labelled one stays listed, and its label can still be changed.
-    expect((await stale.kit.request('host/checkpointUpdate', { path: PATH, id: made.id, label: 'Old' })).checkpoint).toMatchObject({ label: 'Old', available: false })
-    // A new one in the new lineage is available; opening the file alone drops the replica.
-    stale.state.version = bytes(9)
-    const fresh = (await save(stale, '6', 2, { label: 'New' })).checkpoint!
-    expect(fresh.id).not.toBe(made.id)
-    expect(fresh.available).toBe(true)
-    stale.connection.close()
+    // The file changed outside (stamp 5, the replica was saved under 2): the next replica write
+    // keeps every checkpoint, each with the state it was recorded with.
+    const changed = await open(history, '5')
+    changed.state.version = bytes(10)
+    await save(changed, '6', 2)
+    expect((await changed.kit.request('host/checkpointList', { path: PATH })).checkpoints).toEqual([made])
+    expect(new Uint8Array((await changed.kit.request('host/checkpointRead', { path: PATH, id: made.id })).snapshot)).toEqual(new Uint8Array([1]))
+    expect((await changed.kit.request('host/checkpointUpdate', { path: PATH, id: made.id, label: 'Old' })).checkpoint).toMatchObject({ label: 'Old' })
+    changed.connection.close()
+    // Opening the file alone drops the stored replica; the checkpoints stay readable.
     history.forget(PATH)
     expect(history.replica(PATH)).toBeNull()
-    expect(history.checkpoints(PATH).map((checkpoint) => checkpoint.available)).toEqual([false, false])
+    const alone = await open(history, '7')
+    expect(await alone.kit.request('host/replicaRead', { path: PATH })).toBeNull()
+    expect(new Uint8Array((await alone.kit.request('host/checkpointRead', { path: PATH, id: made.id })).snapshot)).toEqual(new Uint8Array([1]))
+    alone.connection.close()
   })
 
-  it('hands the stored replica over whatever its stamp, and a kit that merges the file keeps its lineage and checkpoints (UI-R1)', async () => {
-    const history = new DevHistory({ replicaMergesFile: true })
+  it('hands the stored replica over whatever its stamp (UI-R1)', async () => {
+    const history = new DevHistory()
     const first = await open(history, '1')
     first.state.version = bytes(9)
     const made = (await save(first, '2', 1, { label: 'Kept' })).checkpoint!
     first.connection.close()
     // The file changed outside (stamp 5, the replica was saved under 2): the host still answers
-    // the stored replica, and the kit's engine merges the file into it as one import change.
+    // the stored replica, and the kit records the file's difference as one import change.
     const changed = await open(history, '5')
     expect(await changed.kit.request('host/replicaRead', { path: PATH })).toMatchObject({ fileStamp: '2' })
     changed.state.version = bytes(10)
     const next = (await save(changed, '6', 2, { label: 'After the import' })).checkpoint!
     const listed = (await changed.kit.request('host/checkpointList', { path: PATH })).checkpoints
-    expect(listed.map((checkpoint) => [checkpoint.id, checkpoint.available])).toEqual([[next.id, true], [made.id, true]])
+    expect(listed.map((checkpoint) => checkpoint.id)).toEqual([next.id, made.id])
     expect((await changed.kit.request('host/checkpointRead', { path: PATH, id: made.id })).checkpoint.label).toBe('Kept')
     changed.connection.close()
   })

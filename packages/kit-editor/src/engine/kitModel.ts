@@ -1,16 +1,10 @@
 /**
  * The object model (`KitObjectModel 1.0`) answered by the kit itself: the Kit UI protocol's
- * capability `model` (Kition platform docs/platform/reference/ui-protocol.md section 7a), so a script's batch is a step of the
- * person's own undo history rather than a collaborator's change. This module is what the page and
- * the worker share; the worker runs batches in `kitModelRunner.ts`.
- *
- * Two ways in, by what the kit's engine offers:
- * - `engine`: the engine answers `modelDescribe()` and `modelBatch(json)` itself
- *   (`export_kit_session!`); a batch is one undo group of its session.
- * - `replica`: any contract 2 engine (it exchanges changes): the worker keeps a scratch replica of
- *   the document, runs each run of model operations as one transaction on it, and hands the
- *   changes to the engine. Those steps are kept in a script history next to the engine's own, so
- *   Undo and Redo reach them in order (see `ReplicaModel`).
+ * capability `model` (Kition platform docs/platform/reference/ui-protocol.md section 7a), so a
+ * script's batch is a step of the person's own undo history rather than a collaborator's change.
+ * The kit's engine answers `modelDescribe()` and `modelBatch(json)` itself
+ * (`export_kit_session!`); a batch is one undo group of its session. An engine without them has
+ * no object model (`info.model: null`).
  */
 import type { ModelErrorData } from '@kition/kit-ui-protocol'
 import type { KitModuleDocument } from './kitModule'
@@ -18,12 +12,10 @@ import type { KitModuleDocument } from './kitModule'
 export type { ModelErrorData }
 
 /** How a kit's engine answers the object model, if it does. */
-export type KitModelSupport = 'engine' | 'replica' | null
+export type KitModelSupport = 'engine' | null
 
 export function modelSupport(open: KitModuleDocument): KitModelSupport {
-  if (typeof open.modelBatch === 'function' && typeof open.modelDescribe === 'function') return 'engine'
-  if (typeof open.exportChanges === 'function' && typeof open.importChanges === 'function' && typeof open.version === 'function') return 'replica'
-  return null
+  return typeof open.modelBatch === 'function' && typeof open.modelDescribe === 'function' ? 'engine' : null
 }
 
 /** A refused batch: `data` is the protocol's `{ code, index, message }`. */

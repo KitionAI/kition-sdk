@@ -66,21 +66,21 @@ person's view state (section 7n); `?replica=1`, `?checkpoints=1` and `?view-stat
 All three are kept in memory for the page load, per workspace path, apart from the files.
 `@kition/kit-host` checks every rule (lengths, origins, read-only documents, sizes) before the
 store runs. A checkpoint's `version` is the one the save's replica write carries (the version its
-snapshot holds, taken with the saved bytes, UI-R6), never asked of the kit afterwards; the store
-keeps that save's snapshot and blobs, so `host/checkpointRead` answers them later.
+snapshot holds, UI-R6); the store keeps that save's snapshot and blobs with the checkpoint, so
+`host/checkpointRead` answers them whatever was saved since.
 
 - `devHost.reload()` reopens the document as its last save left it, keeping its replica,
   checkpoints and view state: a test saves a version, reloads, and finds it.
 - `devHost.reopenChanged(bytes)` changes the open document's file outside the editor, as another
   program's save would (the editor closes, the file takes `bytes` at a new version), and reopens it
   with its replica, checkpoints and view state kept. The host hands the stored replica over under
-  its earlier `fileStamp`; the kit decides (Kit UI protocol UI-R1). A kit whose engine merges a
-  newer file into its stored replica (`replicaMergesFile` in `useKitDocument` / `useKitSession`)
-  tells the dev host too, with `replicaMergesFile: true` or `?replica-merges-file=1`: its next
-  replica then continues the lineage, and the checkpoints stay available. Without it the kit's
-  next replica is another lineage and earlier checkpoints become `available: false`.
-- `devHost.open(path, bytes)` opens a file alone: its replica is dropped and its checkpoints stay
-  listed with `available: false`, as when the kit opens a file without its stored replica.
+  its earlier `fileStamp` (Kit UI protocol UI-R1): the kit opens with it and records the file's
+  difference as one `import` change.
+- `devHost.open(path, bytes)` opens a file alone: its replica is dropped; its checkpoints keep
+  their states.
+- `devHost.restoreCheckpoint(id)` restores the open document to a checkpoint's state as a host's
+  "restore this version" does: `replica/restore` with the snapshot and blobs it keeps, one step of
+  the person's undo.
 - `devHost.recordCheckpoint({ origin: 'save' })` records a host checkpoint (which the kit may not
   change) at the kit's current version; saving a label at that version makes it the kit's.
 - `devHost.history` answers what is kept: `replica(path)`, `checkpoints(path)` (newest first),
@@ -98,7 +98,7 @@ const { checkpoints } = (await listCheckpoints(host.files, path, { labelled: tru
 await page.evaluate(() => window.devHost.reload())
 const kept = await page.evaluate(() => window.devHost.history.checkpoints('Poster.kdesign'))
 
-// A note changed outside the editor (dev page: startDevHost({ checkpoints: true, replicaMergesFile: true }))
+// A note changed outside the editor (dev page: startDevHost({ checkpoints: true }))
 await page.evaluate((text) => window.devHost.reopenChanged(new TextEncoder().encode(text).buffer), changedMarkdown)
 const still = await page.evaluate(() => window.devHost.history.checkpoints('Notes.md'))
 ```

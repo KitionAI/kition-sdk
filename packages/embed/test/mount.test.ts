@@ -16,7 +16,7 @@ function setUp(overrides: Partial<EmbedOptions> = {}, kit = fakeKit()) {
   const files = memoryStorage({ f1: 'hello' })
   const options: EmbedOptions = { kit: KIT, file: { id: 'f1', name: 'Notes.note' }, storage: files.storage, ...overrides }
   const mountKit = vi.fn(kit.mountKit)
-  const editor = mountEmbed(element, options, { mountKit, replicaStore: memoryReplicaStore })
+  const editor = mountEmbed(element, options, { mountKit })
   return { element, files, kit, mountKit, editor, mounted: () => mountKit.mock.calls.at(-1)![1] as MountOptions }
 }
 
@@ -60,11 +60,10 @@ describe('mount', () => {
     expect((await (await kept.editor).replicaVersion())?.byteLength).toBeGreaterThan(0)
   })
 
-  it('keeps a replica in memory for the object model, and edits the document through it', async () => {
-    const { editor: pending, mounted, kit } = setUp({ model: true })
+  it("edits the document through the kit's own object model", async () => {
+    const { editor: pending, kit } = setUp({}, fakeKit('kit.note', ['ai', 'model']))
     const editor = await pending
     await editor.ready()
-    expect(mounted().handlers.replicaRead).toBeDefined()
     const slideFile = await openDocument(editor, { schema: NOTE_SCHEMA })
     const heard: string[] = []
     slideFile.on('changed', (event) => heard.push(event.origin))
@@ -78,17 +77,18 @@ describe('mount', () => {
       return text.body.toString()
     })
     expect(body.startsWith('>> ')).toBe(true)
-    expect(kit.last().imports.length).toBeGreaterThan(0)
+    expect(kit.last().batches.length).toBeGreaterThan(0)
+    expect(kit.last().text().startsWith('>> ')).toBe(true)
     expect(heard).toContain('local')
     expect(await slideFile.commands.run('note.append', { text: '!' })).toBeDefined()
   })
 
   it('tells the object model of saves and of saves refused over a file changed elsewhere', async () => {
-    const { editor: pending, files, kit } = setUp({ model: true })
+    const { editor: pending, files, kit } = setUp({}, fakeKit('kit.note', ['ai', 'model']))
     const editor = await pending
     await editor.ready()
     const slideFile = await openDocument(editor, { schema: NOTE_SCHEMA })
-    expect(['saved', 'conflict', 'presence', 'selection'].map((event) => slideFile.supports(event as 'saved'))).toEqual([true, true, false, false])
+    expect(['saved', 'conflict', 'selection'].map((event) => slideFile.supports(event as 'saved'))).toEqual([true, true, false])
     const saved: unknown[] = []
     const conflicts: unknown[] = []
     slideFile.on('saved', (event) => saved.push(event))
@@ -104,11 +104,11 @@ describe('mount', () => {
     slideFile.close()
   })
 
-  it('refuses the object model without a replica', async () => {
+  it('refuses the object model of a kit that does not answer it', async () => {
     const { editor: pending } = setUp()
     const editor = await pending
     await editor.ready()
-    await expect(editor.modelPort().exportChanges(new Uint8Array(0))).rejects.toThrow(/model: true/)
+    await expect(editor.modelPort().model.batch({ load: [{ target: 'root' }] }, {})).rejects.toThrow(/does not answer the object model/)
   })
 
   it('saves through the storage and tells the page', async () => {
@@ -186,10 +186,6 @@ describe('mount', () => {
     expect(kit.last().options.document.watermark).toEqual({ text: 'Ann' })
   })
 
-  it('needs an identity to collaborate', async () => {
-    await expect(setUp({ collaboration: { server: 'wss://sync.test' } }).editor).rejects.toThrow(/identity/)
-  })
-
   it('forwards theme and locale changes, and destroy removes the frame', async () => {
     const { element, editor: pending, kit } = setUp()
     const editor = await pending
@@ -197,7 +193,6 @@ describe('mount', () => {
     const setTheme = vi.spyOn(kit.last().connection, 'setTheme')
     editor.setTheme({ colorScheme: 'light' })
     expect(setTheme.mock.calls[0][0].tokens['--kit-primary']).toBe('#5645d4')
-    expect(editor.collab.state).toEqual({ status: 'off', docId: null, role: null })
     editor.destroy()
     expect(element.querySelector('iframe')).toBeNull()
     expect(kit.last().closed).toBe(true)

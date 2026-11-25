@@ -13,7 +13,8 @@ export type KitCheckpoints = {
   list: (path: string, options?: { labelled?: boolean; before?: string; limit?: number }) => Promise<{ checkpoints: KitCheckpoint[]; more: boolean }>
   update: (path: string, id: string, fields: { label?: string; description?: string }) => Promise<KitCheckpoint>
   delete: (path: string, id: string) => Promise<void>
-  read: (path: string, id: string, options?: { state?: boolean }) => Promise<{ checkpoint: KitCheckpoint; blobs: ArrayBuffer; snapshot?: ArrayBuffer }>
+  /** One checkpoint, the snapshot it keeps, and the blobs that snapshot needs. */
+  read: (path: string, id: string) => Promise<{ checkpoint: KitCheckpoint; blobs: ArrayBuffer; snapshot: ArrayBuffer }>
 }
 
 /** The person's view state of a document, kept by the host outside the document (the `view-state` capability, section 7n). */
@@ -36,14 +37,14 @@ export type KitHost = {
   /** Replaces the file with `bytes` only if `expected` still matches; answers the new stamp. */
   write: (path: string, bytes: Uint8Array, expected?: string | null) => Promise<string | null | void>
   /**
-   * The document's replica as the host stored it with the file it was saved with (the Kit UI
-   * protocol's `replica` capability), or null. Absent: the host keeps no replicas.
+   * The document's replica as the host stored it at the last save (the Kit UI protocol's `replica`
+   * capability), whatever the file's stamp since, or null. Absent: the host keeps no replicas.
    */
   replicaRead?: (path: string) => Promise<KitStoredReplica | null>
   /**
    * Stores the document's replica with the stamp of the file it belongs to; with `checkpoint` (and
-   * `checkpoints`) records a checkpoint at `replica.version` (the version its snapshot holds) in
-   * the same step and answers it.
+   * `checkpoints`) records a checkpoint keeping this snapshot, at `replica.version` (the version
+   * the snapshot holds), in the same step and answers it.
    */
   replicaWrite?: (path: string, replica: KitWrittenReplica, checkpoint?: KitCheckpointRequest) => Promise<KitCheckpoint | null | void>
   /** The host's checkpoints of the document. Absent: the host keeps none (the kit keeps versions for the session only). */

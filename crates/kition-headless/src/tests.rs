@@ -809,7 +809,7 @@ fn opens_a_replica_without_a_file_and_imports_exports_and_saves_it() {
 }
 
 /// regressions/issue-kdm-shallow-export: a kit on the change exchange (`with_replica_port`) serves
-/// a document forked as a new document (a shallow replica, KitModel M16a), as a file
+/// a document forked as a new document, as a file
 /// `document.fork` wrote or a room started from such a file holds it: `model.batch` and
 /// `model.describe` read it, and an agent's draft (`model.export`, then `model.open`) opens, edits
 /// and merges back with `model.import`.

@@ -4,6 +4,32 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **The TypeScript KDM only reads; the engine merges, compares and restores (plan 2026-11-24,
+  steps S4 and S5; Kit UI protocol stays 1).** `@kition/kdm` loads content or a snapshot, applies
+  a change list in order with the Rust KDM's precondition checks (`stale` otherwise, nothing
+  changed), and reads (`Replica.load(schema, bytes)`, `importChanges`, `version`, `stateJson`,
+  `Version` as `(lineage, seq)`); it no longer depends on `loro-crdt`. Removed: its writes (`Tx`,
+  `runBatch`, `describeModel`, diffs, `ToolIds`, projections, footprints, comment writers,
+  `randomActor`, envelopes), the packages `@kition/convergence` and `@kition/kit-engine` (the
+  TypeScript engine session), `@kition/script`'s rooms and host-side object model (`openRoom`,
+  `createRoom`, `RoomDocument`, `Exchange`, `kitModelBackend`), `@kition/embed`'s collaboration,
+  and `@kition/sync`'s relay and `replicaVersions`; `@kition/sdk` loses `/engine`, `/convergence`
+  and `/sync/replicaVersions`. `export_kit_session!` adds `mergeChanges`, `compareChanges`,
+  `restoreState`, `changesSince` and `modelReply`; `@kition/kit-editor` merges and compares
+  drafts, answers receipts and names objects by tool id through them, and shows a feature its
+  engine lacks as unavailable. The protocol gains `replica/restore`; `host/checkpointRead` always
+  answers the checkpoint's `snapshot` (no `state`); `KitCheckpoint.available`, `history-missing`,
+  `document/conflicts`, UI-R7, UI-C5 and `replicaMergesFile` are gone, and a host hands over the
+  stored snapshot whatever the file's stamp (UI-R1). `kition-kit-mock` writes content into its
+  files (sdk.model.new-document/copy, sdk.ui.checkpoints/host-rules, sdk.dev-host.history/store).
+- **The content encoding and the store, after review (plan 2026-11-24).** Trees are written flat
+  as `[depth, id]` pairs; repeated keys, non-canonical UUIDs, `null` fields and a file naming a
+  missing object are refused; the bytes depend on the state alone; a map key set to `null` is
+  deleted (data model 7.4, C5–C16). Undo drops steps a trimmed log no longer reaches and carries
+  tree positions; imports and merges are checked against the schema; long changes and bulk
+  deletes take linear time (sdk.model.content-encoding/canonical-bytes,
+  regressions/issue-kdm-undo-trimmed-log, issue-kdm-undo-tree-places,
+  issue-kdm-import-schema-checks, issue-kdm-linear-costs).
 - **The Kit Data Model is a plain object store, without a CRDT (kition-plan plans/2026-11-24,
   plain model; format and schema versions stay 1).** `kition-kdm` no longer depends on Loro. A
   replica holds its objects in memory and applies each transaction as one change: operations

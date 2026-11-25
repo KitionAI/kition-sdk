@@ -16,7 +16,7 @@ features:
     dimension: [function, data-safety]
     priority: P1
     status: has
-    paths: [crates/kition-kdm/src/schema.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/batch.rs, packages/kdm/src/schema.ts, packages/kdm/src/tx.ts, packages/kdm/src/batch.ts]
+    paths: [crates/kition-kdm/src/schema.rs, crates/kition-kdm/src/tx.rs, crates/kition-kdm/src/batch.rs, packages/kdm/src/schema.ts, packages/kdm/src/batch.ts]
     cases: [regressions/issue-typed-owning-maps]
     since: "2026-11-16"
   - id: sdk.agent.literal-paths
@@ -41,7 +41,7 @@ features:
     priority: P0
     status: has
     paths: [crates/kition-headless/src/**, crates/kition-kit/src/lib.rs, crates/kition-kit-mock/src/**, packages/kit-engine/src/**]
-    cases: [regressions/issue-reread-session, regressions/issue-reread-active-mode]
+    cases: [regressions/issue-reread-active-mode]
     since: "2026-11-16"
   - id: sdk.distribution.published-kits
     title: Public kit artifacts come only from the explicit publication allowlist
@@ -56,8 +56,8 @@ features:
     dimension: [platform, function]
     priority: P1
     status: has
-    paths: [packages/*/package.json, packages/kdm/src/schema.ts, packages/script/vite.config.ts, packages/extensions/src/runtime/document.ts, tools/build-package.mjs, tools/bundled-notices.mjs, tools/bundled-notices.test.mjs, tools/pack-public-packages.mjs, tools/smoke-public-packages.mjs, tools/public-packages.test.mjs, tools/check-public-package-imports.mjs, tools/package-imports.test.mjs, package.json]
-    cases: [regressions/issue-npm-package-output, regressions/issue-consumer-schema-spread, regressions/issue-public-package-imports, regressions/issue-bundled-notices, regressions/issue-bundled-notice-files, sdk.packages.public/packed-worker]
+    paths: [packages/*/package.json, packages/kdm/src/schema.ts, packages/script/vite.config.ts, packages/extensions/src/runtime/document.ts, tools/build-package.mjs, tools/bundled-notices.mjs, tools/bundled-notices.test.mjs, tools/pack-public-packages.mjs, tools/public-packages.test.mjs, tools/check-public-package-imports.mjs, tools/package-imports.test.mjs, package.json]
+    cases: [regressions/issue-npm-package-output, regressions/issue-consumer-schema-spread, regressions/issue-public-package-imports, regressions/issue-bundled-notices, regressions/issue-bundled-notice-files]
     since: "2026-11-16"
   - id: sdk.packages.one-package
     title: "@kition/sdk is the SDK's twelve TypeScript library packages as one npm package, each a subpath that mirrors one of their exports (embed, embed/server for Node only, sync, script with its kits, extensions, kdm, editor, engine, host, dev-host, protocol, convergence) and no root module; built from their sources with their cross-imports as shared chunks, embed and the standalone object model (script/standalone) sharing one inlined Loro while script, extensions, kdm and sync share loro-crdt and one KDM, the editor's worker with Loro's WebAssembly as a .wasm file beside it that a kit's bundler emits as an asset, loro-crdt its one dependency and React and Tessera (the one package @kition/tessera) optional peers, with one set of declarations for bundler and node16; checked packed outside the workspace, and a codemod moves a consumer to it; the twelve packages stay as they are until their consumers move"
@@ -96,7 +96,7 @@ features:
     dimension: [function, collab]
     priority: P1
     status: has
-    paths: [crates/kition-kdm/src/projection.rs, packages/kdm/src/projection.ts]
+    paths: [crates/kition-kdm/src/projection.rs]
     cases: [regressions/issue-c8-fix-22-projected-containment]
     since: "2026-11-16"
   - id: sdk.agent.raw-contract
@@ -112,7 +112,7 @@ features:
     dimension: [function, collab]
     priority: P0
     status: has
-    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/tx.ts, crates/kition-kit/src/session/mod.rs]
+    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, crates/kition-kit/src/session/mod.rs]
     cases: [regressions/issue-c8-fix-22-undo, regressions/issue-c8-fix-22-undo-repair, regressions/issue-c8-fix-22-undo-prefix, regressions/issue-kition-table-100k-rows, regressions/issue-kition-table-100k-rows-open, regressions/issue-kition-table-bulk-write]
     since: "2026-11-16"
   - id: sdk.model.changed-map-writes
@@ -136,7 +136,7 @@ features:
     dimension: [function, collab, ai]
     priority: P1
     status: has
-    paths: [crates/kition-kdm/src/**, packages/kdm/src/**, crates/kition-kit/src/session/model.rs, packages/kit-editor/src/engine/kitModelRunner.ts, packages/kit-engine/src/session.ts, packages/script/src/exchange.ts, packages/script/src/sources.ts, crates/kition-kits/src/tools/**, crates/kition-kit-mock/src/projected.rs, crates/kition-env/src/**]
+    paths: [crates/kition-kdm/src/**, packages/kdm/src/**, crates/kition-kit/src/session/model.rs, packages/script/src/sources.ts, crates/kition-kits/src/tools/**, crates/kition-kit-mock/src/projected.rs, crates/kition-env/src/**]
     cases: [regressions/issue-c8-fix-21-projections, regressions/issue-c8-fix-21-projection-adapters, regressions/issue-c8-fix-21-projected-model, regressions/issue-c8-fix-21-projected-receipts, regressions/issue-c8-fix-21-projected-storage, regressions/issue-c8-fix-21-projected-env, regressions/issue-c8-fix-21-projected-human, regressions/issue-c8-fix-21-projected-placement, regressions/issue-script-engine-projections]
     since: "2026-11-16"
   - id: sdk.model.new-document
@@ -152,7 +152,7 @@ features:
     dimension: [data-safety, collab, conversion]
     priority: P0
     status: has
-    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, packages/kdm/src/read.ts, crates/kition-kit/src/session/mod.rs, crates/kition-kit/src/session/state.rs, crates/kition-kit/src/lib.rs, crates/kition-headless/src/lib.rs, packages/kit-engine/src/session.ts, packages/kit-engine/src/contract.ts, packages/kit-editor/src/engine/kitEngine.worker.ts, crates/kition-kit/src/testing.rs]
+    paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/read.rs, crates/kition-kdm/src/tx.rs, packages/kdm/src/replica.ts, crates/kition-kit/src/session/mod.rs, crates/kition-kit/src/session/state.rs, crates/kition-kit/src/lib.rs, crates/kition-headless/src/lib.rs, packages/kit-editor/src/engine/kitEngine.worker.ts, crates/kition-kit/src/testing.rs]
     cases: [regressions/issue-content-reexport-after-read, regressions/issue-take-file-dead-tree-node, regressions/issue-write-state-required-refs]
     since: "2026-11-22"
   - id: sdk.model.plain-store
@@ -185,25 +185,6 @@ features:
       - schemas/kit-process-protocol.schema.json
     cases: [sdk.host.document-fork/identity-and-fork]
     since: "2026-11-20"
-  - id: sdk.collab.fork-rooms
-    title: A copy made as a new document carries its whole history from its birth and is co-edited in its own sync room
-    dimension: [collab, data-safety]
-    priority: P0
-    status: has
-    paths:
-      - crates/kition-kdm/src/replica.rs
-      - crates/kition-kdm/src/read.rs
-      - packages/kdm/src/replica.ts
-      - packages/kdm/src/read.ts
-      - packages/sync/src/relay.ts
-      - packages/sync/src/replicaVersions.ts
-      - packages/sync/test/helpers.ts
-      - packages/embed/src/collab.ts
-      - packages/script/src/room.ts
-      - crates/kition-sync-protocol/src/messages.rs
-      - docs/platform/reference/sync-protocol.md
-    cases: [regressions/issue-sync-relay-shallow-push, regressions/issue-sync-relay-refused-push]
-    since: "2026-11-20"
   - id: sdk.agent.editor-premises
     title: Live editor kit callbacks participate in per-call premises
     dimension: [collab, data-safety]
@@ -216,7 +197,7 @@ features:
       - packages/kit-engine/src/**
       - packages/kit-host/src/**
       - packages/kit-ui-protocol/src/index.ts
-    cases: [regressions/issue-c8-fix-21-editor-premises, regressions/issue-c8-fix-21-editor-unavailable, regressions/issue-c8-fix-21-editor-ts-context, regressions/issue-c8-fix-21-editor-inspect, regressions/issue-c8-fix-21-editor-history, regressions/issue-c8-fix-21-editor-carries, regressions/issue-c8-fix-22-editor-receipts]
+    cases: [regressions/issue-c8-fix-21-editor-premises, regressions/issue-c8-fix-21-editor-unavailable, regressions/issue-c8-fix-21-editor-inspect, regressions/issue-c8-fix-21-editor-history, regressions/issue-c8-fix-21-editor-carries, regressions/issue-c8-fix-22-editor-receipts]
     since: "2026-11-16"
   - id: sdk.env.single-object
     title: Root field tasks and bounded context-located edits inside long text
@@ -231,8 +212,8 @@ features:
     dimension: [collab, function]
     priority: P1
     status: has
-    paths: [crates/kition-kdm/src/diff.rs, crates/kition-kdm/src/footprint.rs, packages/kdm/src/diff.ts, packages/kdm/src/footprint.ts, crates/kition-kits/src/tools/receipts.rs]
-    cases: [regressions/issue-c8-fix-20-located-receipts, regressions/issue-c8-fix-20-span-history]
+    paths: [crates/kition-kdm/src/diff.rs, crates/kition-kdm/src/footprint.rs, packages/kdm/src/diff.ts, crates/kition-kits/src/tools/receipts.rs]
+    cases: [regressions/issue-c8-fix-20-located-receipts]
     since: "2026-11-16"
   - id: sdk.agent.replica-reread
     title: Rereads enumerate detached replica objects and let kits carry their identities across file reloads
@@ -315,7 +296,6 @@ features:
       - crates/kition-kdm/src/schema.rs
       - crates/kition-kdm/src/footprint.rs
       - packages/kdm/src/schema.ts
-      - packages/kdm/src/footprint.ts
     cases:
       - regressions/issue-c8-fix-17-env
     since: "2026-11-16"
@@ -867,7 +847,6 @@ features:
       - regressions/issue-c8-fix-22-step-state
       - regressions/issue-c8-fix-22-plan-advance
       - regressions/issue-replica-replacement
-      - regressions/issue-replacement-plan-ids
     since: "2026-11-16"
   - id: sdk.agent.editing-guides
     title: Agent plugin editing skills match their kit's current guide
@@ -935,12 +914,10 @@ features:
       - crates/kition-kdm/tests/fixtures/refs.json
       - docs/platform/sets/object-model.md
       - packages/embed/src/agent.ts
-      - packages/kit-editor/src/engine/kitModelRunner.ts
     cases:
       - regressions/issue-29-nested-text
       - regressions/issue-batch-command-atomic
       - regressions/issue-describe-field-kinds
-      - regressions/issue-describe-marks-schema
     since: "2026-11-16"
   - id: sdk.agent.tool-ids
     title: A kit's KDM schema names the field holding each type's tool id, and the object model answers and takes that id (one id space)
@@ -954,11 +931,9 @@ features:
       - crates/kition-kdm/src/diff.rs
       - crates/kition-kdm/tests/tool_ids.rs
       - crates/kition-kdm/tests/fixtures/tool-ids.json
-      - packages/kdm/src/toolIds.ts
       - packages/kdm/src/schema.ts
       - packages/kdm/src/batch.ts
       - packages/kdm/src/diff.ts
-      - packages/kdm/test/tool-ids.test.ts
       - crates/kition-kits/src/tools/model.rs
       - crates/kition-kits/src/drafts.rs
       - crates/kition-kits/tests/object_model.rs
@@ -1086,14 +1061,11 @@ features:
       - crates/kition-kdm/tests/fixtures/leaf-edits.json
       - crates/kition-kdm/tests/fixtures/path-names.json
       - crates/kition-kdm/src/footprint.rs
-      - packages/kdm/src/footprint.ts
       - crates/kition-kdm/src/schema.rs
       - packages/kdm/src/schema.ts
       - crates/kition-kdm/src/tool_ids.rs
-      - packages/kdm/src/toolIds.ts
       - packages/kdm/src/diff.ts
       - packages/kdm/src/replica.ts
-      - packages/kdm/test/changes.test.ts
       - crates/kition-kit/src/session/model.rs
       - crates/kition-headless/src/lib.rs
       - docs/platform/reference/kit-process-protocol.md
@@ -1122,14 +1094,11 @@ features:
       - sdk.agent.receipts/batch-paths
       - sdk.agent.receipts/batch
       - sdk.agent.receipts/change-sets
-      - sdk.agent.receipts/change-sets-ts
       - sdk.agent.receipts/derived-shifts
       - sdk.agent.receipts/diagnostics
       - sdk.agent.receipts/drafts-compare
       - sdk.agent.receipts/footprint
-      - sdk.agent.receipts/footprint-ts
       - sdk.agent.receipts/leaf-edits
-      - sdk.agent.receipts/leaf-edits-ts
       - sdk.agent.receipts/path-names
       - sdk.agent.receipts/held-objects
       - sdk.agent.receipts/kit-requests
@@ -1375,7 +1344,6 @@ features:
       - crates/kition-kits/src/tools/receipts.rs
       - crates/kition-kits/src/tools/model.rs
       - crates/kition-kits/tests/fixtures/live-receipts.json
-      - packages/kit-editor/src/engine/kitModelRunner.ts
       - packages/kit-host/src/index.ts
       - docs/sdk/agent.md
       - crates/kition-kits/src/tools/journal.rs
@@ -1478,8 +1446,6 @@ features:
       - crates/kition-kdm/tests/deterministic.rs
       - crates/kition-kdm/src/ids.rs
       - crates/kition-kdm/tests/reproducible_ids.rs
-      - crates/kition-kdm/tests/fixtures/version-bytes.json
-      - packages/kdm/src/envelope.ts
     cases:
       - regressions/issue-kition-table-7
       - regressions/issue-reproducible-ids
@@ -1519,17 +1485,11 @@ features:
       - packages/sync/src/protocol.ts
       - packages/sync/test/helpers.ts
       - packages/sync/test/openRooms.test.ts
-      - packages/embed/src/collab.ts
-      - packages/embed/src/syncClients.ts
       - packages/embed/src/mount.ts
-      - packages/embed/test/managed.test.ts
       - packages/embed/tsconfig.build.json
       - crates/kition-sync-protocol/src/messages.rs
     cases:
-      - regressions/issue-embed-adopt-checkpoint
       - regressions/issue-embed-types-open-token
-      - regressions/issue-rejoin-role
-      - sdk.collab.file-rooms/embed-managed
       - sdk.collab.file-rooms/reference-server
     since: "2026-11-16"
   - id: sdk.collab.saves
@@ -1545,10 +1505,8 @@ features:
       - crates/kition-sync-protocol/tests/save-transitions.json
       - crates/kition-open-token/src/receipt.rs
       - packages/embed/src/mount.ts
-      - packages/embed/src/collab.ts
     cases:
       - regressions/issue-coeditor-save-banner
-      - regressions/issue-managed-save-before-join
       - sdk.collab.saves/state-machine
     since: "2026-11-16"
   - id: sdk.ui.host-services

@@ -70,8 +70,8 @@ function workerEngine() {
 }
 
 /**
- * A host keeping replicas and checkpoints as the protocol says: it records a checkpoint at the
- * version the replica write carries. Its file write waits for `release`.
+ * A host keeping replicas and checkpoints as the protocol says: it records a checkpoint keeping the
+ * write's snapshot, at the version the write carries. Its file write waits for `release`.
  */
 function checkpointHost() {
   const files: string[] = []
@@ -93,7 +93,7 @@ function checkpointHost() {
     replicaWrite: async (_path, replica, request) => {
       replicas.push(replica)
       if (!request) return null
-      const checkpoint: KitCheckpoint = { id: `c${checkpoints.length + 1}`, time: 1, origin: 'kit', ...(request.label ? { label: request.label } : {}), version: base64(replica.version), available: true }
+      const checkpoint: KitCheckpoint = { id: `c${checkpoints.length + 1}`, time: 1, origin: 'kit', ...(request.label ? { label: request.label } : {}), version: base64(replica.version) }
       checkpoints.push({ checkpoint, snapshot: replica.snapshot.slice(0) })
       return checkpoint
     },
@@ -101,9 +101,9 @@ function checkpointHost() {
       list: async () => ({ checkpoints: checkpoints.map((kept) => kept.checkpoint).reverse(), more: false }),
       update: async () => Promise.reject(new Error('not used')),
       delete: async () => undefined,
-      read: async (_path, id, options) => {
+      read: async (_path, id) => {
         const kept = checkpoints.find((candidate) => candidate.checkpoint.id === id)!
-        return { checkpoint: kept.checkpoint, blobs: new ArrayBuffer(0), ...(options?.state ? { snapshot: kept.snapshot.slice(0) } : {}) }
+        return { checkpoint: kept.checkpoint, blobs: new ArrayBuffer(0), snapshot: kept.snapshot.slice(0) }
       },
     },
   }
@@ -148,8 +148,8 @@ describe('saveCheckpoint names the saved state (UI-R6, issue-checkpoint-version-
     const recorded = checkpoint as KitCheckpoint | null
     expect(recorded).toMatchObject({ label: 'Sent to print', version: base64(new Uint8Array([1]).buffer) })
     // Read back: the stored snapshot and the content at the checkpoint's version are the saved bytes'.
-    const read = await host.checkpoints!.read('a.kit', recorded!.id, { state: true })
-    expect(decode(read.snapshot!)).toBe(files[0])
+    const read = await host.checkpoints!.read('a.kit', recorded!.id)
+    expect(decode(read.snapshot)).toBe(files[0])
     expect(contentAt.get(read.checkpoint.version)).toBe(files[0])
     expect(contentAt.get(read.checkpoint.version)).not.toContain('edit.two')
     // The edit stays unsaved.

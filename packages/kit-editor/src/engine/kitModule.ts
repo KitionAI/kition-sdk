@@ -36,7 +36,7 @@ const KIT_CONTRACT_VERSION = 1
 /**
  * How the engine is built (`engine.runtime` in kit.json, rule K11): `rust-wasm`, a wasm-pack
  * module (`<module>.js` and `<module>_bg.wasm`), or `ts-worker`, an ES module `<module>.js` whose
- * default export prepares it given `{ base }` (`@kition/kit-engine`'s `KitEngineInit`).
+ * default export prepares it given `{ base }`.
  */
 export type KitModuleRuntime = 'rust-wasm' | 'ts-worker'
 
@@ -108,8 +108,6 @@ export interface KitModuleDocument {
   check?(): string
   /** The next chunk of a file a command produced (engine contract E16), at most `max` bytes; optional, engines before it make none. */
   takeOutput?(id: string, max?: number): Uint8Array
-  /** Gets the document ready for `save` (a seal, for a kit whose file holds its replica); the worker calls it right before `save`. Optional: engines before it have none. */
-  prepareSave?(): void
   /** The document as file bytes; it stays unsaved until `markSaved`. */
   save(name?: string): Uint8Array
   /** Records that the bytes from the last `save` reached the file. */
@@ -152,6 +150,23 @@ export interface KitModuleDocument {
    */
   modelDescribe?(): string
   modelBatch?(request: string): string
+  /**
+   * A draft's changes taken in as one undo step of the person, recorded with `origin`
+   * (`[kind, principal, label]`): answers `{"damage", "summary"}`, `summary` what changed. A
+   * refusal throws with the KDM's message.
+   */
+  mergeChanges?(changes: Uint8Array, origin: string): string
+  /** What merging a draft's changes would change now, as `StateDiff` JSON; changes nothing. */
+  compareChanges?(changes: Uint8Array): string
+  /** Writes the state a snapshot holds over the document as one change of `origin`; answers the damage JSON. */
+  restoreState?(snapshot: Uint8Array, origin: string): string
+  /**
+   * An agent's reply (JSON text) with its object ids named as the tool interface names them (tool
+   * ids, KitObjectModel OM9); the document keeps its own ids.
+   */
+  modelReply?(value: string): string
+  /** What changed since the version `since`: `{"changes": StateDiff}`, or `{"changes": null, "unavailable"}` when the replica's log does not hold it. */
+  changesSince?(since: Uint8Array): string
   /**
    * The editor state that is not the document (selection, current part, current time), as JSON
    * (`KitDocument::editor_state`); `"null"` for a kit that keeps none. Optional: engines before

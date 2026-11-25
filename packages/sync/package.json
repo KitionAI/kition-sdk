@@ -1,12 +1,11 @@
 {
   "name": "@kition/sync",
   "version": "0.5.2",
-  "description": "Client for the open sync protocol kition-sync/1: JSON-RPC 2.0 over WebSocket, reconnect with backoff, offline push queue, and the relay between a KDM replica and its room.",
+  "description": "Client for the open sync protocol kition-sync/1: JSON-RPC 2.0 over WebSocket, reconnect with backoff, and an offline push queue.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./replicaVersions": "./src/replicaVersions.ts",
     "./openToken": "./src/openToken.ts"
   },
   "files": [
@@ -15,10 +14,6 @@
   "scripts": {
     "build": "node ../../tools/build-package.mjs",
     "prepack": "pnpm run build"
-  },
-  "dependencies": {
-    "@kition/kdm": "workspace:*",
-    "loro-crdt": "1.16.4"
   },
   "repository": {
     "type": "git",
@@ -35,8 +30,7 @@
     "khp",
     "sync",
     "websocket",
-    "collaboration",
-    "kdm"
+    "collaboration"
   ],
   "types": "./dist/index.d.ts",
   "publishConfig": {
@@ -45,10 +39,6 @@
       ".": {
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
-      },
-      "./replicaVersions": {
-        "types": "./dist/replicaVersions.d.ts",
-        "import": "./dist/replicaVersions.js"
       },
       "./openToken": {
         "types": "./dist/openToken.d.ts",

@@ -1,7 +1,7 @@
 {
   "name": "@kition/embed",
   "version": "0.5.2",
-  "description": "Embed Kition kit editors in any web page: KitionEmbed.mount with the page's own storage and identity, single-user or co-edited through a kition-sync/1 server.",
+  "description": "Embed Kition kit editors in any web page: KitionEmbed.mount with the page's own storage and identity.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -38,8 +38,7 @@
     "khp",
     "embed",
     "editor",
-    "iframe",
-    "collaboration"
+    "iframe"
   ],
   "types": "./dist/index.d.ts",
   "publishConfig": {

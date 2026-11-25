@@ -41,7 +41,7 @@ await build({
     ...(!hasConfig ? {
       target: 'es2022',
       lib: { entry: entries, formats: ['es'] },
-      rollupOptions: { external: [/^@kition\//, /^node:/, /^react(?:-dom)?(?:\/|$)/, /^loro-crdt(?:\/|$)/], output: { chunkFileNames: 'chunks/[name]-[hash].js' } },
+      rollupOptions: { external: [/^@kition\//, /^node:/, /^react(?:-dom)?(?:\/|$)/], output: { chunkFileNames: 'chunks/[name]-[hash].js' } },
     } : {}),
   },
 })

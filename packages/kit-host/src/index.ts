@@ -24,7 +24,6 @@ import {
   type DocumentState,
   type HostPeer,
   type InitializeResult,
-  type KitConflict,
   type KitDocumentInit,
   type KitLease,
   type KitLinksPickParams,
@@ -42,6 +41,7 @@ import {
   type DraftInfo,
   type DraftOrigin,
   type DraftSummary,
+  type RestoreOrigin,
   type ModelBatchParams,
   type ModelBatchResult,
   type StoredReplica,
@@ -87,7 +87,7 @@ export type { KitFetchImageErrorReason, KitFetchImageResult, KitFetchImageType }
 export { FETCH_IMAGE_ERROR_REASONS, FETCH_IMAGE_TYPES, fetchImageErrorReason, isFetchableUrl } from '@kition/kit-ui-protocol'
 export type { KitCheckpoint, KitCheckpointErrorReason, KitCheckpointRequest, KitViewState, KitViewStateErrorReason } from '@kition/kit-ui-protocol'
 export { CHECKPOINT_DESCRIPTION_LIMIT, CHECKPOINT_ERROR_REASONS, CHECKPOINT_LABEL_LIMIT, CHECKPOINT_LIST_LIMIT, KIT_CHECKPOINT_ORIGIN, VIEW_STATE_BYTES_LIMIT, VIEW_STATE_ERROR_REASONS, VIEW_STATE_JSON_LIMIT, historyErrorReason } from '@kition/kit-ui-protocol'
-export type { DocumentState, DraftComparison, DraftInfo, DraftOrigin, DraftSummary, InitializeResult, KitConflict, KitDocumentInit, KitLease, KitPeerPresence, KitPresence, KitPresenceCaret, KitSchemaReport, KitTheme, KitUiConfig, KitUiElement, ModelBatchParams, ModelBatchResult, StoredReplica, WrittenReplica }
+export type { DocumentState, DraftComparison, DraftInfo, DraftOrigin, DraftSummary, InitializeResult, KitDocumentInit, KitLease, KitPeerPresence, KitPresence, KitPresenceCaret, KitSchemaReport, KitTheme, KitUiConfig, KitUiElement, ModelBatchParams, ModelBatchResult, RestoreOrigin, StoredReplica, WrittenReplica }
 
 type Params<M extends keyof KitToHost> = KitToHost[M][0]
 type Result<M extends keyof KitToHost> = KitToHost[M][1] | Promise<KitToHost[M][1]>
@@ -101,15 +101,15 @@ export type KitHostHandlers = {
   openAgent?: (params: Params<'host/openAgent'>) => void | Promise<void>
   /**
    * The document's stored replica and its keeping (capability `replica`, with `replicaWrite`):
-   * `null` when none is stored. The kit decides whether it still belongs to the file.
+   * `null` when none is stored. Answer the stored one whatever its `fileStamp` (UI-R1): the kit
+   * opens with it and records a file that differs as one `import` change.
    */
   replicaRead?: (params: Params<'host/replicaRead'>) => Result<'host/replicaRead'>
   /**
-   * `params.version` (checked: an `ArrayBuffer`) is the version `params.snapshot` holds, taken by
-   * the kit with the saved bytes (UI-R6). With `checkpoints` served, `params.checkpoint` (checked:
-   * lengths, origin `kit`) asks to record a checkpoint at exactly that version, in the same step;
-   * answer it as `{ checkpoint }`. Never ask the kit's `replica/version` for it: the document may
-   * hold later edits by then.
+   * `params.version` (checked: an `ArrayBuffer`) is the version `params.snapshot` holds (UI-R6).
+   * With `checkpoints` served, `params.checkpoint` (checked: lengths, origin `kit`) asks to record
+   * a checkpoint keeping this snapshot and its blobs, in the same step; answer it as
+   * `{ checkpoint }`, its `version` this one.
    * At the version of the newest checkpoint, answer that one; when the request has a label, that
    * checkpoint takes the label and description and becomes the kit's (`origin: "kit"`), whatever
    * its origin was, so the person can rename or delete it (UI-C1). Without `checkpoints`,
@@ -119,9 +119,9 @@ export type KitHostHandlers = {
   /**
    * The document's checkpoints (capability `checkpoints`, section 7m; served only with
    * `replicaRead` and `replicaWrite`). `find` answers one by id (`null`: unknown); `mountKit` asks
-   * it first and refuses an unknown id (`not-found`), another origin's checkpoint for `update` and
-   * `delete` (`read-only`), and an unavailable one for `read` (`history-missing`), so the other
-   * handlers see only what they may do. Refuse with `KitRpcError(-32000, …, { reason })`, `reason`
+   * it first and refuses an unknown id (`not-found`) and another origin's checkpoint for `update`
+   * and `delete` (`read-only`), so the other handlers see only what they may do. `read` answers
+   * the snapshot the checkpoint keeps and its blobs. Refuse with `KitRpcError(-32000, …, { reason })`, `reason`
    * one of `CHECKPOINT_ERROR_REASONS` (`conflict` for a checkpoint changed meanwhile).
    */
   checkpoints?: {
@@ -164,8 +164,6 @@ export type KitHostHandlers = {
     release: (params: Params<'host/leaseRelease'>) => void | Promise<void>
     list: () => KitLease[] | Promise<KitLease[]>
   }
-  /** `document/conflicts`: the document's unresolved conflict objects (section 7c). */
-  conflicts?: (params: KitNotifications['document/conflicts']) => void
   /**
    * `document/schema`: a newer kit edited the document (section 7f; KitModel rule M5a),
    * checked. The host tells the person and offers the update, without blocking editing.
@@ -383,6 +381,11 @@ export type KitConnection = {
     version: () => Promise<ArrayBuffer>
     exportChanges: (since: ArrayBuffer) => Promise<{ changes: ArrayBuffer; blobs: ArrayBuffer }>
     importChanges: (changes: ArrayBuffer, blobs: ArrayBuffer) => Promise<{ damage: unknown }>
+    /**
+     * Writes the state `snapshot` holds (a checkpoint's) over the document as one change of
+     * `origin`, one step of the person's undo (`replica/restore`).
+     */
+    restore: (snapshot: ArrayBuffer, blobs: ArrayBuffer, origin: RestoreOrigin) => Promise<{ damage: unknown }>
     /** The replica's own id, when the kit's engine has one; `null` otherwise. */
     info: () => Promise<string | null>
     /** Hears every `replica/changed` (the replica's version after an edit); answers an unsubscribe. */
@@ -523,9 +526,8 @@ export function mountKit(frame: HTMLIFrameElement, options: MountOptions): Promi
       return {}
     })
     peer.handle('host/checkpointRead', async (params) => {
-      const { checkpoints: served, found, path, id } = await knownCheckpoint('host/checkpointRead', params)
-      if (!found.available) refuse('history-missing', `the store no longer reaches checkpoint ${id}'s version`)
-      return served.read({ path, id, ...(params.state === true ? { state: true } : {}) })
+      const { checkpoints: served, path, id } = await knownCheckpoint('host/checkpointRead', params)
+      return served.read({ path, id })
     })
     const { viewState } = handlers
     peer.handle('host/viewStateRead', async (params) => {
@@ -607,7 +609,6 @@ export function mountKit(frame: HTMLIFrameElement, options: MountOptions): Promi
     })
     const files = options.files ? openFileSession({ ...options.files, readOnly, revoked: (handles) => peer.notify('files/revoked', { handles }) }) : null
     if (files) for (const method of FILES_METHODS) peer.handle(method, (params) => files.serve(method, params as never))
-    peer.on('document/conflicts', (params) => handlers.conflicts?.(params))
     peer.on('document/schema', (params) => {
       const report = parseSchemaReport(params)
       if (report) handlers.schema?.(report)
@@ -768,6 +769,7 @@ function connection(peer: HostPeer, info: { kit: KitConnection['kit']; capabilit
       version: async () => (await peer.request('replica/version', {})).version,
       exportChanges: (since) => peer.request('replica/export', { since }),
       importChanges: (changes, blobs) => peer.request('replica/import', { changes, blobs }),
+      restore: (snapshot, blobs, origin) => peer.request('replica/restore', { snapshot, blobs, origin }),
       info: async () => (await peer.request('replica/info', {})).docId,
       onChanged: (listener) => peer.on('replica/changed', (params) => listener(params.version)),
     },

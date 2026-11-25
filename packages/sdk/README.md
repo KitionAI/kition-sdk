@@ -16,25 +16,22 @@ import { Replica } from '@kition/sdk/kdm'
 
 | Subpath | What it is |
 | --- | --- |
-| `@kition/sdk/embed` | Kit editors in any web page (`KitionEmbed.mount`); Loro's WebAssembly inlined, so no bundler setup |
+| `@kition/sdk/embed` | Kit editors in any web page (`KitionEmbed.mount`); self-contained, so no bundler setup |
 | `@kition/sdk/embed/server` | The embed server and its signed callbacks (`/embed/server/callbacks`), for Node only; the `kition-embed-server` command |
-| `@kition/sdk/sync` | The `kition-sync/1` client, with `/sync/replicaVersions` and `/sync/openToken` |
+| `@kition/sdk/sync` | The `kition-sync/1` client, with `/sync/openToken` |
 | `@kition/sdk/script` | Documents by script: `/script/node`, `/script/proxy`, `/script/kits` and `/script/kits/<kit>` for each kit; `/script/standalone` for a page without a bundler |
 | `@kition/sdk/extensions` | Kit extensions: their host, `/extensions/runtime` (with the built sandbox worker `WORKER_RUNTIME`), and the sandbox pages `/extensions/sandbox.html` and `/extensions/panel.html` |
-| `@kition/sdk/kdm` | The Kit Data Model: a replicated document of typed objects (`wrapEnvelope` and `openEnvelope` for its bytes) |
+| `@kition/sdk/kdm` | The Kit Data Model, read-only: a kit document's typed objects as its engine writes them |
 | `@kition/sdk/editor` | The kit editor shell, with `/editor/styles.css` and `/editor/workspaceTree`; needs React and Kition Tessera |
-| `@kition/sdk/engine` | The kit engine harness for TypeScript kit engines |
 | `@kition/sdk/host` | The Kit UI protocol host |
 | `@kition/sdk/dev-host` | The development host, with `/dev-host/check-ui-ids`, `/dev-host/mode-smoke`, `/dev-host/line-row` and `/dev-host/watch-page` |
 | `@kition/sdk/protocol` | The Kit UI protocol's types and messages |
-| `@kition/sdk/convergence` | Convergence checks of a kit engine, with `/convergence/node` |
 
-`@kition/sdk/kdm`, `/sync`, `/script` and `/extensions` import `loro-crdt` (the package's one
-dependency) and share their code, so an app that imports several of them holds one Loro and one
-KDM. `@kition/sdk/embed` and `@kition/sdk/script/standalone` are self-contained instead: Loro's
-WebAssembly is inlined and they import nothing, for a `<script type="module">` page without a
-bundler (`/script/standalone` registers every kit; its types are those of `/script` and
-`/script/kits`). Each carries its own Loro and KDM, so an app with a bundler imports `/script`.
+`@kition/sdk/kdm`, `/sync`, `/script` and `/extensions` share their code, so an app that imports
+several of them holds one KDM. `@kition/sdk/embed` and `@kition/sdk/script/standalone` are
+self-contained instead: they import nothing, for a `<script type="module">` page without a bundler
+(`/script/standalone` registers every kit; its types are those of `/script` and `/script/kits`).
+Each carries its own KDM, so an app with a bundler imports `/script`.
 
 A host of extensions serves the sandbox and panel pages as static files: copy
 `node_modules/@kition/sdk/dist/lib/extensions/sandbox.html` and `panel.html` (the exports
@@ -46,9 +43,8 @@ Only `@kition/sdk/editor` needs React, React DOM and Kition Tessera (`@kition/te
 optional peer dependencies, so install them beside it when you use the editor. A bundler that builds
 a page from `@kition/sdk/embed` takes nothing of the editor.
 
-The editor runs each document in a module worker that loads Loro's WebAssembly, a `.wasm` file
-beside it: your bundler builds the worker and emits the `.wasm` as an asset (with Vite, set
-`worker: { format: 'es' }`), and your server sends it as `application/wasm`.
+The editor runs each document in a module worker: your bundler builds the worker (with Vite, set
+`worker: { format: 'es' }`).
 
 Documentation: https://developer.kition.ai/docs
 

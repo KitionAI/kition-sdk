@@ -10,12 +10,10 @@
       <strong class="brand">Kition Embed example</strong>
       <label>User
         <select data-testid="user">
-          <option value="alice">Alice (dev-alice)</option>
-          <option value="bob">Bob (dev-bob)</option>
+          <option value="alice">Alice</option>
+          <option value="bob">Bob</option>
         </select>
       </label>
-      <label><input type="checkbox" data-testid="collab-enabled" /> Co-edit</label>
-      <label class="grow">Sync server <input data-testid="server-url" placeholder="ws://127.0.0.1:18300/v1/sync" /></label>
       <label>Open as
         <select data-testid="mode">
           <option value="edit">Editor</option>
@@ -29,9 +27,6 @@
         <h2>Files</h2>
         <ul class="files" data-testid="files"></ul>
         <label class="button secondary upload">Upload…<input type="file" data-testid="upload" multiple hidden /></label>
-        <h2>Join a shared document</h2>
-        <input data-testid="join-link" placeholder="Paste a share link" />
-        <button class="button" data-testid="join-submit">Join</button>
         <p class="notice" data-testid="notice"></p>
         <ul class="errors" data-testid="errors"></ul>
       </aside>

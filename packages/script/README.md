@@ -3,7 +3,7 @@
 The Kition object model for scripts and extensions: read and edit a kit document as typed
 objects, batched into one change per `sync()`, with commands and change events. The same script
 runs in a page (an editor mounted with `@kition/embed`), in Node with the kit's WebAssembly
-engine (`@kition/script/node`), against a kit's headless executable, or in a co-edited room.
+engine (`@kition/script/node`), or against a kit's headless executable.
 Typings per kit are in `@kition/script/kits/<kit>`.
 
 ```sh

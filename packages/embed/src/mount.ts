@@ -1,26 +1,23 @@
 /**
  * `KitionEmbed.mount`: a kit's editor in a cross-origin iframe inside the integrator's element,
  * over the Kit UI protocol (`mountKit`), with the integrator's storage behind the kit's file calls
- * (`handlers.ts`) and, when asked, a collaboration session (`collab.ts`).
+ * (`handlers.ts`).
  *
  * The frame comes from the kit package's own origin (`kit.url`), and the protocol's handshake is
- * bound to exactly that origin. Tokens, the sync connection, and the storage stay in this page;
- * the kit sees only its document's bytes and replica changes (E5).
+ * bound to exactly that origin. The storage stays in this page; the kit sees only its document's
+ * bytes and its replica (E5).
  */
 import { KitRpcError, mountKit, type KitConnection, type KitDocumentInit, type KitUiElement, type MountOptions } from '@kition/kit-host'
 import { SERVICE_ERROR_REASONS } from '@kition/kit-ui-protocol'
-import type { ReplicaVersions, TransportFactory } from '@kition/sync'
 import { createAgentPort, type AgentPort } from './agent'
 import { blobBackedReplicas } from './blobs'
-import type { CollabHost, CollabSession } from './collab'
 import type { CommentReader } from './comments'
 import { createHandlers, toArrayBuffer, type NamedFile } from './handlers'
 import { EmbedError } from './errors'
 import { fetchPackageSchema, kitSchemaLoader } from './schemas'
-import { indexedDbReplicaStore, memoryReplicaStore } from './replicaStore'
 import { kitTheme } from './theme'
-import type { CollabState, EmbedCommand, EmbedCommentThread, EmbedEditor, EmbedEvents, EmbedModelPort, EmbedOptions, EmbedServices, EmbedShownThread, EmbedUi, EmbedUser, PermissionMode, ReplicaStore, StoredReplica } from './types'
-import { People, kitUiConfig, namePeers, strictestMode } from './ui'
+import type { EmbedCommand, EmbedCommentThread, EmbedEditor, EmbedEvents, EmbedModelPort, EmbedOptions, EmbedServices, EmbedShownThread, EmbedUi, EmbedUser, PermissionMode } from './types'
+import { People, kitUiConfig, strictestMode } from './ui'
 import { EMBED_VERSION } from './version'
 
 /** The capability sets this embed serves (Kition platform `docs/platform/index.md` section 3). */
@@ -33,10 +30,6 @@ export const FRAME_ALLOW = 'clipboard-read; clipboard-write; fullscreen'
 /** What `mount` uses, replaceable in tests. */
 export type EmbedDependencies = {
   mountKit: (frame: HTMLIFrameElement, options: MountOptions) => Promise<KitConnection>
-  /** The replica store of a collaboration session whose storage has none. */
-  replicaStore: () => ReplicaStore
-  createTransport?: TransportFactory
-  versions?: ReplicaVersions
   /**
    * Reads the KDM schema a kit package ships (`model/schema.json` at the URL given); without it, a
    * draft's review and the agent's object-model calls use the page's or the bundled kit's schema.
@@ -44,7 +37,7 @@ export type EmbedDependencies = {
   packageSchema?: (url: string) => Promise<object | undefined>
 }
 
-const DEFAULT_DEPENDENCIES: EmbedDependencies = { mountKit, replicaStore: () => indexedDbReplicaStore(), packageSchema: fetchPackageSchema }
+const DEFAULT_DEPENDENCIES: EmbedDependencies = { mountKit, packageSchema: fetchPackageSchema }
 
 function toError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
@@ -58,46 +51,6 @@ export function kitLocation(kit: EmbedOptions['kit'], base = globalThis.location
   url.hash = ''
   if (!url.pathname.endsWith('/')) url.pathname += '/'
   return { origin: url.origin, base: url.href, entry: new URL(kit.entry ?? 'index.html', url).href }
-}
-
-/**
- * The replica of a kit closed to be opened again read-only, unsaved edits included: its whole
- * history as a change export from nothing, which also opens as a snapshot.
- */
-type Carried = { changes: ArrayBuffer; blobs: ArrayBuffer }
-
-/** A document id as the two sides may spell it: lowercase hex, no hyphens. */
-const docIdKey = (docId: string) => docId.replace(/-/g, '').toLowerCase()
-
-/**
- * Whether the kit `opened` holds an earlier state of the carried replica: the same document, and
- * no change the carried one lacks. Only then do the carried changes continue it. A kit that opened
- * another replica (none was stored with the file, or the file won over the stored one and was
- * recorded onto it as new objects) would take them as more objects, or refuse them.
- */
-async function continuesCarried(carried: Carried, opened: KitConnection, known?: ReplicaVersions) {
-  const [{ openEnvelope }, versions] = await Promise.all([import('@kition/kdm'), known ?? import('@kition/sync/replicaVersions').then((loaded) => loaded.LORO_REPLICA_VERSIONS)])
-  const changes = new Uint8Array(carried.changes)
-  const reached = versions.endOf(changes)
-  const version = new Uint8Array(await opened.replica.version())
-  // Every opened replica holds at least the change that created its document.
-  if (!reached || !version.length || !versions.includes(reached, version)) return false
-  const docId = await opened.replica.info().catch(() => null)
-  const carriedId = [...openEnvelope(changes).docId].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-  return !docId || docIdKey(docId) === carriedId
-}
-
-/** `replicas`, whose first read answers `first` (the kit opening from it), and later ones the store. */
-function readingFirst(replicas: ReplicaStore, first: StoredReplica): ReplicaStore {
-  let next: StoredReplica | null = first
-  return {
-    read: async (fileId) => {
-      const answer = next
-      next = null
-      return answer ?? replicas.read(fileId)
-    },
-    write: (fileId, replica) => replicas.write(fileId, replica),
-  }
 }
 
 /** `storage.lend`'s answer as the Kit UI protocol's `document.lend`: an http(s) URL ending in `/`, the document's folder at its root. */
@@ -130,7 +83,6 @@ function displayOf(display: EmbedOptions['display']) {
 export async function mountEmbed(element: HTMLElement, options: EmbedOptions, dependencies: EmbedDependencies = DEFAULT_DEPENDENCIES): Promise<EmbedEditor> {
   const { kit } = options
   const { origin, base, entry } = kitLocation(kit)
-  if (options.collaboration && (!options.identity?.token || !options.identity.user)) throw new Error('collaboration needs an identity provider with token and user')
   if (!options.storage.stamp && !options.storage.info) throw new Error('the storage needs stamp or info')
   if (!options.file.name && !options.storage.info) throw new Error('the file needs a name, or the storage info to name it')
   const storage = options.storage
@@ -153,7 +105,7 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
   let locale = options.locale ?? globalThis.navigator?.language ?? 'en-US'
   let mode: PermissionMode = strictestMode(options.permissions?.mode)
   let ui: EmbedUi | undefined = options.ui
-  // What the person last hid themselves (`host/customize`), kept for the kit opening again.
+  // What the person last hid themselves (`host/customize`).
   let personal: { hide: string[] } | null = null
   // The kit's elements, when `ui.panels` needs them to tell which panels to hide.
   let elements: KitUiElement[] | null = null
@@ -162,7 +114,6 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
   let connection: KitConnection | null = null
   let frame: HTMLIFrameElement | null = null
   let opening: AbortController | null = null
-  let collab: CollabSession | null = null
   // Who drafts are merged as (`origin.principal`): the principal the page last gave an agent
   // port; before any, the person (an agent acts for the person who started it, KHP A11, A14), or
   // `agent` without an identity.
@@ -171,11 +122,10 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
   let agentLabel: string | undefined
   const ports = new Set<AgentPort>()
   let destroyed = false
-  const closing = new AbortController()
   const version = { current: null as string | null }
-  // The kit keeps a replica when the integrator stores one, or when collaboration needs one.
-  const kept = storage.replica ?? (options.collaboration ? dependencies.replicaStore() : options.model ? memoryReplicaStore() : null)
-  // With a blob store, the replica's blobs go there instead of inside the stored replica.
+  // The kit keeps a replica when the integrator stores one; with a blob store, the replica's blobs
+  // go there instead of inside the stored replica.
+  const kept = storage.replica ?? null
   const replicas = kept && storage.blob ? blobBackedReplicas(kept, storage.blob) : kept
   // `replica/changed` of whichever frame is current, for the object model.
   const replicaListeners = new Set<(version: Uint8Array | null) => void>()
@@ -185,32 +135,23 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
     frame = null
   }
 
-  /**
-   * Opens the kit in a new frame, replacing any earlier one. `carried` is the replica of the kit
-   * it replaces: imported when the kit opened an earlier state of it, else the kit is opened
-   * again from it alone (`fromCarried`: no file bytes, the carried replica as the stored one), so
-   * its changes never go into another replica.
-   */
-  async function open(openMode: PermissionMode, carried: Carried | null = null, fromCarried = false): Promise<KitConnection> {
+  /** Opens the kit in a new frame. */
+  async function open(openMode: PermissionMode): Promise<KitConnection> {
     const readOnly = openMode !== 'edit'
-    opening?.abort()
     const abandon = new AbortController()
     opening = abandon
     // The kit starts loading while the document is read; it announces itself when ready.
-    frame?.remove()
     const next = createFrame(entry, file.name)
     frame = next
     element.append(next)
     const read = await storage.read(file.id)
     if (destroyed || abandon.signal.aborted) throw new Error('the editor was closed')
     version.current = read.version
-    const lent = fromCarried && carried && replicas && read.version ? { snapshot: carried.changes, blobs: carried.blobs, fileStamp: read.version } : null
-    if (fromCarried && !lent) console.warn('[kition-embed] could not open the kit again with its edits')
     const sentTheme = theme
     const sentLocale = locale
     const sentUi = ui
     // Who comments, for a kit that keeps comment threads, once the page names the person.
-    const comments = options.identity || openMode === 'comment' ? { me: user?.id ?? null, ...(user?.name ? { name: user.name } : {}), canComment: openMode !== 'view', othersReadOnly: !options.collaboration } : undefined
+    const comments = options.identity || openMode === 'comment' ? { me: user?.id ?? null, ...(user?.name ? { name: user.name } : {}), canComment: openMode !== 'view', othersReadOnly: true } : undefined
     const mounted = await dependencies.mountKit(next, {
       signal: abandon.signal,
       origin,
@@ -218,58 +159,35 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       document: {
         path: file.name,
         name: file.name,
-        bytes: lent ? new ArrayBuffer(0) : toArrayBuffer(read.bytes),
+        bytes: toArrayBuffer(read.bytes),
         version: read.version,
         ...(readOnly ? { readOnly: true } : {}),
         ...(lend ? { lend } : {}),
         ...(comments ? { comments } : {}),
-        // What a managed room's open token lets the person take out, and the watermark.
-        ...(collab?.openDocument ?? displayOf(options.display)),
+        // What the page lets the person take out, and the watermark.
+        ...displayOf(options.display),
       },
       theme: sentTheme,
       locale: sentLocale,
       shortcuts: [...(options.shortcuts ?? [])],
       ui: kitUiConfig(sentUi, elements, personal),
-      capabilitySets: [...EMBED_CAPABILITY_SETS, ...(options.collaboration ? ['KitCollab 1.0'] : [])],
+      capabilitySets: [...EMBED_CAPABILITY_SETS],
       timeoutMs: options.timeoutMs,
       handlers: {
         ...createHandlers({
           file,
           storage,
-          replicas: lent && replicas ? readingFirst(replicas, lent) : replicas,
+          replicas,
           readOnly,
           version,
           onSaved: (saved) => emit('saved', { version: saved }),
           onChanged: (change) => emit('changed', change),
           onNotify: (notice) => emit('notify', notice),
           onConflict: (error) => emit('conflict', error),
-          // A managed room's saves go through its save state machine (KitCollab 1.4, D3).
-          coordinate: () => collab?.coordinator() ?? null,
-          // A save in a managed room goes through the room, never to the file directly (SV1).
-          managedRoom: () => collab?.isManaged() ?? false,
-          // The file moved to a later generation since the room was joined (1.3, SV5).
-          moving: () => collab?.moving() ?? null,
-          nextGeneration: () =>
-            collab?.generationMoved()
-              ? { occupied: () => collab!.nextGenerationHasRoom(), moved: (before) => void collab!.moveToNextGeneration(before).catch((error: unknown) => emit('error', toError(error))), docKey: () => collab!.currentDocKey() }
-              : null,
         }),
-        // Leases on the room's scopes (Kit UI protocol section 7b), when co-editing.
-        ...(options.collaboration
-          ? {
-              leases: {
-                acquire: (params) => (collab ? collab.acquireLease(params) : { lease: null }),
-                release: async (params) => {
-                  await collab?.releaseLease(params)
-                },
-                list: () => collab?.listLeases() ?? [],
-              },
-            }
-          : {}),
         // The page's services and the comment threads it keeps (KitEmbed 1.7, EM29 and EM30).
         ...(options.services ? { services: pageServices(options.services) } : {}),
         ...(options.comments ? { comments: { activated: (id: string) => options.comments?.activated(id) } } : {}),
-        conflicts: ({ conflicts }) => emit('mergeConflicts', conflicts),
         schema: (report) => emit('newerKit', report),
         draftChanged: (info) => emit('draft', info),
         action: (action) => emit('action', action),
@@ -294,18 +212,6 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       mounted.close()
       throw new Error(`the kit at ${kit.url} is ${mounted.kit.id}, not ${kit.id}`)
     }
-    if (carried && !fromCarried && mounted.capabilities.includes('replica')) {
-      const continues = await continuesCarried(carried, mounted, dependencies.versions).catch(() => false)
-      if (destroyed || abandon.signal.aborted) {
-        mounted.close()
-        throw new Error('the editor was closed')
-      }
-      if (!continues) {
-        mounted.close()
-        return open(openMode, carried, true)
-      }
-      await mounted.replica.importChanges(carried.changes, carried.blobs)
-    }
     if (mounted.capabilities.includes('replica')) {
       mounted.replica.onChanged((changed) => {
         for (const listener of [...replicaListeners]) listener(new Uint8Array(changed))
@@ -316,7 +222,7 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
     if (theme !== sentTheme) mounted.setTheme(theme)
     if (locale !== sentLocale) mounted.setLocale(locale)
     connection = mounted
-    // The page's threads, marked again in a kit opened again (EM30).
+    // The page's threads, shown before the kit opened (EM30).
     if (shownThreads) mounted.showComments(shownThreads)
     commentReader?.reset()
     if (ui !== sentUi || ui?.panels) void applyUi(mounted)
@@ -363,63 +269,8 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
     }
   }
 
-  /** The room lets this person only view or comment: the kit opens again read-only, keeping its unsaved edits. */
-  function reopenReadOnly(next: Exclude<PermissionMode, 'edit'>) {
-    if (destroyed || strictestMode(mode, next) === mode) return
-    mode = strictestMode(mode, next)
-    void (async () => {
-      collab?.detach()
-      const current = connection
-      connection = null
-      let carried: Carried | null = null
-      if (current?.capabilities.includes('replica')) {
-        carried = await current.replica.exportChanges(new ArrayBuffer(0)).catch((error: unknown) => {
-          console.warn('[kition-embed] could not keep the replica before opening the kit again', error)
-          return null
-        })
-      }
-      current?.close()
-      const mounted = await open(mode, carried)
-      void collab?.attach(mounted, mode)
-    })().catch((error: unknown) => {
-      if (!destroyed) emit('error', toError(error))
-    })
-  }
-
-  /** Opens the kit again from the stored file and replica, carrying nothing (a managed viewer whose file got its room). */
   /** The threads the page keeps, as last shown (EM30). */
   let shownThreads: EmbedShownThread[] | null = null
-  let reopening: Promise<void> | null = null
-  function reopenFresh() {
-    if (destroyed) return
-    const run = (reopening = (async () => {
-      collab?.detach()
-      connection?.close()
-      connection = null
-      const mounted = await open(mode)
-      void collab?.attach(mounted, mode)
-    })()
-      .catch((error: unknown) => {
-        if (!destroyed) emit('error', toError(error))
-      })
-      .finally(() => {
-        if (reopening === run) reopening = null
-      }))
-  }
-
-  /** What a collaboration session reports, with the page's names for the people in the room. */
-  let presenceCount = 0
-  const sessionEmit: CollabHost['emit'] = (event, value) => {
-    if (event !== 'presence') return emit(event, value)
-    const peers = value as EmbedEvents['presence']
-    if (!people.serves) return emit('presence', namePeers(peers, new Map()))
-    const count = (presenceCount += 1)
-    void people.presence(peers).then((named) => {
-      // A newer list may have come while this one was named.
-      if (count === presenceCount && !destroyed) emit('presence', named)
-    })
-  }
-
   const ready = (async () => {
     if (!options.file.name) {
       const info = await storage.info!(file.id)
@@ -429,62 +280,16 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
     if (options.identity?.permissions) mode = strictestMode(mode, (await options.identity.permissions(file.id))?.mode)
     if (options.identity?.user) user = await options.identity.user()
     if (storage.lend) lend = lendLocation(await storage.lend(file.id))
-    if (options.collaboration) {
-      const { openCollabSession } = await import('./collab')
-      const session = await openCollabSession({
-        kit,
-        file,
-        storage,
-        identity: options.identity!,
-        collaboration: options.collaboration,
-        replicas: replicas!,
-        emit: sessionEmit,
-        reopenReadOnly,
-        reopen: reopenFresh,
-        onVersion: (moved) => {
-          version.current = moved
-        },
-        signal: closing.signal,
-        createTransport: dependencies.createTransport,
-        versions: dependencies.versions,
-      })
-      if (destroyed) {
-        session.close()
-        throw new Error('the editor was closed')
-      }
-      collab = session
-      if (ports.size > 0) session.setAgent({ name: agentLabel ?? 'Agent' })
-      mode = strictestMode(mode, session.roleMode)
-    }
-    const mounted = await open(mode)
-    if (collab) {
-      try {
-        await collab.claimOpened(mounted)
-      } catch (error) {
-        // Another editor on the page co-edits this document: this one closes before it shows.
-        collab.close()
-        collab = null
-        mounted.close()
-        connection = null
-        dropFrame()
-        throw error
-      }
-    }
-    void collab?.attach(mounted, mode)
+    await open(mode)
   })()
   // `ready()` reports a failure; nothing else needs to hear it.
   ready.catch(() => undefined)
 
   const opened = async () => {
     await ready
-    // The kit opens on the file's next generation after a kept copy (SV5): wait for it.
-    await collab?.moving()
-    await reopening
-    if (!connection) throw new Error(destroyed ? 'the editor was closed' : 'the kit is opening again')
+    if (!connection) throw new Error('the editor was closed')
     return connection
   }
-
-  const offState: CollabState = { status: 'off', docId: null, role: null }
 
   const packageSchema = dependencies.packageSchema
   const kitSchema = kitSchemaLoader(kit.id, kit.schema, packageSchema && (() => packageSchema(new URL('model/schema.json', base).href)))
@@ -536,16 +341,6 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       },
       locate: async (anchors) => (await opened()).locateComments(anchors),
     },
-    collab: {
-      get state() {
-        return collab?.state ?? offState
-      },
-      shareLink: async (role) => {
-        await ready
-        if (!collab) throw new Error('this editor does not co-edit')
-        return collab.shareLink(role)
-      },
-    },
     commands: {
       list: async (query = '') => (await (await opened()).ai.commands(query)) as EmbedCommand[],
       run: async (id, params, runOptions) => {
@@ -583,13 +378,10 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       agentLabel = portOptions?.label ?? agentLabel
       const port = createAgentPort({ kitId: kit.id, path: () => file.name, opened, editable: () => mode === 'edit', version: EMBED_VERSION, schema: kitSchema }, { ...portOptions, principal: mergePrincipal() })
       ports.add(port)
-      // While a port is open, co-editors see the agent working for the person (KitAgent A20).
-      collab?.setAgent({ name: agentLabel ?? 'Agent' })
       const close = port.close
       port.close = () => {
         close()
         ports.delete(port)
-        if (ports.size === 0) collab?.setAgent(null)
       }
       return port
     },
@@ -598,46 +390,22 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       if (!replicas || !current.capabilities.includes('replica')) return null
       return new Uint8Array(await current.replica.version())
     },
-    modelPort: () => {
-      const kitModel = (): NonNullable<EmbedModelPort['model']> => {
-        const answering = async () => {
-          const current = await opened()
-          if (!current.capabilities.includes('model')) throw new Error(`the ${kit.id} editor no longer answers the object model`)
-          return current
-        }
-        return {
-          describe: async (schema) => (await answering()).model.describe(schema),
-          batch: async (request, schema) => {
-            const { version, ...result } = await (await answering()).model.batch({ ...request, schema })
-            return { ...result, version: version ? new Uint8Array(version) : null }
-          },
-        }
-      }
-      const replica = async () => {
+    modelPort: (): EmbedModelPort => {
+      // The kit answers the object model itself when the editor open now lists `model`.
+      const answering = async () => {
         const current = await opened()
-        if (!replicas || !current.capabilities.includes('replica')) throw new Error(`the ${kit.id} editor keeps no replica: mount it with model: true`)
+        if (!current.capabilities.includes('model')) throw new Error(`the ${kit.id} editor does not answer the object model (capability model)`)
         return current
       }
-      const slice = (view: Uint8Array) => view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer
       return {
         kitId: kit.id,
-        exportChanges: async (since) => new Uint8Array((await (await replica()).replica.exportChanges(slice(since))).changes),
-        importChanges: async (changes) => {
-          await (await replica()).replica.importChanges(slice(changes), new ArrayBuffer(0))
-        },
-        command: async (id, params) => {
-          const steps = [{ command: id, ...(params && typeof params === 'object' ? { params: params as Record<string, unknown> } : {}) }]
-          return (await (await opened()).ai.run(steps, false)).completed[0]?.result ?? null
-        },
         commands: async () => (await (await opened()).ai.commands('')) as EmbedCommand[],
-        readOnly: () => mode !== 'edit',
         // What the object model's documents hear from this editor (`@kition/script` `doc.on`).
-        events: options.collaboration ? ['saved', 'conflict', 'presence'] : ['saved', 'conflict'],
+        events: ['saved', 'conflict'],
         on: (event, listener) => {
           const heard = listener as (value: unknown) => void
           if (event === 'saved') return on('saved', ({ version }) => heard({ version }))
           if (event === 'conflict') return on('conflict', (error) => heard({ message: error.message }))
-          if (event === 'presence') return on('presence', (peers) => heard({ peers }))
           return () => undefined
         },
         onChanged: (listener) => {
@@ -646,8 +414,13 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
             replicaListeners.delete(listener)
           }
         },
-        // The kit answers the object model itself when its editor (open now) lists `model`.
-        ...(connection?.capabilities.includes('model') ? { model: kitModel() } : {}),
+        model: {
+          describe: async (schema) => (await answering()).model.describe(schema),
+          batch: async (request, schema) => {
+            const { version, ...result } = await (await answering()).model.batch({ ...request, schema })
+            return { ...result, version: version ? new Uint8Array(version) : null }
+          },
+        },
       }
     },
     document: async (typings, documentOptions) => {
@@ -668,11 +441,9 @@ export async function mountEmbed(element: HTMLElement, options: EmbedOptions, de
       if (destroyed) return
       destroyed = true
       if (commentTimer) clearTimeout(commentTimer)
-      closing.abort()
       opening?.abort()
       for (const port of ports) port.close()
       ports.clear()
-      collab?.close()
       connection?.close()
       connection = null
       dropFrame()

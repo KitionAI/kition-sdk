@@ -1,7 +1,7 @@
 // @kition/sdk as a consumer installs it, for the checks that use it from outside the workspace
 // (tools/smoke-sdk-package.mjs, tools/smoke-sdk-worker.mjs): its packed archive unpacked into
-// <consumer>/node_modules/@kition/sdk, offline. Its dependency and peers are linked from the
-// workspace (loro-crdt, React, their types), and its Tessera peer @kition/tessera from the folder
+// <consumer>/node_modules/@kition/sdk, offline. Its peers are linked from the workspace (React,
+// its types), and its Tessera peer @kition/tessera from the folder
 // `tessera` names (the built package in the kition-tessera checkout beside this one, or a folder npm
 // installed it in), as npm serves it (its publishConfig exports, when it has them).
 import assert from 'node:assert/strict'
@@ -29,7 +29,7 @@ export function consumerInputs(tool, args) {
   return { archive, tessera }
 }
 
-/** Installs the archive and its dependency and peers in `consumer`; answers { installed, manifest, ownTessera }. */
+/** Installs the archive and its peers in `consumer`; answers { installed, manifest, ownTessera }. */
 export function installSdk({ consumer, archive, tessera }) {
   const modules = path.join(consumer, 'node_modules')
   const installed = path.join(modules, SDK)
@@ -42,13 +42,12 @@ export function installSdk({ consumer, archive, tessera }) {
   const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'))
   assert.equal(manifest.name, SDK)
 
-  // Its dependency and peers, linked: nothing is downloaded.
+  // Its peers, linked: nothing is downloaded.
   const link = (target, name) => {
     const at = path.join(modules, name)
     fs.mkdirSync(path.dirname(at), { recursive: true })
     fs.symlinkSync(fs.realpathSync(target), at, 'dir')
   }
-  link(path.join(root, 'packages/kdm/node_modules/loro-crdt'), 'loro-crdt')
   for (const name of ['react', 'react-dom', '@types/react', '@types/react-dom', '@types/node']) link(path.join(root, 'node_modules', name), name)
   // @kition/tessera as npm serves it: its files, and its publishConfig exports when it has them. A
   // rehearsal package (<scope>/tessera) is installed under the name @kition/tessera, as a consumer
@@ -65,16 +64,16 @@ export function installSdk({ consumer, archive, tessera }) {
 
 /**
  * A kit editor's Vite configuration for `consumer`, as the kits that moved to @kition/sdk have it
- * (kition-html's web/vite.config.ts): relative base, one React, loro-crdt's browser entry for the
- * page, @kition/sdk and loro-crdt not pre-bundled, workers as modules.
+ * (kition-html's web/vite.config.ts): relative base, one React, @kition/sdk not pre-bundled,
+ * workers as modules.
  */
 export const kitViteConfig = (consumer) => ({
   root: consumer,
   base: './',
   configFile: false,
   logLevel: 'error',
-  resolve: { dedupe: ['react', 'react-dom'], alias: [{ find: /^loro-crdt$/, replacement: 'loro-crdt/browser' }] },
-  optimizeDeps: { exclude: [SDK, 'loro-crdt'] },
+  resolve: { dedupe: ['react', 'react-dom'] },
+  optimizeDeps: { exclude: [SDK] },
   worker: { format: 'es' },
   build: { outDir: path.join(consumer, 'dist'), emptyOutDir: true, sourcemap: false, chunkSizeWarningLimit: 8192 },
 })

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { KitPeer, KitRpcError, LEASE_HELD_REASON, type HostPeer, type KitLease, type KitSidePeer } from '@kition/kit-ui-protocol'
 import { describe, expect, it, vi } from 'vitest'
-import { parseConflicts, reportConflicts } from './conflicts'
 import type { HostConnection } from './host'
 import { kitLeases, leaseHeldByOther, scopesCollide } from './lease'
 
@@ -73,24 +72,5 @@ describe('kitLeases', () => {
     expect(heard).toHaveBeenCalledTimes(2)
     host.notify('lease/changed', { leases: [] })
     await vi.waitFor(() => expect(leases.list()).toEqual([]))
-  })
-})
-
-describe('conflicts', () => {
-  it('parses an engine\'s list and reports it only when it changed', async () => {
-    expect(parseConflicts('not json')).toEqual([])
-    expect(parseConflicts(JSON.stringify([{ id: 'b', kind: 'k', summary: 's', extra: 1 }, { id: 'a', kind: 'k', summary: 't' }, { id: 3 }]))).toEqual([
-      { id: 'a', kind: 'k', summary: 't' },
-      { id: 'b', kind: 'k', summary: 's' },
-    ])
-    const { kit, host } = connection([])
-    const heard: unknown[] = []
-    host.on('document/conflicts', (params) => heard.push(params))
-    const one = [{ id: 'a', kind: 'pdf.droppedEdit', summary: 'An edit was dropped' }]
-    reportConflicts(kit, [])
-    reportConflicts(kit, one)
-    reportConflicts(kit, one)
-    reportConflicts(kit, [])
-    await vi.waitFor(() => expect(heard).toEqual([{ conflicts: one }, { conflicts: [] }]))
   })
 })

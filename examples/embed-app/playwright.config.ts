@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, devices } from '@playwright/test'
 
 // The embed example's end-to-end tests (`pnpm test:embed:e2e`, local only). serve.mjs runs the
-// page and the kit packages on two origins; kition-server is started per test (e2e/helpers.ts).
-// Results and kition-server's configurations go under EMBED_E2E_CACHE (~/.cache/kition-embed-e2e).
+// page and the kit packages on two origins. Results go under EMBED_E2E_CACHE
+// (~/.cache/kition-embed-e2e).
 const here = path.dirname(fileURLToPath(import.meta.url))
 const appPort = Number(process.env.EMBED_E2E_APP_PORT || 5320)
 const kitsPort = Number(process.env.EMBED_E2E_KITS_PORT || 5321)

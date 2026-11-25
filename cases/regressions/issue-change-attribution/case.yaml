@@ -17,8 +17,6 @@ input: []
 steps:
   - exec:
       cmd: [cargo, test, -q, -p, kition-kdm, --test, changes]
-  - exec:
-      cmd: [pnpm, exec, vitest, run, packages/kdm/test/changes.test.ts]
 expected:
   - actual: out:exec
     compare: exit

@@ -5,16 +5,14 @@
  */
 import type { CommentAnchor, Origin } from '@kition/kdm'
 import type { AgentPort, AgentPortOptions } from './agent'
-import type { AiRunResult, DraftComparison, DraftInfo, DraftSummary, KitCommentAnchor, KitConflict, KitDiagnostic, KitHostService, KitHostServices, KitLease, KitLinkRef, KitNotifications, KitSchemaReport, KitShownThread, KitTheme, KitUiConfig, KitUiHostButton, KitView, KitViewState, StoredReplica } from '@kition/kit-ui-protocol'
-import type { ConnectionState, Presence, Role, SaveAuthor, SaveState, SaveTrigger } from '@kition/sync'
-import type { OpenTokenKey } from '@kition/sync/openToken'
+import type { AiRunResult, DraftComparison, DraftInfo, DraftSummary, KitCommentAnchor, KitDiagnostic, KitHostService, KitHostServices, KitLinkRef, KitNotifications, KitSchemaReport, KitShownThread, KitTheme, KitUiConfig, KitUiHostButton, KitView, KitViewState, StoredReplica } from '@kition/kit-ui-protocol'
 // The object model, bundled with the editor and loaded only by `editor.document()`.
 import type { ModelDocument } from '../../script/src/document'
 import type { CommandMap, ModelObject } from '../../script/src/proxy'
 import type { EmbedConflictError } from './errors'
 
 export type { AgentPort, AgentPortOptions, AgentRelayTransport, AgentTool, AgentErrorCode, JsonRpcMessage } from './agent'
-export type { CommandMap, CommentAnchor, DraftComparison, DraftInfo, DraftSummary, KitLease, KitLinkRef, KitUiHostButton, KitView, ModelDocument, ModelObject, Origin, Presence, Role, StoredReplica }
+export type { CommandMap, CommentAnchor, DraftComparison, DraftInfo, DraftSummary, KitLinkRef, KitUiHostButton, KitView, ModelDocument, ModelObject, Origin, StoredReplica }
 
 /** The kit package to show: its id (`kit.json` `id`) and the base URL it is served from. */
 export type EmbedKit = {
@@ -70,19 +68,13 @@ export type StorageProvider = {
   stamp?: (fileId: string) => Promise<string | null>
   /** The file's name, version, and optionally size and type, without its bytes; `null` if it is gone (`KitEmbed 1.1`). */
   info?: (fileId: string) => Promise<FileInfo | null>
-  /**
-   * Replaces the file; throws `EmbedConflictError` when its version is no longer `expectedVersion`.
-   * In a managed room (KitCollab 1.4) `save` says what the version holds: store one version with
-   * these authors (managed-collab.md SV1), and refuse it as a conflict when `docKey` is not the
-   * file's current generation (SV3).
-   */
-  write: (fileId: string, bytes: Uint8Array, options: { expectedVersion: string | null; save?: EmbedSaveInfo }) => Promise<{ version: string }>
+  /** Replaces the file; throws `EmbedConflictError` when its version is no longer `expectedVersion`. */
+  write: (fileId: string, bytes: Uint8Array, options: { expectedVersion: string | null }) => Promise<{ version: string }>
   /** Makes a new file (an export, a saved copy); without it, the kit's exports are refused. */
   create?: (name: string, bytes: Uint8Array) => Promise<{ fileId: string; name?: string; version?: string }>
   /**
    * Keeps the document's replica next to its file (Kit UI protocol capability `replica`). Without
-   * it, a collaboration session keeps it in this browser's IndexedDB, keyed by the file id; a
-   * single-user editor needs none.
+   * it the kit keeps none; with it the page hears the document's comment threads (`comments`).
    */
   replica?: ReplicaStore
   /**
@@ -92,8 +84,6 @@ export type StorageProvider = {
    * session only. The embed offers no checkpoints (capability `checkpoints`).
    */
   viewState?: ViewStateStore
-  /** Keeps the editor's collaboration records; `localStorage` (`kition.embed.rooms.v1`) by default. */
-  state?: EmbedState
   /** Keeps the replica's blobs by hash (`KitEmbed 1.1`); without it they stay inside the stored replica. */
   blob?: BlobStore
   /**
@@ -134,21 +124,6 @@ export type ReplicaStore = {
   write: (fileId: string, replica: StoredReplica) => Promise<void>
 }
 
-/**
- * What one save of a managed room writes (KitCollab 1.4, managed-collab.md section 3): what started
- * it, the room's change it holds, everyone whose changes are in it since the last version (from
- * the sync server's log), the room's file generation, and the sync server's signed `receipt` of
- * all that (`ksr1.`, I6). The host MUST verify the receipt and take the authors, `seq` and
- * generation from it; `authors` here are for showing only, since a page could change them.
- */
-export type EmbedSaveInfo = { trigger: SaveTrigger; seq: number; authors: SaveAuthor[]; docKey: string; docId: string; receipt: string }
-
-/** A small key-value store for JSON values. */
-export type EmbedState = {
-  get: (key: string) => unknown | Promise<unknown>
-  set: (key: string, value: unknown) => void | Promise<void>
-}
-
 export type EmbedUser = { id: string; name: string; avatar?: string }
 
 /** What a person may do with a document: edit it, only comment on it, or only view it. */
@@ -156,16 +131,11 @@ export type PermissionMode = 'edit' | 'comment' | 'view'
 
 /** Who the person is, and (`KitEmbed 1.1`) who others are and what the person may do. */
 export type IdentityProvider = {
-  /**
-   * A token for the sync server, asked for on every connection, so it can be refreshed. Needed
-   * with `collaboration`.
-   */
-  token?: () => string | Promise<string>
-  /** The person, for the presence others see and as the author of their comments. Needed with `collaboration`. */
+  /** The person, as the author of their comments. */
   user?: () => EmbedUser | Promise<EmbedUser>
   /**
-   * Other people by id, for their names and avatars in `presence` and `comments` (`KitEmbed
-   * 1.1`). Answers the ones it knows; each id is asked for once per editor.
+   * Other people by id, for their names and avatars in `comments` (`KitEmbed 1.1`). Answers the
+   * ones it knows; each id is asked for once per editor.
    */
   users?: (ids: string[]) => EmbedUser[] | Promise<EmbedUser[]>
   /**
@@ -173,32 +143,6 @@ export type IdentityProvider = {
    * 1.1`). The stricter of it and the `permissions` option applies.
    */
   permissions?: (fileId: string) => { mode: PermissionMode } | Promise<{ mode: PermissionMode }>
-}
-
-export type EmbedCollaboration = {
-  /** The sync server's WebSocket URL (`wss://…/v1/sync`). */
-  server: string
-  /**
-   * The room to join: a document id or a share link. One editor per page co-edits a document; a
-   * second one fails `ready()` with `EmbedError` `document-open`. Omitted: the document's own room, made
-   * the first time (`editor.collab.shareLink` then answers links to it).
-   */
-  room?: string
-  /**
-   * The editor co-edits through an open token only (KitCollab 1.4): `ready()` fails when the
-   * identity provider answers any other token. Every editor asks for its token before it
-   * connects either way, and an open-token editor never shares another editor's connection.
-   */
-  open?: boolean
-  /**
-   * Hosts' public keys to verify open tokens with in the page too (KitCollab 1.4, OT2): an editor
-   * whose token does not verify does not open. Without them the sync server alone verifies it.
-   */
-  openKeys?: OpenTokenKey[]
-  /** The Kition Server id open tokens must name (`aud`, I2); needed with `openKeys`. */
-  openAudience?: string
-  /** How often a managed room autosaves while it has unsaved changes, in milliseconds (default 30 000; SV2). */
-  autosaveMs?: number
 }
 
 /** `colorScheme` and the `--kit-*` tokens to change; the rest keep their defaults for the scheme. */
@@ -233,13 +177,8 @@ export type EmbedOptions = {
   kit: EmbedKit
   file: EmbedFile
   storage: StorageProvider
-  /**
-   * Needed only with `collaboration`. Editors co-editing through the same server share the page's
-   * one connection to it, opened with the first editor's identity: the first identity wins.
-   */
+  /** Who the person is: the author of their comments, and what they may do. */
   identity?: IdentityProvider
-  /** Omitted: single-user. */
-  collaboration?: EmbedCollaboration
   /** A BCP 47 tag; the browser's language by default. */
   locale?: string
   theme?: EmbedTheme
@@ -249,16 +188,9 @@ export type EmbedOptions = {
   /** How long the kit may take to open the document; two minutes by default. */
   timeoutMs?: number
   /**
-   * Lets the page edit the document through the object model (`@kition/script`'s
-   * `openDocument(editor)`): the kit keeps a replica, in memory when `storage` has no `replica`
-   * store and the editor does not co-edit.
-   */
-  model?: boolean
-  /**
    * What the kit lets the person take out of the document and the watermark it draws (Kit UI
    * `document.permissions`, `document.watermark`), for a page that decided them
-   * itself (the embed server, from its open token). A managed room's open token decides
-   * them instead.
+   * itself (the embed server, from its open token).
    */
   display?: EmbedDisplay
   /**
@@ -297,19 +229,6 @@ export type EmbedShortcut = KitNotifications['host/shortcut']
 /** `EmbedOptions.display`: absent members leave the kit's defaults (everything allowed, no watermark). */
 export type EmbedDisplay = { permissions?: { download: boolean; export: boolean; share: boolean }; watermark?: { text: string } | null }
 
-/** `off`: no collaboration; otherwise the sync connection's state. */
-export type CollabStatus = ConnectionState | 'off'
-
-export type CollabState = {
-  status: CollabStatus
-  /** The room's document id, once known. */
-  docId: string | null
-  /** This person's role in the room, once joined. */
-  role: Role | null
-  /** The room's save state, in a managed room (KitCollab 1.4, managed-collab.md section 3); absent otherwise. */
-  save?: SaveState | null
-}
-
 /**
  * A change of the document, and who made it: the person, the agent, or (`KitEmbed 1.8`, EM31) the
  * page itself through `commands.run` with `origin: 'system'`, with the `originLabel` it gave
@@ -327,17 +246,11 @@ export type DocumentChange = { dirty: boolean; revision: number; title: string }
  */
 export type EmbedRunOptions = { save?: boolean; origin?: 'system'; originLabel?: string }
 
-/** A person in the room, with their name and avatar from `identity.users` when it knows them. */
-export type EmbedPresence = Presence & { user?: EmbedUser }
-
 /** One comment of a thread; `user` is its author as `identity.users` names them. */
 export type EmbedComment = { id: string; author: string; name?: string; body: string; created: string; user?: EmbedUser }
 
 /** A comment thread of the document (KitModel rule M23). */
 export type EmbedCommentThread = { id: string; anchor: CommentAnchor | null; resolved: boolean; comments: EmbedComment[] }
-
-/** The document's leases now, and which were taken and given up since the last report. */
-export type EmbedLeases = { leases: KitLease[]; held: KitLease[]; released: KitLease[] }
 
 /** One of the page's own buttons (`ui.add`) was pressed in the kit (Kit UI protocol `ui/action`). */
 export type EmbedAction = { id: string; document: { path: string; dirty: boolean; revision: number } }
@@ -347,20 +260,12 @@ export type EmbedEvents = {
   saved: { version: string }
   /** The document changed (an edit, an undo, a save). */
   changed: DocumentChange
-  /** Something failed after the editor opened (a collaboration step, the kit reopening). */
+  /** Something failed after the editor opened. */
   error: Error
-  collab: CollabState
-  /** The people in the room, this person included. */
-  presence: EmbedPresence[]
   /** A save was refused because the file changed elsewhere since it was read (nothing was overwritten). */
   conflict: EmbedConflictError
   /** A message the kit asks the page to show (Kit UI protocol `host/notify`). */
   notify: EmbedNotice
-  /**
-   * The document's unresolved conflict objects (Kit UI protocol `document/conflicts`): merges the
-   * kit could not resolve by itself, kept in the document until someone resolves them.
-   */
-  mergeConflicts: KitConflict[]
   /**
    * A newer version of the kit edited the document (Kit UI protocol `document/schema`, KitModel
    * rule M5a): `reads` is the schema version this kit reads, `newestAuthor` the newer
@@ -369,12 +274,10 @@ export type EmbedEvents = {
   newerKit: KitSchemaReport
   /**
    * The document's comment threads, oldest first, whenever they change (`KitEmbed 1.1`), first
-   * when a listener is added. Heard only from an editor that keeps a replica (`model`,
-   * `storage.replica`, or collaboration) of a kit that keeps comments.
+   * when a listener is added. Heard only from an editor that keeps a replica (`storage.replica`)
+   * of a kit that keeps comments.
    */
   comments: EmbedCommentThread[]
-  /** The room's leases changed: someone took or gave up a scope (`KitEmbed 1.1`, co-editing only). */
-  leases: EmbedLeases
   /** The agent's draft opened, changed, became ready, or closed (`KitEmbed 1.1`, Kit UI protocol `draft/changed`); review it with `editor.draft` (`KitEmbed 1.3`). */
   draft: DraftInfo
   /** One of the page's own buttons (`ui.add`) was pressed (`KitEmbed 1.1`). */
@@ -402,21 +305,18 @@ export type EmbedNotice = { level: 'info' | 'success' | 'warning' | 'error'; mes
 /** The `ModelPort` of `@kition/script`, given by an editor without depending on it. */
 export type EmbedModelPort = {
   readonly kitId: string
-  exportChanges: (since: Uint8Array) => Promise<Uint8Array>
-  importChanges: (changes: Uint8Array) => Promise<void>
-  command: (id: string, params: unknown) => Promise<unknown>
   commands: () => Promise<EmbedCommand[]>
-  readOnly: () => boolean
   onChanged: (listener: (version: Uint8Array | null) => void) => () => void
-  /** The editor's events `@kition/script` reports on its documents: `saved`, `conflict`, and `presence` when it co-edits. */
-  events: ReadonlyArray<'saved' | 'presence' | 'conflict'>
-  on: (event: 'saved' | 'presence' | 'conflict' | 'selection', listener: (value: never) => void) => () => void
+  /** The editor's events `@kition/script` reports on its documents: `saved` and `conflict`. */
+  events: ReadonlyArray<'saved' | 'conflict'>
+  on: (event: 'saved' | 'conflict' | 'selection', listener: (value: never) => void) => () => void
   /**
-   * The object model answered by the kit itself, when its editor lists the `model` capability:
-   * each batch is then one undo step of the person's history. A refused batch rejects with an
-   * error whose `data` is `{ code, index, message }`.
+   * The object model answered by the kit itself (its editor lists the `model` capability): each
+   * batch is one undo step of the person's history. A refused batch rejects with an error whose
+   * `data` is `{ code, index, message }`; a kit that does not answer the object model refuses
+   * every call.
    */
-  model?: {
+  model: {
     describe: (schema: object) => Promise<Record<string, unknown>>
     batch: (
       request: { origin?: unknown; ops?: Array<Record<string, unknown>>; load?: Array<Record<string, unknown>> },
@@ -438,11 +338,6 @@ export type EmbedEditor = {
   on: <E extends keyof EmbedEvents>(event: E, listener: (value: EmbedEvents[E]) => void) => () => void
   setTheme: (theme: EmbedTheme) => void
   setLocale: (locale: string) => void
-  collab: {
-    readonly state: CollabState
-    /** A link to the room granting `role`, to hand to someone else. */
-    shareLink: (role?: 'editor' | 'viewer') => Promise<string>
-  }
   /** The kit's commands (its Kit AI bridge), until the document object model arrives. */
   commands: {
     list: (query?: string) => Promise<EmbedCommand[]>
@@ -450,26 +345,25 @@ export type EmbedEditor = {
   }
   /**
    * The document's replica version (its KDM version's bytes), or `null` when the kit keeps no
-   * replica (a single-user editor without `storage.replica`). Two editors co-editing a document
-   * hold the same changes when their versions name the same changes.
+   * replica (an editor without `storage.replica`).
    */
   replicaVersion: () => Promise<Uint8Array | null>
   /**
    * The document as the object model reaches it (`@kition/script`: `openDocument(editor)` calls
-   * this): its replica's changes and the kit's commands. Needs a replica (`model`, `storage.replica`,
-   * or collaboration).
+   * this): the kit's own object model and its commands. Needs a kit that answers the object model
+   * (capability `model`).
    */
   modelPort: () => EmbedModelPort
   /**
    * The document as `@kition/script`'s object model (`KitEmbed 1.1`): `openDocument` over
    * `modelPort()` in one call, with the object model bundled in this package. `kit` is the kit's
    * typings (`noteKit` of `@kition/script/kits/note`, whose root type is `Note`); they must be this
-   * editor's kit's. Needs a replica, as `modelPort` does.
+   * editor's kit's. Needs a kit that answers the object model, as `modelPort` does.
    */
   document: <Root extends ModelObject = ModelObject, C extends CommandMap = CommandMap>(kit: EmbedKitTypings, options?: { origin?: Origin }) => Promise<ModelDocument<Root, C>>
   /** Replaces the `ui` option: what the kit's editor shows and allows (`KitEmbed 1.1`). */
   configure: (ui: EmbedUi) => void
-  /** What the person may do now: the stricter of the options, the identity, and the room's role (`KitEmbed 1.1`). */
+  /** What the person may do now: the stricter of the options and the identity (`KitEmbed 1.1`). */
   readonly mode: PermissionMode
   /**
    * The kit's diagnostics on the open document (`KitEmbed 1.2`, KHP A21 and A22, KitAgent A23, `document/check`), errors

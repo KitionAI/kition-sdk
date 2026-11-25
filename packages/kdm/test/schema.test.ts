@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { canonicalText, formatNumber } from '../src/canonical'
 import { KdmError } from '../src/errors'
-import { checkActor, newDocId, newObjectId, randomActor, uuidFromBytes, uuidToBytes } from '../src/ids'
+import { newDocId, newObjectId, uuidFromBytes, uuidToBytes } from '../src/ids'
 import { agent, decodeOrigin, encodeOrigin, person, system, type OriginKind } from '../src/origin'
 import { checkValue, parseSchema } from '../src/schema'
 
@@ -174,13 +174,6 @@ describe('ids', () => {
     const plain = id.replaceAll('-', '')
     for (const form of [id.toUpperCase(), `{${id}}`, `urn:uuid:${id}`, plain]) expect(uuidFromBytes(uuidToBytes(form))).toBe(id)
     expect(reason(() => uuidToBytes('not a uuid'))).toBe('encoding')
-  })
-
-  it('never uses the reserved actor', () => {
-    expect(reason(() => checkActor((1n << 64n) - 1n))).toBe('encoding')
-    expect(reason(() => checkActor(-1n))).toBe('encoding')
-    expect(checkActor(7n)).toBe(7n)
-    for (let index = 0; index < 100; index += 1) expect(randomActor() < 1n << 63n).toBe(true)
   })
 })
 

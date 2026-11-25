@@ -138,7 +138,6 @@ export type { MenuRow } from './uiCatalog'
 export { KitCanvas, type KitCanvasHandle, type KitCanvasView } from './engine/KitCanvas'
 export { canvasColor, useEngineBackdrop, type EngineBackdropOptions } from './engine/backdrop'
 export { KitEngine, type KitEngineInfo, type KitEngineSchema } from './engine/kitEngine'
-export { WorkerRelay, type EngineReplica, type WorkerRelayOptions, type WorkerRelayPage } from './engine/workerRelay'
 export { useEngineTools, type EngineToolInfo } from './engine/engineTools'
 export {
   DEFAULT_OVERLAY_STYLE,
@@ -167,7 +166,6 @@ export type { KitChange, KitDocumentOptions, KitRefresh, KitRepaint, KitRepaints
 export { RESERVED_SHORTCUTS, bindableShortcut, commandForShortcut, shortcutMatches } from './engine/kitShortcuts'
 export { oneInFlight } from './oneInFlight'
 export { kitLeases, leaseHeldByOther, scopesCollide, useLease, useLeases, type KitLease, type KitLeases, type LeaseOutcome } from './lease'
-export { parseConflicts, reportConflicts, useConflictReport, type KitConflict } from './conflicts'
 export { drawPresence, kitPresence, peerColor, remoteCarets, remoteSelections, usePresence, useRemoteCarets, useRemoteSelections, PRESENCE_INTERVAL_MS, type KitPeerPresence, type KitPresence, type KitPresenceCaret, type KitPresenceStore, type PresenceRect, type RemoteCaret, type RemoteSelection } from './presence'
 export { CommentsPanel, COMMENTS_PANEL_LABELS, type CommentsPanelLabels, type CommentsPanelProps } from './CommentsPanel'
 export { commentMarkers, useCommentAnchors, type CommentAnchorsOptions, type CommentMarker, type CommentMarkerRect } from './useCommentAnchors'

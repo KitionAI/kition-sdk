@@ -1,8 +1,9 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { parseSchema, person, Replica, Version, type Origin } from '@kition/kdm'
+import { parseSchema, type BatchRequest, type Origin } from '@kition/kdm'
 import { describe, expect, it } from 'vitest'
+import { FakeKitModel } from './fakeKitModel'
 import { NotSyncedError, openDocument, PropertyNotLoadedError, portFromConnection, registerKit, type ModelList, type ModelObject, type ModelPort, type ModelText, type ModelTree } from '../src/index'
 
 const schemaText = readFileSync(fileURLToPath(new URL('../../../crates/kition-kdm/tests/fixtures/test-schema.json', import.meta.url)), 'utf8')
@@ -23,43 +24,53 @@ interface Page extends ModelObject {
 }
 type Commands = { 'page.clear': Record<string, never>; 'shape.paint': { shape: string | Shape; fill: string } }
 
-/** A kit engine stand-in: its own replica (another actor), with two commands. */
+/** A kit engine stand-in that answers the object model itself, with two commands. */
 function fakeEngine(readOnly = false) {
-  const replica = Replica.create(schema, '01920000-0000-7000-8000-0000000000cc', 7n)
-  replica.transact(person('user:a'), (tx) => {
-    tx.create('Page', { title: 'One' }, { id: 'page' })
-  })
-  const listeners = new Set<(version: Uint8Array | null) => void>()
   const ran: Array<{ id: string; params: unknown; origin: Origin }> = []
-  const port: ModelPort = {
-    kitId: 'kit.test',
-    exportChanges: async (since) => replica.exportChanges(since.byteLength ? Version.decode(since) : Version.empty()),
-    importChanges: async (changes) => {
-      replica.importChanges(changes)
-      for (const listener of listeners) listener(replica.version().encode())
-    },
-    command: async (id, params, origin) => {
+  const commands = [{ id: 'shape.paint', title: 'Paint', mutates: true, enabled: true }]
+  const replica = new FakeKitModel(schema, 'page', { title: 'One' }, {
+    readOnly,
+    commands,
+    command: (id, params, origin, kit) => {
       ran.push({ id, params, origin })
       if (id === 'shape.paint') {
         const { shape, fill } = params as { shape: string; fill: string }
-        replica.transact(origin, (tx) => tx.set(shape, 'fill', fill))
+        kit.set(shape, 'fill', fill)
         return { painted: shape }
       }
       throw new Error(`unknown command \`${id}\``)
     },
-    commands: async () => [{ id: 'shape.paint', title: 'Paint', mutates: true, enabled: true }],
-    readOnly: () => readOnly,
-    onChanged: (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
+  })
+  const port: ModelPort = {
+    kitId: 'kit.test',
+    commands: async () => commands,
+    onChanged: (listener) => replica.onChanged(listener),
+    model: {
+      describe: async () => replica.describe(),
+      batch: async (request) => ({ ...(await replica.batch(request)), version: replica.version() }),
     },
   }
   /** An edit a person makes in the editor. */
-  const personEdit = (title: string) => {
-    replica.transact(person('user:a'), (tx) => tx.set('page', 'title', title))
-    for (const listener of listeners) listener(replica.version().encode())
-  }
+  const personEdit = (title: string) => replica.edit((kit) => kit.set('page', 'title', title))
   return { replica, port, ran, personEdit }
+}
+
+/** A kit frame (Kit UI protocol) whose kit answers the object model (capability `model`). */
+function kitConnection(engine: ReturnType<typeof fakeEngine>, capabilities = ['ai', 'replica', 'model']) {
+  return {
+    kit: { id: 'kit.test' },
+    capabilities,
+    ai: { commands: async () => [{ id: 'shape.paint', title: 'Paint', enabled: true }] },
+    replica: { onChanged: () => () => undefined },
+    model: {
+      describe: async () => engine.replica.describe(),
+      batch: async (params: Record<string, unknown>) => {
+        const { schema: _, ...request } = params
+        const result = await engine.replica.batch(request as BatchRequest)
+        return { ...result, version: engine.replica.version().slice().buffer as ArrayBuffer }
+      },
+    },
+  }
 }
 
 describe('@kition/script', () => {
@@ -123,7 +134,7 @@ describe('@kition/script', () => {
     const hearers = new Map<string, Set<(value: unknown) => void>>()
     const port: ModelPort = {
       ...engine.port,
-      events: ['saved', 'presence', 'selection'],
+      events: ['saved', 'selection'],
       on: (event, listener) => {
         const set = hearers.get(event) ?? new Set()
         hearers.set(event, set)
@@ -137,18 +148,16 @@ describe('@kition/script', () => {
     expect(doc.supports('conflict')).toBe(false)
     const heard: unknown[] = []
     doc.on('saved', (event) => heard.push(['saved', event.version]))
-    doc.on('presence', (event) => heard.push(['presence', event.peers.length]))
     const off = doc.on('selection', (event) => heard.push(['selection', event.ids]))
     // An event the source does not report is never heard; an unknown one is an error.
     doc.on('conflict', () => heard.push('never'))
     expect(() => doc.on('nonsense' as 'saved', () => undefined)).toThrow(/unknown event/)
     const fire = (event: string, value: unknown) => hearers.get(event)?.forEach((listener) => listener(value))
     fire('saved', { version: 'v2' })
-    fire('presence', { peers: [{ name: 'Ada' }, { name: 'Lin' }] })
     fire('selection', { ids: ['page'] })
     off()
     fire('selection', { ids: [] })
-    expect(heard).toEqual([['saved', 'v2'], ['presence', 2], ['selection', ['page']]])
+    expect(heard).toEqual([['saved', 'v2'], ['selection', ['page']]])
     doc.close()
     expect([...hearers.values()].every((set) => set.size === 0)).toBe(true)
   })
@@ -182,34 +191,19 @@ describe('@kition/script', () => {
     expect(read.loaded[0].fields.title).toBe('One')
   })
 
-  it('reaches a kit frame through its replica capability and the Kit AI bridge', async () => {
+  it('reaches a kit frame through its model capability', async () => {
     const engine = fakeEngine()
-    const runs: unknown[] = []
-    const connection = {
-      kit: { id: 'kit.test' },
-      capabilities: ['ai', 'replica'],
-      ai: {
-        commands: async () => [{ id: 'shape.paint', title: 'Paint', enabled: true }],
-        run: async (steps: Array<{ command: string; params?: Record<string, unknown> }>) => {
-          runs.push(steps)
-          return { completed: [{ result: { ok: true } }] }
-        },
-      },
-      replica: {
-        exportChanges: async (since: ArrayBuffer) => ({ changes: (await engine.port.exportChanges(new Uint8Array(since))).slice().buffer as ArrayBuffer, blobs: new ArrayBuffer(0) }),
-        importChanges: async (changes: ArrayBuffer) => engine.port.importChanges(new Uint8Array(changes)),
-        onChanged: () => () => undefined,
-      },
-    }
+    const connection = kitConnection(engine)
     const doc = await openDocument<Page, Commands>(connection, { schema })
-    const result = await doc.commands.run('page.clear', {})
-    expect(result).toEqual({ ok: true })
-    expect(runs).toEqual([[{ command: 'page.clear', params: {} }]])
+    expect(await doc.commands.list()).toEqual([{ id: 'shape.paint', title: 'Paint', enabled: true }])
+    const result = await doc.commands.run('shape.paint', { shape: 'page', fill: '#000' })
+    expect(result).toEqual({ painted: 'page' })
+    expect(engine.ran).toMatchObject([{ id: 'shape.paint', params: { shape: 'page', fill: '#000' } }])
     await doc.run(async (context) => {
       context.root.title = 'Framed'
     })
     expect(engine.replica.get('page', 'title')).toBe('Framed')
-    expect(() => portFromConnection({ ...connection, capabilities: ['ai'] })).toThrow(/replica capability/)
+    expect(() => portFromConnection({ ...connection, capabilities: ['ai', 'replica'] })).toThrow(/model capability/)
     expect(doc.supports('selection')).toBe(false)
   })
 
@@ -217,14 +211,7 @@ describe('@kition/script', () => {
     const engine = fakeEngine()
     const listeners = new Set<(presence: { selection: string[] }) => void>()
     const connection = {
-      kit: { id: 'kit.test' },
-      capabilities: ['ai', 'replica'],
-      ai: { commands: async () => [], run: async () => ({ completed: [] }) },
-      replica: {
-        exportChanges: async (since: ArrayBuffer) => ({ changes: (await engine.port.exportChanges(new Uint8Array(since))).slice().buffer as ArrayBuffer, blobs: new ArrayBuffer(0) }),
-        importChanges: async (changes: ArrayBuffer) => engine.port.importChanges(new Uint8Array(changes)),
-        onChanged: () => () => undefined,
-      },
+      ...kitConnection(engine),
       onPresence: (listener: (presence: { selection: string[] }) => void) => {
         listeners.add(listener)
         return () => listeners.delete(listener)
@@ -232,7 +219,7 @@ describe('@kition/script', () => {
     }
     const doc = await openDocument<Page, Commands>(connection, { schema })
     expect(doc.supports('selection')).toBe(true)
-    expect(doc.supports('presence')).toBe(false)
+    expect(doc.supports('saved')).toBe(false)
     const heard: string[][] = []
     const off = doc.on('selection', (event) => heard.push(event.ids))
     for (const listener of listeners) listener({ selection: ['page'] })

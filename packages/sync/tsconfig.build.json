@@ -6,8 +6,7 @@
     "emitDeclarationOnly": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": [],
-    "paths": { "@kition/kdm": ["../kdm/dist/index.d.ts"] }
+    "types": []
   },
   "include": ["src"]
 }
