@@ -17,9 +17,10 @@
 //! touches its fields.
 
 use std::collections::HashSet;
+use std::mem;
 
-use super::op::{Name, Op, TreePlace};
-use crate::ObjectId;
+use super::op::{Name, Op, TreePlace, inverse};
+use crate::{ObjectId, TextRun};
 
 /// The text, list or tree fields an operation edits the positions of: its own field for a text,
 /// list or tree operation, and the trees it places its object in for a creation or deletion.
@@ -29,6 +30,68 @@ fn sequences(op: &Op) -> Vec<(&ObjectId, &str)> {
         Op::TreeCreate { id, field, .. } | Op::TreeMove { id, field, .. } | Op::TreeDelete { id, field, .. } => vec![(id, &**field)],
         op if is_sequence_edit(op) => op.object().zip(op.field()).map(|(id, field)| (id, &**field)).into_iter().collect(),
         _ => Vec::new(),
+    }
+}
+
+/// The text, list and tree fields `ops` edit the positions of.
+pub(crate) fn sequences_of(ops: &[Op]) -> HashSet<(&ObjectId, &str)> {
+    ops.iter().flat_map(sequences).collect()
+}
+
+/// Whether `op` edits the positions of one of `fields` ([`sequences_of`]): only such operations
+/// move another operation on those fields.
+pub(crate) fn edits_any(op: &Op, fields: &HashSet<(&ObjectId, &str)>) -> bool {
+    sequences(op).iter().any(|field| fields.contains(field))
+}
+
+/// The inverses of applied `ops`, last first, with every position they free or take: as
+/// [`super::op::inverse_all`], but the deletion undoing a creation names the creation's tree
+/// places, the node deletion undoing a node creation its place, and the text deletion undoing an
+/// insertion the text it takes. Applying a deletion finds those itself; a transform needs them
+/// to carry other positions past it.
+pub(crate) fn inverse_with_places<'a>(ops: impl DoubleEndedIterator<Item = &'a Op>) -> Vec<Op> {
+    ops.rev()
+        .flat_map(|op| {
+            let back = inverse(op);
+            let placed = match (op, back.as_slice()) {
+                (Op::Create { object, trees, .. }, [Op::Delete { id, .. }]) => {
+                    Some(Op::Delete { id: id.clone(), was: Some(object.clone()), trees: trees.clone() })
+                }
+                (Op::TreeCreate { parent, index: Some(index), .. }, [Op::TreeDelete { id, field, node, .. }]) => {
+                    Some(Op::TreeDelete { id: id.clone(), field: field.clone(), node: node.clone(), was: Some((parent.clone(), *index)) })
+                }
+                (Op::TextInsert { text, marks, .. }, [Op::TextDelete { id, field, index, count, .. }]) => Some(Op::TextDelete {
+                    id: id.clone(),
+                    field: field.clone(),
+                    index: *index,
+                    count: *count,
+                    was: vec![TextRun { insert: text.clone(), attributes: marks.clone().unwrap_or_default() }],
+                }),
+                _ => None,
+            };
+            placed.map_or(back, |op| vec![op])
+        })
+        .collect()
+}
+
+/// Takes the change `undone` (applied in order) out from under `later`, the changes applied after
+/// it, each a sequence of operations applied in order: each becomes what it does on the state
+/// without `undone`. The undo that cancelled a change and the change itself compose to nothing,
+/// so an undo of an older step is carried over neither, instead of over a deletion and the
+/// insertion that put the text back (which loses the positions inside it).
+pub(crate) fn exclude(later: &mut [Vec<Op>], undone: &[Op]) {
+    let mut back: Vec<Op> = inverse_with_places(undone.iter()).into_iter().flat_map(split_move).collect();
+    for segment in later {
+        if back.is_empty() {
+            break;
+        }
+        if segment.is_empty() {
+            continue;
+        }
+        let ops: Vec<Op> = mem::take(segment).into_iter().flat_map(split_move).collect();
+        let (moved, rest) = xform(ops, back);
+        *segment = moved;
+        back = rest;
     }
 }
 
@@ -153,8 +216,8 @@ fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
             } else {
                 // Inserted inside the deleted range: the insertion stays, at the range's start.
                 let deletes = vec![
-                    Op::TextDelete { id: bid.clone(), field: bfield.clone(), index: j, count: i - j, was: Vec::new() },
-                    Op::TextDelete { id: bid, field: bfield, index: j + n, count: j + m - i, was: Vec::new() },
+                    Op::TextDelete { id: bid.clone(), field: bfield.clone(), index: j, count: i - j, was: runs_between(&was, 0, i - j) },
+                    Op::TextDelete { id: bid, field: bfield, index: j + n, count: j + m - i, was: runs_between(&was, i - j, m) },
                 ];
                 (vec![Op::TextInsert { id, field, index: j, text: s, marks }], nonempty(deletes))
             }
@@ -168,8 +231,8 @@ fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
             } else {
                 // The other text, inserted inside this range, is kept.
                 let deletes = vec![
-                    Op::TextDelete { id: id.clone(), field: field.clone(), index: i, count: j - i, was: Vec::new() },
-                    Op::TextDelete { id, field, index: i + m, count: i + n - j, was: Vec::new() },
+                    Op::TextDelete { id: id.clone(), field: field.clone(), index: i, count: j - i, was: runs_between(&was, 0, j - i) },
+                    Op::TextDelete { id, field, index: i + m, count: i + n - j, was: runs_between(&was, j - i, n) },
                 ];
                 (nonempty(deletes), vec![Op::TextInsert { id: bid, field: bfield, index: i, text: t, marks }])
             }
@@ -178,6 +241,17 @@ fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
             let overlap = (i + n).min(j + m).saturating_sub(i.max(j));
             let before_a = if j < i { m.min(i - j) } else { 0 };
             let before_b = if i < j { n.min(j - i) } else { 0 };
+            // What each still deletes: its own characters but those the other deleted too.
+            let (was, bwas) = if overlap == 0 {
+                (was, bwas)
+            } else {
+                let (from, bfrom) = (i.max(j) - i, i.max(j) - j);
+                let mut kept = runs_between(&was, 0, from);
+                kept.extend(runs_between(&was, from + overlap, n));
+                let mut bkept = runs_between(&bwas, 0, bfrom);
+                bkept.extend(runs_between(&bwas, bfrom + overlap, m));
+                (kept, bkept)
+            };
             (
                 nonempty(vec![Op::TextDelete { id, field, index: i - before_a, count: n - overlap, was }]),
                 nonempty(vec![Op::TextDelete { id: bid, field: bfield, index: j - before_b, count: m - overlap, was: bwas }]),
@@ -256,6 +330,22 @@ fn with_index(op: Op, index: usize) -> Op {
         Op::ListRemove { id, field, item, .. } => Op::ListRemove { id, field, index, item },
         other => other,
     }
+}
+
+/// The characters `from..to` of the runs a deletion took, as runs. A deletion that names none
+/// (one not applied) names none in its pieces either.
+fn runs_between(was: &[TextRun], from: usize, to: usize) -> Vec<TextRun> {
+    let mut out = Vec::new();
+    let mut at = 0;
+    for run in was {
+        let len = chars(&run.insert);
+        let (start, end) = (from.max(at), to.min(at + len));
+        if start < end {
+            out.push(TextRun { insert: run.insert.chars().skip(start - at).take(end - start).collect(), attributes: run.attributes.clone() });
+        }
+        at += len;
+    }
+    out
 }
 
 /// Drops deletions of no characters.

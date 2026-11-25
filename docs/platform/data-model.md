@@ -555,7 +555,11 @@ the step's inverse operations as one new change and moves the step to the
 redo stack; redo does the reverse. Later work is kept (M12): the inverses
 are carried over the changes logged since the step (text, list and tree
 positions move with insertions before them, and a deleted range drops what
-was deleted), a register or map key someone else wrote since keeps that value,
+was deleted), except a change and the undo or redo that took it back: the
+two compose to nothing, so they are left out and the changes between them are
+carried back to what they do without them. N undos of one scope's last N steps
+therefore give back the state before them exactly, and N redos the state
+after them. A register or map key someone else wrote since keeps that value,
 and an operation whose object is gone is skipped; a node whose parent is gone
 comes back as a root. A step older than the change log (section 6.7) is
 dropped, since the changes after it are no longer all known. A step that changes

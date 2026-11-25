@@ -10,7 +10,7 @@ use crate::content::{self, ContentVersion};
 use crate::ids::new_lineage;
 use crate::read;
 use crate::store::op::{Change, Op, inverse_all};
-use crate::store::transform::through;
+use crate::store::transform::{edits_any, exclude, inverse_with_places, sequences_of, through};
 use crate::store::{Field, Store};
 use crate::{ActorId, Changes, DocId, KDM_VERSION, KdmError, NodeRef, ObjectId, Origin, OriginKind, Result, Schema, TextRun, Tx, UndoScope};
 
@@ -147,6 +147,16 @@ impl Ops {
     fn is_empty(&self) -> bool {
         self.ops.is_empty()
     }
+
+    /// The operations of [`Ops::forward`] that edit the positions of `fields`, for a transform:
+    /// an undo's read with every position it frees or takes ([`inverse_with_places`]).
+    fn forward_in(&self, fields: &std::collections::HashSet<(&ObjectId, &str)>) -> Vec<Op> {
+        if self.inverted {
+            inverse_with_places(self.ops.iter()).into_iter().filter(|op| edits_any(op, fields)).collect()
+        } else {
+            self.ops.iter().filter(|op| edits_any(op, fields)).cloned().collect()
+        }
+    }
 }
 
 /// One change of the log.
@@ -157,6 +167,9 @@ struct Entry {
     origin: Origin,
     schema_version: u32,
     ops: Ops,
+    /// For an undo or a redo: the changes (by `seq`) it took back. Composed with them it changes
+    /// nothing, so a later undo is carried over neither ([`Replica::carried_over`]).
+    cancels: Vec<u64>,
     /// About the memory it holds, for the log's limit.
     size: usize,
 }
@@ -368,20 +381,22 @@ impl Replica {
         let touches = UndoScope::of(origin.kind).map(|_| touches_of(&applied));
         self.changed.extend(changes_of(&applied));
         let ops = Ops::plain(applied);
-        let seq = self.commit(origin, ops.clone(), self.schema.schema_version);
+        let seq = self.commit(origin, ops.clone(), self.schema.schema_version, Vec::new());
         if let (Some(scope), Some(touches)) = (UndoScope::of(origin.kind), touches) {
             self.undo.record(scope, Part { seq, ops }, touches, self.grouping);
         }
         Ok(value)
     }
 
-    /// Logs an applied change as the next one; answers its `seq`.
-    fn commit(&mut self, origin: &Origin, ops: Ops, schema_version: u32) -> u64 {
+    /// Logs an applied change as the next one (an undo or a redo with the changes it `cancels`);
+    /// answers its `seq`.
+    fn commit(&mut self, origin: &Origin, ops: Ops, schema_version: u32, cancels: Vec<u64>) -> u64 {
         self.seq += 1;
         let size = if ops.inverted { 96 } else { 96 + size_of_ops(&ops.ops) };
         self.author_schema = self.author_schema.max(Some(schema_version));
         let base = self.log.base;
-        self.log.push(Entry { seq: self.seq, actor: self.actor, origin: origin.clone(), schema_version, ops, size });
+        let size = size + 8 * cancels.len();
+        self.log.push(Entry { seq: self.seq, actor: self.actor, origin: origin.clone(), schema_version, ops, cancels, size });
         if self.log.base != base {
             self.undo.drop_before(self.log.base);
         }
@@ -564,7 +579,15 @@ impl Replica {
                     let size = 96 + size_of_ops(&ops.ops);
                     self.author_schema = self.author_schema.max(Some(change.schema_version));
                     let base = self.log.base;
-                    self.log.push(Entry { seq: change.seq, actor: change.actor, origin: change.origin, schema_version: change.schema_version, ops, size });
+                    self.log.push(Entry {
+                        seq: change.seq,
+                        actor: change.actor,
+                        origin: change.origin,
+                        schema_version: change.schema_version,
+                        ops,
+                        cancels: Vec::new(),
+                        size,
+                    });
                     if self.log.base != base {
                         self.undo.drop_before(self.log.base);
                     }
@@ -703,22 +726,18 @@ impl Replica {
         let mut kept_changes = Changes::default();
         let mut steps = 0;
         let mut done = false;
+        // The changes taken back so far in this call: the parts of the steps passed over and the
+        // step's own later parts.
+        let mut cancelled: Vec<u64> = Vec::new();
         while let Some(step) = self.undo.of(scope).pop(undo) {
             steps += 1;
             let before = self.digest(&step.touches);
             let mut kept = false;
             let mut exact = step.parts.len() == 1;
             let start = applied.len();
-            // The step's own later parts are not changes made since: they are taken back too, so
-            // each part's inverses are carried over the other changes only.
-            let own: std::collections::HashSet<u64> = step.parts.iter().map(|part| part.seq).collect();
             for part in step.parts.iter().rev() {
                 let backward = part.ops.backward();
-                let mut later: Vec<Op> = Vec::new();
-                for entry in self.log.after(part.seq).filter(|entry| !own.contains(&entry.seq)) {
-                    later.extend(entry.ops.forward());
-                }
-                later.extend(applied.iter().take(start).cloned());
+                let later = self.carried_over(part.seq, &backward, &cancelled);
                 let (ops, moved) = through(backward, &later);
                 exact &= !moved;
                 for op in ops {
@@ -753,6 +772,7 @@ impl Replica {
                         Err(_) => exact = false,
                     }
                 }
+                cancelled.push(part.seq);
             }
             merge_undo_touches(&mut touches, &step.touches);
             let changed =
@@ -783,11 +803,60 @@ impl Replica {
             } else {
                 "redo"
             });
-            let seq = self.commit(&origin, ops.clone(), self.schema.schema_version);
+            let seq = self.commit(&origin, ops.clone(), self.schema.schema_version, cancelled);
             vec![Part { seq, ops }]
         };
         self.undo.of(scope).push_replayed(undo, Step { parts, touches });
         Ok(true)
+    }
+
+    /// The changes logged after `seq` that an undo of a change logged at `seq` (whose inverse is
+    /// `backward`) is carried over ([`through`]): their operations on the texts, lists and trees
+    /// `backward` edits, without each undo or redo and the changes it took back, and without the
+    /// changes `cancelled` (taken back already by this undo). A change and the undo that took it
+    /// back compose to nothing: carrying an older step's inverse over the deletion and the
+    /// re-insertion would lose the positions inside the re-inserted text or items, so the pair
+    /// is taken out ([`exclude`]) and the changes between them become what they do without it.
+    /// The most recent step of a scope with nothing but cancelled pairs after it is so undone
+    /// exactly, by its own inverse.
+    fn carried_over(&self, seq: u64, backward: &[Op], cancelled: &[u64]) -> Vec<Op> {
+        let fields = sequences_of(backward);
+        if fields.is_empty() {
+            return Vec::new();
+        }
+        // The changes since `seq` by their own `seq`, each as its operations on `fields`.
+        let mut segments: Vec<(u64, Vec<Op>)> = Vec::new();
+        for entry in self.log.after(seq) {
+            let pairs = !entry.cancels.is_empty() && entry.cancels.iter().all(|cancel| segments.iter().any(|(at, _)| at == cancel));
+            if pairs {
+                Self::take_out(&mut segments, &entry.cancels);
+            } else {
+                // A change, or an undo of changes not all among these: carried over as it is.
+                segments.push((entry.seq, entry.ops.forward_in(&fields)));
+            }
+        }
+        Self::take_out(&mut segments, cancelled);
+        segments.into_iter().flat_map(|(_, ops)| ops).collect()
+    }
+
+    /// Takes the changes `cancels` (by `seq`, those among `segments`) out of `segments`, newest
+    /// first, each with [`exclude`]: the segments after it become what they do without it.
+    fn take_out(segments: &mut Vec<(u64, Vec<Op>)>, cancels: &[u64]) {
+        let mut cancels: Vec<u64> = cancels.to_vec();
+        cancels.sort_unstable();
+        for seq in cancels.into_iter().rev() {
+            let Some(at) = segments.iter().position(|(held, _)| *held == seq) else { continue };
+            let (_, undone) = segments.remove(at);
+            if undone.is_empty() {
+                continue;
+            }
+            let (_, later) = segments.split_at_mut(at);
+            let mut ops: Vec<Vec<Op>> = later.iter_mut().map(|(_, ops)| mem::take(ops)).collect();
+            exclude(&mut ops, &undone);
+            for ((_, held), moved) in later.iter_mut().zip(ops) {
+                *held = moved;
+            }
+        }
     }
 
     /// Whether a register or map key an undo is about to write back still holds the value the
@@ -1019,7 +1088,7 @@ impl Replica {
         let scope = UndoScope::of(origin.kind).map(|_| UndoScope::Person);
         let touches = objects.iter().map(|id| UndoTouch { id: id.to_string(), fields: None }).collect();
         let ops = Ops::plain(applied);
-        let seq = self.commit(origin, ops.clone(), schema.schema_version);
+        let seq = self.commit(origin, ops.clone(), schema.schema_version, Vec::new());
         if let Some(scope) = scope {
             self.undo.record(scope, Part { seq, ops }, touches, self.grouping);
         }

@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-kdm-undo-after-undo
+feature: sdk.model.plain-store
+intent: >-
+  An undo of an older step is carried over neither a later step nor the undo that took that step back (they compose to nothing), so N steps of one scope followed by N undos give back the state before them exactly and N redos the state after them, for any mix of text inserts, deletes and marks, list, tree, map and register edits; with another scope's edits interleaved, each undo takes back its own step only. Found by kition-note's table commands: eight steps on one text undone in turn came back with rows and cells mixed up.
+layer: gate
+source: { kind: synthetic, from: kition-note bindings/wasm command_tests table_structure_commands_and_undo on the plain KDM (91cf510), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: undos_in_turn_of_overlapping_text_edits_give_back_each_earlier_text }
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: undos_in_turn_keep_what_another_scope_typed_inside_the_text }
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: undos_of_one_scope_give_back_each_earlier_state_exactly_and_redos_each_later_one }
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: undoing_and_redoing_all_of_one_scope_among_another_scopes_edits_gives_back_the_state }
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: each_undo_takes_back_its_own_steps_effect_among_another_scopes_edits }
+  - cargo-test: { package: kition-kdm, test: undo_sequences, filter: undos_of_one_scope_after_another_scopes_steps_give_back_each_state_exactly }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"
