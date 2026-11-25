@@ -394,6 +394,27 @@ fn direct_and_exchange_batches_refresh_the_kits_cached_state() {
     }
 }
 
+/// A batch the engine refuses is taken back in the exchange's scratch replica, which keeps its
+/// log and then follows the engine: what changed since a version before it is still told
+/// (`model.changes`), where a replica loaded again from the engine's snapshot holds no history
+/// before its load.
+#[test]
+fn an_exchange_keeps_what_changed_since_a_version_across_a_refused_batch() {
+    let mut document = open();
+    let mut exchange = Exchange::new();
+    let before = exchange.replica(&mut document).unwrap().version();
+    exchange.batch(&mut document, &json!({"ops":[{"op":"set","target":"root","field":"title","value":"Kept"}]}), false).unwrap();
+    let error = exchange.batch(&mut document, &json!({"ops":[{"op":"set","target":"root","field":"title","value":UNREPAIRABLE}]}), false).unwrap_err();
+    assert!(error.message.contains("refused"), "{error}");
+    let replica = exchange.replica(&mut document).unwrap();
+    assert_eq!(replica.version(), document.0.replica().version());
+    let changes = replica.changes_since(&before).unwrap();
+    assert_eq!(changes.changed.len(), 1);
+    // This engine keeps an import its repair refuses: the scratch replica follows it.
+    let engine = document.0.replica();
+    assert_eq!(replica.get(&board(replica), "title").unwrap(), engine.get(&board(engine), "title").unwrap());
+}
+
 #[test]
 fn exchange_follows_a_replacement_document_without_importing_old_edits() {
     let mut document = open();

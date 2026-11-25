@@ -1,0 +1,15 @@
+format: 1
+id: regressions/issue-premise-plan-earlier-steps
+feature: sdk.agent.step-premises
+intent: >-
+  A premise plan begun with steps (and no batch) answers the changes of those steps, so a later step's premises are checked against the state the earlier steps leave. The plan's replica is caught up with its fork before any step runs; a replica loaded from a snapshot after the steps holds no history before its load, and the receipt since the plan's start was HistoryMissing, which left the plan without a token (kition-note's a_later_step_is_checked_after_the_earlier_steps was refused "Editor state unavailable"). A receipt the log cannot answer, after a step replaced the replica, is read from the whole states. The same loss after a batch the engine refused: the exchange's scratch replica takes the change back (KDM Replica::take_back_to) and keeps its log instead of loading again, so model.changes since a version before the batch still answers.
+layer: gate
+source: { kind: synthetic, from: kition-note bindings/headless premises on the plain KDM (91cf510), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-headless, filter: a_plan_begun_with_steps_answers_the_changes_of_those_steps }
+  - cargo-test: { package: kition-kit, test: model, filter: an_exchange_keeps_what_changed_since_a_version_across_a_refused_batch, features: [session] }
+  - cargo-test: { package: kition-kdm, test: versions, filter: a_replica_takes_back_its_changes_after_a_version_and_keeps_its_log_before_it }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-24"

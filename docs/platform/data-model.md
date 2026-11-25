@@ -592,7 +592,11 @@ log holds at most 10,000 changes or 64 MB, whichever comes first, and drops
 its oldest beyond either; a version older than the log is answered with a
 snapshot (`export_changes`) or `history-missing` (`fork_at`,
 `changes_since`). Content a document is created with (`create_with`) is not
-in the log (P2).
+in the log (P2). A replica loaded from a snapshot starts its log at the
+snapshot's version, so a replica that must tell what changed since a version
+is loaded before that version, and keeps its log: one whose change was refused
+where it was sent takes it back (`take_back_to(version)`) instead of loading
+again.
 
 ## 7. Storage
 

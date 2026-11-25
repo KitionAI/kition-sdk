@@ -1896,6 +1896,36 @@ fn premise_plans_advance_with_cumulative_changes_and_batch_references() {
     }
 }
 
+/// regressions/issue-premise-plan-earlier-steps: a plan begun with steps (and no batch) answers
+/// the changes of those steps, so a later step's premises are checked against them. Its replica
+/// was loaded only after the steps ran, from a snapshot, which carries no history: the receipt
+/// since the plan's start was `HistoryMissing`, the plan had no token, and the guard answered
+/// "Editor state unavailable" (kition-note `a_later_step_is_checked_after_the_earlier_steps`).
+#[test]
+fn a_plan_begun_with_steps_answers_the_changes_of_those_steps() {
+    let _turn = lent_turn();
+    let root = workspace("steps-plan");
+    std::fs::write(root.join("steps.notes"), b"").unwrap();
+    let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
+    let folder = serve(&mut kit, &root);
+    let info = open(&mut kit, &folder, "steps.notes");
+    let params = |value: Value| value.as_object().unwrap().clone();
+    let first =
+        kit.context_plan(&info.id, &params(json!({"action":"begin","steps":[{"command":"projection.rename","params":{"text":"Planned"}}],"step":1}))).unwrap();
+    assert!(first["token"].is_string(), "{first}");
+    assert_eq!(first["changes"]["changed"][0]["type"], "Board", "{first}");
+    assert_eq!(first["changes"]["changed"][0]["fields"], json!(["title"]), "{first}");
+    let next = kit
+        .context_plan(
+            &info.id,
+            &params(json!({"action":"advance","token":first["token"],"steps":[{"command":"projection.rename","params":{"text":"Planned again"}}],"step":2})),
+        )
+        .unwrap();
+    assert_eq!(next["changes"]["changed"][0]["fields"], json!(["title"]), "the receipt holds the earlier steps' changes: {next}");
+    let live = kit.model("model.batch", json!({"documentId":info.id,"ops":[],"load":[{"target":"root","fields":["title"]}]})).unwrap();
+    assert_ne!(live["loaded"][0]["fields"]["title"], "Planned", "the plan leaves the live document alone");
+}
+
 #[test]
 fn premise_plan_can_replace_its_replica_without_replacing_the_live_document() {
     let _turn = lent_turn();

@@ -171,12 +171,7 @@ impl Exchange {
     /// `model/batch` for the port's document; `read_only` refuses writes.
     pub fn batch<P: ReplicaPort + crate::KitDocument>(&mut self, port: &mut P, request: &Value, read_only: bool) -> Result<Value, ModelError> {
         let settle = port.batch_settler();
-        let answer = batch::run(&mut ExchangeTarget { scratch: &mut self.scratch, port, read_only, settle }, request);
-        if answer.as_ref().is_err_and(|error| error.message.starts_with(REFUSED)) {
-            // The engine has not taken what the scratch replica holds: start again from the engine.
-            self.scratch = None;
-        }
-        answer
+        batch::run(&mut ExchangeTarget { scratch: &mut self.scratch, port, read_only, settle }, request)
     }
 
     /// The scratch replica, caught up with the engine: what `model.version` and `model.changes`
@@ -252,7 +247,15 @@ impl<P: ReplicaPort + crate::KitDocument> BatchTarget for ExchangeTarget<'_, P> 
             return Ok(());
         }
         let changes = replica.export_changes(&before).map_err(failed)?;
-        self.port.model_import(&changes).map_err(|message| failed(format!("{REFUSED}: {message}")))?;
+        if let Err(message) = self.port.model_import(&changes) {
+            // The engine has not taken the change: the scratch replica takes it back and keeps
+            // its log, so what changed since an earlier version can still be told; one that
+            // cannot starts again from the engine.
+            if replica.take_back_to(&before).is_err() {
+                *self.scratch = None;
+            }
+            return Err(failed(format!("{REFUSED}: {message}")));
+        }
         self.port.batch_applied();
         Ok(())
     }

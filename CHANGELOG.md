@@ -4,11 +4,15 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
-- **Undo after undo (plan 2026-11-24, plain model).** An undo
+- **Undo after undo, and receipts across a later load (plan 2026-11-24, plain model).** An undo
   of an older step is carried over neither a later step nor the undo or redo that took it back
   (the pair composes to nothing), so N undos of a scope's last N steps give back the state before
   them exactly and N redos the state after them; before, text came back taken apart where a
-  deletion and its re-insertion lay after the step (regressions/issue-kdm-undo-after-undo).
+  deletion and its re-insertion lay after the step (regressions/issue-kdm-undo-after-undo). A
+  premise plan's replica starts before its first step, so a later step's premises see the earlier
+  steps' changes; a receipt its log cannot answer is read from the whole states; and a batch the
+  engine refuses is taken back in the exchange's replica (new `Replica::take_back_to`) instead of
+  loading it again without history (regressions/issue-premise-plan-earlier-steps).
 - **The TypeScript KDM only reads; the engine merges, compares and restores (plan 2026-11-24,
   steps S4 and S5; Kit UI protocol stays 1).** `@kition/kdm` loads content or a snapshot, applies
   a change list in order with the Rust KDM's precondition checks (`stale` otherwise, nothing

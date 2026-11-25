@@ -847,6 +847,7 @@ features:
       - regressions/issue-c8-fix-22-step-state
       - regressions/issue-c8-fix-22-plan-advance
       - regressions/issue-replica-replacement
+      - regressions/issue-premise-plan-earlier-steps
     since: "2026-11-16"
   - id: sdk.agent.editing-guides
     title: Agent plugin editing skills match their kit's current guide

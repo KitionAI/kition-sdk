@@ -627,6 +627,30 @@ impl Replica {
         Ok(())
     }
 
+    /// Takes back the changes this replica logged after `version`, newest first: its state,
+    /// version and log become what they were at `version`, and the undo and redo steps of those
+    /// changes go. For a replica whose changes were refused where they were sent (a scratch
+    /// replica whose change the engine did not take): its log up to `version` stays, so
+    /// [`Replica::changes_since`] an earlier version still answers, as it would not on a replica
+    /// loaded again. Refuses ([`KdmError::HistoryMissing`]) a version on another line, ahead of
+    /// this replica, or older than its log; then nothing changes. Answers the objects whose state
+    /// changed.
+    pub fn take_back_to(&mut self, version: &Version) -> Result<BTreeSet<ObjectId>> {
+        let Some((lineage, seq)) = version.0 else { return Err(KdmError::HistoryMissing(VERSION_NOT_HELD.into())) };
+        if lineage != self.lineage || seq > self.seq {
+            return Err(KdmError::HistoryMissing(VERSION_NOT_HELD.into()));
+        }
+        if !self.log.covers(seq) {
+            return Err(KdmError::HistoryMissing(BEFORE_LOG.into()));
+        }
+        let objects = changes_of(&self.log.after(seq).flat_map(|entry| entry.ops.forward()).collect::<Vec<_>>()).objects().clone();
+        self.rewind(seq)?;
+        self.undo.drop_after(seq);
+        self.end_undo_group();
+        self.changed.extend(Changes::from(objects.clone()));
+        Ok(objects)
+    }
+
     fn import_snapshot(&mut self, value: Value) -> Result<BTreeSet<ObjectId>> {
         let content = content::decode_value(value)?;
         let Some(version) = content.version else { return Err(KdmError::Stale("content without a version continues no line of changes".into())) };
@@ -1330,6 +1354,16 @@ impl Histories {
             if history.undo.len() < had && history.undo.is_empty() {
                 history.grouped = false;
             }
+        }
+    }
+
+    /// Drops the undo and redo steps with a part newer than `seq`: changes taken back
+    /// ([`Replica::take_back_to`]).
+    fn drop_after(&mut self, seq: u64) {
+        for history in [&mut self.person, &mut self.agent] {
+            let held = |step: &Step| step.parts.iter().all(|part| part.seq <= seq);
+            history.undo.retain(held);
+            history.redo.retain(held);
         }
     }
 

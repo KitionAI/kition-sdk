@@ -1554,13 +1554,18 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
                         }
                     };
                     doc.restore_editor_state(&before_state).map_err(RpcError::invalid_params)?;
+                    // The plan's replica starts at `before`, before any step runs: a replica loaded
+                    // later holds no history before its load, and the changes of the earlier
+                    // steps would be missing from the receipt a later step's premises read.
+                    let mut exchange = Exchange::new();
+                    read(&mut doc, &mut exchange).map_err(|error| model_error(&error))?;
                     self.next_plan += 1;
                     (
                         self.next_plan.to_string(),
                         Planned {
                             document: id.to_owned(),
                             doc,
-                            exchange: Exchange::new(),
+                            exchange,
                             step: 0,
                             changes: Value::Null,
                             before_state,
@@ -1613,8 +1618,19 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
                     }
                 }
                 let replica = read(&mut plan.doc, &mut plan.exchange).map_err(|error| model_error(&error))?;
-                plan.changes = if replica.doc_id() == plan.before_document {
-                    replica.changes_since(&plan.before).map_err(|error| RpcError::invalid_params(error.to_string()))?
+                // The receipt from the replica's log; when the log does not reach `before` (a step
+                // replaced the replica on a new line), from the whole states, which it equals.
+                let logged = if replica.doc_id() == plan.before_document {
+                    match replica.changes_since(&plan.before) {
+                        Ok(changes) => Some(changes),
+                        Err(kition_kit::kdm::KdmError::HistoryMissing(_)) => None,
+                        Err(error) => return Err(RpcError::invalid_params(error.to_string())),
+                    }
+                } else {
+                    None
+                };
+                plan.changes = if let Some(changes) = logged {
+                    changes
                 } else {
                     let now = replica.state_json().map_err(|error| RpcError::internal(error.to_string()))?;
                     kition_kit::kdm::diff::diff_states(&plan.before_model, &now).without_texts().with_leaf_edits(replica.schema()).with_tool_ids(
