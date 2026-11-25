@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.draft-merge/kit-shapes
+feature: sdk.model.draft-merge
+intent: >-
+  The two shapes that made drafts unusable merge: pdf's, one shared map every edit writes, written by the draft and the document under different keys; cad's, one shared list of entities appended to by both, the document's item first.
+layer: gate
+source: { kind: synthetic, from: kition-pdf Pdf.overlay and kition-cad Drawing.model drafts refused as stale, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_rules, filter: one_shared }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

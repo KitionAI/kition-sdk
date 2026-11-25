@@ -722,11 +722,10 @@ it or discards it. A kit that keeps drafts lists `draft` in its
   person recorded with `origin` (`{ kind: "agent", principal, label? }`),
   reports the edit with `document/changed` (`by: "agent"`), and closes the
   draft; `draft/discard` closes it and leaves the document as it is. When the
-  document changed since the draft was opened, the merge applies unless the
-  draft and the document both changed one field of one object, or one of them
-  changed an object the other deleted: then it is refused (`error.data.reason`
-  `stale`, the message naming them), changes nothing, and the draft stays
-  open. `schema` is the kit's KDM schema as the host knows it, as in section 7a.
+  document changed since the draft was opened, the merge follows the data
+  model's merge rules (section 6.6, D1 to D9); a collision refuses it
+  (`error.data.reason` `stale`, the message naming each object, field and key
+  or item), changes nothing, and the draft stays open. `schema` is the kit's KDM schema as the host knows it, as in section 7a.
 - **UI-D1** A host MUST send `draft/merge` and `draft/discard` only on the
   person's explicit action (a Merge or Discard button), never from a model's
   output; it MAY let an agent call `draft/ready` and `draft/reopen`.

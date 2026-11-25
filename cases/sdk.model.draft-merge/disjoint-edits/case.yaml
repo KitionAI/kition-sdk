@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.draft-merge/disjoint-edits
+feature: sdk.model.draft-merge
+intent: >-
+  Seeded random edits by the document and a draft on disjoint items of one list, one tree and one map always merge, to the document's state with the draft's intent: every item once and naming a live object, the items both keep plus each side's new ones, each side's order of its items kept (leaving out those the other side moved or removed), each tree node under the parent its last placer chose, each map key the draft changed holding its value; the merge equals its preview and one undo gives back the state before.
+layer: gate
+source: { kind: synthetic, from: plan 2026-11-24 plain model, draft merge rules, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_rules, filter: property_ }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

@@ -3,8 +3,10 @@
 //! items they address. [`through`] carries them over those changes, one at a time: text inserted
 //! before a position moves it on, text deleted around it takes it back, an undo's delete keeps
 //! text inserted inside its range by others, and an undo's mark does not spread over it. The log
-//! is one line, so this is a plain transform of one sequence of operations against another, not a
-//! merge.
+//! is one line, so this is a plain transform of one sequence of operations against another. A
+//! draft's merge (`crate::merge`, data model 6.6) carries the draft's list and tree operations
+//! over the document's changes since the draft was made the same way, with the document's items
+//! first at one position ([`Tie::Merge`]).
 //!
 //! Tree positions are carried the same way: a node's place among its siblings is a position in
 //! the sequence of the parent's children, which tree operations, and creations and deletions of
@@ -89,7 +91,7 @@ pub(crate) fn exclude(later: &mut [Vec<Op>], undone: &[Op]) {
             continue;
         }
         let ops: Vec<Op> = mem::take(segment).into_iter().flat_map(split_move).collect();
-        let (moved, rest) = xform(ops, back);
+        let (moved, rest) = xform(ops, back, Tie::Undo);
         *segment = moved;
         back = rest;
     }
@@ -99,6 +101,23 @@ pub(crate) fn exclude(later: &mut [Vec<Op>], undone: &[Op]) {
 /// state), so they apply in order after `later`; and whether any of `later` moved them. List
 /// moves come out as the removal and the insertion they are.
 pub(crate) fn through(ops: Vec<Op>, later: &[Op]) -> (Vec<Op>, bool) {
+    through_with(ops, later, Tie::Undo)
+}
+
+/// Which side's item comes first when two operations made on one state insert a list item or a
+/// tree node at one position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Tie {
+    /// The operation carried over comes first: an undo puts an item back where it was, before
+    /// what others inserted there since.
+    Undo,
+    /// The operations it is carried over come first: a draft's item inserted where the document
+    /// inserted one since comes after the document's (data model 6.6, rule D6).
+    Merge,
+}
+
+/// [`through`], with `tie` deciding the order of two items inserted at one list or tree position.
+pub(crate) fn through_with(ops: Vec<Op>, later: &[Op], tie: Tie) -> (Vec<Op>, bool) {
     let fields: HashSet<(&ObjectId, &str)> = ops.iter().flat_map(sequences).collect();
     let touching: Vec<&Op> = later.iter().filter(|op| sequences(op).iter().any(|field| fields.contains(field))).collect();
     if touching.is_empty() {
@@ -109,7 +128,7 @@ pub(crate) fn through(ops: Vec<Op>, later: &[Op]) -> (Vec<Op>, bool) {
         if ops.is_empty() {
             break;
         }
-        let (moved, _) = xform(ops, split_move(op.clone()));
+        let (moved, _) = xform(ops, split_move(op.clone()), tie);
         ops = moved;
     }
     (ops, true)
@@ -138,11 +157,11 @@ fn split_move(op: Op) -> Vec<Op> {
 /// against each other: `a` to apply after `b`, and `b` to apply after `a` ([`pair`]). Each
 /// operation of `a` passes through all of `b` in a loop; only an operation [`pair`] cut in pieces
 /// goes round again, for its pieces.
-fn xform(a: Vec<Op>, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
+fn xform(a: Vec<Op>, b: Vec<Op>, tie: Tie) -> (Vec<Op>, Vec<Op>) {
     let mut b = b;
     let mut out = Vec::with_capacity(a.len());
     for op in a {
-        let (pieces, moved) = through_one(op, b);
+        let (pieces, moved) = through_one(op, b, tie);
         out.extend(pieces);
         b = moved;
     }
@@ -151,11 +170,11 @@ fn xform(a: Vec<Op>, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
 
 /// One operation carried through the sequence `b`: the operation (perhaps in pieces) to apply
 /// after `b`, and `b` to apply after it.
-fn through_one(op: Op, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
+fn through_one(op: Op, b: Vec<Op>, tie: Tie) -> (Vec<Op>, Vec<Op>) {
     let mut pieces = vec![op];
     let mut moved = Vec::with_capacity(b.len());
     for other in b {
-        let (next, others) = pieces_against(pieces, other);
+        let (next, others) = pieces_against(pieces, other, tie);
         pieces = next;
         moved.extend(others);
     }
@@ -163,16 +182,16 @@ fn through_one(op: Op, b: Vec<Op>) -> (Vec<Op>, Vec<Op>) {
 }
 
 /// The pieces of one operation (a sequence) against one other operation.
-fn pieces_against(mut pieces: Vec<Op>, other: Op) -> (Vec<Op>, Vec<Op>) {
+fn pieces_against(mut pieces: Vec<Op>, other: Op, tie: Tie) -> (Vec<Op>, Vec<Op>) {
     if pieces.len() == 1
         && let Some(piece) = pieces.pop()
     {
-        return pair(piece, other);
+        return pair(piece, other, tie);
     }
     let mut others = vec![other];
     let mut out = Vec::with_capacity(pieces.len());
     for piece in pieces {
-        let (moved, rest) = through_one(piece, others);
+        let (moved, rest) = through_one(piece, others, tie);
         out.extend(moved);
         others = rest;
     }
@@ -185,11 +204,11 @@ fn chars(text: &str) -> usize {
 }
 
 /// Two operations made on one state, transformed against each other: `a` to apply after `b`, `b`
-/// to apply after `a`. At one position, `b`'s text comes first and `a`'s list item does. Answers
-/// none for an operation left with nothing to do.
-fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
+/// to apply after `a`. At one position, `b`'s text comes first, and `a`'s list item does
+/// ([`Tie::Undo`]) or `b`'s ([`Tie::Merge`]). Answers none for an operation left with nothing to do.
+fn pair(a: Op, b: Op, tie: Tie) -> (Vec<Op>, Vec<Op>) {
     if share_a_tree(&a, &b) {
-        let (a, b) = tree_pair(a, b);
+        let (a, b) = tree_pair(a, b, tie);
         return (vec![a], vec![b]);
     }
     if !addresses_same_sequence(&a, &b) {
@@ -283,7 +302,7 @@ fn pair(a: Op, b: Op) -> (Vec<Op>, Vec<Op>) {
         (a @ (Op::TextInsert { .. } | Op::TextDelete { .. } | Op::TextMark { .. }), b @ Op::TextMark { .. }) => (vec![a], vec![b]),
         (Op::ListInsert { id, field, index: i, item }, b @ Op::ListInsert { .. }) => {
             let Op::ListInsert { index: j, .. } = b else { return (Vec::new(), vec![b]) };
-            if i <= j {
+            if i < j || (i == j && tie == Tie::Undo) {
                 (vec![Op::ListInsert { id, field, index: i, item }], vec![with_index(b, j + 1)])
             } else {
                 (vec![Op::ListInsert { id, field, index: i + 1, item }], vec![b])
@@ -416,26 +435,26 @@ fn share_a_tree(a: &Op, b: &Op) -> bool {
 
 /// Two operations made on one state that place nodes in one tree, transformed against each
 /// other: each position of `a` (in order) passes through each position of `b`, as list positions
-/// do. At one position, `a`'s node comes first.
-fn tree_pair(a: Op, b: Op) -> (Op, Op) {
+/// do. At one position, `a`'s node comes first ([`Tie::Undo`]) or `b`'s ([`Tie::Merge`]).
+fn tree_pair(a: Op, b: Op, tie: Tie) -> (Op, Op) {
     let mut mine = slots(&a);
     let mut theirs = slots(&b);
     for one in &mut mine {
         for other in &mut theirs {
-            shift(one, other);
+            shift(one, other, tie);
         }
     }
     (with_slots(a, mine.into_iter().map(|slot| slot.index).collect()), with_slots(b, theirs.into_iter().map(|slot| slot.index).collect()))
 }
 
 /// Two positions among one parent's children, made on one state, carried past each other.
-fn shift(a: &mut Slot, b: &mut Slot) {
+fn shift(a: &mut Slot, b: &mut Slot, tie: Tie) {
     if a.owner != b.owner || a.field != b.field || a.parent != b.parent {
         return;
     }
     let (i, j) = (a.index, b.index);
     match (a.insert, b.insert) {
-        (true, true) if i <= j => b.index = j + 1,
+        (true, true) if i < j || (i == j && tie == Tie::Undo) => b.index = j + 1,
         (true, true) => a.index = i + 1,
         (true, false) if i <= j => b.index = j + 1,
         (true, false) => a.index = i - 1,

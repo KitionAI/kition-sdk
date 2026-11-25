@@ -1,0 +1,13 @@
+format: 1
+id: sdk.model.draft-merge/per-kind
+feature: sdk.model.draft-merge
+intent: >-
+  A draft merged into a document that changed since the draft was made follows data model 6.6, rules D2 to D9, per field kind: a register or map key collides only when both changed it to different values (a value changed and undone, or the same value on both sides, merges); a text both changed collides; list and tree edits of different items merge with the draft's positions carried over the document's (the document's item first at one position), and collide when both moved or removed one item or node, the draft places under a node the document took out, or the moves would make a cycle; an object one side deleted and the other changed collides. Each refusal names the object, field and key or item and changes nothing; each merge is one undo step that gives back the exact state before, and the preview (merged_state) equals it.
+layer: gate
+source: { kind: synthetic, from: drafts refused in pdf (Pdf.overlay) and cad (Drawing.model) on the plain KDM (628dbac), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_rules, filter: d }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::content::{self, ContentVersion};
 use crate::ids::new_lineage;
+use crate::merge::MergeConflict;
 use crate::read;
 use crate::store::op::{Change, Op, inverse_all};
 use crate::store::scalar::Scalar;
@@ -164,6 +165,13 @@ impl Ops {
     /// The change's operations, in the order they applied.
     fn forward(&self) -> Vec<Op> {
         if self.inverted { inverse_all(self.ops.iter()) } else { self.ops.as_ref().clone() }
+    }
+
+    /// The change's operations, in the order they applied, each naming the positions it frees or
+    /// takes (an exact undo's read with [`inverse_with_places`]): a draft's merge compares and
+    /// carries the draft's operations over them.
+    fn forward_placed(&self) -> Vec<Op> {
+        if self.inverted { inverse_with_places(self.ops.iter()) } else { self.ops.as_ref().clone() }
     }
 
     /// The operations that take the change back.
@@ -1051,6 +1059,15 @@ impl Replica {
         if !self.log.covers(seq) {
             return Err(KdmError::HistoryMissing(BEFORE_LOG.into()));
         }
+        let store = self.store_at(seq)?;
+        let mut draft = Self::attach(store, Arc::clone(&self.schema), actor, self.lineage, seq);
+        draft.author_schema = self.author_schema;
+        Ok(draft)
+    }
+
+    /// The state at `seq`, which the log covers: the current state with the changes since taken
+    /// back.
+    fn store_at(&self, seq: u64) -> Result<Store> {
         let mut store = self.store.clone();
         let entries: Vec<&Entry> = self.log.after(seq).collect();
         for entry in entries.into_iter().rev() {
@@ -1058,9 +1075,7 @@ impl Replica {
                 store.apply(op, &self.schema).map_err(applying_failed)?;
             }
         }
-        let mut draft = Self::attach(store, Arc::clone(&self.schema), actor, self.lineage, seq);
-        draft.author_schema = self.author_schema;
-        Ok(draft)
+        Ok(store)
     }
 
     /// A copy of this document as a **new document** (data model, "A copy is a new document"): the
@@ -1088,21 +1103,22 @@ impl Replica {
         merged.state_json()
     }
 
-    /// Takes a draft's changes (made on a [`Replica::fork`] of this replica) into this one as one
-    /// transaction of its own, with `origin`: one undo step of the person (unless `origin` is
-    /// `system` or `import`), even when an agent made the draft (M12a, KitAgent A14): the person
-    /// approved it. Answers the objects that changed.
-    ///
-    /// When this replica has not changed since the draft was forked, the draft's operations apply
-    /// as they are. When it has, they apply unless the draft and this replica both changed one
-    /// field of one object since the fork, or one of them changed an object the other deleted:
-    /// then the merge is refused ([`KdmError::Stale`], naming them), since positions in a text or
-    /// list the other side also edited would land in the wrong place. Also refused: another
-    /// document's changes ([`KdmError::WrongDocument`]), changes that do not follow a version of
-    /// this replica ([`KdmError::Stale`]), and changes that raise the minimum schema version beyond
-    /// this replica's ([`KdmError::NewerSchema`]), and operations the schema refuses, checked as
-    /// [`Replica::import_changes`] checks them. A refused merge changes nothing.
-    pub fn merge_changes(&mut self, changes: &[u8], origin: &Origin) -> Result<BTreeSet<ObjectId>> {
+    /// The collisions that refuse merging `changes` (a draft's) into this replica now
+    /// ([`Replica::merge_changes`], data model 6.6, rules D2 to D8), each naming the object, the
+    /// field and the map key, list item or tree node; empty when the merge would apply. Refuses
+    /// (as the merge does) changes of another document or of another line, and changes the log
+    /// cannot place.
+    pub fn merge_conflicts(&self, changes: &[u8]) -> Result<Vec<MergeConflict>> {
+        let (base, ops) = self.draft_ops(changes)?;
+        if ops.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(self.merge_plan(base, ops)?.err().unwrap_or_default())
+    }
+
+    /// The version a draft's `changes` follow and their operations after it, checked to be of
+    /// this document and line and not ahead of this replica.
+    fn draft_ops(&self, changes: &[u8]) -> Result<(u64, Vec<Op>)> {
         let value = content::parse(changes, "KDM changes")?;
         let doc_id = DocId::parse(value.get("docId").and_then(Value::as_str).ok_or_else(|| KdmError::Encoding("not KDM changes: no `docId`".into()))?)?;
         if doc_id != self.store.doc_id {
@@ -1124,22 +1140,52 @@ impl Replica {
             return Err(KdmError::Stale(format!("the draft follows version {base}; this replica is at {}", self.seq)));
         }
         let drafted = list.iter().map(|change| Change::from_json(change, &self.schema)).collect::<Result<Vec<_>>>()?;
-        let ops: Vec<Op> = drafted.into_iter().filter(|change| change.seq > base).flat_map(|change| change.ops).collect();
+        Ok((base, drafted.into_iter().filter(|change| change.seq > base).flat_map(|change| change.ops).collect()))
+    }
+
+    /// A draft's operations `ops` (made at `base`) as they apply to this replica now (data model
+    /// 6.6, rules D1 to D8), or the collisions that refuse them.
+    fn merge_plan(&self, base: u64, ops: Vec<Op>) -> Result<std::result::Result<Vec<Op>, Vec<MergeConflict>>> {
+        if base == self.seq {
+            return Ok(Ok(ops));
+        }
+        if !self.log.covers(base) {
+            return Err(KdmError::Stale(BEFORE_LOG.into()));
+        }
+        let ours: Vec<Op> = self.log.after(base).flat_map(|entry| entry.ops.forward_placed()).collect();
+        let before = self.store_at(base)?;
+        Ok(crate::merge::plan(ops, &ours, &before, &self.store))
+    }
+
+    /// Takes a draft's changes (made on a [`Replica::fork`] of this replica) into this one as one
+    /// transaction of its own, with `origin`: one undo step of the person (unless `origin` is
+    /// `system` or `import`), even when an agent made the draft (M12a, KitAgent A14): the person
+    /// approved it. Answers the objects that changed.
+    ///
+    /// When this replica has not changed since the draft was forked, the draft's operations apply
+    /// as they are. When it has, they merge by the rules of data model 6.6 (D2 to D8): by what
+    /// each side changed in the end, a register or map key per value, a text strictly, lists and
+    /// trees by item, the draft's list and tree positions carried over the document's changes.
+    /// A collision refuses the merge ([`KdmError::Stale`], naming each one as
+    /// [`Replica::merge_conflicts`] answers it). Also refused: another document's changes
+    /// ([`KdmError::WrongDocument`]), changes that do not follow a version of this replica
+    /// ([`KdmError::Stale`]), changes that raise the minimum schema version beyond this replica's
+    /// ([`KdmError::NewerSchema`]), and operations the schema refuses, checked as
+    /// [`Replica::import_changes`] checks them. A refused merge changes nothing.
+    pub fn merge_changes(&mut self, changes: &[u8], origin: &Origin) -> Result<BTreeSet<ObjectId>> {
+        let (base, ops) = self.draft_ops(changes)?;
         if ops.is_empty() {
             return Ok(BTreeSet::new());
         }
-        if base < self.seq {
-            if !self.log.covers(base) {
-                return Err(KdmError::Stale(BEFORE_LOG.into()));
+        let ops = match self.merge_plan(base, ops)? {
+            Ok(ops) => ops,
+            Err(conflicts) => {
+                let named: Vec<String> = conflicts.iter().map(ToString::to_string).collect();
+                return Err(KdmError::Stale(format!("the draft collides with the document's changes since it was made: {}", named.join("; "))));
             }
-            let mut ours: Vec<Op> = Vec::new();
-            for entry in self.log.after(base) {
-                ours.extend(entry.ops.forward());
-            }
-            let conflicts = conflicts(&ops, &ours);
-            if !conflicts.is_empty() {
-                return Err(KdmError::Stale(format!("the draft and the document both changed {} since the draft was made", conflicts.join(", "))));
-            }
+        };
+        if ops.is_empty() {
+            return Ok(BTreeSet::new());
         }
         let schema = Arc::clone(&self.schema);
         let applied = self.store.apply_all_checked(ops, &schema)?;
@@ -1221,40 +1267,6 @@ impl Replica {
         let digest = Sha256::digest(self.state_json()?.to_string().as_bytes());
         Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
     }
-}
-
-/// The (object, field) pairs both `ours` and `theirs` changed, and the objects one deleted that
-/// the other changed: a draft's merge refuses them.
-fn conflicts(theirs: &[Op], ours: &[Op]) -> Vec<String> {
-    fn written(ops: &[Op]) -> (BTreeSet<(ObjectId, String)>, BTreeSet<ObjectId>, BTreeSet<ObjectId>) {
-        let mut fields = BTreeSet::new();
-        let mut objects = BTreeSet::new();
-        let mut deleted = BTreeSet::new();
-        for op in ops {
-            // Placing or taking a node in a tree writes the owner's tree field.
-            if let Op::Create { trees, .. } | Op::Delete { trees, .. } = op {
-                fields.extend(trees.iter().map(|place| (place.owner.clone(), place.field.to_string())));
-            }
-            let Some(id) = op.object() else { continue };
-            objects.insert(id.clone());
-            match (op, op.field()) {
-                (Op::Delete { .. }, _) => {
-                    deleted.insert(id.clone());
-                }
-                (_, Some(field)) => {
-                    fields.insert((id.clone(), field.to_string()));
-                }
-                _ => {}
-            }
-        }
-        (fields, objects, deleted)
-    }
-    let (their_fields, their_objects, their_deleted) = written(theirs);
-    let (our_fields, our_objects, our_deleted) = written(ours);
-    let mut out: Vec<String> = their_fields.intersection(&our_fields).map(|(id, field)| format!("{id}.{field}")).collect();
-    out.extend(their_objects.intersection(&our_deleted).map(|id| format!("{id} (deleted in the document)")));
-    out.extend(our_objects.intersection(&their_deleted).filter(|id| !our_deleted.contains(*id)).map(|id| format!("{id} (deleted in the draft)")));
-    out
 }
 
 /// The objects and fields applied operations wrote, one touch per object sorted by id (see

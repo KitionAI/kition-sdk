@@ -146,15 +146,27 @@ fn an_undone_move_goes_back_among_its_siblings_after_a_sibling_moved() {
 }
 
 #[test]
-fn a_merge_is_refused_when_the_draft_deletes_a_node_of_a_tree_the_document_changed() {
+fn a_merge_takes_a_draft_deleting_a_node_of_a_tree_the_document_changed_elsewhere_and_refuses_one_on_the_same_node() {
+    // Data model 6.6, rule D7: a tree both sides changed merges by node. The draft deletes a
+    // node's object; the document moves another node: both apply.
     let mut live = replica();
     let (page, s) = outline(&mut live, 3);
     let base = live.version();
     let mut draft = live.fork(ActorId::from_u64(9).unwrap()).unwrap();
-    // The draft deletes a node's object: that writes the outline. The document moves a node.
     draft.transact(&agent(), |tx| tx.delete(&s[1])).unwrap();
     let first = node(&live, &page, &s[0]);
     live.transact(&person(), |tx| tx.tree_move(&page, "outline", &first, None)).unwrap();
+    live.merge_changes(&draft.export_changes(&base).unwrap(), &agent()).unwrap();
+    assert_eq!(tree(&live, &page), roots(&[&s[2], &s[0]]));
+    assert!(!live.exists(&s[1]));
+
+    // The draft deletes the node the document moved: refused, naming the outline and the node.
+    let base = live.version();
+    let mut draft = live.fork(ActorId::from_u64(10).unwrap()).unwrap();
+    draft.transact(&agent(), |tx| tx.delete(&s[0])).unwrap();
+    let last = node(&live, &page, &s[0]);
+    let other = node(&live, &page, &s[2]);
+    live.transact(&person(), |tx| tx.tree_move(&page, "outline", &last, Some(&other))).unwrap();
     let before = live.version();
     let error = live.merge_changes(&draft.export_changes(&base).unwrap(), &agent()).unwrap_err();
     assert!(matches!(error, KdmError::Stale(ref reason) if reason.contains("outline")), "{error:?}");

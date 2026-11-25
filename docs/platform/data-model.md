@@ -577,16 +577,27 @@ empty log and no undo. `fork_at(version)` makes one at a version the log
 still holds (the current state with the changes since taken back), else
 `history-missing`. `merge_changes(changes, origin)` takes a draft's changes
 back as one change of this replica and one step of the person's undo scope.
-When the document has not changed since the fork, they apply as they are.
-When it has, they apply unless the draft and the document both changed one
-field of one object (placing or removing a tree node with its object counts
-as changing the tree), or one side changed an object the other deleted: then
-the merge is refused (`stale`, naming them), since a text or list position
-the other side also edited would land in the wrong place. `merged_state`
-answers the state the merge would give, without changing anything, for a
-draft's comparison. An engine exports both as `mergeChanges` and
-`compareChanges` ([engine contract](kits/engine.md)). A draft's operations are
-checked against the schema as an import's are (section 6.4).
+`merged_state` answers the state the merge would give, without changing
+anything, for a draft's comparison, and `merge_conflicts` the collisions that
+refuse it (each a `MergeConflict`: rule, object, field, map key or list item or
+tree node, reason). An engine exports the first two as `mergeChanges` and
+`compareChanges` ([engine contract](kits/engine.md)); the kit's validation and
+repair run after a merge as after any change. A draft's operations are checked
+against the schema as an import's are (section 6.4). The merge follows these
+rules (`crates/kition-kdm/src/merge.rs`; tests `tests/merge_rules.rs`, each
+rule with a merging and a colliding case, and seeded property tests):
+
+| # | Rule |
+| --- | --- |
+| D1 | A draft follows a version v this replica's log holds. When the document has not changed since v, the draft's operations apply as they are; otherwise rules D2 to D8 compare the draft's operations with the document's since v. |
+| D2 | A side **changed** a field (a map key) when its value after that side's operations differs from its value at v: a field changed and changed back (an undone edit) is unchanged. A field only one side changed never collides, and the draft's operations on it apply as they are. |
+| D3 | **Register**: collides when both changed it and the draft's value differs from the document's. When they are equal, or the draft's value is the one at v, the draft's writes of it are left out and the document's value stays. |
+| D4 | **Map**: rule D3 for each key (a deleted key is absent). Different keys never collide, so creating different owned objects under different keys merges. |
+| D5 | **Text**: collides when both changed it, whatever the ranges (a text's positions are not yet carried over the other side's edits for a merge). |
+| D6 | **List**: when both changed it, the draft's list operations are carried over the document's operations on it (positions move with insertions and removals before them; a move is its removal and its insertion), so its items land among the same neighbours; at one position the document's item comes first, then the draft's. Collides when both moved or removed one item, or both inserted one item. |
+| D7 | **Tree**: rule D6 by node, for each parent's children. Collides when both moved, deleted or placed one node, when the draft puts a node under a node the document took out of the tree, when the draft takes out a node the document put a node under, or when the draft's move would make a node its own ancestor given the document's moves. |
+| D8 | **Objects**: collides when the draft writes, deletes, or places in a list or tree an object the document deleted; when the draft deletes an object the document changed (any field) or placed; and when both created one id (minted ids never do). |
+| D9 | A collision refuses the whole merge (`stale`, naming every collision as `<object>.<field>["<key>"]` or `<object>.<field> item <id>`, with its reason and rule) and changes nothing. A merge that applies is one change and one undo step of the person who accepts it (M12a), whose undo gives back the exact state before. `merged_state` and `merge_conflicts` apply the same rules. |
 
 ### 6.7 The change log
 
@@ -774,8 +785,10 @@ that design is done.
 
 The agent may call Ready and Reopen; **Merge and Discard need the person's
 confirmation and are never under the model's control**. A merge keeps what
-the person changed while the draft was open, and is refused when both
-changed one field (section 6.6).
+the person changed while the draft was open, and is refused only when both
+changed one register or map key to different values, one text, or one list
+item or tree node, or one deleted what the other changed (section 6.6, D1 to
+D9).
 
 ### 9.3 A writing format for models
 

@@ -339,11 +339,11 @@ trusting that its commands did what it meant.
   fork into the document as **one transaction of the replica that merges
   them** (`merge_changes`), under the merging replica's actor, with origin
   `agent` and the principal of the person who started the agent. Edits the
-  person made while the draft was open are kept; when the draft and the
-  document both changed one field of one object since the fork, or one
-  changed an object the other deleted, the merge is refused (`stale`, naming
-  them) and nothing changes, since positions in a text or list both sides
-  edited would land in the wrong place. It is one undo step,
+  person made while the draft was open are kept, by the merge rules of the
+  data model (section 6.6, D1 to D9: registers and map keys by value, texts
+  strictly, lists and trees by item); a collision refuses the merge (`stale`,
+  naming each object, field and key or item) and nothing changes. It is one
+  undo step,
   labelled as the agent's, and the person's Undo takes the whole merge back.
   **Discard** drops the draft and leaves the document untouched. Merge and
   discard MUST require the person's explicit approval: a host MUST NOT offer

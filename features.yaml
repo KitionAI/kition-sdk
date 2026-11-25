@@ -171,6 +171,14 @@ features:
     paths: [crates/kition-kdm/src/replica.rs, crates/kition-kdm/tests/undo_nothing.rs, crates/kition-kit/src/session/mod.rs, crates/kition-kit/tests/session.rs, docs/platform/data-model.md]
     cases: [sdk.model.undo-outcome/steps-taken, sdk.model.undo-outcome/session-steps]
     since: "2026-11-24"
+  - id: sdk.model.draft-merge
+    title: "A draft merges into a document that changed since it was made by field kind (data model 6.6, D1 to D9): registers and map keys by value, texts strictly, lists and trees by item with the draft's positions carried over the document's; a refusal names each collision (Replica::merge_conflicts)"
+    dimension: [function, collab, data-safety]
+    priority: P0
+    status: has
+    paths: [crates/kition-kdm/src/merge.rs, crates/kition-kdm/src/replica.rs, crates/kition-kdm/src/store/transform.rs, crates/kition-kdm/tests/merge_rules.rs, crates/kition-kdm/tests/draft.rs, docs/platform/data-model.md]
+    cases: [sdk.model.draft-merge/per-kind, sdk.model.draft-merge/disjoint-edits, sdk.model.draft-merge/kit-shapes]
+    since: "2026-11-25"
   - id: sdk.model.change-list-reader
     title: "@kition/kdm reads a change list (readChangeList): each change's number, actor, origin and operations"
     dimension: [function]
