@@ -857,6 +857,18 @@ features:
       - regressions/issue-kit-editor-merged-damage
       - regressions/issue-kit-editor-merged-repaint
     since: "2026-11-22"
+  - id: sdk.editor.read-only
+    title: A read-only (viewer or commenter) session runs what only reads or shows (views, selection, the file's reads and outputs) and refuses edits, the history and the file commands that write, by the same rules in the engine worker and the editor
+    dimension: [function, data-safety]
+    priority: P0
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/readOnly.ts
+      - packages/kit-editor/src/engine/kitModel.ts
+      - packages/kit-editor/src/engine/kitEngine.readOnly.test.ts
+    cases:
+      - regressions/issue-read-only-renamed-reads
+    since: "2026-11-25"
   - id: sdk.editor.file-follow
     title: An editor follows its file changed on disk without losing edits still being sent to the engine
     dimension: [function, data-safety]

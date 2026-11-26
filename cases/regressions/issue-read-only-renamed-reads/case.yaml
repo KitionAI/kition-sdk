@@ -1,0 +1,19 @@
+format: 1
+id: regressions/issue-read-only-renamed-reads
+feature: sdk.editor.read-only
+intent: >-
+  After the command naming standard moved reads into `file` (document.inspect to file.inspect and
+  33 more from document.*, doc_*, drawing.*, project.*, review.* and table.*), a viewer's or a
+  commenter's session runs each of them where its old id ran, unless its kit flags it mutates;
+  file commands that write (new, open, save, saveAs, close, revert, import) and CAD's renamed
+  history (edit.undoMany, edit.undoStep, edit.redoStep) stay refused. Before, every file.* command
+  but the outputs was refused, so Kition Slide's ribbon and the editor's own file.inspect failed for
+  viewers and commenters.
+layer: gate
+source: { kind: issue, from: kition-slide test:ribbon on the renamed HEAD (2026-11-25), license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/kitEngine.readOnly.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"
