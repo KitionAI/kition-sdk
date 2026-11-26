@@ -200,9 +200,14 @@ impl Rng {
     }
 }
 
+/// Each node's parent.
+type Parents = BTreeMap<ObjectId, Option<ObjectId>>;
+/// Each parent's children, in order.
+type Children = BTreeMap<Option<ObjectId>, Vec<ObjectId>>;
+
 /// Each node's parent and each parent's children in order.
-fn shape_of(replica: &Replica, page: &ObjectId) -> (BTreeMap<ObjectId, Option<ObjectId>>, BTreeMap<Option<ObjectId>, Vec<ObjectId>>) {
-    let (mut parents, mut children) = (BTreeMap::new(), BTreeMap::<Option<ObjectId>, Vec<ObjectId>>::new());
+fn shape_of(replica: &Replica, page: &ObjectId) -> (Parents, Children) {
+    let (mut parents, mut children) = (Parents::new(), Children::new());
     for entry in replica.tree(page, "outline").expect("tree") {
         let parent = entry.parent.map(|parent| parent.object().clone());
         children.entry(parent.clone()).or_default().push(entry.object.clone());
