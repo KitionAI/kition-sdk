@@ -46,9 +46,12 @@ type EngineToolsOptions = {
   initial: string
   /**
    * Whether Escape has something for the tool to cancel now (a selection, a gesture, a shape
-   * chosen to draw); read when Escape is pressed. A tool taking text otherwise takes every
-   * Escape, so in Focus none would be left to leave it (KitPointer 4.4). Without it, the tool
-   * takes Escape whenever it takes text or is busy.
+   * chosen to draw); read when Escape is pressed, and false gives that Escape to the frame at
+   * once. Without it, the tool takes Escape whenever its last answer says it takes text or is
+   * busy, and an Escape pressed while a press, a click or a tool choice is on its way is decided
+   * on that answer (given back to the frame when the tool does not take it). Only a kit whose
+   * tool takes text while Escape should still leave Focus (a text tool that always takes text)
+   * needs it: such a tool would otherwise take every Escape (KitPointer 4.4).
    */
   escapable?: () => boolean
   /** A dialog the engine asks for; the editor opens it, or says it cannot. */
@@ -147,8 +150,10 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   // The document's commands (a shortcut, a menu) wait there too while events do, so Cmd+B right
   // after fast Shift+Arrow keys formats the whole selection (`orderCommands`).
   const busy = useRef(false)
-  type Queued = { name: KitToolMethod; args: unknown[]; settled: boolean; coalesce: boolean; selection?: number } | { key: string; shift: boolean } | { work: () => Promise<void> }
+  type Queued = { name: KitToolMethod; args: unknown[]; settled: boolean; coalesce: boolean; selection?: number } | HeldKey | { work: () => Promise<void> }
   const queue = useRef<Queued[]>([])
+  /** The event whose answer is on its way now. */
+  const sending = useRef<Queued | null>(null)
   const latestResponse = useRef<EngineToolResponse | null>(null)
   // Whether the editor is still mounted: an engine answer that arrives after it closed (a queued
   // event's reply) sets no state, which React would read `window.event` for after the page, or a
@@ -194,12 +199,11 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   // engine after the text typed behind it ("Ship", four Backspaces, "Launch" saved "ShipLa").
   const replaying = useRef(false)
   const replayAt = useRef<number | null>(null)
-  const replayKey = useCallback((key: string, shift: boolean) => {
-    const target = document.activeElement ?? document.body
+  const replayKey = useCallback((held: HeldKey) => {
     replaying.current = true
     replayAt.current = 0
     try {
-      target.dispatchEvent(new KeyboardEvent('keydown', { key, code: keyCode(key), shiftKey: shift, bubbles: true, cancelable: true }))
+      givenBackTo(held).dispatchEvent(new KeyboardEvent('keydown', { key: held.key, code: keyCode(held.key), shiftKey: held.shift, bubbles: true, cancelable: true }))
     } finally {
       replaying.current = false
       replayAt.current = null
@@ -216,25 +220,38 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     busy.current = true
     try {
       for (let next = queue.current.shift(); next; next = queue.current.shift()) {
+        sending.current = next
         if ('work' in next) {
           await next.work()
           continue
         }
         if ('key' in next) {
           // A held Delete or Backspace goes to the page again: its shortcut, or the tool's text, take it there.
-          if (next.key.length > 1) replayKey(next.key, next.shift)
+          if (next.key.length > 1) replayKey(next)
           else if (latestResponse.current?.wantsText) answer(await tool<EngineToolResponse>('toolText', [next.key, zoom.current], true).catch(() => null))
           else if (latest.current.onDeferredKey) latest.current.onDeferredKey(next.key, next.shift)
-          else replayKey(next.key, next.shift)
+          else replayKey(next)
           continue
         }
         answer(await tool<EngineToolResponse>(next.name, next.args, next.settled).catch(() => null), next.selection)
         if (next.selection === pendingSelection.current) pendingSelection.current = null
       }
     } finally {
+      sending.current = null
       busy.current = false
     }
   }, [answer, replayKey, tool])
+
+  /**
+   * Whether an answer on its way can change which keys the tool takes: a press, a release, a
+   * click, a tool choice, a key or text sent to the tool, or a key held before (which keeps its
+   * place). A hover, a drag's move and a state query (a resize, a zoom, a change) cannot, nor can
+   * a command, whose change the tool is asked about afterwards.
+   */
+  const deciding = useCallback(() => {
+    const decides = (item: Queued | null) => item != null && ('key' in item || ('name' in item && !item.coalesce))
+    return decides(sending.current) || queue.current.some(decides)
+  }, [])
 
   const send = useCallback((name: KitToolMethod, args: unknown[], settled: boolean, coalesce = false, selection?: number) => {
     const tail = queue.current[queue.current.length - 1]
@@ -336,7 +353,7 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     // event the engine is answering (Delete right after a marquee would find nothing to delete).
     const held = event.key.length === 1 || HELD_KEYS.has(event.key)
     if (!command && !event.altKey && held && !replaying.current && (busy.current || queue.current.length)) {
-      queue.current.push({ key: event.key, shift: event.shiftKey })
+      queue.current.push({ key: event.key, shift: event.shiftKey, target: event.target ?? null })
       void pump()
       return true
     }
@@ -357,17 +374,20 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
       send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: command })), zoom.current], true)
       return true
     }
-    // An editing key the last answer does not take, pressed while events are still on their way
-    // (the click that starts a text frame, the tool's first answer right after the document
-    // opened), is decided once they are answered: decided now, Enter right after that click would
-    // go nowhere. Tab keeps moving focus; a control's own keys stay its own.
-    if (!command && !event.altKey && !replaying.current && (busy.current || queue.current.length) && EDITING_KEYS.has(event.key) && event.key !== 'Tab' && onSurface(event.target)) {
-      queue.current.push({ key: event.key, shift: event.shiftKey })
+    // An editing key the last answer does not take, pressed while an event that can change that
+    // is on its way (the click that starts a text frame, the tool's first answer right after the
+    // document opened), is decided once they are answered: decided now, Enter right after that
+    // click would go nowhere. If the tool does not take it then, it is given back to the frame
+    // (`replayKey`): Escape leaves Focus, the kit's handler and the shortcuts have it, once. Behind
+    // a hover or a state query only (Focus resizing the canvas) it is the frame's at once. Tab
+    // keeps moving focus; a control's own keys stay its own.
+    if (!command && !event.altKey && !replaying.current && deciding() && EDITING_KEYS.has(event.key) && event.key !== 'Tab' && onSurface(event.target)) {
+      queue.current.push({ key: event.key, shift: event.shiftKey, target: event.target ?? null })
       void pump()
       return true
     }
     return false
-  }, [hostTool, pump, send])
+  }, [deciding, hostTool, pump, send])
 
   /** The tool a single-key shortcut picks: the next one of that shortcut when one is active. */
   const toolForKey = useCallback((key: string, shift: boolean) => {
@@ -419,6 +439,23 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     keyDown,
     toolForKey,
   }
+}
+
+/** A key held back until the answers on their way came, and where it was pressed. */
+type HeldKey = { key: string; shift: boolean; target?: EventTarget | null }
+
+/**
+ * Where a held key is given back: where the focus is now (the text sink a click's answer focused),
+ * else where it was pressed, else that place's frame (the focus fell to the page because the
+ * pressed control went away), so it reaches the frame's handling as it would have at once.
+ */
+function givenBackTo(held: HeldKey): EventTarget {
+  const focused = document.activeElement
+  if (focused && focused !== document.body) return focused
+  const pressed = held.target instanceof Element ? held.target : null
+  if (pressed?.isConnected) return pressed
+  const frame = pressed?.closest('.kui-app') ?? document.querySelector('.kui-app')
+  return frame ?? focused ?? document.body
 }
 
 /**

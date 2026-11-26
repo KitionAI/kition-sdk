@@ -14,6 +14,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   New `Replica::transact_in_step(scope, origin, f)`, `KitSession::execute_in_step`, `record_in_step`
   and `merge_changes_with`: writes a kit computes from its view after a merge join the merge's undo
   step, so one Undo gives back the exact state before (regressions/issue-merge-follow-up-in-step).
+- **A held key goes where it would have gone (UI U10c).** An editing key the engine tool's last
+  answer does not take waits only while an answer that can change that is on its way (a press, a
+  release, a click, a tool choice, a key or text sent to the tool, a key held before it), not
+  behind a hover, a drag's move, a state query (a resize, a zoom) or a command: Escape in Focus
+  while Focus resizes the canvas leaves Focus at once again (Kition Scene's mode smoke), and an
+  arrow reaches the kit's `onKeyDown` at once. A key that did wait and that the tool does not take
+  is given back to the frame once, in order, also when the focus fell to the page meanwhile (it
+  goes to the frame). `escapable` is needed only by a tool that takes text while Escape should
+  still leave Focus; kits that pass it to keep Escape off in-flight events can drop it
+  (regressions/issue-held-key-given-back).
 - **Keys decided with the engine stay in order (UI U10c).** A plain shortcut the list of what can
   run still calls disabled (pressed right after the key or the click that let it run) is asked and
   run in the order of the input (`runWhenEnabled` through the session's new `inOrder`), so keys,

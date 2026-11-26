@@ -104,10 +104,19 @@ shows it in an `<iframe>` and talks to it over the **UI protocol**.
   asks the engine and runs there (`@kition/kit-editor`'s `runWhenEnabled`, through the session's
   `inOrder`, which also orders a kit's own multi-step decisions: a command run inside its work
   passes `inOrder: true`), and an editing key the engine tool's last answer does not take, pressed
-  while its events are still on their way (Enter right after the click that starts a text frame,
-  an arrow right after the document opened), waits for their answers. A character typed into the
-  text sink stays text: a shortcut takes it only when the list read last says it can run, never
-  through a decision made later. A kit's own key handler runs its commands through the session
+  while an event that can change what the tool takes is still on its way (a press, a release, a
+  click, a tool choice, a key or text sent to the tool, or a key held before it: Enter right after
+  the click that starts a text frame, an arrow right after the document opened), waits for their
+  answers; behind a hover, a drag's move, a state query (Focus resizing the canvas, a zoom) or a
+  command alone it is decided at once. A key that waited and that the tool, on the fresh answer,
+  does not take is given back to where it would have gone had it not waited: the frame's own
+  handling in its usual order (the kit's key handler, the shortcuts, Escape leaving Focus), exactly
+  once and before the input after it, on the focused element, or where it was pressed (its frame)
+  when the focus fell to the page meanwhile; it is never lost and never also given to the tool.
+  `useEngineTools`'s `escapable` only says whether a tool that takes text or is busy has something
+  for Escape to cancel; a kit whose tool takes text only while it edits needs none. A character
+  typed into the text sink stays text: a shortcut takes it only when the list read last says it
+  can run, never through a decision made later. A kit's own key handler runs its commands through the session
   (`editor.run`, `session.run`), which keeps that order; one that returns false leaves the key
   to the frame, as above.
 
