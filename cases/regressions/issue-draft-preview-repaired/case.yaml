@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-draft-preview-repaired
+feature: sdk.model.draft-merge
+intent: >-
+  A draft's preview runs the kit's repair: KitSession::compare_changes and merged_state (and the
+  engine member compareChanges) merge on a copy and repair it there as the merge does
+  (Replica::compare_changes_repaired, merged_state_repaired), so the preview equals what accepting
+  gives and the document does not change. Before, the preview was the merge without the repair: a
+  value the repair recomputes (Kition Film's Sequence.duration), renumbered ids or a thread the repair
+  removes were stale or missing in it.
+layer: gate
+source: { kind: issue, from: kition-film draft preview, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kit, test: model, filter: a_repair_that_reads_text_is_part_of_the_merge_and_of_its_preview }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

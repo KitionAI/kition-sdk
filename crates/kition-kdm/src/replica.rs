@@ -1234,9 +1234,16 @@ impl Replica {
     /// [`Replica::merge_changes`], without changing it: the "after" of a draft's comparison
     /// ([`crate::diff::diff_states`]). Refuses what the merge refuses.
     pub fn merged_state(&self, changes: &[u8]) -> Result<Value> {
-        let mut merged = self.fork(self.actor)?;
-        merged.log = self.log.clone();
-        merged.merge_changes(changes, &Origin::system("merged-state"))?;
+        self.merged_state_repaired(changes, |_, _| Ok(()))
+    }
+
+    /// [`Replica::merged_state`] with the kit's repair, as [`Replica::merge_changes_repaired`]
+    /// runs it: the state accepting the draft will give, the repair's writes included (a value
+    /// the repair recomputes, an object it removes). The merge and the repair run on a copy of
+    /// this replica (its objects shared until written), so nothing here changes.
+    pub fn merged_state_repaired(&self, changes: &[u8], repair: impl FnOnce(&mut Tx<'_>, &BTreeSet<ObjectId>) -> Result<()>) -> Result<Value> {
+        let mut merged = self.scratch()?;
+        merged.merge_changes_repaired(changes, &Origin::system("merged-state"), repair)?;
         merged.state_json()
     }
 
@@ -1245,10 +1252,29 @@ impl Replica {
     /// the objects the merge writes instead of building both whole states (a draft's comparison,
     /// `compareChanges`). Refuses what the merge refuses.
     pub fn compare_changes(&self, changes: &[u8]) -> Result<crate::diff::StateDiff> {
+        self.compare_changes_repaired(changes, |_, _| Ok(()))
+    }
+
+    /// [`Replica::compare_changes`] with the kit's repair on the copy, as
+    /// [`Replica::merge_changes_repaired`] runs it, so the comparison is what accepting the draft
+    /// will change: read at the objects the merge and the repair write. Its cost is the merge's
+    /// and the repair's: a repair that reads only the objects it is given stays proportional to
+    /// them; a repair that walks the whole document walks it for every comparison.
+    pub fn compare_changes_repaired(
+        &self,
+        changes: &[u8],
+        repair: impl FnOnce(&mut Tx<'_>, &BTreeSet<ObjectId>) -> Result<()>,
+    ) -> Result<crate::diff::StateDiff> {
+        let mut merged = self.scratch()?;
+        let touched = merged.merge_changes_repaired(changes, &Origin::system("merged-state"), repair)?.objects;
+        diff_of_objects(&self.store, &|id: &ObjectId| self.store.contains(id), &merged.store, &self.schema, &touched)
+    }
+
+    /// A copy of this replica with its log, to merge a draft into for a comparison.
+    fn scratch(&self) -> Result<Replica> {
         let mut merged = self.fork(self.actor)?;
         merged.log = self.log.clone();
-        let touched = merged.merge_changes(changes, &Origin::system("merged-state"))?.objects;
-        diff_of_objects(&self.store, &|id: &ObjectId| self.store.contains(id), &merged.store, &self.schema, &touched)
+        Ok(merged)
     }
 
     /// [`crate::diff::diff_states`] of the state at `since` (a version this replica reached and its

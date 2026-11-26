@@ -346,7 +346,8 @@ fn pair(a: Op, b: Op, tie: Tie) -> (Vec<Op>, Vec<Op>) {
 }
 
 /// For a merge ([`Tie::Merge`]): two operations made on one state that both remove one list
-/// item, one tree node, or one object, transformed against each other. What remains of each is
+/// item, one tree node, or one object, or both insert one list item at one position, transformed
+/// against each other. What remains of each is
 /// what the other did not do already: nothing for the same removal, and an object's deletion
 /// without its place in a tree the other side took the node out of.
 fn both_removed(a: &Op, b: &Op) -> Option<(Vec<Op>, Vec<Op>)> {
@@ -370,6 +371,13 @@ fn both_removed(a: &Op, b: &Op) -> Option<(Vec<Op>, Vec<Op>)> {
             Some((Vec::new(), Vec::new()))
         }
         (Op::Delete { id, .. }, Op::Delete { id: other, .. }) if id == other => Some((Vec::new(), Vec::new())),
+        // Both inserting one item at one position of one list: the same change (data model 6.6,
+        // D6), as two replicas padding a list with objects whose ids derive from their place do.
+        (Op::ListInsert { id, field, index, item }, Op::ListInsert { id: other, field: other_field, index: other_index, item: other_item })
+            if id == other && field == other_field && index == other_index && item == other_item =>
+        {
+            Some((Vec::new(), Vec::new()))
+        }
         (Op::TreeDelete { id, field, node, .. }, Op::Delete { id: object, trees, .. })
             if node == object && trees.iter().any(|place| place.owner == *id && place.field == *field) =>
         {

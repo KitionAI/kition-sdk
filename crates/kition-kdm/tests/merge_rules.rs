@@ -440,6 +440,73 @@ fn d6_d7_d8_the_same_removal_on_both_sides_merges() {
     refused(&mut live, &draft, &base, "D6");
 }
 
+/// Pads `page`'s shapes from index `from` with shapes whose ids derive from their place
+/// (`row-<index>`, as Kition Sheet pads its rows), each with `x` set to its index.
+fn pad(tx: &mut kition_kdm::Tx<'_>, page: &ObjectId, from: usize, to: usize) -> kition_kdm::Result<()> {
+    for at in from..to {
+        let row = tx.create_with_id("Shape", &ObjectId::from_string(format!("row-{at}")), fields(json!({ "kind": "rect", "x": 0, "y": 0 })))?;
+        tx.list_insert(page, "shapes", at, &row)?;
+        tx.set(&row, "x", json!(at))?;
+    }
+    Ok(())
+}
+
+/// Both sides typing below a list's last rows make the same rows (D6, D8): one id created with
+/// the same type and fields, inserted at one place, is the same change, as both deleting one
+/// object is. The draft pads further than the document; its writes to the rows both made merge
+/// as writes to rows both had (D3); one undo gives back the state before.
+#[test]
+fn d6_d8_the_same_new_objects_at_the_same_place_on_both_sides_merge() {
+    let (mut live, page, s, _) = document(2);
+    let base = live.version();
+    let mut draft = live.fork(actor(9)).expect("fork");
+    draft.transact(&agent(), |tx| pad(tx, &page, 2, 5)).expect("draft");
+    draft.transact(&agent(), |tx| tx.set(&ObjectId::from_string("row-3"), "y", json!(7))).expect("draft");
+    live.transact(&person(), |tx| pad(tx, &page, 2, 4)).expect("live");
+    live.transact(&person(), |tx| tx.set(&ObjectId::from_string("row-2"), "y", json!(1))).expect("live");
+    let merged = merge(&mut live, &draft, &base);
+    let row = |at: usize| ObjectId::from_string(format!("row-{at}"));
+    assert_eq!(live.list(&page, "shapes").expect("list"), vec![s[0].clone(), s[1].clone(), row(2), row(3), row(4)]);
+    assert_eq!(merged["objects"]["row-2"]["y"], json!(1), "the document's write stays");
+    assert_eq!(merged["objects"]["row-3"]["y"], json!(7), "the draft's write to a row both made applies");
+    assert_eq!(merged["objects"]["row-4"]["x"], json!(4));
+}
+
+/// Still collisions: one id both created with different fields (D8), and the same new object
+/// inserted at different places (D6).
+#[test]
+fn d6_d8_the_same_id_made_differently_or_placed_apart_collides() {
+    let (mut live, page, _, _) = document(2);
+    let base = live.version();
+    let mut draft = live.fork(actor(9)).expect("fork");
+    draft
+        .transact(&agent(), |tx| {
+            let row = tx.create_with_id("Shape", &ObjectId::from_string("row-2"), fields(json!({ "kind": "rect", "x": 1, "y": 0 })))?;
+            tx.list_insert(&page, "shapes", 2, &row)
+        })
+        .expect("draft");
+    live.transact(&person(), |tx| pad(tx, &page, 2, 3)).expect("live");
+    let conflicts = refused(&mut live, &draft, &base, "row-2 (both created it, not the same; rule D8)");
+    assert_eq!(conflicts[0].rule, "D8");
+
+    let (mut live, page, _, _) = document(2);
+    let base = live.version();
+    let mut draft = live.fork(actor(9)).expect("fork");
+    draft
+        .transact(&agent(), |tx| {
+            let row = tx.create_with_id("Shape", &ObjectId::from_string("row-9"), fields(json!({ "kind": "rect", "x": 0, "y": 0 })))?;
+            tx.list_insert(&page, "shapes", 0, &row)
+        })
+        .expect("draft");
+    live.transact(&person(), |tx| {
+        let row = tx.create_with_id("Shape", &ObjectId::from_string("row-9"), fields(json!({ "kind": "rect", "x": 0, "y": 0 })))?;
+        tx.list_insert(&page, "shapes", 2, &row)
+    })
+    .expect("live");
+    let conflicts = refused(&mut live, &draft, &base, "item row-9 (both inserted the item, at different places; rule D6)");
+    assert_eq!((conflicts.len(), conflicts[0].rule), (1, "D6"));
+}
+
 // ---- Seeded property tests ----
 
 /// A small seeded generator (xorshift64*), so every run tests the same cases.

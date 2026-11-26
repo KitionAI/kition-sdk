@@ -296,3 +296,47 @@ fn the_schema_declares_marks_on_text_fields_only_with_valid_keys_and_one_expand_
     });
     assert!(matches!(Schema::parse(&conflicting.to_string()), Err(KdmError::Schema(message)) if message.contains("one expand")));
 }
+
+/// A transaction reads a text field and its runs with its own insertions, deletions and marks,
+/// exactly as the replica reads them once it applies (a kit's repair inside a merge reads the
+/// merged text this way, data model 6.6 D9): typing at a mark's end follows its expand there too.
+#[test]
+fn a_transaction_reads_its_own_text_and_marks_as_the_replica_will() {
+    let mut replica = paragraph(1, "aaa bbb ccc ddd");
+    let para = id("p1");
+    let (staged, plain, fresh) = replica
+        .transact(&person(), |tx| {
+            assert_eq!(tx.text(&para, "text")?, "aaa bbb ccc ddd", "the committed text");
+            assert_eq!(tx.text_delta(&para, "text")?, vec![TextRun::new("aaa bbb ccc ddd")]);
+            assert_eq!(tx.text(&para, "plain")?, "", "a field never written");
+            assert!(tx.text_delta(&para, "plain")?.is_empty());
+            tx.text_mark(&para, "text", 0, 3, "bold", json!(true))?;
+            tx.text_mark(&para, "text", 4, 7, "link", json!("u"))?;
+            tx.text_mark(&para, "text", 8, 11, "lead", json!(true))?;
+            tx.text_mark(&para, "text", 12, 15, "wide", json!(true))?;
+            for (start, end) in [(12, 15), (8, 11), (4, 7), (0, 3)] {
+                tx.text_insert(&para, "text", end, "]")?;
+                tx.text_insert(&para, "text", start, "[")?;
+            }
+            tx.text_delete(&para, "text", 5, 1)?;
+            tx.text_unmark(&para, "text", 1, 2, "bold")?;
+            tx.text_insert(&para, "plain", 0, "just text")?;
+            let made = tx.create("Para", fields(json!({})))?;
+            tx.text_insert(&made, "text", 0, "new")?;
+            tx.text_mark(&made, "text", 0, 3, "italic", json!(true))?;
+            Ok((tx.text_delta(&para, "text")?, tx.text(&para, "plain")?, (made.clone(), tx.text(&made, "text")?, tx.text_delta(&made, "text")?)))
+        })
+        .unwrap();
+    assert_eq!(replica.text(&para, "text").unwrap(), "[aaa][bbb] [ccc] [ddd]");
+    assert_eq!(staged, delta(&replica), "the staged runs are the applied runs");
+    assert_eq!(plain, replica.text(&para, "plain").unwrap());
+    let (made, text, runs) = fresh;
+    assert_eq!((text, runs), (replica.text(&made, "text").unwrap(), replica.text_delta(&made, "text").unwrap()));
+    assert_eq!(replica.text_delta(&made, "text").unwrap(), vec![run("new", json!({ "italic": true }))]);
+
+    let refused = replica.transact(&person(), |tx| {
+        tx.delete(&para)?;
+        tx.text(&para, "text").map(drop)
+    });
+    assert!(refused.is_err(), "a deleted object's text is not read");
+}

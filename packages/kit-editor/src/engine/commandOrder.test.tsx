@@ -125,6 +125,19 @@ describe('commands after engine tool events', () => {
     expect(engine.posted.slice(0, 2)).toEqual(['execute format.bold', 'toolKey ArrowRight'])
   })
 
+  it('sets no state from an engine answer that arrives after the editor closed', async () => {
+    const { current } = await mount()
+    // The tools' state request is out when the editor closes; its answer comes 5 ms later.
+    act(() => current.tools.refresh())
+    cleanups.pop()!()
+    // React reads `window.event` for each state update: after a test's DOM is torn down that
+    // threw "window is not defined" as an unhandled rejection.
+    const read = vi.spyOn(window, 'event', 'get')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(read).not.toHaveBeenCalled()
+    read.mockRestore()
+  })
+
   it('saves after the keys pressed before Save, so the file holds them', async () => {
     const { engine, current } = await mount()
     engine.posted.length = 0

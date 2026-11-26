@@ -150,9 +150,19 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   type Queued = { name: KitToolMethod; args: unknown[]; settled: boolean; coalesce: boolean; selection?: number } | { key: string; shift: boolean } | { work: () => Promise<void> }
   const queue = useRef<Queued[]>([])
   const latestResponse = useRef<EngineToolResponse | null>(null)
+  // Whether the editor is still mounted: an engine answer that arrives after it closed (a queued
+  // event's reply) sets no state, which React would read `window.event` for after the page, or a
+  // test's DOM, is gone.
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const answer = useCallback((next: EngineToolResponse | null, selection?: number) => {
-    if (!next) return
+    if (!next || !mounted.current) return
     latestResponse.current = next
     setResponse(next)
     let switchTo: string | null = null
@@ -245,7 +255,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
 
   useEffect(() => {
     if (!ready) return
-    void tool<EngineToolInfo[]>('tools').then((list) => setTools(list ?? []))
+    void tool<EngineToolInfo[]>('tools').then((list) => {
+      if (mounted.current) setTools(list ?? [])
+    })
   }, [ready, tool])
 
   // The chosen tool goes to the engine.

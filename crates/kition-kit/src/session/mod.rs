@@ -166,6 +166,21 @@ pub struct KitSession<M: KitModel> {
     blobs: Box<dyn BlobSink + Send>,
 }
 
+/// The kit's repair ([`KitModel::validate`]) as a merge runs it in its transaction
+/// (`Replica::merge_changes_repaired`): a kit error that is not the KDM's is kept in `kit_error`,
+/// for the caller to answer in place of the merge's refusal.
+fn repair<M: KitModel>(kit_error: &mut Option<KitError>) -> impl FnOnce(&mut Tx<'_>, &BTreeSet<ObjectId>) -> kition_kdm::Result<()> + '_ {
+    move |tx, changed| {
+        M::validate(tx, changed).map(drop).map_err(|error| match error {
+            KitError::Kdm(error) => error,
+            other => {
+                *kit_error = Some(other);
+                KdmError::Engine("the kit's repair of the merge failed".into())
+            }
+        })
+    }
+}
+
 impl<M: KitModel> KitSession<M> {
     /// Opens a snapshot (or a full change export) as a replica of `actor`.
     pub fn open_snapshot(bytes: &[u8], blobs: Box<dyn BlobSink + Send>, actor: ActorId) -> Result<Self> {
@@ -343,21 +358,29 @@ impl<M: KitModel> KitSession<M> {
     /// recorded. A kit that keeps undo labels or a history of its own records the step there.
     pub fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<(Option<UndoScope>, Damage)> {
         let mut kit_error = None;
-        let merged = self.replica.merge_changes_repaired(bytes, origin, |tx, changed| {
-            M::validate(tx, changed).map(drop).map_err(|error| match error {
-                KitError::Kdm(error) => error,
-                other => {
-                    kit_error = Some(other);
-                    KdmError::Engine("the kit's repair of the merge failed".into())
-                }
-            })
-        });
-        if let Some(error) = kit_error {
-            return Err(error);
-        }
-        let merged = merged?;
+        let merged = self.replica.merge_changes_repaired(bytes, origin, repair::<M>(&mut kit_error));
+        let merged = kit_error.map_or(Ok(()), Err).and(merged.map_err(KitError::from))?;
         let changed = self.replica.take_changed();
         Ok((merged.scope, self.refresh(&changed)?))
+    }
+
+    /// What merging a draft's changes would change in the document now, the kit's repair
+    /// ([`KitModel::validate`]) included as [`KitSession::merge_changes`] runs it
+    /// (`Replica::compare_changes_repaired`), so a draft's preview is what accepting it gives;
+    /// nothing changes. Refuses what the merge refuses. The repair runs on a copy for every
+    /// comparison: a repair that reads only the objects it is given costs what they cost.
+    pub fn compare_changes(&self, bytes: &[u8]) -> Result<kition_kdm::diff::StateDiff> {
+        let mut kit_error = None;
+        let compared = self.replica.compare_changes_repaired(bytes, repair::<M>(&mut kit_error));
+        kit_error.map_or(Ok(()), Err).and(compared.map_err(KitError::from))
+    }
+
+    /// The canonical state merging a draft's changes would give, the kit's repair included
+    /// (`Replica::merged_state_repaired`, see [`KitSession::compare_changes`]); nothing changes.
+    pub fn merged_state(&self, bytes: &[u8]) -> Result<Value> {
+        let mut kit_error = None;
+        let merged = self.replica.merged_state_repaired(bytes, repair::<M>(&mut kit_error));
+        kit_error.map_or(Ok(()), Err).and(merged.map_err(KitError::from))
     }
 
     /// Writes the state `snapshot` holds (a snapshot or content of this document, as a host's

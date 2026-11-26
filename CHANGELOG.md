@@ -4,6 +4,18 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A kit's repair reads text; a draft's preview is repaired; the same new rows merge.**
+  `Tx::text` and `Tx::text_delta` read a text field and its runs with the transaction's own edits
+  and marks, so a repair inside a merge or a restore can read text (Kition Design, Kition Doc's
+  dangling anchors) and is part of that undo step (regressions/issue-merge-repair-reads-text).
+  `Replica::merged_state_repaired` and `compare_changes_repaired`, `KitSession::compare_changes` and
+  `merged_state`, and the engine member `compareChanges` run the kit's repair on the preview's copy,
+  so the preview is what accepting gives (regressions/issue-draft-preview-repaired). Both sides
+  creating one id with the same type and fields, and inserting one item at one place of a list, is
+  the same change (D6, D8: Kition Sheet's padding rows) (regressions/issue-sheet-same-new-rows).
+  kit-editor drops an engine answer that arrives after the editor closed
+  (regressions/issue-engine-answer-after-close). The kits' skills and manifest fixtures follow the
+  command-id rename and the schema freeze.
 - **A merged draft names its undo scope; merge classes optional.** `Replica::merge_changes`
   answers a `DraftMerge` (the objects that changed and `scope`, the undo history its step went to:
   the person's, also for the agent origin the editor passes; none for an empty draft or a `system`

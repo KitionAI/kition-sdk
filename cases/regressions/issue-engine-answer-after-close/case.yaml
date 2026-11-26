@@ -1,0 +1,16 @@
+format: 1
+id: regressions/issue-engine-answer-after-close
+feature: sdk.editor.held-keys
+intent: >-
+  An engine answer that arrives after the editor closed (a queued tool event's reply) sets no state:
+  useEngineTools drops it once unmounted. Before, the answer set React state on the unmounted root,
+  which reads `window.event`; when a test's DOM was torn down within those milliseconds it threw
+  "window is not defined" as an unhandled rejection (commandOrder.test.tsx failed now and then).
+layer: gate
+source: { kind: issue, from: kit-editor commandOrder.test.tsx flaking, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/commandOrder.test.tsx] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

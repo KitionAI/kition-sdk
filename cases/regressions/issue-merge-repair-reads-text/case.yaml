@@ -1,0 +1,20 @@
+format: 1
+id: regressions/issue-merge-repair-reads-text
+feature: sdk.model.draft-merge
+intent: >-
+  A kit's repair inside a draft's merge or a restore reads text: Tx::text and Tx::text_delta answer
+  a text field and its runs with the transaction's own insertions, deletions and marks, as the
+  replica reads them once it applies. A repair that reads a text field to decide what to delete runs
+  in the merge's one change, so one Undo gives back the exact state hash before. Before, a Tx could
+  not read text, so Kition Design and Kition Doc (dangling footnote and comment anchors) repaired in
+  a separate system change that Undo left in place.
+layer: gate
+source: { kind: issue, from: kition-design and kition-doc draft merges, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: marks, filter: a_transaction_reads_its_own_text_and_marks_as_the_replica_will }
+  - cargo-test: { package: kition-kit, test: model, filter: a_repair_that_reads_text_is_part_of_the_merge_and_of_its_preview }
+  - cargo-test: { package: kition-kit, test: model, filter: a_restores_repair_reads_the_text_the_restore_writes }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

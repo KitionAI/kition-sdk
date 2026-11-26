@@ -21,6 +21,10 @@ const SCHEMA: &str = r#"{
 /// The one board title the kit refuses to repair (see [`Notes::validate`]).
 pub const UNREPAIRABLE: &str = "unrepairable";
 
+/// The body of a note the kit's repair deletes (see [`Notes::validate`]): a repair that must read
+/// a text field to decide what to delete, as Kition Doc's removal of dangling anchors does.
+pub const DISCARDED: &str = "discard";
+
 /// The view: the notes' bodies in order.
 #[derive(Debug, PartialEq)]
 pub struct Notes(Vec<String>);
@@ -49,15 +53,26 @@ impl KitModel for Notes {
         Ok(Damage::Full)
     }
 
-    /// Nothing needs repair, but a board titled exactly [`UNREPAIRABLE`] cannot be repaired: the
-    /// import that brings that title fails (a server validating changes refuses it).
+    /// A changed note whose body reads [`DISCARDED`] is deleted with its entry in the board's
+    /// list. A board titled exactly [`UNREPAIRABLE`] cannot be repaired: the import that brings
+    /// that title fails (a server validating changes refuses it).
     fn validate(tx: &mut Tx<'_>, changed: &BTreeSet<ObjectId>) -> Result<bool, KitError> {
+        let mut wrote = false;
         for id in changed {
             if tx.exists(id) && tx.object_type(id)? == "Board" && tx.get(id, "title")? == json!(UNREPAIRABLE) {
                 return Err(KitError::new("a board cannot be called that"));
             }
+            if tx.exists(id) && tx.object_type(id)? == "Note" && tx.text(id, "body")? == DISCARDED {
+                for owner in tx.objects_of_type("Board") {
+                    if let Some(at) = tx.list_items(&owner, "notes")?.iter().position(|note| note == id) {
+                        tx.list_remove(&owner, "notes", at)?;
+                    }
+                }
+                tx.delete(id)?;
+                wrote = true;
+            }
         }
-        Ok(false)
+        Ok(wrote)
     }
 
     fn import(_name: &str, _bytes: &[u8], _blobs: &mut dyn BlobSink, actor: ActorId) -> Result<Replica, KitError> {
@@ -681,4 +696,76 @@ fn model_reply_names_objects_by_their_tool_ids_and_leaves_the_document_alone() {
     );
     assert_eq!(board(document.0.replica()).to_string(), root, "the document keeps its own ids");
     assert!(kition_kit::session::__model_reply(&document, "not json").is_err());
+}
+
+/// Replaces a note's body with `text`.
+fn write_body(session: &mut KitSession<Notes>, origin: &Origin, note: &ObjectId, text: &str) {
+    session
+        .execute(origin, |_, tx| {
+            let len = tx.text_len(note, "body")?;
+            tx.text_delete(note, "body", 0, len)?;
+            Ok(tx.text_insert(note, "body", 0, text)?)
+        })
+        .unwrap();
+}
+
+/// A kit's repair that reads a text field runs inside the merge (data model 6.6, D9): a draft
+/// that rewrites a note's body to [`DISCARDED`] merges with the note deleted by the repair in the
+/// same change, so one Undo gives back the exact state before the merge and one Redo the exact
+/// repaired state. The draft's comparison runs the same repair on its copy: the preview is what
+/// accepting gives, and it changes nothing.
+#[test]
+fn a_repair_that_reads_text_is_part_of_the_merge_and_of_its_preview() {
+    let mut document = open();
+    model::session_batch(&mut document, &add_notes(), false).unwrap();
+    let note = document.0.replica().list(&board(document.0.replica()), "notes").unwrap()[0].clone();
+    let mut draft = document.0.fork(ActorId::from_u64(2).unwrap(), Box::new(MemoryBlobs::default())).unwrap();
+    let base = draft.version();
+    write_body(&mut draft, &Origin::agent("agent:test"), &note, DISCARDED);
+    let changes = draft.export_changes(&base).unwrap();
+    // The document changed since the fork: the draft's changes merge by the rules (D1).
+    set_title(&mut document.0, &Origin::person("user:a"), "Mine");
+    let before = document.0.state_hash().unwrap();
+    let version = document.0.version();
+
+    let compared = document.0.compare_changes(&changes).unwrap().to_json();
+    let preview = document.0.merged_state(&changes).unwrap();
+    assert_eq!((document.0.version(), document.0.state_hash().unwrap()), (version.clone(), before.clone()), "a preview changes nothing");
+    assert!(compared["deleted"].as_array().unwrap().iter().any(|deleted| deleted["id"] == json!(note.to_string())), "the preview has the repair: {compared}");
+    let engine: Value = serde_json::from_str(&kition_kit::session::__compare_changes(&document, &changes).unwrap()).unwrap();
+    assert_eq!(engine, compared, "compareChanges answers the repaired comparison");
+
+    let (scope, _) = document.0.merge_changes(&changes, &Origin::agent("agent:test")).unwrap();
+    assert_eq!(scope, Some(UndoScope::Person));
+    assert!(!document.0.replica().exists(&note), "the repair read the merged body and deleted the note");
+    assert!(document.0.model().0.is_empty());
+    assert_eq!(document.0.replica().state_json().unwrap(), preview, "the preview is the merge");
+    assert_eq!(document.0.replica().diff_since(&version).unwrap().to_json(), compared, "the comparison is what the merge changed");
+    let repaired = document.0.state_hash().unwrap();
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), before, "one undo: the exact state before the merge");
+    assert_eq!(document.0.model().0, vec!["second".to_owned()]);
+    assert!(document.0.redo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), repaired, "one redo: the exact repaired state");
+}
+
+/// The repair inside a restore reads the text the restore writes in the same transaction (its
+/// staged text): a stored state whose note reads [`DISCARDED`] is restored with the note deleted,
+/// and one Undo gives back the exact state before.
+#[test]
+fn a_restores_repair_reads_the_text_the_restore_writes() {
+    let mut document = open();
+    model::session_batch(&mut document, &add_notes(), false).unwrap();
+    let note = document.0.replica().list(&board(document.0.replica()), "notes").unwrap()[0].clone();
+    let person = Origin::person("user:a");
+    write_body(&mut document.0, &person, &note, DISCARDED);
+    let stored = document.0.snapshot().unwrap();
+    write_body(&mut document.0, &person, &note, "kept");
+    let before = document.0.state_hash().unwrap();
+    assert_ne!(document.0.restore_state(&stored, &person).unwrap(), Damage::None);
+    assert!(!document.0.replica().exists(&note), "the repair read the restored body");
+    assert!(document.0.replica().list(&board(document.0.replica()), "notes").unwrap().is_empty());
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), before, "one undo: the exact state before the restore");
+    assert_eq!(document.0.model().0, vec!["kept".to_owned()]);
 }

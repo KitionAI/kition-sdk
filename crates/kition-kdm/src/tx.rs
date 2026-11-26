@@ -6,9 +6,10 @@ use crate::overlay::{ListEdit, ListState, Overlay, TreeState};
 use crate::read;
 use crate::store::op::{Name, Op};
 use crate::store::scalar::Scalar;
+use crate::store::text::Text;
 use crate::store::{Field, Object, Store};
 use crate::value::canonical;
-use crate::{FieldDef, FieldKind, KdmError, NodeRef, ObjectId, Result, Schema};
+use crate::{FieldDef, FieldKind, KdmError, NodeRef, ObjectId, Result, Schema, TextRun};
 
 /// The form of an object id a host chooses (generated ids are UUID v7, which also match).
 const OBJECT_ID_PATTERN: &str = "[A-Za-z0-9][A-Za-z0-9:_-]{0,127}";
@@ -283,6 +284,24 @@ impl<'a> Tx<'a> {
     pub fn text_len(&self, id: &ObjectId, field: &str) -> Result<usize> {
         let name = self.container_field(id, field, FieldKind::Text)?;
         self.text_length(id, name)
+    }
+
+    /// A text field's characters including this transaction's edits, as [`crate::Replica::text`]
+    /// reads them once it applies (empty for a field never written). Reads the whole text.
+    pub fn text(&self, id: &ObjectId, field: &str) -> Result<String> {
+        let name = self.container_field(id, field, FieldKind::Text)?;
+        Ok(self.staged_text(id, name)?.map(|text| text.string()).unwrap_or_default())
+    }
+
+    /// A text field as runs with equal marks including this transaction's edits and marks, as
+    /// [`crate::Replica::text_delta`] reads it once it applies: what a repair reads to find the
+    /// anchors a merge left without a target (rule M19). Reads the whole text.
+    pub fn text_delta(&self, id: &ObjectId, field: &str) -> Result<Vec<TextRun>> {
+        let (ty, name, def) = self.field(id, field)?;
+        if def.kind != FieldKind::Text {
+            return Err(read::wrong_kind(ty, field, FieldKind::Text));
+        }
+        Ok(self.staged_text(id, name)?.map(|text| read::runs_of(&text, def)).unwrap_or_default())
     }
 
     /// Deletes `count` Unicode scalar values starting at `index`.
@@ -707,6 +726,41 @@ impl<'a> Tx<'a> {
             return Ok(0);
         }
         Ok(read::text(self.store, self.schema, id, name)?.map_or(0, |text| text.len()))
+    }
+
+    /// A text field as it will be once this transaction applies: the document's text with this
+    /// transaction's insertions, deletions and marks replayed on a copy, as the store applies them
+    /// (an insertion without marks takes its neighbours' by their `expand`). `None` when the field
+    /// holds no text and the transaction wrote none.
+    fn staged_text(&self, id: &ObjectId, name: &'a str) -> Result<Option<Text>> {
+        let ty = self.type_of(id)?;
+        let committed = if self.overlay.is_created(id) { None } else { read::text(self.store, self.schema, id, name)? };
+        let ours = |op_id: &ObjectId, field: &str| op_id == id && field == name;
+        let mut ops = self.ops.iter().filter(|op| match op {
+            Op::TextInsert { id, field, .. } | Op::TextDelete { id, field, .. } | Op::TextMark { id, field, .. } => ours(id, &**field),
+            _ => false,
+        });
+        let Some(first) = ops.next() else { return Ok(committed.cloned()) };
+        let mut text = committed.cloned().unwrap_or_default();
+        for op in std::iter::once(first).chain(ops) {
+            match op {
+                Op::TextInsert { index, text: content, marks, .. } if !content.is_empty() => {
+                    let marks = match marks {
+                        Some(marks) => marks.clone(),
+                        None => text.inserted_marks(*index, |key| crate::store::expand_of(self.schema, ty, name, key)),
+                    };
+                    text.insert(*index, content, marks);
+                }
+                Op::TextDelete { index, count, .. } if *count > 0 => {
+                    text.delete(*index, *count);
+                }
+                Op::TextMark { start, end, key, value, .. } => {
+                    text.mark(*start, *end, key, value);
+                }
+                _ => {}
+            }
+        }
+        Ok(Some(text))
     }
 
     /// The schema's names of a text field and of one of its declared mark keys.

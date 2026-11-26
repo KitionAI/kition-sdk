@@ -162,11 +162,12 @@ pub fn __merge_changes<D: KitSessionDocument>(document: &mut D, changes: &[u8], 
     Ok(json!({ "damage": damage, "summary": summary.to_json(), "scope": scope.map(UndoScope::as_str) }).to_string())
 }
 
-/// What merging a draft's changes would change in the document now, as `StateDiff` JSON; nothing
-/// changes. Refuses what the merge refuses.
+/// What merging a draft's changes would change in the document now, the kit's repair included
+/// ([`KitSession::compare_changes`]), as `StateDiff` JSON; nothing changes. Refuses what the merge
+/// refuses.
 #[doc(hidden)]
 pub fn __compare_changes<D: KitSessionDocument>(document: &D, changes: &[u8]) -> Result<String, String> {
-    Ok(document.session().replica().compare_changes(changes).map_err(|error| error.to_string())?.to_json().to_string())
+    Ok(document.session().compare_changes(changes)?.to_json().to_string())
 }
 
 /// Writes the state `snapshot` holds (a snapshot or the content of this document, as a checkpoint

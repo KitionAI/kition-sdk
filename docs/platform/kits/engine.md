@@ -203,11 +203,15 @@ engine keeps a materialised view of its KDM document and
 - **E13** imports files into a new document with `create_with` and exports
   files from the KDM state;
 - **E14** keeps the document within the kit's rules with `KitModel::validate`:
-  after an import, an undo, a redo or a draft's merge, the session runs it over
-  the objects that changed, in a `system` transaction labelled `repair` that is
-  no undo step, and it gives the same writes for the same state (dropping a
-  list entry of a deleted object, say); a file changed outside reaches the
-  replica as one `write_state` change;
+  after an import, an undo or a redo, the session runs it over the objects that
+  changed, in a `system` transaction labelled `repair` that is no undo step;
+  after a draft's merge or a restore, inside that change (data model 6.6, D9).
+  It gives the same writes for the same state (dropping a list entry of a
+  deleted object, say) and reads through its `Tx` what a `Replica` reads,
+  the transaction's own writes included: registers, `text` and `text_delta`
+  (marks), `list_items`, `map_get`, `map_entries`, `tree`, `objects_of_type`,
+  `exists`, `object_type`. A file changed outside reaches the replica as one
+  `write_state` change;
 - **E14a** runs `edit.undo` and `edit.redo` in an undo scope ([`KitModel 1.1`](../sets/model.md)
   M12a): the one their optional `scope` parameter names (`"person"` or `"agent"`), else
   the scope of the origin they run as (`executeAs` as `agent`: the agent's). `undo()`,
@@ -224,7 +228,9 @@ class adds the session members: `version()`, `exportChanges(since)`,
 media add `blobs()`, `addBlobs(bytes)`, and `blobsSince(since)`. The object
 model is `modelDescribe()` and `modelBatch(request)` (JSON text in and out).
 A draft's changes are compared with the document by `compareChanges(changes)`
-(the `StateDiff` merging them would make; nothing changes) and taken in by
+(the `StateDiff` merging them would make, the kit's repair included as the merge
+runs it, `KitSession::compare_changes`: the preview is what accepting gives;
+nothing changes) and taken in by
 `mergeChanges(changes, origin)` (one person undo step; answers
 `{ damage, summary, scope }`; refuses, with the KDM's message, a draft that
 collides with the document's changes since it was made). A merged draft is a

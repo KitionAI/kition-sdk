@@ -1,0 +1,18 @@
+format: 1
+id: regressions/issue-sheet-same-new-rows
+feature: sdk.model.draft-merge
+intent: >-
+  Both sides typing below a list's last rows make the same rows, as Kition Sheet pads its rows with
+  ids derived from the sheet and the row's place: one id created with the same type and fields (in
+  no tree) and inserted at one place of one list is the same change (data model 6.6, D6 and D8), as
+  both deleting one object is, and the draft's later writes to it merge by D3 to D7. One id created
+  with different fields, or the same new object inserted at different places, still collides.
+  Before, the merge was refused as "both created it" (D8).
+layer: gate
+source: { kind: issue, from: kition-sheet draft merges below the last row, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_rules, filter: d6_d8_the_same }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

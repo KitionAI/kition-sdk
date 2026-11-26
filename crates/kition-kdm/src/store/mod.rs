@@ -378,7 +378,7 @@ impl Names {
 }
 
 /// The expand of mark `key` on field `field` of type `ty`.
-fn expand_of(schema: &Schema, ty: &str, field: &str, key: &str) -> Option<Expand> {
+pub(crate) fn expand_of(schema: &Schema, ty: &str, field: &str, key: &str) -> Option<Expand> {
     schema.types.get(ty)?.fields.get(field)?.marks.get(key).map(|mark| mark.expand)
 }
 

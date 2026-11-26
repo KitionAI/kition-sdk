@@ -261,9 +261,31 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
     let draft = Side::of(&theirs);
     let doc = Side::of(ours);
     let mut conflicts = Vec::new();
-    // D8: objects.
-    for id in draft.created.intersection(&doc.created) {
-        conflicts.push(conflict("D8", id, None, None, "both created it"));
+    // D8: objects both created. The same creation (one id made with one type and the same
+    // fields, in no tree) is the same change, as two replicas that derive an object's id from
+    // its place make it: the draft's creation does nothing, and its later writes to the object
+    // merge as writes to an object both sides had, from the object as made (rules D3 to D7).
+    // Different creations collide.
+    let made_by_doc: BTreeMap<&ObjectId, (&Object, bool)> = ours
+        .iter()
+        .filter_map(|op| match op {
+            Op::Create { id, object, trees } => Some((id, (&**object, trees.is_empty()))),
+            _ => None,
+        })
+        .collect();
+    let mut made_by_both: BTreeMap<ObjectId, Object> = BTreeMap::new();
+    for op in &theirs {
+        let Op::Create { id, object, trees } = op else { continue };
+        if !doc.created.contains(id) {
+            continue;
+        }
+        let same = made_by_doc.get(id).is_some_and(|(made, in_no_tree)| *made == &**object && *in_no_tree && trees.is_empty());
+        if same && now.contains(id) && !draft.deleted.contains(id) && !made_by_both.contains_key(id) {
+            made_by_both.insert(id.clone(), (**object).clone());
+        } else {
+            made_by_both.remove(id);
+            conflicts.push(conflict("D8", id, None, None, "both created it, not the same"));
+        }
     }
     let deleted_by_doc = |id: &ObjectId| before.contains(id) && !now.contains(id);
     // Objects both deleted: the outcome both asked for, so the draft's deletion and its writes to
@@ -290,14 +312,20 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
     let mut carried: BTreeMap<FieldKey, Kind> = BTreeMap::new();
     for (key, kind) in &draft.fields {
         let (id, field) = key;
-        // A field of an object the draft made, deleted, or the document deleted (D8).
-        if draft.created.contains(id) || draft.deleted.contains(id) || !before.contains(id) || !now.contains(id) {
+        // A field of an object the draft made (not the same as the document did), deleted, or
+        // the document deleted (D8).
+        let made = made_by_both.get(id);
+        if (made.is_none() && (draft.created.contains(id) || !before.contains(id))) || draft.deleted.contains(id) || !now.contains(id) {
             continue;
         }
         if !doc.fields.contains_key(key) && !doc.deleted.contains(id) {
             continue;
         }
-        let (was, held) = (before.field(id, field), now.field(id, field));
+        let was = match made {
+            Some(object) => object.get(field),
+            None => before.field(id, field),
+        };
+        let held = now.field(id, field);
         match kind {
             Kind::Register => {
                 let Some(value) = last_set(&theirs, key) else { continue };
@@ -354,7 +382,13 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
             conflicts.push(conflict(rule, id, Some(field), Some(MergeAt::Item((*item).clone())), taken));
         }
         let all_taken = both(draft.taken.get(key), doc.taken.get(key));
+        let taken_by = |side: &Side, item: &ObjectId| side.taken.get(key).is_some_and(|items| items.contains(item));
         for item in both(draft.placed.get(key), doc.placed.get(key)) {
+            // An item both only inserted in a list may be the same change: decided once the
+            // draft's insertion is carried over the document's ([`inserted_apart`]).
+            if *kind == Kind::List && !taken_by(&draft, item) && !taken_by(&doc, item) {
+                continue;
+            }
             if !all_taken.contains(&item) {
                 conflicts.push(conflict(rule, id, Some(field), Some(MergeAt::Item(item.clone())), placed));
             }
@@ -392,7 +426,7 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
         return Err(conflicts);
     }
 
-    let kept: Vec<Op> = if drop_registers.is_empty() && drop_keys.is_empty() {
+    let kept: Vec<Op> = if drop_registers.is_empty() && drop_keys.is_empty() && made_by_both.is_empty() {
         theirs
     } else {
         theirs
@@ -400,6 +434,7 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
             .filter(|op| match op {
                 Op::Set { id, field, .. } => !drop_registers.contains(&(id.clone(), field.clone())),
                 Op::MapSet { id, field, key, .. } => !drop_keys.contains(&((id.clone(), field.clone()), key.clone())),
+                Op::Create { id, .. } => !made_by_both.contains_key(id),
                 _ => true,
             })
             .collect()
@@ -418,8 +453,30 @@ pub(crate) fn plan(theirs: Vec<Op>, ours: &[Op], before: &Store, now: &Store) ->
     let later: Vec<Op> = ours.iter().filter_map(|op| carried_part(op, &carried)).collect();
     let (ops, _) = through_with(kept, &later, Tie::Merge);
     let ops = without_deleted(ops);
-    let cycles = cycles(&ops, &carried, now);
-    if cycles.is_empty() { Ok(ops) } else { Err(cycles) }
+    let mut refused = inserted_apart(&ops, &carried, &draft, &doc);
+    refused.extend(cycles(&ops, &carried, now));
+    if refused.is_empty() { Ok(ops) } else { Err(refused) }
+}
+
+/// D6: the draft's insertions, carried over the document's operations, of an item the document
+/// also inserted in that list. Both inserting one item at one place (the same position of the
+/// same list) is the same change and the transform cancels the draft's ([`Tie::Merge`]); an
+/// insertion left over put the item somewhere else, and collides.
+fn inserted_apart(ops: &[Op], carried: &BTreeMap<FieldKey, Kind>, draft: &Side, doc: &Side) -> Vec<MergeConflict> {
+    let mut out = Vec::new();
+    for op in ops {
+        let Op::ListInsert { id, field, item, .. } = op else { continue };
+        let key = (id.clone(), field.clone());
+        if carried.get(&key) != Some(&Kind::List) {
+            continue;
+        }
+        let placed = |side: &Side| side.placed.get(&key).is_some_and(|items| items.contains(item));
+        let taken = |side: &Side| side.taken.get(&key).is_some_and(|items| items.contains(item));
+        if placed(draft) && placed(doc) && !taken(draft) && !taken(doc) {
+            out.push(conflict("D6", id, Some(field), Some(MergeAt::Item(item.clone())), "both inserted the item, at different places"));
+        }
+    }
+    out
 }
 
 /// The part of the document's operation `op` on the lists and trees in `carried`, for carrying
