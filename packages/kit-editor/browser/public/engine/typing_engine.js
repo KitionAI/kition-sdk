@@ -14,7 +14,13 @@
  * (`session.mjs`).
  *
  * Every key and text the tool takes is logged in order (`keys.read`), so a test can tell a key
- * lost or applied out of order from one applied. `setCosts(host, tool)` (the manifest's `setup`)
+ * lost or applied out of order from one applied. Three commands are logged there too, for keys
+ * that reach the engine as commands rather than tool keys: `mark.arm` (`Arm`, a button of the
+ * editor runs it), `mark.put` (`Mark`, shortcut F8, which the editor's own key handler leaves to
+ * the frame) and `mark.note` (`Note`, F7, which the editor's key handler runs itself). `mark.put`
+ * can run only while armed: `mark.arm` or a typed `(` arms it and running it disarms it, so the
+ * list of what can run the editor read after the last change still says F8 cannot run when it is
+ * pressed right after what armed it. `setCosts(host, tool)` (the manifest's `setup`)
  * makes each host member and each tool event take that many milliseconds of the worker's one
  * thread, as a large document's would.
  */
@@ -25,6 +31,9 @@ const COMMANDS = [
   { id: 'text.read', title: 'Read text', menu: [], shortcut: null, mutates: false, enabled: true },
   { id: 'keys.read', title: 'Read keys', menu: [], shortcut: null, mutates: false, enabled: true },
   { id: 'text.append', title: 'Append text', menu: [], shortcut: null, mutates: true, enabled: true },
+  { id: 'mark.arm', title: 'Arm', menu: [], shortcut: null, mutates: false, enabled: true },
+  { id: 'mark.put', title: 'Mark', menu: [], shortcut: 'F8', mutates: false, enabled: false },
+  { id: 'mark.note', title: 'Note', menu: [], shortcut: null, mutates: false, enabled: true },
   { id: 'edit.undo', title: 'Undo', menu: ['Edit'], shortcut: 'Cmd+Z', mutates: true, enabled: false },
   { id: 'edit.redo', title: 'Redo', menu: ['Edit'], shortcut: 'Cmd+Shift+Z', mutates: true, enabled: false },
 ]
@@ -57,6 +66,8 @@ export class TypingDocument {
     this.height = 600
     this.hostCost = 0
     this.toolCost = 0
+    /** Whether `mark.put` can run. */
+    this.armed = false
     /** `file`, or `replica` when opened with a stored snapshot. */
     this.opened = 'file'
   }
@@ -92,12 +103,27 @@ export class TypingDocument {
   }
 
   commands() {
-    return JSON.stringify(COMMANDS)
+    return JSON.stringify(COMMANDS.map((command) => (command.id === 'mark.put' ? { ...command, enabled: this.armed } : command)))
   }
 
   execute(command, params) {
     if (command === 'text.read') return JSON.stringify({ text: this.text, anchor: this.anchor, focus: this.focus, opened: this.opened, changes: this.changes })
     if (command === 'keys.read') return JSON.stringify({ keys: this.keys })
+    if (command === 'mark.arm') {
+      this.armed = true
+      this.keys.push('Arm')
+      return JSON.stringify({ armed: true })
+    }
+    if (command === 'mark.put') {
+      if (!this.armed) throw new Error('mark.put cannot run: not armed')
+      this.armed = false
+      this.keys.push('Mark')
+      return JSON.stringify({ armed: false })
+    }
+    if (command === 'mark.note') {
+      this.keys.push('Note')
+      return JSON.stringify({})
+    }
     if (command === 'text.append') {
       this.text += String(JSON.parse(params || '{}').text ?? '')
       this.anchor = this.focus = [...this.text].length
@@ -143,6 +169,7 @@ export class TypingDocument {
   toolText(text) {
     spend(this.toolCost)
     this.keys.push(text)
+    if (text.includes('(')) this.armed = true
     this.replaceSelection(text)
     return this.answer()
   }

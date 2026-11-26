@@ -1,8 +1,11 @@
 /**
  * The typing kit's editor for kit-editor's browser tests: the shared frame, session, engine tools
- * and text sink around `public/engine/typing_engine.js`, as a kit draws its editor.
+ * and text sink around `public/engine/typing_engine.js`, as a kit draws its editor. Its own key
+ * handler takes F7 (`mark.note`) and leaves every other key to the frame, F8 (`mark.put`, the
+ * engine's shortcut) among them; its Arm button runs `mark.arm`, which lets F8 run, as a click on
+ * Kition Sheet's function list changes what the keys typed next do.
  */
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, type KeyboardEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   EditorFrame,
@@ -42,11 +45,19 @@ function App({ host }: { host: HostConnection }) {
   const editor = useKitEditorState(session, host, t, 'typing')
   const tools = useEngineTools(session.tool, session.doc != null, session.change, { initial: 'text' })
   const canvas = useRef<KitCanvasHandle>(null)
+  const keyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'F7' || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false
+    void editor.run('mark.note', {})
+    return true
+  }
   return (
     <KitEditorProvider editor={editor} tools={tools}>
-      <EditorFrame tabs={TABS} canvas={canvas} title={<span>{host.init.document.name}</span>}>
+      <EditorFrame tabs={TABS} canvas={canvas} title={<span>{host.init.document.name}</span>} onKeyDown={keyDown}>
         <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}>
           <KitDocumentCanvas canvas={canvas} testId="typing-canvas" />
+          <button type="button" style={{ position: 'absolute', left: 8, top: 8 }} onClick={() => void editor.run('mark.arm', {})} data-testid="typing-arm">
+            Arm
+          </button>
         </div>
       </EditorFrame>
     </KitEditorProvider>

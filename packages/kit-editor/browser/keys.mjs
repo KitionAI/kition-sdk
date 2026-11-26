@@ -2,11 +2,16 @@
 /**
  * Keys under host calls (kit-editor's browser test; GitHub CI runs it, `pnpm test:editor:keys`):
  * the typing kit (`public/engine/typing_engine.js`, the shared editor in `editor.tsx`) opens in
- * kit-dev-host; Playwright types 300 characters, then 30 times `1,2)`, a read through the host and
- * Enter (as Kition Sheet's FX-C6), presses Enter and Backspace 50 times each, then
- * Shift+ArrowLeft 300 times, as fast as it can, while two loops in the host page and one from the
- * test call the editor without pause (`ai.inspect`, `ai.version`, `ai.changes`, `model.describe`, `model.batch`,
- * `document/check`, `ai.run` reads). Every key must reach the engine once, in the order pressed,
+ * kit-dev-host; Playwright clicks it and at once taps ArrowRight 20 times (as Kition Film's
+ * tests step frames right after opening), types 300 characters, then 30 times `1,2)`, a read
+ * through the host and Enter (as Kition Sheet's FX-C6); then 30 times `(`, F8 (a shortcut the
+ * typed `(` just let run, so the list of what can run still says it cannot), `1,`, F7 (the
+ * editor's own key), `2)` and Enter; then 30 times a click on Arm (which lets F8 run), at once F8,
+ * `1,2)` and Enter; presses Enter and Backspace 50 times each, then Shift+ArrowLeft 300 times, as
+ * fast as it can, while two loops in the host page and one from the test call the editor without
+ * pause (`ai.inspect`, `ai.version`, `ai.changes`, `model.describe`, `model.batch`,
+ * `document/check`, `ai.run` reads). Every key (and every command a key or the click runs) must
+ * reach the engine once, in the order pressed,
  * and the text and selection must be what they make. Each round is run with no engine cost and with
  * host members and tool events made slow (`hostCost`, `toolCost`).
  *
@@ -44,11 +49,18 @@ const START = 'Sample'
 /** Typed, then read through the host, then Enter, as Kition Sheet's FX-C6 does. */
 const BURST = '1,2)'
 const BURSTS = 30
+/** ArrowRight taps right after the first click (the caret is at the end: they move nothing). */
+const ARROWS = 20
+/** Rounds of `(` F8 `1,` F7 `2)` Enter, and of Arm F8 `1,2)` Enter. */
+const MARKS = 30
 
 /** What the engine's key log must hold, in order. */
 function expectedKeys() {
-  const keys = [...TYPED]
+  const keys = Array.from({ length: ARROWS }, () => 'ArrowRight')
+  keys.push(...TYPED)
   for (let i = 0; i < BURSTS; i += 1) keys.push(...BURST, 'Enter')
+  for (let i = 0; i < MARKS; i += 1) keys.push('(', 'Mark', '1', ',', 'Note', '2', ')', 'Enter')
+  for (let i = 0; i < MARKS; i += 1) keys.push('Arm', 'Mark', ...BURST, 'Enter')
   for (let i = 0; i < 50; i += 1) keys.push('Enter', 'Backspace')
   for (let i = 0; i < 300; i += 1) keys.push('Shift+ArrowLeft')
   return keys
@@ -77,6 +89,8 @@ for (const name of browsers) {
       await region.waitFor()
       const box = await region.boundingBox()
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+      // At once, while the click's events are still on their way to the engine.
+      for (let i = 0; i < ARROWS; i += 1) await page.keyboard.press('ArrowRight')
       await page.waitForFunction(() => {
         const frame = document.getElementById('kit')
         const doc = frame?.contentDocument
@@ -128,6 +142,21 @@ for (const name of browsers) {
         await page.evaluate(() => window.devHost.connection().ai.inspect())
         await page.keyboard.press('Enter')
       }
+      for (let i = 0; i < MARKS; i += 1) {
+        await page.keyboard.type('(')
+        await page.keyboard.press('F8')
+        await page.keyboard.type('1,')
+        await page.keyboard.press('F7')
+        await page.keyboard.type('2)')
+        await page.keyboard.press('Enter')
+      }
+      const arm = kit.getByTestId('typing-arm')
+      for (let i = 0; i < MARKS; i += 1) {
+        await arm.click()
+        await page.keyboard.press('F8')
+        await page.keyboard.type(BURST)
+        await page.keyboard.press('Enter')
+      }
       for (let i = 0; i < 50; i += 1) {
         await page.keyboard.press('Enter')
         await page.keyboard.press('Backspace')
@@ -151,7 +180,7 @@ for (const name of browsers) {
         await page.waitForTimeout(100)
       }
       const text = await read('text.read')
-      const typed = START + TYPED + `${BURST}\n`.repeat(BURSTS)
+      const typed = START + TYPED + `${BURST}\n`.repeat(BURSTS) + '(1,2)\n'.repeat(MARKS) + `${BURST}\n`.repeat(MARKS)
       const length = [...typed].length
       const problems = []
       if (hammer.failed.length) problems.push(`host calls failed: ${JSON.stringify(hammer.failed)}`)
