@@ -20,7 +20,8 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       # Host tests launch the mock kit's executable.
       - run: cargo build -p kition-kit-mock
-      - run: cargo test
+      # Every crate's tests run to the end, so one run shows every failure.
+      - run: cargo test --no-fail-fast
       # A kit without its own wasm-bindgen must build: the export macro brings it.
       - run: cargo build -p grid-kit --target wasm32-unknown-unknown
       # The KDM runs inside kits' WebAssembly engines in the browser.
