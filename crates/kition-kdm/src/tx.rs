@@ -737,7 +737,7 @@ impl<'a> Tx<'a> {
         let committed = if self.overlay.is_created(id) { None } else { read::text(self.store, self.schema, id, name)? };
         let ours = |op_id: &ObjectId, field: &str| op_id == id && field == name;
         let mut ops = self.ops.iter().filter(|op| match op {
-            Op::TextInsert { id, field, .. } | Op::TextDelete { id, field, .. } | Op::TextMark { id, field, .. } => ours(id, &**field),
+            Op::TextInsert { id, field, .. } | Op::TextDelete { id, field, .. } | Op::TextMark { id, field, .. } => ours(id, field),
             _ => false,
         });
         let Some(first) = ops.next() else { return Ok(committed.cloned()) };
