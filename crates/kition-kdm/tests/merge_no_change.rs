@@ -154,7 +154,7 @@ fn a_transaction_unless_unchanged_records_nothing_when_its_writes_cancel_out() {
         })
         .unwrap();
     assert!(!changed);
-    assert_eq!((live.state_hash().unwrap(), live.version(), live.undo_depth(UndoScope::Person)), (hash, version, 1));
+    assert_eq!((live.state_hash().unwrap(), live.version(), live.undo_depth(UndoScope::Person)), (hash.clone(), version, 1));
     let ((), changed) = live.transact_unless_unchanged(&person(), |tx| tx.set(&cube, "y", json!(1))).unwrap();
     assert!(changed);
     assert_eq!(live.undo_depth(UndoScope::Person), 2);
