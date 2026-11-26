@@ -1,0 +1,23 @@
+format: 1
+id: regressions/issue-merge-follow-up-in-step
+feature: sdk.model.draft-merge
+intent: >-
+  Writes a kit computes from its own view after a draft's merge (Kition Table's repair renaming a
+  field both sides added, Kition PDF's projection sync after the reloaded view, Kition Slide's text
+  reflow and renumbered slide file ids), which the repair inside the merge cannot compute, join the
+  merge's undo step (Replica::transact_in_step, KitSession::execute_in_step, record_in_step and
+  merge_changes_with), whatever their origin: one Undo gives back the exact state hash before the
+  merge, one Redo the merge with them. Only the step holding the replica's newest change can be
+  joined; follow-ups that take back all the merge did leave no step. Before, such writes were
+  separate system changes that Undo left in place.
+layer: gate
+source: { kind: issue, from: kition-table, kition-pdf and kition-slide draft merges, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: writes_after_a_merge_join_its_undo_step }
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: a_write_joins_only_the_step_of_the_newest_change }
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: writes_that_take_back_the_whole_merge_drop_its_step }
+  - cargo-test: { package: kition-kit, test: model, filter: writes_from_the_view_after_a_merge_join_its_undo_step }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-26"

@@ -355,13 +355,80 @@ impl<M: KitModel> KitSession<M> {
     ///
     /// Answers the undo scope the step was recorded in with the damage: the person's, also for an
     /// agent's `origin` (KitModel M12a: the person accepted the draft), `None` when no step was
-    /// recorded. A kit that keeps undo labels or a history of its own records the step there.
+    /// recorded. A kit that keeps undo labels or a history of its own records the step there, and
+    /// only when the scope is `Some`. A merge the repair takes back entirely (the draft's only
+    /// change a parent the document deleted since, which the repair clears) changes nothing: no
+    /// change, the version stays, no step, `None` and [`Damage::None`].
     pub fn merge_changes(&mut self, bytes: &[u8], origin: &Origin) -> Result<(Option<UndoScope>, Damage)> {
         let mut kit_error = None;
         let merged = self.replica.merge_changes_repaired(bytes, origin, repair::<M>(&mut kit_error));
         let merged = kit_error.map_or(Ok(()), Err).and(merged.map_err(KitError::from))?;
         let changed = self.replica.take_changed();
         Ok((merged.scope, self.refresh(&changed)?))
+    }
+
+    /// [`KitSession::merge_changes`], then `follow`: writes the kit computes from its view of the
+    /// merged state (the view is refreshed first), which [`KitModel::validate`] cannot compute
+    /// because it sees only the transaction (an engine's renumbering, a projection its reloaded
+    /// view settles, text reflowed). They join the merge's undo step
+    /// ([`KitSession::execute_in_step`]), so one undo gives back the exact state before the merge
+    /// and one redo the merged state with them. `follow` runs only when the merge changed
+    /// something; after a merge with a `system` or `import` origin (no step) it is a transaction
+    /// of that origin. Answers the scope of the step (`None` also when `follow` took back all
+    /// the merge did: then no step is left) and both damages.
+    pub fn merge_changes_with(
+        &mut self,
+        bytes: &[u8],
+        origin: &Origin,
+        follow: impl FnOnce(&M, &mut Tx<'_>) -> Result<()>,
+    ) -> Result<(Option<UndoScope>, Damage)> {
+        let before = self.replica.version();
+        let (scope, damage) = self.merge_changes(bytes, origin)?;
+        if self.replica.version() == before {
+            return Ok((scope, damage));
+        }
+        let (scope, more) = match scope {
+            Some(scope) => {
+                let ((), scope, more) = self.execute_in_step(scope, origin, follow)?;
+                (scope, more)
+            }
+            None => {
+                let ((), more) = self.execute(origin, follow)?;
+                (None, more)
+            }
+        };
+        Ok((scope, damage.merge(more)))
+    }
+
+    /// Runs one transaction with `origin` that joins the top undo step of `scope`
+    /// (`Replica::transact_in_step`): for writes a kit computes from its view right after a
+    /// merge or a restore that recorded that step, so one undo takes back both. The step must
+    /// hold the replica's newest change, else it is refused and nothing changes. Applies the
+    /// changes to the view like [`KitSession::execute`]. Answers `f`'s result, the scope the step
+    /// is in (`None` when the step, with these writes, changes nothing anymore and was dropped)
+    /// and the damage.
+    pub fn execute_in_step<R>(
+        &mut self,
+        scope: UndoScope,
+        origin: &Origin,
+        f: impl FnOnce(&M, &mut Tx<'_>) -> Result<R>,
+    ) -> Result<(R, Option<UndoScope>, Damage)> {
+        let model = &self.model;
+        let mut kit_error = None;
+        let result = self.replica.transact_in_step(scope, origin, kit_closure(&mut kit_error, |tx| f(model, tx)));
+        let (value, scope) = kit_result(result, kit_error)?;
+        let changed = self.replica.take_changed();
+        Ok((value, scope, self.refresh(&changed)?))
+    }
+
+    /// [`KitSession::execute_in_step`] without applying the changes to the view, like
+    /// [`KitSession::record`]: for bridges whose own view already holds the writes.
+    pub fn record_in_step<R>(&mut self, scope: UndoScope, origin: &Origin, f: impl FnOnce(&mut Tx<'_>) -> Result<R>) -> Result<(R, Option<UndoScope>)> {
+        let mut kit_error = None;
+        let result = self.replica.transact_in_step(scope, origin, kit_closure(&mut kit_error, f));
+        let answer = kit_result(result, kit_error)?;
+        self.replica.take_changed();
+        Ok(answer)
     }
 
     /// What merging a draft's changes would change in the document now, the kit's repair
@@ -387,8 +454,11 @@ impl<M: KitModel> KitSession<M> {
     /// checkpoint keeps it) over the document as one transaction with `origin` ([`write_state`],
     /// keyed by object id), the kit's repair ([`KitModel::validate`]) of the restored state in it:
     /// one undo step of the person for a person's origin, whose undo gives back the exact state
-    /// before. Nothing changes
-    /// when the states are equal. Refuses ([`KdmError::WrongDocument`]) another document's.
+    /// before. Nothing changes (no change, no step, the version stays) when the states are equal,
+    /// and when the repair takes back all the restore wrote (a stored state whose only difference
+    /// is a parent the document deleted since, which the repair clears)
+    /// (`Replica::transact_unless_unchanged`). Refuses ([`KdmError::WrongDocument`]) another
+    /// document's.
     pub fn restore_state(&mut self, snapshot: &[u8], origin: &Origin) -> Result<Damage> {
         let schema = M::schema();
         let loaded = Replica::load(Arc::clone(&schema), snapshot, self.replica.actor())?;
@@ -401,11 +471,17 @@ impl<M: KitModel> KitSession<M> {
         }
         // The kit's repair of the restored state is part of the restore's one change and undo step.
         let changed: BTreeSet<ObjectId> = now.keys().chain(then.keys()).filter(|id| now.get(*id) != then.get(*id)).map(ObjectId::from_string).collect();
-        self.execute(origin, |_, tx| {
-            write_state(tx, &schema, &now, &then)?;
-            M::validate(tx, &changed).map(drop)
-        })
-        .map(|((), damage)| damage)
+        let mut kit_error = None;
+        let result = self.replica.transact_unless_unchanged(
+            origin,
+            kit_closure(&mut kit_error, |tx| {
+                write_state(tx, &schema, &now, &then)?;
+                M::validate(tx, &changed).map(drop)
+            }),
+        );
+        kit_result(result, kit_error)?;
+        let changed = self.replica.take_changed();
+        self.refresh(&changed)
     }
 
     /// The document's state with its version ([`Replica::snapshot`]): for the host's store,
@@ -503,6 +579,31 @@ fn transact<R>(replica: &mut Replica, origin: &Origin, f: impl FnOnce(&mut Tx<'_
             }
         })
     });
+    match (result, kit_error) {
+        (_, Some(error)) => Err(error),
+        (result, None) => Ok(result?),
+    }
+}
+
+/// `f` as the KDM's transaction closure: a kit error that is not the KDM's is kept in `kit_error`
+/// ([`kit_result`] answers it in place of the KDM's refusal).
+fn kit_closure<'e, R>(
+    kit_error: &'e mut Option<KitError>,
+    f: impl FnOnce(&mut Tx<'_>) -> Result<R> + 'e,
+) -> impl FnOnce(&mut Tx<'_>) -> kition_kdm::Result<R> + 'e {
+    move |tx| {
+        f(tx).map_err(|error| match error {
+            KitError::Kdm(error) => error,
+            other => {
+                *kit_error = Some(other);
+                KdmError::Engine("the kit refused the transaction".into())
+            }
+        })
+    }
+}
+
+/// The answer of a transaction run with [`kit_closure`]: the kit's own error first.
+fn kit_result<T>(result: kition_kdm::Result<T>, kit_error: Option<KitError>) -> Result<T> {
     match (result, kit_error) {
         (_, Some(error)) => Err(error),
         (result, None) => Ok(result?),

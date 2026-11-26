@@ -237,10 +237,15 @@ collides with the document's changes since it was made). A merged draft is a
 step of the person who accepts it even when an agent made it: `@kition/kit-editor`
 passes the draft's agent origin (`["agent", principal, label]`, Kit UI protocol
 `draft/merge`), and the merge still goes to the person's history (M12a). `scope`
-says where it went (`"person"`, or `null` when nothing was recorded), as
+says where it went (`"person"`, or `null` when nothing was recorded: also when the kit's repair
+takes back everything the draft did, a merge that changes nothing, logs no change and leaves the
+version; its `damage` is none and its summary empty), as
 `Replica::merge_changes` (`DraftMerge::scope`) and `KitSession::merge_changes`
 answer it: an engine that keeps an undo history of its own records the step in
-that scope, never in the scope of the origin's kind. The kit's repair of a merged
+that scope, never in the scope of the origin's kind, and only when `scope` is not `null`. Writes the
+engine computes from its own view after the merge join the merge's step through
+`KitSession::execute_in_step` / `record_in_step` / `merge_changes_with` (`Replica::transact_in_step`),
+so the step's one Undo takes back both (data model 6.6, D9). The kit's repair of a merged
 or restored state is part of that one change and undo step (data model 6.6,
 D9): one Undo gives back the exact state before, one Redo the exact repaired
 state. An engine that keeps an undo label of its own per step keeps as many as

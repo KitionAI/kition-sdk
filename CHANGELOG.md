@@ -4,6 +4,16 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **A merge that changes nothing records nothing; follow-up writes join the merge's step.** A
+  draft's merge (or a restore) whose operations and the kit's repair together leave the document
+  as it was logs no change, keeps the version and records no undo step: `DraftMerge` has no
+  objects and `scope` `None`, `KitSession::merge_changes` answers `(None, Damage::None)`,
+  `mergeChanges` `scope: null` with an empty summary, and `undo_depth` is unchanged, so kits that
+  push a "Merge Draft" label only when a scope is answered (or the version moved) need no change
+  (`Replica::transact_unless_unchanged` for the restore) (regressions/issue-merge-changing-nothing).
+  New `Replica::transact_in_step(scope, origin, f)`, `KitSession::execute_in_step`, `record_in_step`
+  and `merge_changes_with`: writes a kit computes from its view after a merge join the merge's undo
+  step, so one Undo gives back the exact state before (regressions/issue-merge-follow-up-in-step).
 - **Keys decided with the engine stay in order (UI U10c).** A plain shortcut the list of what can
   run still calls disabled (pressed right after the key or the click that let it run) is asked and
   run in the order of the input (`runWhenEnabled` through the session's new `inOrder`), so keys,

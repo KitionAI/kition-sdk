@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-merge-changing-nothing
+feature: sdk.model.draft-merge
+intent: >-
+  A draft's merge whose operations and the kit's repair together leave the document as it was (an
+  agent's draft only parents a cube to a light the person deleted meanwhile; the repair clears the
+  dangling parent) records nothing: no change is logged, the version stays, no undo step, and the
+  answer says so (DraftMerge scope None and no objects; KitSession::merge_changes None and no
+  damage; the engine member mergeChanges scope null and an empty summary). undo_depth and the top
+  step's footprint are unchanged, and the person's Undo takes back their own last step exactly. A
+  restore whose repair takes back all it wrote records nothing either. Before, such a merge was an
+  undo step that changed nothing: the kits that push a "Merge Draft" label when a step is recorded
+  showed it, and the person's Undo passed over it and took back the step below in the same call.
+layer: gate
+source: { kind: issue, from: kition-scene draft merge (cancelled flag) and ten kits' Merge Draft labels, license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: a_merge_its_repair_takes_back_entirely_records_no_change_and_no_step }
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: the_preview_of_a_merge_its_repair_takes_back_is_empty }
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: a_merge_its_repair_keeps_something_of_is_one_step }
+  - cargo-test: { package: kition-kdm, test: merge_no_change, filter: a_transaction_unless_unchanged_records_nothing_when_its_writes_cancel_out }
+  - cargo-test: { package: kition-kit, test: model, filter: a_merge_its_repair_takes_back_entirely_records_no_step }
+  - cargo-test: { package: kition-kit, test: model, filter: a_restore_its_repair_takes_back_entirely_records_no_step }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-26"

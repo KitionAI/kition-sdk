@@ -157,6 +157,12 @@ impl UndoOutcome {
 /// undo history of its own beside the replica's records the step in `scope`, never in the scope
 /// of the origin's kind. `scope` is `None` when no step was recorded: the draft changed nothing,
 /// or the origin is `system` or `import`.
+///
+/// A merge whose operations and the kit's repair together leave the document as it was (an
+/// agent's draft that only parents a shape to one the person deleted meanwhile, the repair
+/// clearing the dangling parent) changes nothing: no change is logged, the version stays, no undo
+/// step is recorded, and `objects` is empty and `scope` `None`, as for an empty draft. So
+/// [`Replica::undo_depth`] is what it was, and the person's next undo takes back their own step.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DraftMerge {
     /// The objects that changed.
@@ -1399,7 +1405,10 @@ impl Replica {
     /// `repair` runs in a transaction on the merged state with the objects the merge changed, and
     /// its writes join the merge's one change and one undo step (data model 6.6, D9), so one undo
     /// gives back the exact state before the merge and one redo the exact repaired state. A
-    /// repair that fails refuses the merge, which then changes nothing.
+    /// repair that fails refuses the merge, which then changes nothing. A merge that the repair
+    /// takes back entirely changes nothing either ([`DraftMerge`]): no change, no undo step. Writes
+    /// the kit computes from its view after the merge join its step with
+    /// [`Replica::transact_in_step`].
     pub fn merge_changes_repaired(
         &mut self,
         changes: &[u8],
@@ -1455,6 +1464,13 @@ impl Replica {
                 return Err(error);
             }
         }
+        // A merge whose repair takes back all it did (a draft that only parents a shape to one the
+        // document deleted since, the repair clearing the parent) leaves the document as it was:
+        // no change, no undo step, the version stays.
+        if self.changes_nothing(&applied) {
+            self.store.revert(&applied, &schema);
+            return Ok(DraftMerge::default());
+        }
         let changes = changes_of(&applied);
         let objects = changes.objects().clone();
         self.changed.extend(changes);
@@ -1466,6 +1482,143 @@ impl Replica {
             self.undo.record(scope, Part { seq, ops }, touches, self.grouping);
         }
         Ok(DraftMerge { objects, scope })
+    }
+
+    /// Whether `applied`, the operations applied to the store last (in order, not yet logged),
+    /// leave every object they wrote as it was before them, read as [`Replica::state_json`] reads
+    /// it (whether it exists, and its fields): the state before is read by taking them back, and
+    /// they are applied again, so the store is as after them either way. A raise of the minimum
+    /// schema version always changes something. Costs what the objects written cost to read,
+    /// twice, and the operations once more each way: for writes that may cancel out (a merge with
+    /// its repair, a restore), not for every edit.
+    fn changes_nothing(&mut self, applied: &[Op]) -> bool {
+        if applied.is_empty() {
+            return true;
+        }
+        if applied.iter().any(|op| matches!(op, Op::SchemaVersion { .. })) {
+            return false;
+        }
+        let touches: Vec<UndoTouch> = changes_of(applied).objects().iter().map(|id| UndoTouch { id: id.to_string(), fields: None }).collect();
+        let after = self.digest(&touches);
+        let schema = Arc::clone(&self.schema);
+        self.store.revert(applied, &schema);
+        let unchanged = self.digest(&touches) == after;
+        for op in applied {
+            // Operations applied just now, taken back, always apply again.
+            let _ = self.store.apply(op.clone(), &schema);
+        }
+        unchanged
+    }
+
+    /// [`Replica::transact`], except that a transaction whose operations together leave the state
+    /// as it was (a restore whose repair takes back everything it wrote) applies none of them: no
+    /// change, no undo step, the version stays. Answers `f`'s result and whether the state
+    /// changed. It reads the objects the transaction wrote before and after it, so it is for writes that may cancel out, not for every edit:
+    /// a plain transaction whose operations cancel out is an undo step, which undo passes over
+    /// (data model 6.5).
+    pub fn transact_unless_unchanged<R>(&mut self, origin: &Origin, f: impl FnOnce(&mut Tx<'_>) -> Result<R>) -> Result<(R, bool)> {
+        let schema = Arc::clone(&self.schema);
+        let (value, ops) = {
+            let mut tx = Tx::new(&self.store, &schema);
+            let value = f(&mut tx)?;
+            (value, tx.finish())
+        };
+        if ops.is_empty() {
+            return Ok((value, false));
+        }
+        if ops.iter().any(|op| matches!(op, Op::SchemaVersion { .. })) && origin.kind != OriginKind::System {
+            return Err(raise_refused(origin));
+        }
+        let applied = self.store.apply_all(ops, &schema).map_err(applying_failed)?;
+        if self.changes_nothing(&applied) {
+            self.store.revert(&applied, &schema);
+            return Ok((value, false));
+        }
+        let touches = UndoScope::of(origin.kind).map(|_| touches_of(&applied));
+        self.changed.extend(changes_of(&applied));
+        let ops = Ops::plain(applied);
+        let seq = self.commit(origin, ops.clone(), schema.schema_version, Vec::new());
+        if let (Some(scope), Some(touches)) = (UndoScope::of(origin.kind), touches) {
+            self.undo.record(scope, Part { seq, ops }, touches, self.grouping);
+        }
+        Ok((value, true))
+    }
+
+    /// Runs `f` as one transaction (one change of the replica, with `origin`) that joins the top
+    /// undo step of `scope` instead of being a step of its own: for the writes a kit computes
+    /// from its own view after a draft's merge or a restore (a field renamed by the engine's
+    /// repair, a projection the reloaded view settles, text reflowed), which
+    /// [`Replica::merge_changes_repaired`]'s repair cannot compute because it sees only the
+    /// transaction. Then one undo of the scope takes back the merge and these writes together, to
+    /// the exact state before the merge, and one redo brings back both. Any origin joins, a
+    /// `system` one too (it is still no step of its own).
+    ///
+    /// The step must hold the replica's newest change: call it right after the merge (or the
+    /// write) that recorded the step in `scope` (`DraftMerge::scope`), before anything else is
+    /// written or imported; else it is refused ([`KdmError::InvalidValue`] on `$undo.step`) and
+    /// nothing changes. So it can never join an older step, nor one when the merge recorded none
+    /// (it changed nothing, or its origin was `system` or `import`): then write with
+    /// [`Replica::transact`]. Several such transactions may follow one another, each joining.
+    ///
+    /// Answers `f`'s result and the scope the step is in: `Some(scope)`, or `None` when the step,
+    /// with these writes, now changes nothing (the kit's repair took back all the merge did) and
+    /// was dropped: [`Replica::undo_depth`] is then what it was before the merge, and a kit that
+    /// keeps an undo label per step keeps none for it. The changes stay in the log either way.
+    pub fn transact_in_step<R>(&mut self, scope: UndoScope, origin: &Origin, f: impl FnOnce(&mut Tx<'_>) -> Result<R>) -> Result<(R, Option<UndoScope>)> {
+        let newest = self.seq;
+        let joinable =
+            self.log.get(newest).is_some() && self.undo.get(scope).undo.last().is_some_and(|step| step.parts.last().is_some_and(|part| part.seq == newest));
+        if !joinable {
+            return Err(KdmError::InvalidValue {
+                ty: "$undo".into(),
+                field: "step".into(),
+                reason: format!("the replica's newest change is no step of the {} scope's to join", scope.as_str()),
+            });
+        }
+        let schema = Arc::clone(&self.schema);
+        let (value, ops) = {
+            let mut tx = Tx::new(&self.store, &schema);
+            let value = f(&mut tx)?;
+            (value, tx.finish())
+        };
+        if ops.is_empty() {
+            return Ok((value, Some(scope)));
+        }
+        if ops.iter().any(|op| matches!(op, Op::SchemaVersion { .. })) && origin.kind != OriginKind::System {
+            return Err(raise_refused(origin));
+        }
+        let applied = self.store.apply_all(ops, &schema).map_err(applying_failed)?;
+        let touches = touches_of(&applied);
+        self.changed.extend(changes_of(&applied));
+        let ops = Ops::plain(applied);
+        let seq = self.commit(origin, ops.clone(), schema.schema_version, Vec::new());
+        // The log dropping its oldest change may have dropped the step with it.
+        let Some(step) = self.undo.of(scope).undo.last_mut().filter(|step| step.parts.last().is_some_and(|part| part.seq == newest)) else {
+            return Ok((value, None));
+        };
+        step.parts.push(Part { seq, ops });
+        merge_undo_touches(&mut step.touches, &touches);
+        if self.top_step_changes_nothing(scope) {
+            let history = self.undo.of(scope);
+            history.undo.pop();
+            history.grouped = false;
+            return Ok((value, None));
+        }
+        Ok((value, Some(scope)))
+    }
+
+    /// Whether the top undo step of `scope` changes nothing, when its changes are the newest of
+    /// the log, in order, with nothing logged between or after them (so taking them back is
+    /// exact): [`Replica::changes_nothing`] of their operations. Else `false`.
+    fn top_step_changes_nothing(&mut self, scope: UndoScope) -> bool {
+        let Some(step) = self.undo.get(scope).undo.last() else { return false };
+        let parts: Vec<u64> = step.parts.iter().map(|part| part.seq).collect();
+        let tail: Vec<u64> = self.log.entries.iter().rev().take(parts.len()).map(|entry| entry.seq).collect();
+        if !tail.iter().rev().eq(parts.iter()) {
+            return false;
+        }
+        let ops: Vec<Op> = step.parts.iter().flat_map(|part| part.ops.forward()).collect();
+        self.changes_nothing(&ops)
     }
 
     pub fn state_json(&self) -> Result<Value> {

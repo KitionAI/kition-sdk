@@ -769,3 +769,148 @@ fn a_restores_repair_reads_the_text_the_restore_writes() {
     assert_eq!(document.0.state_hash().unwrap(), before, "one undo: the exact state before the restore");
     assert_eq!(document.0.model().0, vec!["kept".to_owned()]);
 }
+
+/// Adds a note reading `body` at the top of the board.
+fn add_note(session: &mut KitSession<Notes>, origin: &Origin, body: &str) -> ObjectId {
+    let root = board(session.replica());
+    session
+        .execute(origin, |_, tx| {
+            let note = tx.create("Note", Map::new())?;
+            tx.text_insert(&note, "body", 0, body)?;
+            tx.list_insert(&root, "notes", 0, &note)?;
+            Ok(note)
+        })
+        .unwrap()
+        .0
+}
+
+/// A draft whose only change the kit's repair takes back (it adds a note reading [`DISCARDED`],
+/// which the repair deletes: Kition Scene's draft parenting a cube to a light deleted meanwhile,
+/// reduced) merges as nothing: no change, no undo step, the version and `undo_depth` stay,
+/// `mergeChanges` answers `scope: null`, and the person's Undo takes back their own last step,
+/// exactly (case regressions/issue-merge-changing-nothing).
+#[test]
+fn a_merge_its_repair_takes_back_entirely_records_no_step() {
+    let mut document = open();
+    let start = document.0.state_hash().unwrap();
+    set_title(&mut document.0, &Origin::person("user:a"), "Mine");
+    let mut draft = document.0.fork(ActorId::from_u64(2).unwrap(), Box::new(MemoryBlobs::default())).unwrap();
+    let base = draft.version();
+    add_note(&mut draft, &Origin::agent("agent:test"), DISCARDED);
+    let changes = draft.export_changes(&base).unwrap();
+    let (before, version) = (document.0.state_hash().unwrap(), document.0.version());
+    let (depth, touches) = (document.0.undo_depth(UndoScope::Person), document.0.undo_touches_in(UndoScope::Person));
+    assert!(document.0.compare_changes(&changes).unwrap().is_empty(), "the preview is what accepting gives: nothing");
+
+    let merged: Value =
+        serde_json::from_str(&kition_kit::session::__merge_changes(&mut document, &changes, r#"["agent","agent:test",null]"#).unwrap()).unwrap();
+    assert_eq!(merged["scope"], Value::Null, "no step was recorded: {merged}");
+    assert_eq!(merged["damage"], json!({ "kind": "none" }));
+    for list in ["created", "changed", "deleted"] {
+        assert_eq!(merged["summary"][list], json!([]), "{merged}");
+    }
+    assert_eq!((document.0.state_hash().unwrap(), document.0.version()), (before, version));
+    assert_eq!(document.0.undo_depth(UndoScope::Person), depth);
+    assert_eq!(document.0.undo_touches_in(UndoScope::Person), touches);
+    assert_eq!(document.0.merge_changes(&changes, &Origin::person("user:a")).unwrap(), (None, Damage::None), "also as the person's merge");
+
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), start, "the person's Undo takes back their title, exactly");
+    assert!(!document.0.can_undo());
+}
+
+/// A restore whose writes the repair takes back entirely (the stored state differs only by a note
+/// reading [`DISCARDED`]) changes nothing either: no step, the version stays.
+#[test]
+fn a_restore_its_repair_takes_back_entirely_records_no_step() {
+    let mut document = open();
+    let start = document.0.state_hash().unwrap();
+    let person = Origin::person("user:a");
+    set_title(&mut document.0, &person, "Mine");
+    let titled = document.0.state_hash().unwrap();
+    add_note(&mut document.0, &person, DISCARDED);
+    let stored = document.0.snapshot().unwrap();
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), titled);
+    let (version, depth) = (document.0.version(), document.0.undo_depth(UndoScope::Person));
+
+    assert_eq!(document.0.restore_state(&stored, &person).unwrap(), Damage::None);
+    let damage: Value = serde_json::from_str(&kition_kit::session::__restore_state(&mut document, &stored, r#"["person","user:a",null]"#).unwrap()).unwrap();
+    assert_eq!(damage, json!({ "kind": "none" }));
+    assert_eq!((document.0.state_hash().unwrap(), document.0.version(), document.0.undo_depth(UndoScope::Person)), (titled, version, depth));
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), start);
+}
+
+/// Writes a kit computes from its view of the merged state (here: the board's title counts the
+/// notes the view shows) join the merge's undo step (`KitSession::merge_changes_with`): one Undo
+/// gives back the exact state before the merge, one Redo the merge with them. Writes that take
+/// back all the merge did leave no step. Joining a step that does not hold the newest change is
+/// refused (case regressions/issue-merge-follow-up-in-step).
+#[test]
+fn writes_from_the_view_after_a_merge_join_its_undo_step() {
+    let mut document = open();
+    let person = Origin::person("user:a");
+    let agent = Origin::agent("agent:test");
+    set_title(&mut document.0, &person, "Mine");
+    let mut draft = document.0.fork(ActorId::from_u64(2).unwrap(), Box::new(MemoryBlobs::default())).unwrap();
+    let base = draft.version();
+    add_note(&mut draft, &agent, "idea");
+    let changes = draft.export_changes(&base).unwrap();
+    let (before, depth) = (document.0.state_hash().unwrap(), document.0.undo_depth(UndoScope::Person));
+
+    let (scope, damage) = document
+        .0
+        .merge_changes_with(&changes, &agent, |view, tx| {
+            let root = tx.objects_of_type("Board").into_iter().next().ok_or("no board")?;
+            tx.set(&root, "title", json!(format!("{} notes", view.0.len())))?;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(scope, Some(UndoScope::Person));
+    assert_ne!(damage, Damage::None);
+    assert_eq!(title(&document), "1 notes", "the follow-up read the refreshed view");
+    assert_eq!(document.0.undo_depth(UndoScope::Person), depth + 1);
+    let after = document.0.state_hash().unwrap();
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), before, "one undo: the exact state before the merge");
+    assert!(document.0.model().0.is_empty());
+    assert!(document.0.redo().unwrap().0);
+    assert_eq!(document.0.state_hash().unwrap(), after, "one redo: the merge with its follow-up");
+    assert!(document.0.undo().unwrap().0);
+
+    // A follow-up that drops the note the merge added: the step changes nothing and is dropped.
+    let mut draft = document.0.fork(ActorId::from_u64(3).unwrap(), Box::new(MemoryBlobs::default())).unwrap();
+    let base = draft.version();
+    add_note(&mut draft, &agent, "idea");
+    let changes = draft.export_changes(&base).unwrap();
+    let (scope, _) = document
+        .0
+        .merge_changes_with(&changes, &agent, |view, tx| {
+            if view.0.iter().any(|body| body == "idea") {
+                let root = tx.objects_of_type("Board").into_iter().next().ok_or("no board")?;
+                let notes = tx.list_items(&root, "notes")?;
+                for (at, id) in notes.iter().enumerate().rev() {
+                    if tx.text(id, "body")? == "idea" {
+                        tx.list_remove(&root, "notes", at)?;
+                        tx.delete(id)?;
+                    }
+                }
+            }
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(scope, None);
+    assert_eq!((document.0.state_hash().unwrap(), document.0.undo_depth(UndoScope::Person)), (before, depth));
+    assert!(document.0.undo().unwrap().0);
+    assert_eq!(title(&document), "Ideas", "the person's Undo takes back their own step");
+
+    // Only the step holding the newest change can be joined.
+    set_title(&mut document.0, &person, "Again");
+    let root = board(document.0.replica());
+    document.0.execute(&Origin::system("other"), |_, tx| Ok(tx.set(&root, "title", json!("System"))?)).unwrap();
+    let version = document.0.version();
+    assert!(document.0.execute_in_step(UndoScope::Person, &person, |_, tx| Ok(tx.set(&root, "title", json!("Joined"))?)).is_err());
+    assert!(document.0.record_in_step(UndoScope::Person, &person, |tx| Ok(tx.set(&root, "title", json!("Joined"))?)).is_err());
+    assert_eq!((document.0.version(), title(&document)), (version, json!("System")));
+}
