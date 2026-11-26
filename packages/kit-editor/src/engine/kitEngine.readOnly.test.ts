@@ -157,7 +157,71 @@ async function refusal(promise: Promise<unknown>) {
 
 const execute = (command: string) => handle({ method: 'execute', command, params: {} })
 
+/**
+ * The commands that only read and that the command naming standard (2026-11-25) moved into `file`
+ * (kition-plan tools/command-renames/maps/<kit>.json): each ran for a viewer under its old id, and
+ * runs under its new one. Old id, new id, kit.
+ */
+const RENAMED_READS: Array<[string, string, string]> = [
+  ['document.bytes', 'file.bytes', 'cad'],
+  ['time', 'file.time', 'cad'],
+  ['status', 'file.status', 'cad'],
+  ['drawing.inspect', 'file.inspect', 'cad'],
+  ['review.wordCount', 'file.wordCount', 'doc'],
+  ['document.inspect', 'file.inspect', 'doc, layout, photo, sheet, slide, vector'],
+  ['document.text', 'file.text', 'doc'],
+  ['document.paragraph', 'file.paragraph', 'doc'],
+  ['document.selection', 'file.selection', 'doc'],
+  ['document.layout', 'file.layout', 'doc'],
+  ['project.inspect', 'file.inspect', 'film'],
+  ['document.list', 'file.list', 'layout'],
+  ['document.history', 'file.history', 'layout'],
+  ['doc_info', 'file.getInfo', 'pdf'],
+  ['doc_hidden_info', 'file.getHiddenInfo', 'pdf'],
+  ['doc_compare', 'file.compare', 'pdf'],
+  ['doc_audit_space', 'file.auditSpace', 'pdf'],
+  ['doc_inspect', 'file.inspect', 'pdf'],
+  ['render_preview', 'file.render', 'pdf'],
+  ['document.activate', 'file.activate', 'photo, vector'],
+  ['document.move', 'file.move', 'photo'],
+  ['document.pixel', 'file.pixel', 'photo'],
+  ['document.sampleColor', 'file.sampleColor', 'photo'],
+  ['document.presets.list', 'file.presets.list', 'photo'],
+  ['document.presets.get', 'file.presets.get', 'photo'],
+  ['table.documents.get', 'file.get', 'table'],
+  ['table.import.preview', 'file.previewImport', 'table'],
+  ['table.read', 'file.read', 'table'],
+  ['table.file.render', 'file.render', 'table'],
+  ['table.file.outline', 'file.outline', 'table'],
+  ['document.node', 'file.node', 'vector'],
+  ['document.find', 'file.find', 'vector'],
+  ['document.json', 'file.json', 'vector'],
+  ['document.serialize', 'file.serialize', 'vector'],
+  ['document.formats', 'file.formats', 'vector'],
+  ['document.pdfInfo', 'file.pdfInfo', 'vector'],
+  ['document.info', 'file.getInfo', 'vector'],
+  ['document.pdfSettings', 'file.pdfSettings', 'vector'],
+  ['document.dxfInfo', 'file.dxfInfo', 'vector'],
+]
+
 describe('the read-only rules', () => {
+  it('let the reads the command naming standard moved into file run where their old ids ran, for a viewer and a commenter', () => {
+    const comments = commentCommands(['comment.add'], true)
+    for (const [old, id, kit] of RENAMED_READS) {
+      expect(editsDocument({ id: old, mutates: false }), `${old} (${kit}) before`).toBe(false)
+      expect(editsDocument({ id, mutates: false }), `${id} (${kit}, was ${old})`).toBe(false)
+      expect(refusedReadOnly({ id, mutates: false }, comments), `${id} for a commenter`).toBe(false)
+      expect(refusedReadOnly({ id, mutates: false }, new Set()), `${id} for a viewer`).toBe(false)
+    }
+    // One id that reads in one kit edits in another, which flags it: Layout's file.activate, Doc's file.compare.
+    expect(editsDocument({ id: 'file.activate', mutates: true })).toBe(true)
+    expect(editsDocument({ id: 'file.compare', mutates: true })).toBe(true)
+    // CAD's history, renamed from `undo`, `u` and `redo`, stays refused whatever its flag.
+    for (const id of ['edit.undoMany', 'edit.undoStep', 'edit.redoStep']) expect(editsDocument({ id, mutates: false }), id).toBe(true)
+    // Nothing that writes the file runs.
+    for (const id of ['file.new', 'file.open', 'file.save', 'file.saveAs', 'file.close', 'file.revert', 'file.import']) expect(editsDocument({ id, mutates: false }), id).toBe(true)
+  })
+
   it('refuse edits, the history, and file commands that are not exports', () => {
     expect(editsDocument({ id: 'slide.new', mutates: true })).toBe(true)
     expect(editsDocument({ id: 'edit.undo', mutates: false })).toBe(true)
@@ -453,6 +517,14 @@ describe('the engine worker, read-only for a commenter', () => {
     expect(isReadOnlyError(await refusal(execute('comment.add')))).toBe(true)
     expect(state.ran).toEqual([])
     expect(threads()).toBe(0)
+  })
+
+  it('runs the reads the command naming standard moved into file for a commenter, as before the rename', async () => {
+    const { state } = kdmDocument()
+    await openAs('commenter')
+    const ids = [...new Set(RENAMED_READS.map(([, id]) => id))]
+    for (const id of ids) await execute(id)
+    expect(state.ran).toEqual(ids)
   })
 
   it('refuses every edit that is not a comment command, the history and file commands even when listed', async () => {

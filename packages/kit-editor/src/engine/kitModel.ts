@@ -32,5 +32,6 @@ export function batchWrites(request: { ops?: unknown }): boolean {
 }
 
 /** The history commands, by id (as `READ_ONLY_RULES.editingCommands` lists them). */
-export const UNDO_COMMANDS: ReadonlySet<string> = new Set(['edit.undo', 'undo'])
-export const REDO_COMMANDS: ReadonlySet<string> = new Set(['edit.redo', 'redo'])
+// CAD's own history commands, named by the command naming standard (2026-11-25; were `undo` and `redo`).
+export const UNDO_COMMANDS: ReadonlySet<string> = new Set(['edit.undo', 'edit.undoMany'])
+export const REDO_COMMANDS: ReadonlySet<string> = new Set(['edit.redo', 'edit.redoStep'])

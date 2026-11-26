@@ -31,7 +31,7 @@ export const READ_ONLY_RULES = Object.freeze({
    * Families whose commands only change what the person sees (zoom, selection, the playhead,
    * playback): they run even when their kit flags them `mutates`.
    */
-  viewingGroups: Object.freeze(['view', 'select', 'selection', 'go', 'navigate', 'help', 'playback', 'transport', 'playhead', 'caret']),
+  viewingGroups: Object.freeze(['view', 'select', 'go', 'navigate', 'help', 'playback', 'transport', 'playhead', 'caret']),
   /** Single viewing commands in families that otherwise edit (Film's monitors and markers). */
   viewingCommands: Object.freeze([
     // Selecting everything or nothing (the command naming standard moved them to `edit`).
@@ -51,7 +51,8 @@ export const READ_ONLY_RULES = Object.freeze({
     'sequence.revealInProject',
   ]),
   /** Commands refused whatever their flag: the history, which some kits report as not editing. */
-  editingCommands: Object.freeze(['edit.undo', 'edit.redo', 'undo', 'redo', 'u']),
+  // CAD's own (`edit.undoMany`, `edit.undoStep`, `edit.redoStep`; were `undo`, `u` and `redo`).
+  editingCommands: Object.freeze(['edit.undo', 'edit.redo', 'edit.undoMany', 'edit.undoStep', 'edit.redoStep']),
   /**
    * Commands in viewing families that change the document all the same, so the editor shows them
    * disabled rather than letting the backstop refuse them: settings a file keeps (a sheet's frozen
@@ -102,10 +103,53 @@ export const READ_ONLY_RULES = Object.freeze({
     'view.saved.edit',
     'select.save',
   ]),
-  /** Families refused whatever their commands' flags, except `fileOutputs`. */
+  /** Families refused whatever their commands' flags, except `fileOutputs` and `fileReads`. */
   editingGroups: Object.freeze(['file']),
   /** `file` commands that only produce bytes (an export, a copy, a print): they run. */
   fileOutputs: /^file\.(export|saveCopy|saveACopy|print)/,
+  /**
+   * `file` commands that only read the file (its structure, text, metadata, a render): they run
+   * unless their kit flags them `mutates`. The command naming standard (2026-11-25) moved them
+   * into `file` from `document.*`, `doc_*`, `drawing.*`, `project.*`, `review.*` and `table.*`,
+   * where they ran for a viewer; one id that reads in one kit may be another kit's edit (Layout's
+   * `file.activate`, Doc's `file.compare`), which its flag keeps refused.
+   */
+  fileReads: Object.freeze([
+    'file.inspect',
+    'file.render',
+    'file.text',
+    'file.paragraph',
+    'file.selection',
+    'file.layout',
+    'file.wordCount',
+    'file.list',
+    'file.history',
+    'file.get',
+    'file.getInfo',
+    'file.getHiddenInfo',
+    'file.compare',
+    'file.auditSpace',
+    'file.bytes',
+    'file.time',
+    'file.status',
+    'file.activate',
+    'file.move',
+    'file.pixel',
+    'file.sampleColor',
+    'file.presets.list',
+    'file.presets.get',
+    'file.previewImport',
+    'file.read',
+    'file.outline',
+    'file.node',
+    'file.find',
+    'file.json',
+    'file.serialize',
+    'file.formats',
+    'file.pdfInfo',
+    'file.pdfSettings',
+    'file.dxfInfo',
+  ]),
   /** Engine tool calls that edit (U8a gestures, keys, typed text); `tools`, `toolState`, `selectTool`, `tool` run. */
   refusedTools: Object.freeze(['pointer', 'toolKey', 'toolText']),
   /** Document methods `invoke` refuses: they edit around the contract's checks. */
@@ -117,7 +161,10 @@ export function editsDocument(command: { id: string; mutates?: boolean | null })
   const { id } = command
   const group = id.split('.')[0] ?? ''
   if (READ_ONLY_RULES.editingCommands.includes(id) || READ_ONLY_RULES.documentSettings.includes(id)) return true
-  if (READ_ONLY_RULES.editingGroups.includes(group)) return !READ_ONLY_RULES.fileOutputs.test(id)
+  if (READ_ONLY_RULES.editingGroups.includes(group)) {
+    if (READ_ONLY_RULES.fileReads.includes(id)) return command.mutates === true
+    return !READ_ONLY_RULES.fileOutputs.test(id)
+  }
   if (READ_ONLY_RULES.viewingCommands.includes(id) || READ_ONLY_RULES.viewingGroups.includes(group)) return false
   return command.mutates === true
 }
