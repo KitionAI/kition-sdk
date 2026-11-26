@@ -1,0 +1,22 @@
+format: 1
+id: sdk.model.draft-merge/tree-undo
+feature: sdk.model.draft-merge
+intent: >-
+  Undo around a draft's merge in a tree both sides changed (data model 6.6, D7 and D9). The draft
+  moves nodes (to the roots, under another node), makes and deletes its own, while the person
+  makes, moves and deletes other nodes, a deletion taking the object's node out; the merge runs
+  with and without a repair that renumbers siblings inside its step. When it changes something it
+  is one step of the person: one Undo gives back the exact state before it, one Redo the exact
+  merged state; when it changes nothing (Kition Photo's case: the draft moves the second of two
+  roots to the roots, where it already is last, while the person deletes the first) it records
+  nothing and the person's Undo takes back their delete. Each further Undo gives back the exact
+  state before each of the person's steps (the places their deletions took nodes from still hold
+  after the merge moved others), and Redo all the way gives the merged state again.
+layer: gate
+source: { kind: issue, from: kition-photo kdm-model drafts.rs (a draft reordering layers while the person deletes one), license: owned }
+input: []
+steps:
+  - cargo-test: { package: kition-kdm, test: merge_tree_undo }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-26"
