@@ -1,6 +1,6 @@
 /**
  * A `ts-worker` engine for kit-editor's browser tests: a one-text document typed through the
- * engine tools (one text tool that always takes text), with the members a host reaches while the
+ * engine tools (a text tool that always takes text, and a select tool that takes no key), with the members a host reaches while the
  * person types (`modelReply`, `changesSince`, `version`, `modelDescribe`, `modelBatch`,
  * `mergeChanges`, `compareChanges`, `restoreState`) and an editor state of its own (`editorState`,
  * `restoreEditorState`, `setContext`), so the editor offers `model`, `draft`, `changes` and
@@ -38,7 +38,10 @@ const COMMANDS = [
   { id: 'edit.redo', title: 'Redo', menu: ['Edit'], shortcut: 'Cmd+Shift+Z', mutates: true, enabled: false },
 ]
 
-const TOOLS = [{ id: 'text', label: 'Text', shortcut: null, icon: 'type', group: 0 }]
+const TOOLS = [
+  { id: 'text', label: 'Text', shortcut: null, icon: 'type', group: 0 },
+  { id: 'select', label: 'Select', shortcut: null, icon: 'mouse-pointer', group: 1 },
+]
 
 /** Holds the worker's thread for `ms` milliseconds, as a costly engine call does. */
 function spend(ms) {
@@ -68,6 +71,8 @@ export class TypingDocument {
     this.toolCost = 0
     /** Whether `mark.put` can run. */
     this.armed = false
+    /** The active tool: `text` takes text and editing keys, `select` takes none. */
+    this.tool = 'text'
     /** `file`, or `replica` when opened with a stored snapshot. */
     this.opened = 'file'
   }
@@ -143,16 +148,18 @@ export class TypingDocument {
 
   free() {}
 
-  // The engine tools: one text tool that always takes text.
+  // The engine tools: the text tool always takes text; the select tool takes no key.
   answer() {
-    return JSON.stringify({ requests: [], overlays: [], cursor: 'text', busy: false, wantsText: true })
+    const text = this.tool === 'text'
+    return JSON.stringify({ requests: [], overlays: [], cursor: text ? 'text' : 'default', busy: false, wantsText: text })
   }
 
   tools() {
     return JSON.stringify(TOOLS)
   }
 
-  selectTool() {
+  selectTool(id) {
+    this.tool = id === 'select' ? 'select' : 'text'
     return this.answer()
   }
 

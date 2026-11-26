@@ -15,6 +15,13 @@
  * and the text and selection must be what they make. Each round is run with no engine cost and with
  * host members and tool events made slow (`hostCost`, `toolCost`).
  *
+ * Before the rounds, keys the tool does not take reach the frame (UI U10c): with the select tool
+ * (which takes no key) and each tool event slow, Escape pressed in Focus while a hover is on its
+ * way leaves Focus at once, and ArrowDown then reaches the kit's own handler at once and once;
+ * pressed right after a click (which the frame waits for), each is given back to the frame once
+ * the click is answered, ArrowDown once; with the text tool taking text, Escape in Focus is the
+ * tool's, once, and Focus stays.
+ *
  * `node keys.mjs [chromium|webkit|all] [rounds]` (default: all, 6).
  */
 import path from 'node:path'
@@ -71,10 +78,115 @@ function flatten(keys) {
   return keys.flatMap((key) => (key.length > 1 && !/^(Shift\+)?[A-Z][a-zA-Z]+$/.test(key) ? [...key] : [key]))
 }
 
+/** How long each tool event takes in the worker in the frame keys' page (ms). */
+const FRAME_COST = 400
+
+/** Keys the tool does not take, pressed while its events are on their way, reach the frame (see above). */
+async function frameKeys(browser) {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 700 } })
+  const errors = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  const problems = []
+  const check = (ok, what) => {
+    if (!ok) problems.push(what)
+  }
+  const until = async (test, ms = 10_000) => {
+    const end = Date.now() + ms
+    while (Date.now() < end) {
+      if (await test().catch(() => false)) return true
+      await page.waitForTimeout(50)
+    }
+    return false
+  }
+  try {
+    await page.goto(`${origin}/host.html?toolCost=${FRAME_COST}`)
+    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes(' open in '), null, { timeout: 60_000 })
+    const kit = page.frameLocator('#kit')
+    const kitFrame = await (await page.$('#kit')).contentFrame()
+    const app = kit.locator('.kui-app')
+    const region = kit.getByTestId('typing-canvas')
+    await region.waitFor()
+    const box = await region.boundingBox()
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    const mod = (await kitFrame.evaluate(() => /Mac|iPhone|iPad/i.test(navigator.platform))) ? 'Meta' : 'Control'
+    const mode = () => app.getAttribute('data-mode')
+    const arrows = () => kitFrame.evaluate(() => window.__kitArrowDown ?? 0)
+    const keys = async () => (await page.evaluate(async () => (await window.devHost.connection().ai.run([{ command: 'keys.read', params: {} }], false)).completed[0].result)).keys
+    // Every tool event answered: the queue is empty.
+    const settle = () => page.waitForTimeout(FRAME_COST * 4)
+    const tool = async (id) => {
+      await kit.getByTestId(`typing-${id}`).click()
+      check(await until(async () => (await kit.locator('[data-tool]').getAttribute('data-tool')) === id), `the ${id} tool is chosen`)
+      await settle()
+    }
+    const enterFocus = async () => {
+      await page.keyboard.press(`${mod}+Backslash`)
+      check(await until(async () => (await mode()) === 'focus'), 'Mod+\\ enters Focus')
+      await settle()
+    }
+
+    await tool('select')
+    const shown = await mode()
+    await app.focus()
+    await enterFocus()
+    // A hover on its way: Escape is the frame's at once (the kit's mode smoke reads the mode right away).
+    await page.mouse.move(center.x, center.y)
+    await page.mouse.move(center.x + 5, center.y + 5)
+    await page.keyboard.press('Escape')
+    const atOnce = await mode()
+    check(atOnce === shown, `Escape in Focus with a hover on its way leaves Focus at once (data-mode ${atOnce})`)
+    check(await until(async () => (await mode()) === shown), 'Escape in Focus with a hover on its way leaves Focus at all')
+    await settle()
+    await app.focus()
+    await page.mouse.move(center.x + 10, center.y)
+    await page.keyboard.press('ArrowDown')
+    const arrowAtOnce = await arrows()
+    check(arrowAtOnce === 1, `ArrowDown with a hover on its way reaches the kit's handler at once (${arrowAtOnce} times)`)
+    await settle()
+    check((await arrows()) === 1, `ArrowDown with a hover on its way reaches the kit's handler once (${await arrows()} times)`)
+
+    // A click on its way: the key waits for its answer, then the frame has it, once.
+    await page.mouse.click(center.x, center.y)
+    await page.keyboard.press('ArrowDown')
+    check(await until(async () => (await arrows()) === 2), `ArrowDown right after a click reaches the kit's handler (${await arrows()} times in all)`)
+    await settle()
+    check((await arrows()) === 2, `ArrowDown right after a click reaches the kit's handler once (${await arrows()} times in all)`)
+    await enterFocus()
+    await page.mouse.click(center.x, center.y)
+    await page.keyboard.press('Escape')
+    check(await until(async () => (await mode()) === shown), 'Escape in Focus right after a click leaves Focus')
+    await settle()
+
+    // The text tool takes text: Escape is the tool's, once, and Focus stays.
+    await tool('text')
+    await page.mouse.click(center.x, center.y)
+    await settle()
+    await enterFocus()
+    const before = (await keys()).length
+    await page.mouse.move(center.x + 5, center.y)
+    await page.keyboard.press('Escape')
+    await settle()
+    const after = await keys()
+    check((await mode()) === 'focus', `Escape the text tool takes leaves Focus as it is (data-mode ${await mode()})`)
+    check(after.length === before + 1 && after[after.length - 1] === 'Escape', `the text tool takes Escape once (keys after it: ${JSON.stringify(after.slice(before))})`)
+    if (errors.length) problems.push(`page errors: ${errors.slice(0, 3).join(' | ')}`)
+  } catch (error) {
+    problems.push(error instanceof Error ? error.stack : String(error))
+  } finally {
+    await page.close()
+  }
+  return problems
+}
+
 let failures = 0
 const browsers = which === 'all' ? ['chromium', 'webkit'] : [which]
 for (const name of browsers) {
   const browser = await (name === 'webkit' ? webkit : chromium).launch()
+  const frameProblems = await frameKeys(browser)
+  if (frameProblems.length) {
+    failures += 1
+    console.log(`FAIL ${name} frame keys: ${frameProblems.join('; ')}`)
+  } else console.log(`PASS ${name} frame keys: keys the tool does not take reach the frame, once`)
   for (let round = 0; round < rounds; round += 1) {
     const cost = COSTS[round % COSTS.length]
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } })

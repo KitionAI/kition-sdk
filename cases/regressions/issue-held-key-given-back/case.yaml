@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-held-key-given-back
+feature: sdk.editor.held-keys
+intent: >-
+  A key the tool's last answer does not take, pressed while the tool's events are on their way,
+  goes where it would have gone had it not waited, once. Escape pressed in Focus while a hover or a
+  state query was on its way (Kition Scene's stage resized by Focus) waited for that answer, so it
+  left Focus only later, after the kit's mode smoke had read the mode; an arrow reached the kit's
+  own key handler late; and a key given back after the focus fell to the page went nowhere. Now a
+  key waits only behind an event that can change what the tool takes (a press, a release, a click,
+  a tool choice, a key or text sent to the tool) and is then given back to the frame (Escape leaves
+  Focus, the kit's handler, the shortcuts) once, in order; a tool taking text still takes Escape.
+  keys.mjs (case regressions/issue-keys-under-host-calls) presses these in a real browser.
+layer: gate
+source: { kind: issue, from: Kition Scene's test:modes in kit CI under @kitionstage/sdk 0.5.2-stage.36, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/engineTools.giveBack.test.tsx] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-26"
