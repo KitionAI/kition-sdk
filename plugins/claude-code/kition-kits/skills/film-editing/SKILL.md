@@ -313,8 +313,10 @@ synchronization and editor-input paths still need comparison.
   clip you meant has gone (or inspect again) and either name it by id (`on`), or give the new time
   with the `revision` the refusal answered as `basis`. Do not resend the same time: it names
   another clip now.
-- **Captions and markers** are not objects of their own: a change to one is told as a change of
-  its sequence's item at `sequence.captionTracks` or `sequence.markers`. A write to a caption's
+- **Captions and markers** have no tool id of their own: a change to one is told as a change of
+  its sequence's item at a path under `sequence.captions` (a caption's track is under
+  `sequence.captionTracks`) or `sequence.markers` (a media
+  item's source markers under its `markers`, a clip's under the clip's `markers`). A write to a caption's
   text named by its id is refused (`changed`, naming the item) when others changed that caption's
   text (or speaker) or deleted it, not when they moved it in time; found by its time, the whole
   caption is held, since its time is what names it. Moving, trimming, timing, merging, splitting
@@ -340,7 +342,7 @@ synchronization and editor-input paths still need comparison.
   sync-locked tracks they ripple on insert. Snap edits hold their markers or beat sources.
   Mixer strip, output and send-target references hold the resolved track; the
   mixer accepts case-insensitive names and A1/S1 ordinals. Search-bin edits hold the saved query
-  in `Project.docState`, separately from ordinary project bins.
+  in `Project.searchBins`, separately from ordinary project bins.
 - **Authored values and evaluated results:** an unkeyed effect edit holds the clip's stored
   effect stack. A change of the source media or nested sequence does not refuse that edit when
   those stored values are unchanged. A reference placement holds a nested sequence's settings
@@ -352,8 +354,8 @@ synchronization and editor-input paths still need comparison.
   into. A colleague's insertion or deletion before that gap refuses the stale insertion.
   Its additional name and position holds can also refuse a distant appended track.
 - **Known diagnostic limit:** folded mixer names lack the SDK's exact-name relocation diagnostic
-  when a colleague renames the resolved track away. Caption text follows its track by id and
-  its caption by a stable map key; removing an earlier track does not refuse an unchanged text.
+  when a colleague renames the resolved track away. Caption text follows its caption by its id
+  in the sequence's `captions`; removing an earlier track does not refuse an unchanged text.
   An automation interval whose occupant was replaced reports `relocated`, including when the
   reread pairs its old and new occupants structurally.
 

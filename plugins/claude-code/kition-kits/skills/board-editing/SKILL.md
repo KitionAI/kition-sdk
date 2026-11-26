@@ -70,6 +70,21 @@ name it.
 - A shape belongs to a frame through `parent` (the frame's id). Moving the frame moves it.
 - A `line` shape runs along its box's longer side, through its middle: give it a tall box for a
   vertical line; `rotation` turns it. A freehand `stroke` takes `dashStyle` as shapes do.
+- A shape's `shapeType` is one of 44, in four groups (`shape.previews` lists them with a picture
+  of each). Basic: `rectangle`, `ellipse`, `triangle`, `right-triangle`, `diamond`, `pentagon`,
+  `hexagon`, `octagon`, `trapezoid`, `parallelogram`, `pill`, `cross`, `star`, `cloud`, `heart`,
+  `callout`. Arrows: `arrow-left`, `arrow-right`, `arrow-up`, `arrow-down`, `arrow-left-right`,
+  `arrow-up-down`, `chevron`. Marks: `x-box`, `check-box`, `check`, `line`, `brace-left`,
+  `brace-right`, `actor`.
+- **Flow charts** use the standard symbols: `rectangle` for a step, `diamond` for a decision, `pill`
+  for start and end, `parallelogram` for input or output. The flowchart group adds `document` (a
+  step that makes or reads a document; `multi-document` for several), `cylinder` (a data store or
+  database), `predefined-process` (a step defined elsewhere, such as another chart),
+  `manual-input` (data a person types in), `manual-operation` (a step a person does by hand),
+  `delay` (a wait), `display` (what is shown on a screen), `off-page` (the flow goes on on another
+  page), `stored-data`, `internal-storage`, `summing-junction` and `or-junction` (flows that meet),
+  and `note` (a comment beside a step). An `actor` names who does a step. A label goes in the part
+  of the shape its outline leaves free (above a callout's tail, under a cylinder's top).
 - Text is plain unless marked: [`text.mark`](/kits/board/commands/text.mark/) makes a range bold or
   italic, and a text or sticky with `textFormat: "markdown"` draws its Markdown (headings, lists,
   quotes, `**bold**`, `*italic*`, `` `code` ``, links) without the markers.
@@ -210,7 +225,8 @@ is required. Representative command receipts and saved-file diffs agree on all 1
   A deleted frame whose page cannot be found is considered conservatively.
 - Numeric and implicit page contexts can drift after an earlier page insertion, deletion or
   reorder; raw model `list.move` can miss a changed index occupant. The matrices keep
-  these wrong writes as failing `waiting_for_sdk_*` tests.
+  these wrong writes in `waiting_for_sdk_*` tests, ignored until kition-sdk provides what each
+  one names (`cargo test -p kition-board --test matrix3 -- --ignored` runs them).
 - Undo and redo hold nothing (above). The independent reading runs all 83 rows on both
   flat and nested boards, including sizeless text, cross-container bindings and locked members.
 - The guard checks declared facts, not the agent's entire intention. It does not infer that a
@@ -329,7 +345,8 @@ the wrong reason).
 Address totals: 576 cells, 15/3/0. Derived totals: 920 cells, 0/19/25. The passing partition has
 1,434 cells: 1,294 apply with the saved merge, 140 necessarily refuse, with zero wrong writes,
 false refusals, wrong reasons or command errors. The other 62 cells keep their assertions in six
-failing `waiting_for_sdk_*` tests: 15 wrong writes, 22 false refusals, 25 necessary refusals with
+`waiting_for_sdk_*` tests (the ones that still fail are ignored, each naming what it waits for in
+kition-sdk): 15 wrong writes, 22 false refusals, 25 necessary refusals with
 the wrong reason. Two more tests protect ungrouping against a newly locked member, directly and
 through the guard.
 

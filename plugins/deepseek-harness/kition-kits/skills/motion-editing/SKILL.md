@@ -132,8 +132,11 @@ display name, so check with `prop.get` before you write by such a path. A layer'
 `startTime`, `inPoint` and `outPoint` (ticks, 254016000000 a second): shifting a layer in time
 changes those three fields, not its keyframes (they are in layer time), so the receipt does not
 list the keys whose comp time moved. A layer moved in the stack is one entry of `moved`; the layers
-whose position it shifted are not listed. A marker is a member of its comp's or layer's `attrs`
-(`comp.attrs.markers.0.time`).
+whose position it shifted are not listed. A marker is an object of its own in its comp's or
+layer's `markers` list (`comp.markers.0.time`; its `comment` is text). A layer's switches are
+keys of its `switches` map (`switches.locked`); a comp's guides and Graphics Templates controls
+are its `guides` and `controls` lists. Render Queue statuses and preferences are each machine's
+own and are not in the model.
 
 ### Others' changes
 
@@ -240,7 +243,8 @@ conflict before context validation. Remaining context and raw-contract gaps stay
 their waiting tests.
 
 Raw batch writes declare contracts for `Layer.set.name`, `Layer.map.set.attrs`,
-`Comp.map.set.attrs` and `Key.set.value`. `Node.keys` remove, insert and move operations
+`Layer.map.set.switches`, `Comp.map.set.attrs`, `Key.set.value`, a `Marker`'s or `Guide`'s
+fields, and adding or removing markers and guides. `Node.keys` remove, insert and move operations
 and `Key.create` use mapped contracts with retained recipients, destination gaps and isolated
 prefix state. Owned `Node.create` and `Comp.layers` moves retain historical list recipients
 and gaps; mapped `Item.delete` holds the content and consumers it erases. Item creation uses

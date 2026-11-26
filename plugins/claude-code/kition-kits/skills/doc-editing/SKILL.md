@@ -90,9 +90,11 @@ your draft of the document and leave the file as it is; only the person merges o
 
 ## Common tasks
 
-- `doc_query { "select": "root" }` returns the whole object model: `body` (block ids), `styles`,
-  `settings` (theme fonts), `lastSection` (page size and margins in points). It is large; ask for
-  the objects you need.
+- `doc_query { "select": "root" }` returns the whole object model: `body` (block ids), `styles`
+  (one entry per style, keyed by style id), `styleDefaults` (the document's default character and
+  paragraph formatting), `settings` (theme fonts), `lastSection` (page size and margins in points).
+  It is large; ask for the objects you need. A table's columns are its `cols` (each a `width` in
+  points).
 - New paragraph at the caret: [`text.newParagraph`](/kits/doc/commands/text.newParagraph/).
 - Text at the caret: [`text.insert`](/kits/doc/commands/text.insert/) `{ "text": "..." }`.
 - Bold the selection: [`format.bold`](/kits/doc/commands/format.bold/).
@@ -179,7 +181,7 @@ else (`others` says what). What a write rests on:
   by index, unless an earlier step of the run selected.
 - **A step with `on`**: a character command (`format.*`, `font.*`) holds the formats the named
   paragraphs' characters carry (typing in them applies; a word of them bolded refuses); a
-  paragraph command (`para.*`) holds their paragraph properties.
+  paragraph command (`paragraph.*`, the alignments) holds their paragraph properties.
 - **`paragraph.text`** (by `index`): the paragraph at that index, its characters, and the formatting
   of its last character (the new text takes it). **`paragraph.insert`** (`after`/`before`): the
   paragraph's place and properties, and what Enter reads at its end: whether it is empty, what
@@ -220,24 +222,25 @@ A write by commands stamps the document as Word's save does (`core.modified`,
 `core.lastModifiedBy`, `core.revision`), and its receipt names that change of `document`; a
 `doc_batch` is not stamped.
 
-What each family of commands rests on besides what its step names:
+What each family of commands rests on besides what its step names (a family is the commands
+whose handlers read the same things; it is not always one namespace):
 
 | Family | Rests on besides the step's own objects |
 |---|---|
-| `format` | the selected paragraphs' styles and their runs' character styles, the styles they are based on, the document defaults, each paragraph's style |
-| `para` | as `format`, and the paragraphs' whole properties; numbering commands: the list definitions, selected paragraphs and their neighbors |
-| `table` | the table the selection is in (grid, properties) and each row's and cell's properties; a table style without a name: the styles |
-| `insert` | tracked changes; cross-references, captions, tables of contents, indexes, Quick Parts, fields: every paragraph's text and properties and the document |
-| `references`, `mailings` | every paragraph's text and properties and the document |
-| `review` | the tracked-change commands: the document's revisions and comments; the comment commands: the comments; Track Changes and Restrict Editing: the settings |
-| `comment` | the comments |
-| `layout`, and the commands that find the selection's section (`page.borders`, `arrange.align`, `arrange.position`, `table.autofit`, `table.fromText`, `table.quick`, `table.draw`, `header.insert`, `footer.insert`, `header.remove`, `headerFooter.position`) | the last section's properties, the selected paragraphs' properties, and the section breaks from the selection to the end of its section |
-| `arrange`, `shape`, `picture` on the selected drawing object | the object (`arrange`: where it is and how it wraps; `shape.effects`: its look; the other `shape` commands only that it is there); `picture`: the media; and the drawing objects and pictures of the selected paragraphs as a whole, so another program's rotation, resize or crop of one refuses |
-| `design` | the page colour and the watermark: the settings; the paragraph spacing: the styles; the others: the whole document's content |
-| `styles` | the style it names, else all styles |
+| the other `format` commands | the selected paragraphs' styles and their runs' character styles, the styles they are based on, the document defaults, each paragraph's style |
+| `paragraph`, and the alignments `format.alignLeft`, `format.alignCenter`, `format.alignRight`, `format.justify` | as `format`, and the paragraphs' whole properties; numbering commands: the list definitions, selected paragraphs and their neighbors |
+| `table` | the table the selection is in (its columns, properties) and each row's and cell's properties; a table style without a name: the styles |
+| the commands that insert at the caret (`page.insertBreak`, `table.insert`, `image.insert`, `shape.insert`, `link.insert`, `header.insert`, `field.insert`, …) | tracked changes; cross-references, captions, tables of contents, indexes, Quick Parts, fields: every paragraph's text and properties and the document |
+| the reference commands (`toc`, `footnote`, `endnote`, `caption`, `citation`, `bibliography`, `tableOfFigures`, `index`, `tableOfAuthorities`, `field.updateAll`) and `mailMerge` | every paragraph's text and properties and the document |
+| `change`, `spelling`, the commands on the current comment (`comment.new`, `comment.replyCurrent`, `comment.edit`, `comment.deleteCurrent`, `comment.resolveCurrent`), `file.compare`, `file.combine`, `file.restrictEditing` | the tracked-change commands: the document's revisions and comments; the comment commands: the comments; Track Changes and Restrict Editing: the settings |
+| the `comment` commands that name a comment by id | the comments |
+| the section commands of `page` (`page.margins`, `page.size`, `page.columns`, `page.break`, …), and the commands that find the selection's section (`page.borders`, `arrange.align`, `arrange.position`, `table.autofit`, `table.fromText`, `table.quick`, `table.draw`, `header.insert`, `footer.insert`, `header.remove`, `headerFooter.position`) | the last section's properties, the selected paragraphs' properties, and the section breaks from the selection to the end of its section |
+| `arrange`, `shape`, `image` on the selected drawing object | the object (`arrange`: where it is and how it wraps; `shape.effects`: its look; the other `shape` commands only that it is there); `image`: the media; and the drawing objects and pictures of the selected paragraphs as a whole, so another program's rotation, resize or crop of one refuses |
+| `theme`, `page.color`, `page.watermark`, `page.borders` | the page colour and the watermark: the settings; the paragraph spacing: the styles; the others: the whole document's content |
+| `style` | the style it names, else all styles |
 | `edit` | replace: every paragraph's text and properties |
 | `equation` | converting every equation: every paragraph |
-| `text`, `drawing`, `draw`, `file`, `document`, `hf`, `list` | tracked changes; `hf`: the parts; `list`: the list definitions and neighboring paragraphs; drawing/ink: the consumed anchors, object/id indexes and layout facts |
+| `text`, `drawing`, `ink`, `file`, `headerFooter`, `list` | tracked changes; `headerFooter`: the parts; `list`: the list definitions and neighboring paragraphs; drawing/ink: the consumed anchors, object/id indexes and layout facts |
 
 Besides, a command holds the document-wide fields its code reads (C8-doc-4): the section's page
 (tables, pictures, text boxes, headers and footers, tables of contents and indexes: their width

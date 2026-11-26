@@ -46,7 +46,8 @@
   "capabilities": [
     "lent-files",
     "timeline",
-    "kdm"
+    "kdm",
+    "engine-tools"
   ],
   "extras": {
     "takeFile": {
@@ -56,13 +57,30 @@
       "returns": "Uint8Array | undefined",
       "description": "A file the engine wrote (a render), taken out of memory."
     },
-    "renderMovie": {
+    "exportStart": {
       "params": [
         "path: string",
-        "format: string"
+        "settings: string"
       ],
+      "returns": "string",
+      "description": "Starts rendering the active composition as a movie named path (settings: a format name or the Export dialog's JSON) from a copy of the project; answers {done, total, finished} as JSON. Nothing renders until exportStep."
+    },
+    "exportStep": {
+      "params": [
+        "milliseconds: number"
+      ],
+      "returns": "string",
+      "description": "Renders the started export for about that long (at least one batch of frames); answers {done, total, finished} as JSON."
+    },
+    "exportFinish": {
+      "params": [],
       "returns": "Uint8Array",
-      "description": "The active composition rendered as a movie from a copy of the project; the document is left unchanged."
+      "description": "The finished export's file; the document is left unchanged."
+    },
+    "exportCancel": {
+      "params": [],
+      "returns": "boolean",
+      "description": "Stops the export and keeps no file; whether one was running."
     }
   },
   "ui": {
@@ -129,7 +147,7 @@
   },
   "model": {
     "schema": "crates/kdm/kdm-model/model/schema.json",
-    "schemaVersion": 3
+    "schemaVersion": 1
   },
   "collaboration": {
     "merge": [

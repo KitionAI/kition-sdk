@@ -51,7 +51,9 @@ draft tools.
   command's declared targets. Imported thread/layer number collisions are repaired
   deterministically before exposing tool ids; inspect again after an import. Individual
   messages are held through their thread; category and preset records through settings
-  selectors. Saved versions and branches use string record ids, not layer ids.
+  selectors. A saved version is passed as its snapshot (a base64 string, as the host's checkpoint
+  carries it), never a layer id; the host keeps saved versions, so an agent restores one only with
+  a snapshot it was given.
 - An integer is an object address only in the command's marked `objects` or `targets` paths.
   Indexes, dimensions and point coordinates are numbers, not object ids. A connector's endpoint
   may be either an object or coordinates; the call resolves which one it is. Marked name
@@ -77,9 +79,11 @@ the call. A command that falls back to those inputs needs the corresponding cont
 - A command given what it acts on (`id`, `ids`, `parent`, `page`, `frame`) acts there and leaves
   the person's page, selection, view, tool and edit modes as they were, also when it fails. What
   it creates on the step's page becomes the selection, so the next step of the same run can act on
-  it without an id. Only commands whose work is moving the editor (`select.*`, `page.select`,
-  `page.go`, `view.*`, `tool.*`, `text.edit.*`, `vector.edit.*`) move it, and the editor is put
-  back after the call: a later call starts again from the person's page.
+  it without an id. Only commands whose work is moving the editor (`edit.selectAll`,
+  `edit.deselectAll`, `select.*` except the selection's colors (`select.colors`, `select.setPaint`,
+  `select.applyColorStyle`, `select.bindColorVariable`, `select.detachColor`, `select.selectColor`),
+  `page.select`, `page.go`, `view.*`, `tool.*`, `text.edit.*`, `vector.edit.*`) move it, and the
+  editor is put back after the call: a later call starts again from the person's page.
 - Some commands read an edit mode (text or vector editing, the tool): set it with the kit's own
   command (`text.edit.begin`, `vector.edit.begin`) in an earlier step of the same run.
 - The file saves the person's page, never where the run worked.
@@ -119,9 +123,9 @@ the call. A command that falls back to those inputs needs the corresponding cont
 
 - **Receipts.** A successful `design_run` or `design_batch` answers `changes`: `created`, `changed`
   (with `edits`, each field `before` and `after`), `moved` and `deleted`, naming layers by their
-  ids. Edits use leaf paths: text is `kind.characters`, colour channels can be
-  `fills.0.color.r`, and translation can be `frame.transform.4`. A
-  move to another parent or place is in `moved` (`from` and `to`: the parent's id and the index);
+  ids. Edits use leaf paths: text is `text` (the characters, with a final paragraph break),
+  colour channels can be `fills.0.paint.color.r` (a paint is an object of the layer's `fills`),
+  and translation can be `frame.transform.4`. A move to another parent or place is in `moved` (`from` and `to`: the parent's id and the index);
   deleting a frame lists it and every layer in it; an edit of a component's layer lists that layer
   and each instance's copy of it. `diagnostics: {new, resolved}` says what the check found new.
   Large sets can use `footprint` to list ids sharing the same delta; it is not truncation.
@@ -160,10 +164,9 @@ successful write as proof that the entire document stayed unchanged.
 | Prototype/variable values | Referenced destinations, aliases and parsed expression variable/mode objects; resource alias chains and default-mode order. Dynamic expression names are replayed against previous names. |
 | Text formatting, search/replace, layout, boolean/flatten/outline and page duplicate/delete | Traversed text or layer subtrees, membership and consumed geometry. Text ranges conservatively hold whole text records. |
 | Annotation categories and image presets | The saved record selected by id/name; category creation/removal conservatively holds the category list. Comment message indexes hold their thread's body/order. |
-| Version restore | Version metadata and snapshot fingerprints, plus the current design it replaces. File comments are retained. Version-label edits hold metadata separately. |
+| Version restore | The current design it replaces (every node, resource and setting); the version's content is the snapshot its checkpoint carries and never changes. File comments are retained. |
 | `library.publish` | Publishable identities, previous publication manifest and content fingerprint, component dependency graphs, styles, collections and variables. |
 | `library.acceptUpdates`, `library.swap`, `library.remove` | Local copy records, library links, component copies and instance inputs, style/variable definitions and the reference/alias membership query used by pruning. This is conservative across libraries. |
-| `branch.merge`, `branch.updateFromMain` | Branch metadata, snapshot/history fingerprints including image bytes, main nodes and main resources/settings. Conservative across the main file; publication-only changes are independent. |
 | Paste, repeated `edit.duplicate` | Copied mains and instance mains, clipboard style/variable ids and the paste parent; foreign pastes also adopt library records. A repeat without `dx`/`dy` holds the last sources and copies. |
 | `command.batch` | Each step's resolved inputs in execution order, selection and clipboard prefixes, nested reference scopes and query fields consumed by a later write. Unknown query-result provenance conservatively holds the document. Replay has no filesystem or live replica. |
 | `data.fill`, `variable.import` | The source subtree and its component graph (layers are matched by name); import name/type eligibility, matching collections/modes/variables, aliases and default values copied into new modes. The import name-membership hold remains broader than necessary. |
@@ -319,7 +322,7 @@ The check then finds nothing wrong, and the export answers the new file it wrote
 
 ## Pitfalls
 
-- **Navigation is for the person.** `select.*`, `page.select`, `page.go` and `view.*` move the
+- **Navigation is for the person.** `edit.selectAll`, `select.*`, `page.select`, `page.go` and `view.*` move the
   editor; an agent names pages with `target`/`at` and layers with `on` or `ids` instead.
 - **Auto layout arranges the children.** After [`layout.add`](/kits/design/commands/layout.add/), set
   padding and gap on the frame ([`node.set`](/kits/design/commands/node.set/)

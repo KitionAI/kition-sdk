@@ -71,6 +71,28 @@ is not exported.
   `invalid-value` with a read-only explanation; later handle assignments refuse `read-only`.
 - A constraint has a saved id such as `constraint:1`. `delconstraint.ids` accepts these ids and
   the numeric ids its engine command lists; coordinates and cell indices are never object ids.
+- A table cell's text is an object of its own, `cell:<table handle>-<cell id>` (`cad_query` loads
+  its `text`); the table entity's `kind` holds the grid (row heights, column widths, each cell's
+  `id` and `merged` span) and no text. Cell ids are the table's own and survive saving and
+  reopening; change a cell with `table.set` (row and column), never by its object.
+- What each person draws with is their own: saved in the file, but not shared with the others
+  editing the drawing, and setting it changes nothing anyone else sees. That is the current layer,
+  linetype, colour, lineweight, linetype scale and plot style; the current text, dimension,
+  multileader, table and multiline styles (`CLAYER`, `CELTYPE`, `CECOLOR`, `CELWEIGHT`,
+  `CELTSCALE`, `CPLOTSTYLE`, `TEXTSTYLE`, `DIMSTYLE`, `CMLEADERSTYLE`, `CTABLESTYLE`, `CMLSTYLE`);
+  the dimension settings new dimensions take (every `DIM*` variable but `DIMSCALE`: `DIMASZ`,
+  `DIMTXT`, `DIMDEC`, `DIMASSOC`…); the text height, thickness, elevation, polyline width,
+  multiline scale and hatch pattern new objects take (`TEXTSIZE`, `THICKNESS`, `ELEVATION`,
+  `PLINEWID`, `CMLSCALE`, `HPNAME`…); the snap grid (`SNAPBASE`, `SNAPANG`); and the defaults commands remember (`CIRCLERAD`, `FILLETRAD`, `CHAMFERA`,
+  `OFFSETDIST`, `TRIMMODE`, `SPLINESEGS`, `CENTEREXE`, `INSNAME`…); the current UCS a file
+  brings (`UCSORG`, `UCSXDIR`, `UCSYDIR`, `UCSNAME`, `UCSBASE`… and the `PUCS*` twins); and the
+  layer states `LAYERP` and `LAYUNISO` go back to (never saved in a file; applying one changes
+  the shared layers for everyone). The styles themselves, the named UCSs, the dimensions already
+  drawn (with their overrides) and everything an existing object's look depends on are shared:
+  units, limits, `LTSCALE`, `PDMODE`, `FILLMODE` and `DIMSCALE` (a dimension whose style's scale
+  is 0 is drawn at it). Making a dimension style current, or editing the current one, sets only
+  the scale your own new dimensions take; `variable.set` of `DIMSCALE` changes the drawing's. A drawing
+  command takes an explicit `layer` when the layer matters.
 
 ## What a write holds
 
@@ -402,7 +424,8 @@ cad_check {"path": "Doors.dxf"}
   `completed[].result` or `changes` before naming them in another call; model batches can bind
   creation references with `ref`. Outside rereads preserve the editor state when its recipients
   still resolve.
-- **The current layer** is the drawing's: draw with `layer` rather than changing it.
+- **The current layer** is your own, not your colleagues': still, draw with `layer` rather than
+  changing it.
 - **Results that count:** `object.move` answers `{moved: n}`, `object.delete` `{erased: n}` and `object.setProperties`
   how many it changed; `changes` names which. A handle that names nothing is skipped, so check `n`.
 - **Rectangles and moves:** [`rectangle.add`](/kits/cad/commands/rectangle.add/) makes a closed polyline;

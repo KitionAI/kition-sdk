@@ -1,6 +1,6 @@
 ---
 name: scene-editing
-description: "Create, inspect, edit and check a 3D scene (.kscene) with the Kition Scene kit's tools: adding primitives, curves, and text, transforms, parenting, edit-mode modeling (extrude, inset, bevel, loop cut, knife, dissolve, bridge, bisect, spin), sculpting (sculpt.stroke, sculpt.gesture, dynamic topology, multires, face sets), modifiers (including shrinkwrap and lattice), seams and UV unwrapping, image and normal-map textures, materials, lights, cameras, armatures, skinning, constraints and IK, shape keys, keyframe animation with drivers, actions, and keying sets, rigid body and cloth physics with constraints and force fields, particles and hair, Geometry Nodes (nodes.*), fast and path-traced rendering with a compositor (compositor.*), glTF/FBX/USD (usda, usdc, usdz)/OBJ/STL import and export, and .blend import; rotations are in degrees and Z is up. Use when the user asks to make, read, change, review or fix .kscene files in this project."
+description: "Create, inspect, edit and check a 3D scene (.kscene) with the Kition Scene kit's tools: adding primitives, curves, and text, transforms, parenting, edit-mode modeling (extrude, inset, bevel, loop cut, knife, dissolve, bridge, bisect, spin), sculpting (sculpt.stroke, sculpt.gesture, dynamic topology, multires, face sets), modifiers (including shrinkwrap and lattice), seams and UV unwrapping, image and normal-map textures, materials, lights, cameras, armatures, skinning, constraints and IK, shape keys, keyframe animation with drivers, actions, and keying sets, rigid body and cloth physics with constraints and force fields, particles and hair, Geometry Nodes (node.*), fast and path-traced rendering with a compositor (compositor.*), glTF/FBX/USD (usda, usdc, usdz)/OBJ/STL import and export, and .blend import; rotations are in degrees and Z is up. Use when the user asks to make, read, change, review or fix .kscene files in this project."
 ---
 
 <!-- Generated from kition-scene agent/guide.md by kition-sdk tools/agent-plugin-skills.mjs; edit the guide, not this file. -->
@@ -53,7 +53,7 @@ step in `scene_run` (see Exporting, under Common tasks).
   objects in the parameters, or in the step's `on` (see [Steps](#steps)).
 - **Materials by name or id** ([`material.assign`](/kits/scene/commands/material.assign/)
   `{material, objects}`, [`material.set`](/kits/scene/commands/material.set/) `{material, …}`).
-- `add.*` commands answer `{"name", "object": <id>}`.
+- `object.add*` commands answer `{"name", "object": <id>}`.
 - **Mesh elements:** vertex and face indices of a mesh, counted from **0**, in an edit-mode
   command's `elements` or in [`mesh.select`](/kits/scene/commands/mesh.select/).
 - **Particle systems:** `system` is a system's name or its index on the object, counted from **0**.
@@ -230,17 +230,23 @@ others changed since is refused with `error.code: "conflict"` and nothing is run
   `scene_inspect` again), decide whether the write still makes sense, name the objects by the ids
   you see now (and elements by the mesh as it is now), and run again with the new `basis`.
 - Modifiers, constraints, particle systems, bones, shape keys, vertex groups, NLA tracks and
-  actions have no ids of their own: they are named by index or name inside their object.
+  actions have no ids of their own: they are named by index or name inside their object. In
+  `scene_query` an object's modifiers, constraints, particle systems, keyframe channels
+  (`animation`), NLA tracks (`nla`, each with its `strips`) and an armature's `bones`, a
+  material's `animation`, and the scene's `actions`, `keyingSets` and `nodeGroups` are lists of
+  records (`name` and `data`, a channel's `property`, `index`, `path` and `keys`); a text
+  object's characters are its `text`.
 - An object's `kind`, `parent` and `material` are read-only in `scene_batch`: set them with
   `object.parent`, `object.clearParent` and `material.assign`.
 - `scene_batch` runs only the raw operations the schema's `batchOps` declare; any other is
   refused before anything runs. After a batch the scene lets go of references to objects,
   materials, images, node groups and actions that are gone, so a raw write of a value that holds
-  such a reference (an object's `constraints`, `modifiers`, `data`, `particles`, `physics`, `nla`
-  or `tweak`, a material's `data`, the scene's `camera`, `world`, `render` or `actions`, nodes and
-  links) and a raw `create` of an object or material are refused: use the commands. Names,
-  transforms (`location.0` too), `hidden`, `animation`, meshes, the timeline, the physics world,
-  keying sets, the bounded numeric members of an object's or a material's `data`, the world's
+  such a reference (an object's `data`, `physics` or `tweak`, a material's `data`, the scene's
+  `camera`, `world` or `render`, the records of modifiers, constraints, particle systems, NLA
+  tracks, bones and actions, nodes and links), a raw write of a keyframe channel or a keying set,
+  and a raw `create` of an object or material are refused: use the commands. Names,
+  transforms (`location.0` too), `hidden`, meshes, the timeline, the physics world,
+  the bounded numeric members of an object's or a material's `data`, the world's
   `color`, `strength` and `rotation`, the render settings but its `compositor`, a node's
   `location`, and new images are written directly. A raw `delete` of an object, a material
   or a node group holds what `edit.delete`, `material.delete` or `node.removeGroup` holds.

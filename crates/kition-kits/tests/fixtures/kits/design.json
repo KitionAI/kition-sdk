@@ -95,7 +95,7 @@
   },
   "model": {
     "schema": "crates/kdm/kdm-model/model/schema.json",
-    "schemaVersion": 4
+    "schemaVersion": 1
   },
   "collaboration": {
     "merge": ["structured", "rich-text", "binary"],
@@ -109,7 +109,7 @@
     "query": {
       "params": ["name: string", "params: string"],
       "returns": "string",
-      "description": "A panel's answer as JSON: pages, layers, selection, node, document, selectionColors, componentProperties, instanceExposed, prototype, components, styles, variables, devInspect, code, componentCode, devAssets, readyForDev, annotations, annotationCategories, measurements, devResources, comments, versions, branches, framePresets, fonts, documentColors, imagePresets, vectorEdit, textSelection, menus, checked, exportSettings, fontFamilies, font, missingFonts, textStyles, recentColors, prefs, keymap, toolbar, layersAt, distances, paddingLines, redlines, commentPeople, commentPins, protoConnections, paintHandles, blurHandles, playground, evaluate, vectorBounds, shapeBuilderRegions, variable.modeRows, clipboard.paintState, image.info, history, layers.dropInfo, assets.list, drop.preview, library.list, library.updates, library.files, variables.pickFor, menu.context, hitTest, rename.preview, prefs.recentActions, layout.gridGeometry, arrange.spacingInfo, dev.focusState, dev.compare, codeLinks, annotation.callouts, version.previewState, proto.destinations, proto.parseExpression (bindings/wasm/src/query.rs, canvas.rs, panels.rs, lists.rs)"
+      "description": "A panel's answer as JSON: pages, layers, selection, node, document, selectionColors, componentProperties, instanceExposed, prototype, components, styles, variables, devInspect, code, componentCode, devAssets, readyForDev, annotations, annotationCategories, measurements, devResources, comments, framePresets, fonts, documentColors, imagePresets, vectorEdit, textSelection, menus, checked, exportSettings, fontFamilies, font, missingFonts, textStyles, recentColors, prefs, keymap, toolbar, layersAt, distances, paddingLines, redlines, commentPeople, commentPins, protoConnections, paintHandles, blurHandles, playground, evaluate, vectorBounds, shapeBuilderRegions, variable.modeRows, clipboard.paintState, image.info, history, layers.dropInfo, assets.list, drop.preview, library.list, library.updates, library.files, variables.pickFor, menu.context, hitTest, rename.preview, prefs.recentActions, layout.gridGeometry, arrange.spacingInfo, dev.focusState, dev.compare, codeLinks, annotation.callouts, version.previewState, proto.destinations, proto.parseExpression (bindings/wasm/src/query.rs, canvas.rs, panels.rs, lists.rs)"
     },
     "chrome": {
       "params": ["zoom: number"],
@@ -129,7 +129,7 @@
     "thumbnail": {
       "params": [],
       "returns": "Uint8Array",
-      "description": "A PNG thumbnail of the first page"
+      "description": "A PNG thumbnail of the first page (a picture for a host; no .kdesign carries one)"
     },
     "beginInteraction": {
       "params": ["label: string"],

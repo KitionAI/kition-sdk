@@ -63,6 +63,15 @@ your draft of the image and leave the file as it is; only the person merges or d
   layer mask is owned by its layer; alpha/spot channel surfaces have no layer id and can appear
   as unnamed surfaces after an outside reload. The image itself is `image`; `~channelContents`
   on it tracks channel names and pixels for the guard.
+- **What the object model holds.** A layer's `data` holds its kind's settings and `extra` its
+  PSD bookkeeping (label, link group, vector mask, Blend If, Advanced Blending). A type layer's
+  characters are its text body (`text.content`), each style run a mark on the characters
+  (`char`, `paragraph`); its layer effects are `styles`, one object each (`effect`), with
+  `styleSettings` (on or off). The image's notes (`note:<key>`, the body a text), layer comps
+  (`comp:<id>`), saved paths (`path:<key>`) and patterns (`pattern:<id>`) are lists of objects,
+  its guides a map keyed by guide. Whether a group is expanded, a note open, and where the
+  timeline's playhead is are each person's own view: they are not in the object model, and
+  changing them changes nothing others see.
 - A command that acts on one layer takes it as `layer`: its **id**, `"#n"` (the n-th layer of the
   image's **top level counted from the top**, as `photo_inspect` and the Layers panel list it:
   `"#1"` is the top one), or its **whole name** when no other layer has it. Instead of `layer` it takes `at: [x, y]`:
@@ -119,7 +128,7 @@ a write holds:
   saved channel: the addressed channel's identity and content fingerprint. Edits targeting a
   channel conservatively hold the image's channel list and `~channelContents`;
 - an explicit pattern source: the addressed stored pattern. Applying a layer comp or text style
-  conservatively holds its `docState.layer_comps` or `docState.text_styles` library;
+  conservatively holds its `comps` list or its `docState.text_styles` library;
 - composite sampling (HDR Toning, merged Apply Image / Calculations, merged Displace maps or
   Match Color sources in this document, a Curves eyedropper at a point, or painting with
   all-layer sampling): the layer stack, canvas, color data, patterns and global light;
@@ -170,7 +179,8 @@ layers otherwise than the image holds them (colors, path anchors in fixed point,
 blocks): after a `.psd` with type or shapes is edited elsewhere, those layers read as changed by
 others; prefer `.kphoto` when several write the same image.
 
-Object-model batches enforce the engine's numeric limits: width and height 1–300000,
+Object-model batches enforce the engine's numeric limits: width and height 1–25600 (so a
+layer's `tiles` map stays under about 10,000 tiles),
 DPI 1–30000 (Image Size itself clamps to 10000), and layer opacity and fill opacity 0–1.
 Batch values settle to the engine's float precision, and for PSD/PSB to their stored
 opacity bytes and 16.16 DPI. Mask density also settles to a PSD byte. Surface `props`
@@ -180,9 +190,9 @@ the SDK's `members` declarations address immediate members only. Command schemas
 numeric ranges for canvas sizes, resolution, mask controls and effect percentages/scales.
 
 A created layer must be placed in `image.layers`; only a group can hold child layers.
-Missing raster/group defaults are filled before the receipt; other kinds require `props.data`.
+Missing raster/group defaults are filled before the receipt; other kinds require `data`.
 Deleting the final layer leaves an empty layered PSD/PSB, rather than a new Background.
-Deleting a layer also deletes its private mask;
+Deleting a layer also deletes what it holds (its mask, text body, styles and video frames);
 deleting a channel deletes its private surface. A batch cannot delete a group that still
 has children: delete descendants first, or use `layer.delete` to delete the group and its
 descendants in one command.

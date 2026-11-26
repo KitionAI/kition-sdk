@@ -332,6 +332,18 @@
       ],
       "returns": "string",
       "description": "Sets the user preferences from stored ones (a JSON object, as prefsValue's values), read as a preferences file is read (migrated, repaired against the schema, clamped), without running a command: no journal entry, history step, or new revision, and the replica is unchanged; an open preview keeps its own copy. Only while prefsVersion is still expected (the revision the editor merged from): a command that changed a preference since is never overwritten. Answers JSON {loaded, version, values}: whether it loaded, and the preferences and their revision as the engine holds them after. JSON that is not an object is an error."
+    },
+    "viewState": {
+      "params": [],
+      "returns": "string",
+      "description": "The person's view of the project as JSON {v: 1, view: {open_sequences, active_sequence, sequences_as_clips, sequences}}: the Timeline's sequence tabs in order, the active one, the nest toggle and each sequence's zoom, scroll and track heights. It is the person's view state (Kit UI protocol 7n), which the host keeps apart from the file; the .kfilm never holds it. It reads no document."
+    },
+    "restoreView": {
+      "params": [
+        "json: string"
+      ],
+      "returns": "bool",
+      "description": "Puts back a view viewState answered, when the preference Restore open sequences when opening projects is on, without running a command: no journal entry, history step, or new revision, and the replica is unchanged. Nothing in it is trusted: JSON of another v or that cannot be read is ignored, sequences the project lacks are left out and numbers are brought into range. Answers whether it was put back."
     }
   },
   "ui": {
@@ -402,7 +414,7 @@
   },
   "model": {
     "schema": "crates/kdm/kdm-model/model/schema.json",
-    "schemaVersion": 3
+    "schemaVersion": 1
   },
   "collaboration": {
     "merge": [
