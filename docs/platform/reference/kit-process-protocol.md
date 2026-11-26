@@ -868,7 +868,7 @@ A29). Only a path that passes every check and names no file fails
 | Launch to `ready` | 10 s |
 | `kit.initialize` | 10 s |
 | `kit.shutdown` to process exit | 5 s, then the host kills the process |
-| Other requests | 30 s, except `document.*` and `commands.execute`, which report `kit.progress` and have no fixed limit |
+| Other requests | 30 s, except the document methods (`file.*`, `document.*`) and `commands.execute`, which report `kit.progress` and have no fixed limit |
 
 ## 12. Versioning
 
