@@ -38,6 +38,10 @@ function slowEngine(delay: number) {
       posted.push(`execute ${command}`)
       return later(null)
     }),
+    disabledCommands: vi.fn(() => {
+      posted.push('disabledCommands')
+      return later([] as string[])
+    }),
     serialize: vi.fn(() => {
       posted.push('save')
       return later({ bytes: new Uint8Array(), revision: 0 })
@@ -56,6 +60,21 @@ const cleanups: Array<() => void> = []
 afterEach(() => {
   while (cleanups.length) cleanups.pop()!()
 })
+
+/** The document alone, as a kit without engine tools has it. */
+async function mountDocument() {
+  const engine = slowEngine(5)
+  const current = {} as { session: ReturnType<typeof useKitDocument<null>> }
+  function Probe() {
+    current.session = useKitDocument(host, manifest, 'a.kit', false, () => null)
+    return null
+  }
+  const root = createRoot(document.createElement('div'))
+  await act(async () => root.render(<Probe />))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 50)))
+  cleanups.push(() => act(() => root.unmount()))
+  return { engine, current }
+}
 
 async function mount() {
   const engine = slowEngine(5)
@@ -136,6 +155,66 @@ describe('commands after engine tool events', () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     expect(read).not.toHaveBeenCalled()
     read.mockRestore()
+  })
+
+  it('holds the keys and commands after a decision made with the engine behind it', async () => {
+    // F8 bound to a command the list read after the last change still calls disabled: the frame
+    // asks the engine and runs it (`runWhenEnabled`); `a` and Cmd+B pressed meanwhile come after.
+    const { engine, current } = await mount()
+    engine.posted.length = 0
+    const typed = { key: 'a', shiftKey: false, altKey: false, metaKey: false, ctrlKey: false }
+    await act(async () => {
+      const decided = current.session.inOrder(async () => {
+        await engine.disabledCommands()
+        return current.session.run('mark.put', {}, null, { inOrder: true })
+      })
+      expect(current.tools.keyDown(typed)).toBe(true)
+      const bold = current.session.run('format.bold', {})
+      await Promise.all([decided, bold])
+    })
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)))
+    expect(engine.posted.slice(0, 4)).toEqual(['disabledCommands', 'execute mark.put', 'toolText', 'execute format.bold'])
+  })
+
+  it('holds the commands after a decision made with the engine behind it without engine tools too', async () => {
+    const { engine, current } = await mountDocument()
+    engine.posted.length = 0
+    await act(async () => {
+      const decided = current.session.inOrder(async () => {
+        await engine.disabledCommands()
+        return current.session.run('mark.put', {}, null, { inOrder: true })
+      })
+      const bold = current.session.run('format.bold', {})
+      const italic = current.session.run('format.italic', {})
+      await Promise.all([decided, bold, italic])
+    })
+    expect(engine.posted).toEqual(['disabledCommands', 'execute mark.put', 'execute format.bold', 'execute format.italic'])
+  })
+
+  it('decides an Enter the last answer does not take once the events before it are answered', async () => {
+    // The click that starts a text frame is still on its way: the answer before it takes no text.
+    const { engine, current } = await mount()
+    const NO_TEXT: EngineToolResponse = { ...TEXT, wantsText: false }
+    engine.tool.mockImplementationOnce((name: string) => {
+      engine.posted.push(name)
+      return new Promise((resolve) => setTimeout(() => resolve({ value: NO_TEXT, changed: false }), 5))
+    })
+    act(() => current.tools.refresh())
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)))
+    expect(current.tools.wantsText).toBe(false)
+    engine.posted.length = 0
+    const enter = { key: 'Enter', shiftKey: false, altKey: false, metaKey: false, ctrlKey: false }
+    // A held key goes to the page again once the events before it are answered, as the frame's keys do.
+    const page = (event: KeyboardEvent) => current.tools.keyDown(event)
+    document.body.addEventListener('keydown', page)
+    cleanups.push(() => document.body.removeEventListener('keydown', page))
+    await act(async () => {
+      // The click: its answer takes text.
+      current.tools.canvasTool.doubleClick?.({ x: 1, y: 1, pressure: 1 } as never, { viewport: { view: { zoom: 1 } } } as never)
+      expect(current.tools.keyDown(enter)).toBe(true)
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(engine.posted.slice(0, 2)).toEqual(['pointer', 'toolKey Enter'])
   })
 
   it('saves after the keys pressed before Save, so the file holds them', async () => {

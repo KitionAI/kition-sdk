@@ -243,9 +243,12 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     void pump()
   }, [enqueue, pump])
 
-  /** Runs a command after the events still waiting; at once when none are. */
-  const ordered = useCallback(<T,>(work: () => Promise<T>): Promise<T> => {
-    if (!busy.current && !queue.current.length) return work()
+  /**
+   * Runs a command after the events still waiting; at once when none are. A `hold` (a decision
+   * that needs engine answers, `inOrder`) always takes the queue, so what comes after it waits.
+   */
+  const ordered = useCallback(<T,>(work: () => Promise<T>, hold = false): Promise<T> => {
+    if (!hold && !busy.current && !queue.current.length) return work()
     return new Promise<T>((resolve, reject) => {
       enqueue({ work: () => work().then(resolve, reject) })
       void pump()
@@ -323,7 +326,7 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
    * Gives a key to the tool when it is mid-gesture or taking text; returns whether it did.
    * Otherwise the editor's own shortcuts get it.
    */
-  const keyDown = useCallback((event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
+  const keyDown = useCallback((event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; target?: EventTarget | null }) => {
     if (hostTool) return false
     // Escape the kit says has nothing to cancel is left to the editor (Focus leaves on it).
     const plain = !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey
@@ -341,15 +344,26 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     // release is answered comes before React renders that answer (Delete after a marquee would
     // otherwise go to the tool as the finished gesture's key, and delete nothing).
     const response = latestResponse.current
-    if (!response) return false
-    if (response.wantsText && !command) {
-      if (event.key.length === 1) send('toolText', [event.key, zoom.current], true)
-      else if (EDITING_KEYS.has(event.key)) send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: false })), zoom.current], true)
-      else return false
+    if (response?.wantsText && !command) {
+      if (event.key.length === 1) {
+        send('toolText', [event.key, zoom.current], true)
+        return true
+      }
+      if (EDITING_KEYS.has(event.key)) {
+        send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: false })), zoom.current], true)
+        return true
+      }
+    } else if (response?.busy && EDITING_KEYS.has(event.key)) {
+      send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: command })), zoom.current], true)
       return true
     }
-    if (response.busy && EDITING_KEYS.has(event.key)) {
-      send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: command })), zoom.current], true)
+    // An editing key the last answer does not take, pressed while events are still on their way
+    // (the click that starts a text frame, the tool's first answer right after the document
+    // opened), is decided once they are answered: decided now, Enter right after that click would
+    // go nowhere. Tab keeps moving focus; a control's own keys stay its own.
+    if (!command && !event.altKey && !replaying.current && (busy.current || queue.current.length) && EDITING_KEYS.has(event.key) && event.key !== 'Tab' && onSurface(event.target)) {
+      queue.current.push({ key: event.key, shift: event.shiftKey })
+      void pump()
       return true
     }
     return false
@@ -407,12 +421,22 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   }
 }
 
+/**
+ * Whether a key pressed on `target` is the document's: on the canvas, the text sink or the frame
+ * itself rather than a control (a button, a menu) whose keys are its own. Unknown: the document's.
+ */
+function onSurface(target: EventTarget | null | undefined) {
+  if (!(target instanceof Element)) return true
+  if (target.classList.contains('kui-text-sink') || target.classList.contains('kui-app') || target === target.ownerDocument.body) return true
+  return target.closest('.kui-canvas') != null
+}
+
 /** The `KeyboardEvent.code` a printable key comes from on a US layout, for replayed keys. */
 export function keyCode(key: string) {
   if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`
   if (/^[0-9]$/.test(key)) return `Digit${key}`
   const named: Record<string, string> = { '.': 'Period', ',': 'Comma', '/': 'Slash', ';': 'Semicolon', "'": 'Quote', '[': 'BracketLeft', ']': 'BracketRight', '-': 'Minus', '=': 'Equal', '`': 'Backquote', '\\': 'Backslash', ' ': 'Space' }
-  if (key === 'Delete' || key === 'Backspace') return key
+  if (EDITING_KEYS.has(key)) return key
   return named[key] ?? ''
 }
 

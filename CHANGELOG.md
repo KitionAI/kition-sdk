@@ -4,6 +4,14 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Keys decided with the engine stay in order (UI U10c).** A plain shortcut the list of what can
+  run still calls disabled (pressed right after the key or the click that let it run) is asked and
+  run in the order of the input (`runWhenEnabled` through the session's new `inOrder`), so keys,
+  text and commands pressed after it no longer reach the engine first; `KitEditor.enabledNow` is
+  gone. An editing key the engine tool's last answer does not take, pressed while its events are on
+  their way, waits for their answers instead of going nowhere, and a character typed into the text
+  sink is never taken by such a decision (regressions/issue-shortcut-decided-in-order,
+  regressions/issue-keys-under-host-calls).
 - **A kit's repair reads text; a draft's preview is repaired; the same new rows merge.**
   `Tx::text` and `Tx::text_delta` read a text field and its runs with the transaction's own edits
   and marks, so a repair inside a merge or a restore can read text (Kition Design, Kition Doc's

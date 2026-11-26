@@ -18,7 +18,7 @@ import type { useKitSession } from './useKitSession'
 import type { KitCommand } from './engine/kitModule'
 import { commandForShortcut } from './engine/kitShortcuts'
 import { KitCanvas, type KitCanvasHandle, type KitCanvasView } from './engine/KitCanvas'
-import { repaintTaken } from './engine/useKitDocument'
+import { repaintTaken, type KitRunOptions } from './engine/useKitDocument'
 import type { RasterDecoration, RasterRect, RasterView, RasterViewportStats } from './engine/rasterViewport'
 import { HAND_TOOL, type KitTool } from './engine/kitTools'
 import { stackDecorations } from './engine/decorations'
@@ -532,6 +532,9 @@ export function createKitStrings(catalogs: Record<string, Catalog>, locale: stri
 
 /** A session that runs no comment commands (a viewer's, an editor's, or one made without them). */
 const NO_COMMENTS: ReadonlySet<string> = new Set()
+const NO_IDS: ReadonlySet<string> = new Set()
+/** A command run from inside `session.inOrder`'s work. */
+const IN_ORDER: KitRunOptions = { inOrder: true }
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -672,7 +675,8 @@ export function useKitEditorState<T>(
   latestById.current = byId
 
   const run = useCallback(
-    async (id: string, params?: Record<string, unknown>) => {
+    /** `options.inOrder`: run from inside `session.inOrder`'s work (`runWhenEnabled`). */
+    async (id: string, params?: Record<string, unknown>, options?: KitRunOptions) => {
       const command = byId.get(id)
       const own = latestHistory.current
       const step = own ? HISTORY_COMMANDS[id] : undefined
@@ -692,7 +696,7 @@ export function useKitEditorState<T>(
         return null
       }
       try {
-        return await latest.current.run(id, params ?? {})
+        return await (options ? latest.current.run(id, params ?? {}, null, options) : latest.current.run(id, params ?? {}))
       } catch (error) {
         if (readOnly && isRefusedAsReadOnly(error)) toast('info', t(comments.size ? 'commentOnlyRefused' : 'viewOnlyRefused'))
         else report(t('commandFailed'), error)
@@ -701,6 +705,8 @@ export function useKitEditorState<T>(
     },
     [byId, comments, host, readOnly, refused, report, setDialog, t],
   )
+  const latestRun = useRef(run)
+  latestRun.current = run
 
   // A commenter's Undo and Redo run only while their comments left a step to take (`info`). A
   // kit's own history answers for itself (its `subscribe` renders the editor again).
@@ -720,19 +726,31 @@ export function useKitEditorState<T>(
   )
   const enabled = useCallback((id: string) => enabledWith(id, disabled), [disabled, enabledWith])
   /**
-   * Whether `id` can run, asking the engine now rather than the list read after the last change:
-   * a key pressed as the engine answers an event (Delete right after a marquee) would otherwise
-   * find the command disabled until that list is read again.
+   * Whether `id` could run if the engine's list of what it refuses allowed it: false when the
+   * host's configuration, the read-only rules or the kit's own history refuse it, which no engine
+   * answer changes.
    */
-  const enabledNow = useCallback(
-    async (id: string) => {
-      // Asked in the order of the tool events (the click that selected what Delete deletes).
-      const open = latest.current.doc
-      if (!open) return false
-      const off = await latest.current.disabledCommands().catch(() => null)
-      return off != null && latest.current.doc === open && enabledWith(id, new Set(off))
-    },
-    [enabledWith],
+  const enabledByEngine = useCallback((id: string) => enabledWith(id, NO_IDS), [enabledWith])
+  const latestEnabledWith = useRef(enabledWith)
+  latestEnabledWith.current = enabledWith
+  /**
+   * Runs `id` if the engine says it can run now, rather than the list read after the last change:
+   * a key pressed as the engine answers an event (Delete right after a marquee, F8 right after the
+   * click or the key that let it run) would otherwise find the command disabled until that list is
+   * read again. Asked and run in the order of the person's input (`session.inOrder`): the tool
+   * events and commands before it go first, and every key, text and command after it waits until
+   * it ran, so it never acts after a key pressed later.
+   */
+  const runWhenEnabled = useCallback(
+    (id: string) =>
+      latest.current.inOrder(async () => {
+        const open = latest.current.doc
+        if (!open) return null
+        const off = await open.disabledCommands().catch(() => null)
+        if (off == null || latest.current.doc !== open || !latestEnabledWith.current(id, new Set(off))) return null
+        return latestRun.current(id, {}, IN_ORDER)
+      }),
+    [],
   )
 
   const save = useCallback(async () => {
@@ -753,7 +771,7 @@ export function useKitEditorState<T>(
     [byId, host, run, setDialog],
   )
 
-  return { session, host, t, phrase, testId, commands, byId, enabled, enabledNow, run, ask, query, save, report, dialog, setDialog, comments, canUndo, canRedo }
+  return { session, host, t, phrase, testId, commands, byId, enabled, enabledByEngine, runWhenEnabled, run, ask, query, save, report, dialog, setDialog, comments, canUndo, canRedo }
 }
 
 export type KitEditor = ReturnType<typeof useKitEditorState<unknown>>
@@ -1448,12 +1466,14 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
       return
     }
     // A key without Cmd or Ctrl has no default here to keep: when the list of what can run says
-    // no, the engine itself answers, as that list may not have caught up with the last event yet.
-    // A tool's own letter still picks its tool below.
-    if (shortcut && !command && !(event.key.length === 1 && tools?.toolForKey(event.key, event.shiftKey))) {
+    // no, the engine itself answers, as that list may not have caught up with the last event yet,
+    // in the order of the input (`runWhenEnabled`: the keys after it wait). A character typed into
+    // the text sink stays text: decided later, it would be taken from the text and then, if the
+    // engine said no, lost. A tool's own letter still picks its tool below.
+    const sinkText = fromSink && event.key.length === 1 && !event.altKey
+    if (shortcut && !command && !sinkText && !(event.key.length === 1 && tools?.toolForKey(event.key, event.shiftKey))) {
       event.preventDefault()
-      const id = shortcut.id
-      void editor.enabledNow(id).then((ok) => (ok ? editor.run(id, {}) : undefined))
+      if (editor.enabledByEngine(shortcut.id)) void editor.runWhenEnabled(shortcut.id)
       return
     }
     // A tool's own letter (V for select, L for line).

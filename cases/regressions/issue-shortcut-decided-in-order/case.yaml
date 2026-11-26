@@ -1,0 +1,21 @@
+format: 1
+id: regressions/issue-shortcut-decided-in-order
+feature: sdk.editor.held-keys
+intent: >-
+  A key the frame decides with the engine acts in the order it was pressed. A shortcut the list of
+  what can run (read after the last change) still calls disabled, pressed right after the key or
+  the click that let it run, asked the engine and ran its command only once the answer came, so the
+  keys pressed after it (typed text, Cmd+B) reached the engine first; now the decision holds its
+  place (session.inOrder) and everything after it waits. An editing key the tool's last answer does
+  not take, pressed while events are on their way (Enter right after the click that starts a text
+  frame), waits for their answers instead of going nowhere; and a character typed into the text
+  sink is no longer taken from the text by such a decision. keys.mjs (case
+  regressions/issue-keys-under-host-calls) presses these in a real browser.
+layer: gate
+source: { kind: issue, from: Kition Film's frame keys and Kition Sheet FX-C6 in kit CI, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/commandOrder.test.tsx, packages/kit-editor/src/editor.test.tsx] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-25"

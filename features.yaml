@@ -837,10 +837,13 @@ features:
       - packages/kit-editor/src/engine/engineTools.ts
       - packages/kit-editor/src/engine/engineTools.gesture.test.tsx
       - packages/kit-editor/src/engine/commandOrder.test.tsx
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/editor.tsx
     cases:
       - regressions/issue-held-delete-after-marquee
       - regressions/issue-table-cell-backspace
       - regressions/issue-engine-answer-after-close
+      - regressions/issue-shortcut-decided-in-order
     since: "2026-11-16"
   - id: sdk.editor.merged-repaints
     title: The canvas repaints what every refresh and every repaint tick React takes in one render owe together, never only the last one's area

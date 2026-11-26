@@ -96,6 +96,21 @@ shows it in an `<iframe>` and talks to it over the **UI protocol**.
   history is the person's: it does not take back the agent's steps (U10a's engine steps
   are the person's scope, [`KitModel 1.1`](../sets/model.md) M12a).
 
+- **U10c** *Input in order.* The person's input takes effect in the order it arrived: every key,
+  typed text, click and the command each runs reaches the engine after what was pressed before it
+  and before what was pressed after it, and none is dropped while the engine is busy. A key whose
+  effect needs an engine answer first is decided in that order and holds the input after it until
+  it is decided: a shortcut the list of what can run (read after the last change) calls disabled
+  asks the engine and runs there (`@kition/kit-editor`'s `runWhenEnabled`, through the session's
+  `inOrder`, which also orders a kit's own multi-step decisions: a command run inside its work
+  passes `inOrder: true`), and an editing key the engine tool's last answer does not take, pressed
+  while its events are still on their way (Enter right after the click that starts a text frame,
+  an arrow right after the document opened), waits for their answers. A character typed into the
+  text sink stays text: a shortcut takes it only when the list read last says it can run, never
+  through a decision made later. A kit's own key handler runs its commands through the session
+  (`editor.run`, `session.run`), which keeps that order; one that returns false leaves the key
+  to the frame, as above.
+
 ## Unused requirement IDs
 
 U6 to U9 and U8a are not used: no host draws kit editors, and engine tools

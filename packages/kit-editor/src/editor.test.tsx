@@ -518,19 +518,41 @@ describe('ToolRail', () => {
 })
 
 describe('a plain shortcut the list of what can run calls disabled', () => {
-  it('runs once the engine says it can, and never when the engine says no', async () => {
+  it('is decided by the engine in the order of the input, and not asked when no answer could let it run', async () => {
     const commands = [{ ...command('edit.delete', ['Edit']), shortcut: 'Delete' } as KitCommand]
-    const engineSays = vi.fn(async (id: string) => id === 'edit.delete')
+    let engineCould = true
+    const runWhenEnabled = vi.fn(async () => null)
     const run = vi.fn(async () => null)
-    const editor = { ...fakeEditor(store(), commands), enabled: () => false, enabledNow: engineSays, run }
+    const editor = { ...fakeEditor(store(), commands), enabled: () => false, enabledByEngine: () => engineCould, runWhenEnabled, run }
     render(app(editor, null))
-    const press = () => document.querySelector('.kui-app')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }))
+    const press = () => {
+      const event = new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true })
+      document.querySelector('.kui-app')?.dispatchEvent(event)
+      return event
+    }
+    let pressed!: KeyboardEvent
+    await act(async () => void (pressed = press()))
+    expect(runWhenEnabled).toHaveBeenCalledWith('edit.delete')
+    // Run there, in the order of the input, not here after the engine answered.
+    expect(run).not.toHaveBeenCalled()
+    expect(pressed.defaultPrevented).toBe(true)
+    engineCould = false
+    runWhenEnabled.mockClear()
     await act(async () => void press())
-    expect(engineSays).toHaveBeenCalledWith('edit.delete')
-    expect(run).toHaveBeenCalledWith('edit.delete', {})
-    engineSays.mockImplementation(async () => false)
-    run.mockClear()
-    await act(async () => void press())
+    expect(runWhenEnabled).not.toHaveBeenCalled()
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('leaves a character typed into the text sink to the text', async () => {
+    const commands = [{ ...command('mark.put', ['Edit']), shortcut: 'Shift+0' } as KitCommand]
+    const runWhenEnabled = vi.fn(async () => null)
+    const run = vi.fn(async () => null)
+    const editor = { ...fakeEditor(store(), commands), enabled: () => false, enabledByEngine: () => true, runWhenEnabled, run }
+    render(app(editor, <textarea className="kui-text-sink" data-testid="sink" />))
+    const typed = new KeyboardEvent('keydown', { key: ')', code: 'Digit0', shiftKey: true, bubbles: true, cancelable: true })
+    await act(async () => void byTestId('sink')?.dispatchEvent(typed))
+    expect(typed.defaultPrevented).toBe(false)
+    expect(runWhenEnabled).not.toHaveBeenCalled()
     expect(run).not.toHaveBeenCalled()
   })
 })

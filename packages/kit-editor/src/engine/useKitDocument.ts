@@ -48,6 +48,11 @@ export type KitRunOptions = {
    * part and time stay as they are, and `agent.state` follows the agent's.
    */
   agent?: KitAgentStep
+  /**
+   * The command runs inside the work given to `inOrder`, which holds its place among the person's
+   * input: it runs at once instead of waiting behind that work (which it would wait for forever).
+   */
+  inOrder?: boolean
 }
 
 /** The area an engine tool's answer says its event changed (`damage`), or null: repaint everything. */
@@ -104,9 +109,10 @@ export function repaintTaken(repaints: KitRepaints, tick: number) {
 
 /**
  * Runs `work` (a command) after the engine tool events still waiting on the page: see
- * `orderCommands`.
+ * `orderCommands`. With `hold`, everything sent after it (tool events, keys, commands) waits until
+ * `work` is done: a decision that needs more than one engine answer (`inOrder`).
  */
-export type CommandOrder = <T>(work: () => Promise<T>) => Promise<T>
+export type CommandOrder = <T>(work: () => Promise<T>, hold?: boolean) => Promise<T>
 
 /** Each document's slot for its tools' `CommandOrder`, by the document's `tool` call. */
 const COMMAND_ORDER = new WeakMap<object, { current: CommandOrder | null }>()
@@ -351,7 +357,27 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
 
   /** The engine tools' order for this document's commands (`orderCommands`). */
   const order = useRef<CommandOrder | null>(null)
-  const ordered = useCallback(<R,>(work: () => Promise<R>) => (order.current ? order.current(work) : work()), [])
+  /** Without engine tools: what is sent while an `inOrder` work is out waits behind it, in order. */
+  const holding = useRef<Promise<unknown> | null>(null)
+  const ordered = useCallback(<R,>(work: () => Promise<R>, hold = false): Promise<R> => {
+    if (order.current) return order.current(work, hold)
+    const before = holding.current
+    if (!before && !hold) return work()
+    const done = before ? before.then(() => work()) : work()
+    const tail: Promise<unknown> = done.catch(() => undefined)
+    holding.current = tail
+    void tail.then(() => {
+      if (holding.current === tail) holding.current = null
+    })
+    return done
+  }, [])
+  /**
+   * Runs `work` in the order of the person's input: after the tool events and commands sent before
+   * it, and before everything sent after it, which waits until `work` is done. A key whose effect
+   * needs an engine answer first (whether its shortcut can run now) is decided here, so it never
+   * acts after keys pressed later. A command `work` runs passes `inOrder: true` (`KitRunOptions`).
+   */
+  const inOrder = useCallback(<R,>(work: () => Promise<R>) => ordered(work, true), [ordered])
 
   /** Runs an engine command now (see `run`). */
   const runNow = useCallback(
@@ -389,6 +415,7 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
   const run = useCallback(
     async (command: string, params: Record<string, unknown> = {}, damage: RasterRect | null = null, options: KitRunOptions = {}) => {
       if (!docRef.current) return null
+      if (options.inOrder) return track(runNow(command, params, damage, options))
       return track(ordered(() => runNow(command, params, damage, options)))
     },
     [ordered, runNow, track],
@@ -592,5 +619,5 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     return view
   }, [repaints])
 
-  return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, save, saveCheckpoint, replica, model, draft, reopen, keepMine, checkFile, holdFile }
+  return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, inOrder, save, saveCheckpoint, replica, model, draft, reopen, keepMine, checkFile, holdFile }
 }
