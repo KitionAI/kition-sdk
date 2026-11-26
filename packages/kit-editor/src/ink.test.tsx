@@ -47,7 +47,7 @@ function fakeEditor(state: DrawState, locale = "en-US") {
     byId: new Map(),
     enabled: () => true,
     run: vi.fn(async (id: string, params: Record<string, unknown>) => {
-      const tool = id.replace("draw.", "");
+      const tool = id.replace("ink.", "");
       current = {
         tool,
         color: (params.color as string) ?? current.color,

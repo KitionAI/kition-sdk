@@ -34,6 +34,9 @@ export const READ_ONLY_RULES = Object.freeze({
   viewingGroups: Object.freeze(['view', 'select', 'selection', 'go', 'navigate', 'help', 'playback', 'transport', 'playhead', 'caret']),
   /** Single viewing commands in families that otherwise edit (Film's monitors and markers). */
   viewingCommands: Object.freeze([
+    // Selecting everything or nothing (the command naming standard moved them to `edit`).
+    'edit.selectAll',
+    'edit.deselectAll',
     'marker.goNext',
     'marker.goPrev',
     'marker.goToIn',

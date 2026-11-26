@@ -61,7 +61,7 @@ export function InkGroup({ testId = "ink" }: { testId?: string }) {
     tools?.tools.some((item) => item.id === tool) ?? false;
   const pick = async (tool: string) => {
     if (engineTool(tool)) tools?.select(tool);
-    else await editor.run(`draw.${tool}`, {});
+    else await editor.run(`ink.${tool}`, {});
     refresh();
   };
   const current =
@@ -73,7 +73,7 @@ export function InkGroup({ testId = "ink" }: { testId?: string }) {
   const pen = state && PENS.includes(state.tool) ? state.tool : null;
   const set = async (params: Record<string, unknown>) => {
     if (!pen) return;
-    await editor.run(`draw.${pen}`, params);
+    await editor.run(`ink.${pen}`, params);
     refresh();
   };
   const disabled = !editor.enabled("ink.pen");

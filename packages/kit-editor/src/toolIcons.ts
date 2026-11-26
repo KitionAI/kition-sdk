@@ -338,9 +338,14 @@ export function commandIcon(command: { id: string; title?: string | null }): Ico
   const words = `${split(command.id)} ${(command.title ?? '').toLowerCase()}`
   // A command that makes something shows what it makes (New Camera, a camera), not a row of pluses.
   if (CREATES.test(verb) || CREATES.test(first)) {
-    // What it makes is in its own name and title, not its namespace (`layer.newCamera` makes a camera).
-    const own = `${split(command.id.split('.').pop() ?? '')} ${(command.title ?? '').toLowerCase()}`
-    const made = OBJECT_ICONS.find(([pattern]) => pattern.test(own))?.[1]
+    // What it makes is in its own name and title (`layer.newCamera` makes a camera), or in its
+    // namespace when its name is the verb alone (`pivot.insert` makes a pivot table: the command
+    // naming standard puts the object first).
+    const segments = command.id.split('.')
+    const name = split(segments.pop() ?? '')
+    const object = name.includes(' ') ? name : `${split(segments.join('.'))} ${name}`
+    const own = `${object} ${(command.title ?? '').toLowerCase()}`
+    const made = OBJECT_ICONS.find(([pattern]) => pattern.test(own))?.[1] ?? (name.includes(' ') ? undefined : COMMAND_ICONS.find(([pattern]) => pattern.test(own))?.[1])
     if (made) return made
   }
   const byVerb = VERB_ICONS.find(([pattern]) => pattern.test(verb) || pattern.test(first))?.[1]
