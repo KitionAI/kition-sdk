@@ -23,7 +23,9 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   is given back to the frame once, in order, also when the focus fell to the page meanwhile (it
   goes to the frame). `escapable` is needed only by a tool that takes text while Escape should
   still leave Focus; kits that pass it to keep Escape off in-flight events can drop it
-  (regressions/issue-held-key-given-back).
+  (regressions/issue-held-key-given-back). `@kition/kit-dev-host/mode-smoke` reads the mode once
+  it changed after Cmd+\ and Escape (up to 3 s) rather than at once, as a key pressed right after
+  a click takes effect once the click is answered.
 - **Keys decided with the engine stay in order (UI U10c).** A plain shortcut the list of what can
   run still calls disabled (pressed right after the key or the click that let it run) is asked and
   run in the order of the input (`runWhenEnabled` through the session's new `inOrder`), so keys,

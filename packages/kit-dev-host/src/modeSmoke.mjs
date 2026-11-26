@@ -47,7 +47,12 @@ async function hasTabs(frame) {
   }
 }
 
-/** The frame's shown mode once it is `wanted` (or after 3 s, whatever it is then). */
+/**
+ * The frame's shown mode once it is `wanted` (or after 3 s, whatever it is then). A key takes
+ * effect in the order of the input (UI U10c): pressed while the engine tool's answer to a press or
+ * a click is on its way, Escape leaves Focus once that answer came, so the mode is read once it
+ * changed rather than at once.
+ */
 async function modeOnce(page, wanted) {
   const kitFrame = await (await page.$('#kit')).contentFrame()
   await kitFrame.waitForFunction((mode) => document.querySelector('.kui-app')?.getAttribute('data-mode') === mode, wanted, { timeout: 3000 }).catch(() => undefined)
@@ -90,18 +95,18 @@ export async function runModeSmoke({ kit, config, browser: type, createServer, l
       watch.step(`${mode}: Cmd+\\ enters Focus`)
       await app.focus()
       await page.keyboard.press(`${await primaryModifier(page)}+Backslash`)
-      step(`${mode}: Cmd+\\ enters Focus`, (await app.getAttribute('data-mode')) === 'focus' && (await frame.locator('.kui-focus-bar').count()) === 1)
+      step(`${mode}: Cmd+\\ enters Focus`, (await modeOnce(page, 'focus')) === 'focus' && (await frame.locator('.kui-focus-bar').count()) === 1)
       watch.step(`${mode}: Escape leaves Focus`)
       await page.keyboard.press('Escape')
-      step(`${mode}: Escape leaves Focus`, (await app.getAttribute('data-mode')) === expected)
+      step(`${mode}: Escape leaves Focus`, (await modeOnce(page, expected)) === expected)
       const modeButton = frame.locator('.kui-mode-button')
       if (await modeButton.count()) {
         watch.step(`${mode}: the mode ${tabs ? 'menu' : 'button'} enters Focus`)
         await modeButton.click()
         if (tabs) await frame.locator('[data-testid$="-mode-focus"]').click()
-        step(`${mode}: the mode ${tabs ? 'menu' : 'button'} enters Focus`, (await app.getAttribute('data-mode')) === 'focus')
+        step(`${mode}: the mode ${tabs ? 'menu' : 'button'} enters Focus`, (await modeOnce(page, 'focus')) === 'focus')
         await page.keyboard.press('Escape')
-        step(`${mode}: Escape leaves Focus entered from the ${tabs ? 'menu' : 'button'}`, (await app.getAttribute('data-mode')) === expected)
+        step(`${mode}: Escape leaves Focus entered from the ${tabs ? 'menu' : 'button'}`, (await modeOnce(page, expected)) === expected)
       }
       if (mode === 'line') {
         watch.step('line: no test id twice in the row')
