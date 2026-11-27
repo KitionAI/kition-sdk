@@ -13,7 +13,7 @@ import { CommandDialog, needsParams } from './CommandDialog'
 import { TextSink } from './TextSink'
 import { createStrings, type Catalog } from './strings'
 import type { Phrases } from './phrases'
-import { isMac, type HostConnection } from './host'
+import { composingKey, isMac, type HostConnection } from './host'
 import type { useKitSession } from './useKitSession'
 import type { KitCommand } from './engine/kitModule'
 import { commandForShortcut } from './engine/kitShortcuts'
@@ -1404,7 +1404,7 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
   // The frame's key (Mod+\, Focus) comes first, in the capture phase: before the text sink gives
   // the active tool its keys. Mod+\ is no editing key: Focus still toggles from a field.
   const frameKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!frame || event.nativeEvent.isComposing || inDialog(event)) return
+    if (!frame || composingKey(event.nativeEvent) || inDialog(event)) return
     if (frame.keyDown(event)) {
       event.preventDefault()
       event.stopPropagation()
@@ -1416,11 +1416,13 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
     // Escape after everything else had it: one the kit, its tool, a command, or a field took does
     // not leave Focus as well (pointer set: Escape cancels first).
     const plain = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
-    if (frame && plain && event.key === 'Escape' && !event.defaultPrevented && !event.nativeEvent.isComposing && !inDialog(event) && !isField(event.target) && frame.escape()) event.preventDefault()
+    if (frame && plain && event.key === 'Escape' && !event.defaultPrevented && !composingKey(event.nativeEvent) && !inDialog(event) && !isField(event.target) && frame.escape()) event.preventDefault()
   }
 
   const editorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (inDialog(event)) return
+    // A key of a composition is the input method's (Backspace, Enter, Escape, Space, letters):
+    // no tool, kit key, host button, shortcut or command takes it.
+    if (inDialog(event) || composingKey(event.nativeEvent)) return
     // The text sink gives editing keys to the tool itself; its shortcuts still come here.
     const target = event.target
     const field = isField(target)

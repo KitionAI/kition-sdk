@@ -824,9 +824,13 @@ features:
       - packages/kit-editor/src/TextSink.tsx
       - packages/kit-editor/src/TextSink.test.tsx
       - packages/kit-editor/browser
+      - packages/kit-editor/src/host.ts
+      - packages/kit-editor/src/keys.test.ts
+      - packages/kit-editor/src/editor.test.tsx
     cases:
       - regressions/issue-toolbar-focus-space
       - regressions/issue-keys-under-host-calls
+      - regressions/issue-composition-keys-take-no-command
     since: "2026-11-16"
   - id: sdk.editor.held-keys
     title: A key pressed while the engine answers a gesture waits for that answer and then acts on what the gesture left (Delete right after a marquee deletes the selection)

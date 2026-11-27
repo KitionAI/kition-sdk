@@ -152,6 +152,13 @@ export function applyTheme(theme: KitTheme, brand: KitBrand | null = null, root:
 export const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
 
 /**
+ * A key pressed while an input method composes (Chinese, Japanese, Korean): the input method's,
+ * never a command's or a shortcut's. Browsers mark it `isComposing`, or, for the key that starts
+ * or ends a composition, keyCode 229 (key "Process").
+ */
+export const composingKey = (event: Pick<KeyboardEvent, 'isComposing' | 'keyCode' | 'key'>) => event.isComposing || event.keyCode === 229 || event.key === 'Process'
+
+/**
  * Waits for the host's handshake and its `ui/initialize`. The kit then opens the document and
  * calls `opened()` (or `failed()`), which answers the host. Options name the kit; `brand` is its
  * kit.json `ui.brand`, `display` its `ui.display`, and `ui` its declared elements (with it, the kit
@@ -247,7 +254,7 @@ export function connectHost(kit: { id: string; version: string; capabilities?: s
           document.documentElement.lang = init.locale
           const shortcuts = init.shortcuts
           const onKey = (key: KeyboardEvent) => {
-            if (!shortcuts.some((shortcut) => matchesShortcut(shortcut, key, isMac()))) return
+            if (composingKey(key) || !shortcuts.some((shortcut) => matchesShortcut(shortcut, key, isMac()))) return
             key.preventDefault()
             key.stopPropagation()
             peer.notify('host/shortcut', { key: key.key, code: key.code, meta: key.metaKey, ctrl: key.ctrlKey, shift: key.shiftKey, alt: key.altKey })

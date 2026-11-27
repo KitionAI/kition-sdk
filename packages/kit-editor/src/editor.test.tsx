@@ -1074,4 +1074,42 @@ describe('the text sink and command shortcuts', () => {
     act(() => void sink?.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true })))
     expect(editor.run).toHaveBeenCalledWith('format.bold', {})
   })
+
+  it('gives every key of an input method composition to the input method: no command, shortcut or tool key', () => {
+    const remove = { ...command('edit.delete', ['Edit']), shortcut: 'Backspace' }
+    const bold = { ...command('format.bold', ['Format']), shortcut: 'Cmd+B' }
+    const confirm = { ...command('edit.confirm', ['Edit']), shortcut: 'Enter' }
+    const editor = fakeEditor(store(), [remove, bold, confirm])
+    const onKey = vi.fn((event: { key: string }) => event.key === 'Delete')
+    render(app(editor, <TextSink active onText={() => undefined} onKey={onKey} />))
+    const sink = byTestId('kit-text-sink')!
+    const shell = document.querySelector('.kui-app')!
+    // Composing (isComposing), and the key that starts or ends a composition (keyCode 229, "Process").
+    const composing: KeyboardEventInit[] = [
+      { key: 'Backspace', isComposing: true },
+      { key: 'Enter', isComposing: true },
+      { key: 'b', code: 'KeyB', metaKey: true, ctrlKey: true, isComposing: true },
+      { key: 'Process', code: 'Backspace' },
+    ]
+    const pressed: KeyboardEvent[] = []
+    for (const target of [sink, shell]) {
+      for (const init of composing) {
+        const event = new KeyboardEvent('keydown', { ...init, bubbles: true, cancelable: true })
+        pressed.push(event)
+        act(() => void target.dispatchEvent(event))
+      }
+      // keyCode 229 has no init field: Chrome and Safari set it on composition keys.
+      const process = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })
+      Object.defineProperty(process, 'keyCode', { value: 229 })
+      pressed.push(process)
+      act(() => void target.dispatchEvent(process))
+    }
+    expect(editor.run).not.toHaveBeenCalled()
+    expect(onKey).not.toHaveBeenCalled()
+    // The input method keeps the key's default (it edits the composition).
+    expect(pressed.filter((event) => event.defaultPrevented)).toEqual([])
+    // Once the composition ends, the same keys are the editor's again.
+    act(() => void sink.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(editor.run).toHaveBeenCalledWith('format.bold', {})
+  })
 })

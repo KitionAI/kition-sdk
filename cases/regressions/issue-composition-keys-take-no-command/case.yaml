@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-composition-keys-take-no-command
+feature: sdk.editor.typing-focus
+intent: >-
+  Every key pressed while an input method composes (the event's isComposing, or keyCode 229 / key
+  "Process" for the key that starts or ends a composition) is the input method's: the shell gives
+  it to no tool, kit key handler, host button, host shortcut, command shortcut or Focus Escape,
+  and keeps its default, whether it is pressed in the text sink or elsewhere in the editor. The
+  text sink already left such keys alone, but the shell still ran the command bound to them
+  (Backspace or Enter while composing Chinese ran Delete or a confirm command, Cmd+B ran Bold).
+  Once the composition ends the same keys are the editor's again.
+layer: gate
+source:
+  kind: issue
+  from: Kition Design stage 6 (design usable by hand, Chinese input), found in stage S1b
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/editor.test.tsx, packages/kit-editor/src/keys.test.ts, -t, composition|composingKey]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-27"

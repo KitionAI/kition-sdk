@@ -1,4 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { composingKey } from './host'
 
 /**
  * Where typed text goes while an engine tool takes text (UI-K6): a hidden, focused text field.
@@ -79,7 +80,7 @@ export function TextSink({ active, onText, onKey }: { active: boolean; onText: (
       }}
       onKeyDown={(event) => {
         // While composing, the input method owns every key (Enter commits the composition).
-        if (composing.current || event.nativeEvent.isComposing || event.key === 'Process') return
+        if (composing.current || composingKey(event.nativeEvent)) return
         const command = event.metaKey || event.ctrlKey
         // Printable keys become input events (and so compose); the rest are the tool's.
         if (event.key.length === 1 && !command) return
