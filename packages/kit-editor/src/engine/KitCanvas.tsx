@@ -17,7 +17,10 @@ const DECORATION_FRAME_MS = 100
 export type KitCanvasView = RasterView & { width: number; height: number }
 
 export type KitCanvasHandle = {
-  /** The current view and the canvas's size, or null before the canvas is laid out. */
+  /**
+   * The current view as it is drawn (on a whole device pixel, as `onView` reports it) and the
+   * canvas's size, or null before the canvas is laid out.
+   */
   view: () => KitCanvasView | null
   fit: () => void
   /** Fits an area of the document (a page, a spread) in view. */
@@ -37,7 +40,10 @@ type KitCanvasProps = {
   /** Moves with each repaint asked for without a document change (a run with `refresh: 'repaint'`). */
   repaint?: KitRepaint
   tool: KitTool
-  /** Every change of the view (a scroll, a zoom, the canvas resized), with the canvas's size. */
+  /**
+   * Every change of the view (a scroll, a zoom, the canvas resized), with the canvas's size: the
+   * view the document is drawn at and pointers are read with, its top-left on a whole device pixel.
+   */
   onView: (view: KitCanvasView, stats: RasterViewportStats | null) => void
   onRender?: (error: unknown | null) => void
   /** The last view, kept when the document is replaced by a newer version of the file. */
@@ -258,7 +264,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     view: () => {
       const viewport = viewportRef.current
       const canvas = canvasRef.current
-      return viewport && canvas ? { ...viewport.view, width: canvas.clientWidth, height: canvas.clientHeight } : null
+      return viewport && canvas ? { ...viewport.place(viewport.view), width: canvas.clientWidth, height: canvas.clientHeight } : null
     },
     fit: () => viewportRef.current?.fit(),
     show: (area) => viewportRef.current?.fitArea(area),

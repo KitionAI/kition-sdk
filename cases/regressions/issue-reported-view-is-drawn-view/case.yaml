@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-reported-view-is-drawn-view
+feature: sdk.editor.canvas-by-hand
+intent: >-
+  The view the canvas reports (RasterViewport's onChange, KitCanvas's onView and view()) is the view
+  it draws the document at and maps pointers with. Since frames lie on whole device pixels the
+  document is drawn at its view moved onto a whole device pixel, but the canvas still reported the
+  view before that move, up to half a device pixel off: a point placed from it (a kit's guides and
+  rulers, a test's pointer) missed the pixel drawn there. Kition Photo's marquee from document row
+  24 to 72 at 100 % in an odd-height canvas selected rows 24 to 73; Kition Layout's shape drawn to
+  y 398 ended at 397.9 in Chromium and 397 in WebKit. Now a document point placed from the reported
+  view is where toScreen puts it and reads back exactly through toImage: centred in an odd-sized
+  canvas, and after a pan to a fraction at 150 %, at 100 % on a 2x screen, at 50 % and at 100 %; a
+  view already on whole device pixels is reported exactly as asked.
+layer: gate
+source: { kind: issue, from: Kition Photo's test:scenarios:ui and Kition Layout's test:view in kit CI under @kitionstage/sdk 0.5.2-stage.39, license: owned }
+input: []
+steps:
+  - exec: { cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/rasterViewport.reported.test.ts] }
+expected:
+  - { actual: exit, compare: exit, value: 0 }
+since: "2026-11-27"

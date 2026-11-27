@@ -98,7 +98,8 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
   only a jump past every painted pixel keeps the old frame in place until the new one lands. A whole
   render with a frame on screen (an edit, an undo, a zoom) renders the view alone, and the margin
   past it once the canvas has been still for 120 ms, a quarter of the view at a time. Frames lie
-  on whole device pixels at every zoom, and the view on screen is placed on one.
+  on whole device pixels at every zoom, and the view on screen is placed on one; `onView` and
+  `view()` report that placed view, so a kit's own overlays land on the pixels drawn.
 
 `KitDocumentCanvas` draws a kit's `decorateUnder` under the overlays and its `decorate` over
 them, so canvas chrome can sit on either side (grids and frame labels under the selection, a

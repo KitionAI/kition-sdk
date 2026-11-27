@@ -2335,6 +2335,7 @@ features:
       - packages/kit-editor/src/engine/kitEngine.worker.ts
       - packages/kit-editor/src/editor.tsx
       - packages/kit-editor/src/engine/rasterViewport.pan.test.ts
+      - packages/kit-editor/src/engine/rasterViewport.reported.test.ts
       - packages/kit-editor/src/engine/engineTools.quiet.test.tsx
       - packages/kit-editor/src/engine/useKitDocument.gesture.test.tsx
       - packages/kit-editor/src/engine/kitEngine.quietGestures.test.ts
@@ -2348,6 +2349,7 @@ features:
       - sdk.editor.canvas-by-hand/pan-and-margin
       - sdk.editor.canvas-by-hand/quiet-gestures
       - sdk.editor.canvas-by-hand/pointer-fields
+      - regressions/issue-reported-view-is-drawn-view
     since: "2026-11-26"
   - id: sdk.dev-host.watch-page
     title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens

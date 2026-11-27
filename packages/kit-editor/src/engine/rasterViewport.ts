@@ -285,17 +285,23 @@ export class RasterViewport {
    * The view on screen as it is drawn: its top-left moved by less than half a device pixel onto a
    * whole one at its scale, so a frame rendered at the screen's own pixels (on its grid, see
    * `Frame`) is copied pixel for pixel, never across half pixels (which drops or doubles rows and
-   * columns of thin lines). The document, the decorations and pointer positions all use it.
+   * columns of thin lines). The document, the decorations, pointer positions and the view the
+   * canvas reports (`onChange`, so a kit's own overlays and a test's pointer land on the pixels
+   * drawn) all use it.
    */
   private get placed(): RasterView {
-    const shown = this.shown
-    const device = shown.zoom * (window.devicePixelRatio || 1)
+    return this.place(this.shown)
+  }
+
+  /** `view` as it is drawn (see `placed`): its top-left on a whole device pixel. */
+  place(view: RasterView): RasterView {
+    const device = view.zoom * (window.devicePixelRatio || 1)
     // A view already on a whole device pixel stays exactly as it is (no rounding error added).
     const snap = (value: number) => {
       const whole = Math.round(value * device)
       return Math.abs(value * device - whole) < 1e-6 ? value : whole / device
     }
-    return { zoom: shown.zoom, x: snap(shown.x), y: snap(shown.y) }
+    return { zoom: view.zoom, x: snap(view.x), y: snap(view.y) }
   }
 
   /** Canvas CSS pixel position of a document point. */
@@ -418,7 +424,7 @@ export class RasterViewport {
     }
     this.held = null
     this.draw()
-    this.onChange(view, null)
+    this.onChange(this.placed, null)
   }
 
   /** The view on screen: the held one while a scroll waits for its render (see `held`). */
@@ -431,7 +437,7 @@ export class RasterViewport {
     if (!this.held || this.disposed) return
     this.held = null
     this.draw()
-    this.onChange(this.view, null)
+    this.onChange(this.placed, null)
   }
 
   /** Whether the frames show some of what every pane of `view` shows of the document. */
@@ -590,7 +596,7 @@ export class RasterViewport {
     this.held = rendered.zoom === this.view.zoom && !this.reaches(this.view) ? rendered : null
     const renderMs = Math.round(performance.now() - started)
     this.draw()
-    if (frames.length) this.onChange(this.shown, { renderMs, frameWidth, frameHeight })
+    if (frames.length) this.onChange(this.placed, { renderMs, frameWidth, frameHeight })
     this.growLater(grow ? GROW_STEP_MS : GROW_AFTER_MS)
     return true
   }
@@ -777,7 +783,7 @@ export class RasterViewport {
     const renderMs = Math.round(performance.now() - started)
     this.draw()
     const biggest = patches.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a))
-    this.onChange(this.shown, { renderMs, frameWidth: biggest.width, frameHeight: biggest.height })
+    this.onChange(this.placed, { renderMs, frameWidth: biggest.width, frameHeight: biggest.height })
     this.onRender(null)
     this.growLater()
     return true
