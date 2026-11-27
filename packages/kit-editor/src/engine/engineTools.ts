@@ -73,14 +73,20 @@ type EngineToolsOptions = {
    * stable, as `overlayStyle`.
    */
   drawOverlay?: OverlayDrawer | null
+  /**
+   * Whether every drag sample of a tool reaches the engine (a pencil's stroke keeps each point);
+   * otherwise a sample waiting while the engine answers gives way to the next one. Read for each
+   * sample, by engine tool id; unset, every tool's samples give way.
+   */
+  keepsDragSamples?: (tool: string) => boolean
 }
 
 /** Whether the host's UI configuration refuses a tool, by engine id. */
 type ToolDenied = (id: string) => boolean
 const NONE_DENIED: ToolDenied = () => false
 
-function mods(pointer: { shift: boolean; alt: boolean; meta: boolean }) {
-  return { shift: pointer.shift, alt: pointer.alt, command: pointer.meta, control: false, space: false }
+function mods(pointer: { shift: boolean; alt: boolean; meta: boolean; ctrl?: boolean }) {
+  return { shift: pointer.shift, alt: pointer.alt, command: pointer.meta, control: pointer.ctrl === true, space: false }
 }
 
 /** The keys that are not text but wait for the engine's answer as text does (`keyDown`). */
@@ -150,7 +156,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   // The document's commands (a shortcut, a menu) wait there too while events do, so Cmd+B right
   // after fast Shift+Arrow keys formats the whole selection (`orderCommands`).
   const busy = useRef(false)
-  type Queued = { name: KitToolMethod; args: unknown[]; settled: boolean; coalesce: boolean; selection?: number } | HeldKey | { work: () => Promise<void> }
+  // `coalesce`: a hover, a drag's move or a state query, which decides nothing (see `deciding`);
+  // `keep`: one of them that the next does not replace (a pencil's drag sample).
+  type Queued = { name: KitToolMethod; args: unknown[]; settled: boolean; coalesce: boolean; keep?: boolean; selection?: number } | HeldKey | { work: () => Promise<void> }
   const queue = useRef<Queued[]>([])
   /** The event whose answer is on its way now. */
   const sending = useRef<Queued | null>(null)
@@ -253,10 +261,10 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     return decides(sending.current) || queue.current.some(decides)
   }, [])
 
-  const send = useCallback((name: KitToolMethod, args: unknown[], settled: boolean, coalesce = false, selection?: number) => {
+  const send = useCallback((name: KitToolMethod, args: unknown[], settled: boolean, coalesce = false, selection?: number, keep = false) => {
     const tail = queue.current[queue.current.length - 1]
-    if (coalesce && replayAt.current === null && tail && 'name' in tail && tail.coalesce && tail.name === name) queue.current[queue.current.length - 1] = { name, args, settled, coalesce, selection }
-    else enqueue({ name, args, settled, coalesce, selection })
+    if (coalesce && !keep && replayAt.current === null && tail && 'name' in tail && tail.coalesce && !tail.keep && tail.name === name) queue.current[queue.current.length - 1] = { name, args, settled, coalesce, selection }
+    else enqueue({ name, args, settled, coalesce, selection, ...(keep ? { keep } : {}) })
     void pump()
   }, [enqueue, pump])
 
@@ -294,18 +302,21 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     send('selectTool', [active, zoom.current], true, false, selection)
   }, [active, hostActive, ready, selection, send])
 
-  // After any change (an undo, a menu command) the overlays follow the selection.
+  // After any change (an undo, a menu command) the overlays follow the selection. Not after each
+  // step of a drag (`change.gesture`): its own answers carry them, and the release asks once.
   useEffect(() => {
-    if (!ready || hostActive) return
+    if (!ready || hostActive || change.gesture) return
     const at = last.current ?? { x: 0, y: 0 }
     send('toolState', [at.x, at.y, '{}', zoom.current], false, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per change
   }, [change.revision, ready])
 
-  const pointer = useCallback((action: string, at: KitPointer, viewZoom: number, settled: boolean, coalesce = false) => {
+  const pointer = useCallback((action: string, at: KitPointer, viewZoom: number, settled: boolean, coalesce = false, keep = false) => {
     zoom.current = viewZoom
     last.current = { x: at.x, y: at.y }
-    send('pointer', [JSON.stringify({ action, x: at.x, y: at.y, mods: mods(at), pressure: at.pressure, zoom: viewZoom })], settled, coalesce)
+    // A press carries its click count (`clicks`, KitPointer PT14); the canvas gives it.
+    const clicks = action === 'down' && at.clicks ? { clicks: at.clicks } : {}
+    send('pointer', [JSON.stringify({ action, x: at.x, y: at.y, mods: mods(at), pressure: at.pressure, zoom: viewZoom, ...clicks })], settled, coalesce, undefined, keep)
   }, [send])
 
   const canvasTool = useMemo<KitTool>(() => hostTool ?? {
@@ -314,7 +325,7 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     begin: (start, { viewport }) => {
       pointer('down', start, viewport.view.zoom, false)
       return {
-        move: (at, context) => pointer('drag', at, context.viewport.view.zoom, false, true),
+        move: (at, context) => pointer('drag', at, context.viewport.view.zoom, false, true, latest.current.keepsDragSamples?.(active) === true),
         end: (at, context) => pointer('up', at, context.viewport.view.zoom, true),
         // An interrupted pointer must not commit the press as a click. Keep cancellation
         // in the same queue as its pending press/moves and the person's next gesture.
@@ -322,6 +333,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
       }
     },
     hover: (at, { viewport }) => pointer('move', at, viewport.view.zoom, false, true),
+    // The pointer left the canvas with no gesture held: hover feedback (a measurement shown while
+    // Alt is held) goes. A kit without `pointerLeft` answers nothing.
+    leave: ({ viewport }) => send('pointerLeft', [viewport.view.zoom], false, true),
     doubleClick: (at, { viewport }) => pointer('doubleClick', at, viewport.view.zoom, true),
   }, [active, hostTool, pointer, response?.cursor, send])
 
@@ -424,21 +438,13 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     if (text) send('toolText', [text, zoom.current], true)
   }, [send])
 
-  return {
-    tools,
-    active,
-    select: setActive,
-    setDenied,
-    refresh,
-    viewZoom,
-    typeText,
-    canvasTool,
-    decorate,
-    status,
-    wantsText: Boolean(response?.wantsText) && !hostTool,
-    keyDown,
-    toolForKey,
-  }
+  // The same object until one of its parts changes, so an editor that hands it on (a context's
+  // value) does not render everything again for each answer that changed none of them.
+  const wantsText = Boolean(response?.wantsText) && !hostTool
+  return useMemo(
+    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, status, wantsText, keyDown, toolForKey }),
+    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, status, wantsText, keyDown, toolForKey],
+  )
 }
 
 /** A key held back until the answers on their way came, and where it was pressed. */

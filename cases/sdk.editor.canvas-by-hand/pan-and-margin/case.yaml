@@ -1,0 +1,28 @@
+format: 1
+id: sdk.editor.canvas-by-hand/pan-and-margin
+feature: sdk.editor.canvas-by-hand
+intent: >-
+  A pan past the painted frame shows the new view at once, the part it uncovered blank, and renders
+  only the rows it lacks; a pan within the frame renders nothing; the margin past the view grows
+  back once the canvas has been still, in slices of at most a quarter of the view, and patches keep
+  it waiting; a jump past every painted pixel still keeps the old frame in place until the new one
+  lands. A whole render with a frame on screen renders the view alone first, then the margin; with
+  nothing on screen yet, the view and its margin at once. At zooms 150 %, 100 % on a 2x screen, 50 %
+  and 300 %, a frame starts on a whole bitmap pixel of the document's grid and is copied pixel for
+  pixel at a whole device pixel, and pointers and decorations use the same placement.
+layer: gate
+dimension: performance
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S1 of design usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/rasterViewport.pan.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-26"

@@ -23,6 +23,14 @@ const MAX_RENDER_SIDE = 8192
  * frame would pass MAX_FRAME_PIXELS: the margin never costs the frame its sharpness.
  */
 const AHEAD = [0.5, 0.25, 0]
+/**
+ * A render while a frame is on screen (an edit, a zoom, a resize) paints the view alone, so the
+ * person sees it in the time the view takes; the margin past it (AHEAD) follows once the canvas
+ * has been still this long, a slice at a time, each slice at most GROW_SHARE of the view.
+ */
+const GROW_AFTER_MS = 120
+const GROW_STEP_MS = 16
+const GROW_SHARE = 0.25
 const FIT_MARGIN = 32
 const MIN_ZOOM = 0.01
 const MAX_ZOOM = 64
@@ -78,8 +86,53 @@ export function viewPanes(view: RasterView, pins: RasterPins, width: number, hei
 /**
  * The cached render of one pane: `bitmap` shows the image area at (`x`, `y`), `width` × `height`
  * image pixels, at `scale`. Below 1:1 the scale is 1/k, so each bitmap pixel is exactly a k × k block.
+ * A frame starts on a whole bitmap pixel of the document's own grid at its scale (`Grid`), so two
+ * frames at one scale line up pixel for pixel. `edits` is the document state it shows (see
+ * `RasterViewport.edits`).
  */
-type Frame = { bitmap: HTMLCanvasElement; x: number; y: number; width: number; height: number; scale: number; pinX: boolean; pinY: boolean }
+type Frame = { bitmap: HTMLCanvasElement; x: number; y: number; width: number; height: number; scale: number; pinX: boolean; pinY: boolean; edits: number }
+
+/** An area in whole bitmap pixels of the grid at a frame's scale, from the document's origin. */
+type Grid = { x0: number; y0: number; x1: number; y1: number }
+
+/**
+ * How a pane is rendered at the view: `k` for a whole-number reduction (`renderArea`, k × k blocks)
+ * or the scale (`render`), the view's own area and the view with its margin (`target`), on the grid.
+ */
+type PanePlan = { k: number | null; scale: number; view: Grid; target: Grid }
+
+const gridEmpty = (g: Grid) => g.x1 <= g.x0 || g.y1 <= g.y0
+const gridSame = (a: Grid, b: Grid) => a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1
+const gridContains = (outer: Grid, inner: Grid) => outer.x0 <= inner.x0 && outer.y0 <= inner.y0 && outer.x1 >= inner.x1 && outer.y1 >= inner.y1
+const gridMeet = (a: Grid, b: Grid): Grid => ({ x0: Math.max(a.x0, b.x0), y0: Math.max(a.y0, b.y0), x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1) })
+const gridJoin = (a: Grid, b: Grid): Grid => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) })
+
+/** `outer` less `inner` (which lies within it), as up to four rectangles: above, below, left, right. */
+function gridLess(outer: Grid, inner: Grid): Grid[] {
+  if (gridEmpty(inner)) return [outer]
+  return [
+    { x0: outer.x0, y0: outer.y0, x1: outer.x1, y1: inner.y0 },
+    { x0: outer.x0, y0: inner.y1, x1: outer.x1, y1: outer.y1 },
+    { x0: outer.x0, y0: inner.y0, x1: inner.x0, y1: inner.y1 },
+    { x0: inner.x1, y0: inner.y0, x1: outer.x1, y1: inner.y1 },
+  ].filter((part) => !gridEmpty(part))
+}
+
+/**
+ * The next slice of the margin a frame at `held` (within `target`) still lacks: its left, right,
+ * top and bottom in turn, at most `most` bitmap pixels; null when it has all of `target`.
+ */
+function growSlice(held: Grid, target: Grid, most: number): Grid | null {
+  const rows = Math.max(1, held.y1 - held.y0)
+  const columns = Math.max(1, held.x1 - held.x0)
+  const across = Math.max(1, Math.floor(most / rows))
+  const down = Math.max(1, Math.floor(most / columns))
+  if (held.x0 > target.x0) return { ...held, x0: Math.max(target.x0, held.x0 - across) }
+  if (held.x1 < target.x1) return { ...held, x1: Math.min(target.x1, held.x1 + across) }
+  if (held.y0 > target.y0) return { ...held, y0: Math.max(target.y0, held.y0 - down) }
+  if (held.y1 < target.y1) return { ...held, y1: Math.min(target.y1, held.y1 + down) }
+  return null
+}
 
 /** An image area in image pixels. */
 export type RasterRect = { x0: number; y0: number; x1: number; y1: number }
@@ -141,10 +194,28 @@ export class RasterViewport {
   decorate: RasterDecoration | null = null
   private frames: Frame[] = []
   /**
-   * The view still on screen while a scroll waits for its render: a pan past the painted frame
-   * keeps showing the frame where it was, never blank canvas, until the new view is painted.
+   * The view still on screen while a scroll waits for its render: a jump past every painted pixel
+   * (a scroll bar dragged far) keeps showing the frame where it was, never blank canvas, until the
+   * new view is painted. A pan the frame still reaches into shows at once, the part it uncovers
+   * blank until its render lands.
    */
   private held: RasterView | null = null
+  /**
+   * Moves with every edit and every render asked for from outside (the document may have changed):
+   * only a frame made at the current count is the document as it is, and can be moved or grown
+   * by rendering just what it lacks.
+   */
+  private edits = 0
+  /** The next render grows the margin past the view (see GROW_AFTER_MS), not just the view. */
+  private growNext = false
+  /**
+   * When the margin grows (`Date.now()`), or null; one timer at a time waits for it, and
+   * waits again when it moved later (timers are never called off: see `schedule`).
+   */
+  private growAt: number | null = null
+  private growWaiting = false
+  /** Patches (`renderArea`) on their way. */
+  private patching = 0
   private pattern: CanvasPattern | null = null
   /** The render asked for the next animation frame, and how to call it off. */
   private settle: (() => void) | undefined
@@ -183,6 +254,7 @@ export class RasterViewport {
   invalidate() {
     // A whole render follows: it covers the areas waiting for a patch.
     this.pendingDamage = null
+    this.edits += 1
     this.drop()
     if (this.rendering) this.renderAgain = true
   }
@@ -195,6 +267,7 @@ export class RasterViewport {
   dispose() {
     this.settle?.()
     this.settle = undefined
+    this.growAt = null
     this.disposed = true
     this.frames = []
   }
@@ -208,10 +281,27 @@ export class RasterViewport {
     return { left: Math.max(0, pins?.left ?? 0), top: Math.max(0, pins?.top ?? 0) }
   }
 
+  /**
+   * The view on screen as it is drawn: its top-left moved by less than half a device pixel onto a
+   * whole one at its scale, so a frame rendered at the screen's own pixels (on its grid, see
+   * `Frame`) is copied pixel for pixel, never across half pixels (which drops or doubles rows and
+   * columns of thin lines). The document, the decorations and pointer positions all use it.
+   */
+  private get placed(): RasterView {
+    const shown = this.shown
+    const device = shown.zoom * (window.devicePixelRatio || 1)
+    // A view already on a whole device pixel stays exactly as it is (no rounding error added).
+    const snap = (value: number) => {
+      const whole = Math.round(value * device)
+      return Math.abs(value * device - whole) < 1e-6 ? value : whole / device
+    }
+    return { zoom: shown.zoom, x: snap(shown.x), y: snap(shown.y) }
+  }
+
   /** Canvas CSS pixel position of a document point. */
   toScreen(x: number, y: number) {
     const { left, top } = this.pins
-    const shown = this.shown
+    const shown = this.placed
     const { zoom } = shown
     return { x: (x < left ? x : x - shown.x) * zoom, y: (y < top ? y : y - shown.y) * zoom }
   }
@@ -220,7 +310,7 @@ export class RasterViewport {
   toImage(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect()
     const { left, top } = this.pins
-    const shown = this.shown
+    const shown = this.placed
     const sx = (clientX - rect.left) / shown.zoom
     const sy = (clientY - rect.top) / shown.zoom
     return { x: sx < left ? sx : shown.x + sx, y: sy < top ? sy : shown.y + sy }
@@ -319,8 +409,10 @@ export class RasterViewport {
     this.view = { zoom: view.zoom, x: left > 0 ? Math.max(0, view.x) : view.x, y: top > 0 ? Math.max(0, view.y) : view.y }
     view = this.view
     this.schedule()
-    // A scroll (the zoom kept) past the painted frame waits for its render; a zoom shows at once.
-    if (view.zoom === before.zoom && this.frames.length && !this.covers(view)) {
+    this.growLater()
+    // A scroll (the zoom kept) past every painted pixel waits for its render; a scroll the frame
+    // still reaches into, and a zoom, show at once.
+    if (view.zoom === before.zoom && this.frames.length && !this.reaches(view)) {
       this.held = before
       return
     }
@@ -342,8 +434,8 @@ export class RasterViewport {
     this.onChange(this.view, null)
   }
 
-  /** Whether the frames hold every document pixel `view` shows. */
-  private covers(view: RasterView) {
+  /** Whether the frames show some of what every pane of `view` shows of the document. */
+  private reaches(view: RasterView) {
     const { width, height } = this.size
     if (!width || !height) return true
     return viewPanes(view, this.pins, width, height).every((pane) => {
@@ -353,7 +445,7 @@ export class RasterViewport {
       const y1 = Math.min(this.doc.height, pane.area.y1)
       if (x1 <= x0 || y1 <= y0) return true
       const frame = this.frames.find((item) => item.pinX === pane.pinX && item.pinY === pane.pinY)
-      return !!frame && frame.x <= x0 + 0.5 && frame.y <= y0 + 0.5 && frame.x + frame.width >= x1 - 0.5 && frame.y + frame.height >= y1 - 0.5
+      return !!frame && frame.x < x1 && frame.y < y1 && frame.x + frame.width > x0 && frame.y + frame.height > y0
     })
   }
 
@@ -362,7 +454,7 @@ export class RasterViewport {
     if (this.settle !== undefined || this.disposed) return
     const run = () => {
       this.settle = undefined
-      void this.render()
+      void this.paint()
     }
     // Each kind of id is called off by its own call: a frame id given to clearTimeout could stop
     // someone else's timer with the same number.
@@ -380,6 +472,13 @@ export class RasterViewport {
    * document changes. One render runs at a time; a request meanwhile renders again after it.
    */
   async render(): Promise<boolean> {
+    // The document may have changed: no frame on screen is kept or grown, every pane renders again.
+    this.edits += 1
+    return this.paint()
+  }
+
+  /** Renders what the view lacks now: the whole view after `render`, else what a move uncovered. */
+  private async paint(): Promise<boolean> {
     this.settle?.()
     this.settle = undefined
     if (this.disposed) return false
@@ -411,7 +510,7 @@ export class RasterViewport {
     if (!painted && !this.renderAgain) this.release()
     if (this.renderAgain && !this.disposed) {
       this.renderAgain = false
-      return this.render()
+      return this.paint()
     }
     // Areas edits changed while it rendered (see `patch`): its other pixels are right.
     const pending = this.pendingDamage
@@ -435,34 +534,69 @@ export class RasterViewport {
     return this.renderArea(area)
   }
 
+  /**
+   * Renders each pane. A frame of the document as it is, at the same scale, is kept where it
+   * still shows the whole view, and otherwise moved, with only the part it lacks rendered: a pan
+   * renders the strip it uncovers. Other frames on screen (an edit, a zoom) are replaced by the
+   * view alone first, its margin growing once the canvas is still; with none, the view and its
+   * margin render at once.
+   */
   private async renderNow(generation: number): Promise<boolean> {
     const { width, height, dpr } = this.size
     if (!width || !height) return false
+    const grow = this.growNext
+    this.growNext = false
     const started = performance.now()
     const rendered = this.view
+    const edits = this.edits
+    const onScreen = this.frames.length > 0
     const frames: Frame[] = []
     let frameWidth = 0
     let frameHeight = 0
+    let drew = false
     for (const pane of viewPanes(rendered, this.pins, width, height)) {
-      const frame = await this.renderPane(pane, dpr)
+      const plan = this.plan(pane, dpr)
+      if (!plan) continue
+      const previous = this.frames.find((item) => item.pinX === pane.pinX && item.pinY === pane.pinY)
+      const held = previous && !this.failed && previous.edits === edits ? this.gridOf(previous, plan) : null
+      let frame: Frame | null
+      if (previous && held && (grow || gridContains(held, plan.view))) {
+        // Grows by the next slice of the margin, or crops to it; kept as it is when it has it all.
+        const base = gridMeet(held, plan.target)
+        const next = grow ? (gridEmpty(base) ? plan.target : growSlice(base, plan.target, this.growLimit(plan)) ?? base) : held
+        frame = gridSame(next, held) ? previous : await this.compose(previous, held, next, plan, pane, edits)
+      } else if (previous && held && !gridEmpty(gridMeet(held, plan.view))) {
+        frame = await this.compose(previous, held, gridJoin(plan.view, gridMeet(held, plan.target)), plan, pane, edits)
+      } else if (grow) {
+        // Nothing of the document as it is to grow: the render asked for does it.
+        frame = previous ?? null
+      } else {
+        frame = await this.compose(null, null, onScreen ? plan.view : plan.target, plan, pane, edits)
+      }
       if (!frame) continue
+      if (frame !== previous) drew = true
       frames.push(frame)
       frameWidth = Math.max(frameWidth, frame.bitmap.width)
       frameHeight += frame.bitmap.height
     }
     if (this.disposed || generation !== this.generation) return false
+    if (!drew && frames.length === this.frames.length) {
+      this.growLater()
+      return true
+    }
     this.frames = frames
-    // The view asked for shows when the frame covers it; else, while the view moved on, the view
+    // The view asked for shows when the frame reaches it; else, while the view jumped on, the view
     // this frame was rendered for (never blank canvas), until the next render lands.
-    this.held = rendered.zoom === this.view.zoom && !this.covers(this.view) ? rendered : null
+    this.held = rendered.zoom === this.view.zoom && !this.reaches(this.view) ? rendered : null
     const renderMs = Math.round(performance.now() - started)
     this.draw()
     if (frames.length) this.onChange(this.shown, { renderMs, frameWidth, frameHeight })
+    this.growLater(grow ? GROW_STEP_MS : GROW_AFTER_MS)
     return true
   }
 
-  /** Renders the document area a pane shows, at the zoom; null when it shows none of it. */
-  private async renderPane(pane: RasterPane, dpr: number): Promise<Frame | null> {
+  /** How a pane renders at the view (see `PanePlan`); null when it shows none of the document. */
+  private plan(pane: RasterPane, dpr: number): PanePlan | null {
     const wanted = this.view.zoom * dpr
     // The view's area and a margin past it along each scrolled axis (see AHEAD), within the document.
     const reach = (ahead: number) => {
@@ -476,38 +610,123 @@ export class RasterViewport {
       }
     }
     const fits = (rect: RasterRect) => (rect.x1 - rect.x0) * (rect.y1 - rect.y0) * Math.min(1, wanted) ** 2 * Math.max(1, wanted) ** 2 <= MAX_FRAME_PIXELS
-    const { x0, y0, x1, y1 } = AHEAD.map(reach).find((rect) => fits(rect)) ?? reach(0)
-    if (x1 <= x0 || y1 <= y0) return null
-    let area: Omit<Frame, 'bitmap' | 'pinX' | 'pinY'>
-    let rgba: Uint8Array
-    let frameWidth: number
-    let frameHeight: number
+    const target = AHEAD.map(reach).find((rect) => fits(rect)) ?? reach(0)
+    const view = reach(0)
+    if (target.x1 <= target.x0 || target.y1 <= target.y0) return null
+    let k: number | null = null
+    let scale: number
     if (wanted < 1) {
       // A whole-number reduction at least as sharp as the screen, so patches line up exactly.
-      let k = Math.max(1, Math.floor(1 / wanted))
-      while (((x1 - x0) / k) * ((y1 - y0) / k) > MAX_FRAME_PIXELS) k += 1
-      frameWidth = Math.ceil((x1 - x0) / k)
-      frameHeight = Math.ceil((y1 - y0) / k)
-      rgba = await this.doc.renderArea(x0, y0, x0 + frameWidth * k, y0 + frameHeight * k, frameWidth, frameHeight)
-      area = { x: x0, y: y0, width: frameWidth * k, height: frameHeight * k, scale: 1 / k }
+      k = Math.max(1, Math.floor(1 / wanted))
+      while (((target.x1 - target.x0) / k) * ((target.y1 - target.y0) / k) > MAX_FRAME_PIXELS) k += 1
+      scale = 1 / k
     } else {
-      let scale = wanted
-      const pixels = (x1 - x0) * (y1 - y0) * scale * scale
-      const view = reach(0)
+      scale = wanted
+      const pixels = (target.x1 - target.x0) * (target.y1 - target.y0) * scale * scale
       const limit = Math.max(MAX_FRAME_PIXELS, Math.min(MAX_VIEW_PIXELS, (view.x1 - view.x0) * (view.y1 - view.y0) * wanted * wanted))
       if (pixels > limit) scale = Math.max(1, scale * Math.sqrt(limit / pixels))
-      scale = Math.max(1, Math.min(scale, MAX_RENDER_SIDE / (x1 - x0), MAX_RENDER_SIDE / (y1 - y0)))
-      frameWidth = Math.max(1, Math.ceil((x1 - x0) * scale))
-      frameHeight = Math.max(1, Math.ceil((y1 - y0) * scale))
-      rgba = await this.doc.render(x0, y0, scale, frameWidth, frameHeight)
-      area = { x: x0, y: y0, width: frameWidth / scale, height: frameHeight / scale, scale }
+      scale = Math.max(1, Math.min(scale, MAX_RENDER_SIDE / (target.x1 - target.x0), MAX_RENDER_SIDE / (target.y1 - target.y0)))
     }
-    const bitmap = document.createElement('canvas')
-    bitmap.width = frameWidth
-    bitmap.height = frameHeight
-    bitmap.getContext('2d')?.putImageData(imageData(rgba, frameWidth, frameHeight), 0, 0)
-    return { bitmap, ...area, pinX: pane.pinX, pinY: pane.pinY }
+    const at = (value: number) => (k ? value / k : value * scale)
+    const grid = (rect: RasterRect): Grid => {
+      const g = { x0: Math.floor(at(rect.x0)), y0: Math.floor(at(rect.y0)), x1: Math.ceil(at(rect.x1)), y1: Math.ceil(at(rect.y1)) }
+      return { ...g, x1: Math.max(g.x1, g.x0 + 1), y1: Math.max(g.y1, g.y0 + 1) }
+    }
+    return { k, scale, view: grid(view), target: grid(target) }
   }
+
+  /** Where `frame` lies on `plan`'s grid; null when it was rendered at another scale. */
+  private gridOf(frame: Frame, plan: PanePlan): Grid | null {
+    const k = plan.k
+    if (Math.abs(frame.scale - plan.scale) > 1e-9 * plan.scale) return null
+    const x0 = Math.round(k ? frame.x / k : frame.x * plan.scale)
+    const y0 = Math.round(k ? frame.y / k : frame.y * plan.scale)
+    return { x0, y0, x1: x0 + frame.bitmap.width, y1: y0 + frame.bitmap.height }
+  }
+
+  /** The most bitmap pixels one slice of a growing margin renders: a share of the view. */
+  private growLimit(plan: PanePlan) {
+    return Math.max(1, Math.floor((plan.view.x1 - plan.view.x0) * (plan.view.y1 - plan.view.y0) * GROW_SHARE))
+  }
+
+  /** Renders `grid` of the document (bitmap pixels on `plan`'s grid) through the engine. */
+  private renderGrid(plan: PanePlan, grid: Grid): Promise<Uint8Array> {
+    const width = grid.x1 - grid.x0
+    const height = grid.y1 - grid.y0
+    const k = plan.k
+    return k
+      ? this.doc.renderArea(grid.x0 * k, grid.y0 * k, grid.x1 * k, grid.y1 * k, width, height)
+      : this.doc.render(grid.x0 / plan.scale, grid.y0 / plan.scale, plan.scale, width, height)
+  }
+
+  /**
+   * A frame of `next` (on `plan`'s grid): what `previous` (at `held`) has of it is copied, and
+   * only the rest is rendered; everything is rendered without one.
+   */
+  private async compose(previous: Frame | null, held: Grid | null, next: Grid, plan: PanePlan, pane: RasterPane, edits: number): Promise<Frame> {
+    const width = next.x1 - next.x0
+    const height = next.y1 - next.y0
+    const kept = previous && held ? gridMeet(held, next) : null
+    const parts = kept ? gridLess(next, kept) : [next]
+    const pixels: Uint8Array[] = []
+    for (const part of parts) pixels.push(await this.renderGrid(plan, part))
+    const bitmap = document.createElement('canvas')
+    bitmap.width = width
+    bitmap.height = height
+    const context = bitmap.getContext('2d')
+    if (previous && held && kept && !gridEmpty(kept)) {
+      const w = kept.x1 - kept.x0
+      const h = kept.y1 - kept.y0
+      context?.drawImage(previous.bitmap, kept.x0 - held.x0, kept.y0 - held.y0, w, h, kept.x0 - next.x0, kept.y0 - next.y0, w, h)
+    }
+    parts.forEach((part, i) => context?.putImageData(imageData(pixels[i], part.x1 - part.x0, part.y1 - part.y0), part.x0 - next.x0, part.y0 - next.y0))
+    const k = plan.k
+    const from = (value: number) => (k ? value * k : value / plan.scale)
+    return { bitmap, x: from(next.x0), y: from(next.y0), width: from(width), height: from(height), scale: plan.scale, pinX: pane.pinX, pinY: pane.pinY, edits }
+  }
+
+  /**
+   * Grows the margin past the view once the canvas has been still `after` milliseconds: called
+   * whenever the view moves or a render lands, it starts the wait again. Nothing when every pane's
+   * frame has its whole margin, or is not the document as it is (its render is on its way).
+   */
+  private growLater(after = GROW_AFTER_MS) {
+    this.growAt = null
+    if (this.disposed || !this.frames.length) return
+    const { width, height, dpr } = this.size
+    if (!width || !height) return
+    const short = viewPanes(this.view, this.pins, width, height).some((pane) => {
+      const plan = this.plan(pane, dpr)
+      const frame = plan && this.frames.find((item) => item.pinX === pane.pinX && item.pinY === pane.pinY)
+      const held = plan && frame && frame.edits === this.edits ? this.gridOf(frame, plan) : null
+      return !!plan && !!held && !gridSame(held, plan.target)
+    })
+    if (!short) return
+    this.growAt = Date.now() + after
+    if (!this.growWaiting) this.waitToGrow(after)
+  }
+
+  private waitToGrow(delay: number) {
+    this.growWaiting = true
+    setTimeout(() => {
+      this.growWaiting = false
+      if (this.disposed || this.growAt === null) return
+      const left = this.growAt - Date.now()
+      if (left > 1) {
+        this.waitToGrow(left)
+        return
+      }
+      // A patch or a render on its way first: the margin waits for the canvas to be still.
+      if (this.patching > 0 || this.rendering) {
+        this.growLater()
+        return
+      }
+      this.growAt = null
+      this.growNext = true
+      void this.paint()
+    }, delay)
+  }
+
 
   /**
    * Re-renders only `area` (what a stroke or a caret touched) into the cached frames, each pane's
@@ -533,6 +752,7 @@ export class RasterViewport {
     const started = performance.now()
     const generation = this.generation
     const pixels: Uint8Array[] = []
+    this.patching += 1
     try {
       for (const { frame, sx, sy, px0, py0, width, height } of patches) {
         const k = Math.round(1 / frame.scale)
@@ -546,6 +766,8 @@ export class RasterViewport {
         this.onRender(error)
       }
       return false
+    } finally {
+      this.patching -= 1
     }
     if (this.disposed || generation !== this.generation) return false
     if (this.frames !== frames) {
@@ -557,6 +779,7 @@ export class RasterViewport {
     const biggest = patches.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a))
     this.onChange(this.shown, { renderMs, frameWidth: biggest.width, frameHeight: biggest.height })
     this.onRender(null)
+    this.growLater()
     return true
   }
 
@@ -578,7 +801,7 @@ export class RasterViewport {
     }
     const context = this.canvas.getContext('2d')
     if (!context) return
-    const shown = this.shown
+    const shown = this.placed
     const { zoom } = shown
     context.setTransform(dpr, 0, 0, dpr, 0, 0)
     context.fillStyle = this.backdrop
@@ -603,10 +826,16 @@ export class RasterViewport {
       }
       const frame = this.frames.find((item) => item.pinX === pane.pinX && item.pinY === pane.pinY)
       if (frame) {
-        context.imageSmoothingEnabled = zoom < 1
-        context.imageSmoothingQuality = 'high'
         const at = toPane(frame.x, frame.y)
-        context.drawImage(frame.bitmap, at.x, at.y, frame.width * zoom, frame.height * zoom)
+        if (Math.abs(frame.bitmap.width / frame.width - zoom * dpr) <= 1e-9 * zoom * dpr) {
+          // One bitmap pixel per device pixel: copied whole, at a whole device pixel (see `placed`).
+          context.imageSmoothingEnabled = false
+          context.drawImage(frame.bitmap, Math.round(at.x * dpr) / dpr, Math.round(at.y * dpr) / dpr, frame.bitmap.width / dpr, frame.bitmap.height / dpr)
+        } else {
+          context.imageSmoothingEnabled = zoom < 1
+          context.imageSmoothingQuality = 'high'
+          context.drawImage(frame.bitmap, at.x, at.y, frame.width * zoom, frame.height * zoom)
+        }
       }
       // Decorations in every pane, each clipped to it, so a selection across the split shows in both.
       if (this.decorate) {

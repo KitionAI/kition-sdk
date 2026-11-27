@@ -109,7 +109,7 @@ check('render returns width x height x 4 bytes', () => {
   full = doc.render(0, 0, 1, width, height)
   assert(full.length === width * height * 4, `${full.length} bytes`)
 })
-check('renderArea at 1/2 is the box mean', () => {
+check('renderArea at 1/2 agrees with the 1:1 pixels (a corner, anti-aliasing aside)', () => {
   const ow = Math.min(16, Math.floor(width / 2))
   const oh = Math.min(16, Math.floor(height / 2))
   const reduced = doc.renderArea(0, 0, ow * 2, oh * 2, ow, oh)

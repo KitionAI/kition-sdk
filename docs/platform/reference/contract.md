@@ -98,7 +98,7 @@ Kition's `src/features/kits/module/kitModule.ts`):
 | `revision` (`u64`, a `bigint` in JS) | Moves with every change |
 | `dirty` | Unsaved changes exist |
 | `render(x, y, scale, width, height)` | RGBA8, straight alpha, of the area at (`x`, `y`) shown at `scale` screen pixels per document pixel. Below 1 it averages; above 1 it repeats exact pixels |
-| `renderArea(x0, y0, x1, y1, width, height)` | RGBA8 of exactly that integer area averaged to exactly that size. When the area is k times the size, every output pixel must be the exact k × k box average (the canvas relies on it for seamless patches) |
+| `renderArea(x0, y0, x1, y1, width, height)` | RGBA8 of exactly that integer area reduced to exactly that size. When the area is k times the size, every output pixel must agree with a whole render at that reduction, anti-aliasing aside (the canvas patches frames and fills panned strips with it, so a part must show no seam); the exact k × k box average of the 1:1 pixels agrees, and so does drawing at 1/k directly (E3) |
 | `execute(command, paramsJson)` | Runs an engine command, returns its JSON result; unknown commands and bad parameters are errors |
 | `inspect()` | The document as JSON; must include `canUndo` and `canRedo`; the rest is the kit's own. A headless kit's `view.describe` (the details of `<prefix>_inspect`) leaves out the session's bookkeeping at the top (`canUndo`, `canRedo`, `dirty`, `revision`, `history`, `undo`, `redo`, `path`, `title`) and the editor state the kit declares (the `volatile` keys it gives `kition_headless::run_manifest`, which `kit.json` publishes as `engine.editorState`: a name wherever it is, a JSON Pointer such as `/time` at that place only); nothing else is taken for editor state by its name, so a keyframe's `time` stays. A host that reads `inspect()` in the page leaves out the same (Kit UI protocol `ai/inspect`) |
 | `commands()` | JSON array of `{ id, title, description?, menu: string[] \| null, shortcut, params, mutates, enabled, schema?, outputSchema?, keywords?, targets?, reads? }`. `targets` names the parameter that says what the command acts on (an id, or a list of ids), which an agent's run step may give as `on`; `reads` lists the editor state the command reads besides its parameters (`selection`, `part`, `time`). `description` is what the command does, when to choose it over the commands next to it, and what it changes or answers, in one or two sentences: hosts list it to people and agents (an MCP `<prefix>_commands` answer carries it, and command search matches its words). It is never the title again nor the parameter notation, and a host makes none up when a kit gives none; `kition_kit::testing::check_commands` checks it, and that every read command an agent is offered (`mutates` false, with a `schema`) has an `outputSchema` or is listed as answering nothing. `keywords` are words an agent's command search finds the command by that its id, title and params do not say (the effect names `effect.apply` takes); they are searched, never listed. Kition builds the menus from `menu` and binds `shortcut`; `schema` is the parameters as a DeepSeek Harness `ParameterSchemaSpec`, which makes the command available to agents; `outputSchema` is what the command answers, one `ValueSchemaSpec` (KHP A1 `output.schema`, checked by `kition_kit::schema::validate_output` and `check_contract`), which hosts send as the tool's MCP `outputSchema`. Optional in contract 1: a command without one lists no output schema |
@@ -199,12 +199,21 @@ Optional, with the `engine-tools` capability (standard U8b,
 | `tool()` | The active tool's id |
 | `selectTool(id, zoom)` | A tool response |
 | `pointer(eventJson)` | A tool response; the event is `{ action: down\|drag\|up\|move, x, y, mods?, zoom, button, pointerType, clicks, pressure?, tilt? }` in document pixels (a double click is `down` with `clicks: 2`) |
+| `pointerLeft(zoom)` | Optional. A tool response; the pointer left the canvas with no gesture held (hover feedback goes). Without it the editor's call answers nothing |
 | `toolKey(key, modsJson, zoom)` | A tool response |
 | `toolText(text, zoom)` | A tool response |
 | `toolState(x, y, modsJson, zoom)` | The overlays and cursor now |
 
 A tool response is `{ requests, overlays, cursor, busy, wantsText,
-selection?, caret? }`; `kition_kit::tools` defines every field. Version 2 of
+selection?, caret? }`; `kition_kit::tools` defines every field.
+
+What `@kition/kit-editor` sends today: `mods` is `{ shift, alt, command, control, space }`, where
+`command` is Command or Control (either one) and `control` is Control itself; a press (`down`)
+carries `clicks` (1 to 3), which `kition_kit::tools::ToolPointer` does not read (an engine that
+wants it reads the event's JSON). While the engine answers, a drag sample waiting is replaced by
+the next one, unless the editor keeps every sample of that tool (`keepsDragSamples`, a pencil).
+While a gesture runs (`busy` answers before the settled release) the editor does not ask
+`toolState` or the disabled commands again after each step; the release's change asks once. Version 2 of
 these types (roles, the new event fields, `selection`, `caret`, and the
 requests and overlays of `KitPointer 1.0` section 6) replaces version 1 with
 no compatibility layer; the SDK does not implement it yet. `examples/grid-kit` has a one-tool

@@ -637,8 +637,9 @@ export function useKitEditorState<T>(
     if (doc) void doc.commands().then(setCommands)
   }, [doc])
 
+  // Asked again after each change but a drag's steps (`change.gesture`): its release asks once.
   useEffect(() => {
-    if (!doc) return undefined
+    if (!doc || change.gesture) return undefined
     let stale = false
     void doc
       .disabledCommands()
@@ -649,7 +650,7 @@ export function useKitEditorState<T>(
     return () => {
       stale = true
     }
-  }, [change.revision, doc])
+  }, [change.revision, change.gesture, doc])
 
   /**
    * A query: a command that reads without editing, answered as JSON (no repaint). Read-only

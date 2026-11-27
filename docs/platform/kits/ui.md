@@ -51,7 +51,8 @@ shows it in an `<iframe>` and talks to it over the **UI protocol**.
   SHOULD declare the `engine-tools` capability and export these members:
   `tools()`, `tool()`, `selectTool(id, zoom)`, `pointer(event)`,
   `toolKey(key, mods, zoom)`, `toolText(text, zoom)`, and
-  `toolState(x, y, mods, zoom)`, with the shapes of
+  `toolState(x, y, mods, zoom)` (and, optionally, `pointerLeft(zoom)` for the
+  pointer leaving the canvas), with the shapes of
   [`KitPointer 1.0`](../sets/pointer.md) section 6. Every tool declares its
   role, whether it mutates, and a hint (PT1). Pointer events are in document
   pixels with the view's zoom and carry the button, the pointer type, the

@@ -306,7 +306,33 @@ function inspectedInfo(open: KitModuleDocument): KitEngineInfo {
   }
 }
 
-const TOOL_METHODS = new Set<KitToolMethod>(['tools', 'tool', 'selectTool', 'pointer', 'toolKey', 'toolText', 'toolState'])
+const TOOL_METHODS = new Set<KitToolMethod>(['tools', 'tool', 'selectTool', 'pointer', 'pointerLeft', 'toolKey', 'toolText', 'toolState'])
+/** Tool members a kit may leave out: without one, the call answers nothing and changes nothing. */
+const OPTIONAL_TOOL_METHODS = new Set<KitToolMethod>(['pointerLeft'])
+
+/**
+ * `info` mid-gesture without reading `inspect()` (KitEngine.tool's `quiet`): the last one, with
+ * what `infoKey` follows brought up to date. It is not kept as `infoMade`, so the next `info`
+ * (the release's) reads `inspect()` again.
+ */
+function gestureInfo(open: KitModuleDocument): KitEngineInfo {
+  const last = infoMade?.value
+  if (!last) return info(open)
+  return {
+    ...last,
+    replica: replicaVersion(open),
+    width: open.width,
+    height: open.height,
+    pinned: { left: open.pinnedLeft ?? 0, top: open.pinnedTop ?? 0 },
+    revision: Number(open.revision),
+    dirty: !readOnly && open.dirty,
+  }
+}
+
+/** Whether a tool's answer is a gesture's: busy, before the settled event that ends it. */
+function midGesture(value: unknown, settled: boolean) {
+  return !settled && value !== null && typeof value === 'object' && (value as { busy?: unknown }).busy === true
+}
 
 /** The manifest's `setup` calls, on a document just opened or made (an editor's view options). */
 function setup(open: KitModuleDocument, manifest: KitModuleManifest) {
@@ -741,12 +767,15 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
     case 'tool': {
       const open = opened()
       const method = (open as unknown as Record<string, unknown>)[request.name]
+      if (TOOL_METHODS.has(request.name) && OPTIONAL_TOOL_METHODS.has(request.name) && typeof method !== 'function') return { value: { value: null, info: null } }
       if (!TOOL_METHODS.has(request.name) || typeof method !== 'function') throw new Error(`the kit module has no engine tools (${request.name})`)
       if (readOnly && READ_ONLY_RULES.refusedTools.includes(request.name)) throw new ReadOnlyError(`the engine tools' ${request.name}`)
       const before = open.revision
       const answer = guarded(open, `the engine tools' ${request.name}`, () => (method as (...args: unknown[]) => string).apply(open, request.args))
       const value = request.name === 'tool' ? answer : JSON.parse(answer)
-      return { value: { value, info: request.settled || open.revision !== before ? sent(info(open, request.settled)) : null } }
+      if (!request.settled && open.revision === before) return { value: { value, info: null } }
+      const quiet = request.quiet === true && midGesture(value, request.settled)
+      return { value: { value, info: sent(quiet ? gestureInfo(open) : info(open, request.settled)) } }
     }
     case 'info':
       return { value: info(opened(), true) }

@@ -672,9 +672,11 @@ pub trait KitDocument: Sized {
     /// Straight-alpha RGBA8 of the area at (`x`, `y`) shown at `scale` screen pixels per document
     /// pixel, `width` × `height` large. Below 1 the area is averaged; above 1 pixels repeat exactly.
     fn render(&self, x: f64, y: f64, scale: f64, width: u32, height: u32) -> Result<Vec<u8>, String>;
-    /// RGBA8 of the integer area (`x0`, `y0`)–(`x1`, `y1`) averaged down to exactly `width` ×
-    /// `height`. When the area is k times the size, each output pixel is the exact k × k box mean;
-    /// Kition patches its cached frame with this and relies on it matching a full render.
+    /// RGBA8 of the integer area (`x0`, `y0`)–(`x1`, `y1`) reduced to exactly `width` × `height`.
+    /// When the area is k times the size, each output pixel agrees with a whole render at that
+    /// reduction, anti-aliasing aside (engine contract E3): Kition patches its cached frame and
+    /// fills the strip a pan uncovers with this, so a part must show no seam. The exact k × k box
+    /// mean of the 1:1 pixels agrees, and so does drawing at 1/k directly.
     fn render_area(&self, x0: i32, y0: i32, x1: i32, y1: i32, width: u32, height: u32) -> Result<Vec<u8>, String>;
     /// The largest scale at which [`KitDocument::render`] draws the document as the person would
     /// see it at that zoom, not its 1× pixels repeated: an engine that rasterizes vectors and text

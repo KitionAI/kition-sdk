@@ -1,0 +1,25 @@
+format: 1
+id: sdk.editor.canvas-by-hand/pointer-fields
+feature: sdk.editor.canvas-by-hand
+intent: >-
+  The canvas gives a tool the real Control key (ctrl, apart from meta) and a press's click count (1
+  to 3, counted from presses close in time and place); engine tools send them as mods.control and
+  the press's clicks; Command alone leaves control false. With keepsDragSamples every drag sample
+  of that tool reaches the engine while it answers, otherwise the newest waits alone. The pointer
+  leaving the canvas reaches the engine as pointerLeft(zoom); a kit without it answers nothing.
+layer: gate
+dimension: function
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S1 of design usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/KitCanvas.pointer.test.tsx, packages/kit-editor/src/engine/engineTools.quiet.test.tsx, packages/kit-editor/src/engine/kitEngine.quietGestures.test.ts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-26"

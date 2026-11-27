@@ -20,7 +20,9 @@ pub use nested::{Dispatcher, check_nested_dispatch_is_gated, step_list};
 ///
 /// - the document opens, has a size, and bad bytes are an error rather than a panic;
 /// - `render` and `render_area` return exactly `width × height × 4` bytes;
-/// - `render_area` at a whole-number reduction is the exact box mean of the 1:1 pixels;
+/// - `render_area` at a whole-number reduction agrees with the 1:1 pixels, anti-aliasing aside
+///   (engine contract E3): the top-left corner reduced 2:1 is the mean of each 2 × 2 block within
+///   two levels;
 /// - the edit moves `revision`, sets `dirty`, and changes the render;
 /// - `inspect` has `canUndo` and `canRedo`, and the commands include `edit.undo` and `edit.redo`;
 /// - `disabled_commands` names exactly the commands `commands` reports disabled, before and after
@@ -237,7 +239,10 @@ fn expect_len(rgba: &[u8], width: u32, height: u32, what: &str) -> Result<(), St
     if rgba.len() == wanted { Ok(()) } else { Err(format!("{what} returned {} bytes for {width} x {height}; expected {wanted}", rgba.len())) }
 }
 
-/// A 2:1 reduction of the top-left area must be the rounded mean of each 2 × 2 block.
+/// A 2:1 reduction of the top-left area agrees with the 1:1 pixels there: the mean of each 2 × 2
+/// block within two levels. E3 allows anti-aliasing to differ on edges, so this reads the corner
+/// (16 × 16 output pixels), where a fixture usually has none; a fixture with an edge there, from an
+/// engine that draws at the reduced scale, can differ on that edge.
 fn check_box_mean<D: KitDocument>(doc: &D, full: &[u8]) -> Result<(), String> {
     let (w, h) = (doc.width(), doc.height());
     let (ow, oh) = ((w / 2).min(16), (h / 2).min(16));

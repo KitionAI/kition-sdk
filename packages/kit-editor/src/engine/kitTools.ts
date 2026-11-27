@@ -12,7 +12,15 @@ export type KitPointer = {
   canvasY: number
   shift: boolean
   alt: boolean
+  /** Command, or Control: either one (Cmd is Ctrl outside macOS, KitPointer 2.2). */
   meta: boolean
+  /** Control itself, apart from Command (a Mac's Ctrl). The canvas always gives it. */
+  ctrl?: boolean
+  /**
+   * A press's click count: 1, 2 for the second press of a double click, 3 for a triple (KitPointer
+   * PT14). The canvas gives it to `begin`; other samples leave it out.
+   */
+  clicks?: number
 }
 
 /** Draws a tool's live preview above the canvas, in canvas CSS pixels. */

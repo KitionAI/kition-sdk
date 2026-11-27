@@ -1,0 +1,27 @@
+format: 1
+id: sdk.editor.canvas-by-hand/quiet-gestures
+feature: sdk.editor.canvas-by-hand
+intent: >-
+  While a drag's steps change the document (the tool's answers busy, not settled), the change says
+  so (KitChange.gesture), unless it also holds a command's change taken in the same render; the
+  tool's state is not asked again for those changes and is asked once for the release's; the
+  editor's disabled commands likewise. With quietGestures the engine worker does not read
+  inspect() at those steps (info follows the revision and saved state) and reads it once at the
+  release; without it every step that moved the revision reads it as before. useEngineTools gives
+  the same object while nothing it holds changed.
+layer: gate
+dimension: performance
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S1 of design usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/engineTools.quiet.test.tsx, packages/kit-editor/src/engine/useKitDocument.gesture.test.tsx, packages/kit-editor/src/engine/kitEngine.quietGestures.test.ts, packages/kit-editor/src/editor.gesture.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-26"

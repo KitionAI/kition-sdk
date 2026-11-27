@@ -22,12 +22,17 @@ The engine contract is specified member by member in
   (`NotFound`, `Disabled`, `InvalidParams`). The host answers that reason's error code
   (`command_disabled`) and shows the message alone; only a message without a reason is read by
   its wording, which is a guess.
-- **E3** `renderArea` MUST return the exact box mean when the area is a whole
-  multiple of the output size. Hosts rely on it to patch cached frames
-  seamlessly. Engines that render whole frames SHOULD use `kition_kit::raster`.
-  Above 1:1, a raster engine (pixels) repeats pixels exactly, while a
-  resolution-independent engine (vectors, text, pages) renders at the
-  requested scale so zoomed views stay sharp; below 1:1 both reduce exactly.
+- **E3** When the area is a whole multiple k of the output size, `renderArea`
+  MUST agree with a whole render at that reduction, anti-aliasing aside: the
+  pixels of a part MUST be those of the same part of a larger area on the same
+  k grid. Hosts patch cached frames and fill the strip a pan uncovers with it,
+  so a part must not show a seam. Averaging the 1:1 pixels (the k × k box
+  mean) agrees, and so does drawing at 1/k directly. Engines that render whole
+  frames SHOULD use `kition_kit::raster`. Above 1:1, a raster engine (pixels)
+  repeats pixels exactly, while a resolution-independent engine (vectors,
+  text, pages) renders at the requested scale so zoomed views stay sharp;
+  below 1:1 a raster engine averages its pixels exactly, and a
+  resolution-independent one may draw at the reduced scale.
 - **E4** `save` MUST NOT mark the document saved; `markSaved` does, after
   the host wrote the bytes. `save` changes nothing in the document. A kit whose
   file holds its KDM document writes `content_snapshot()` there (data model

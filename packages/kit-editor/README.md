@@ -80,6 +80,26 @@ const tools = useEngineTools(session.tool, ready, session.change, { initial: 'mo
 `drawEngineOverlays(overlays, style, draw)` and `drawOverlayInStyle` are the same drawing as a
 plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
 
+## Gestures and the canvas
+
+- The canvas gives a tool's pointers `ctrl` (Control itself; `meta` is Command or Control) and a
+  press its `clicks` (1 to 3); engine tools get them as `mods.control` and the press's `clicks`.
+  The pointer leaving the canvas with no gesture held reaches the engine as `pointerLeft(zoom)`
+  when it has one.
+- While the engine answers, a waiting drag sample gives way to the next one; `useEngineTools`'s
+  `keepsDragSamples(toolId)` keeps every sample of a tool (a pencil's stroke).
+- During a gesture (the tool's answers `busy`, before the settled release) the changes it makes
+  say so (`KitChange.gesture`): the tool's state and the disabled commands are not asked again
+  after each step, only after the release. `useKitDocument`'s `quietGestures` also stops the
+  engine reading `inspect()` at each step (`info.inspected` stays as it was until the release),
+  for a kit whose panels take live numbers from the tool's answers.
+- `useEngineTools` gives the same object until one of its parts changes.
+- A pan past the painted frame shows at once, the part it uncovered blank until the strip renders;
+  only a jump past every painted pixel keeps the old frame in place until the new one lands. A whole
+  render with a frame on screen (an edit, an undo, a zoom) renders the view alone, and the margin
+  past it once the canvas has been still for 120 ms, a quarter of the view at a time. Frames lie
+  on whole device pixels at every zoom, and the view on screen is placed on one.
+
 `KitDocumentCanvas` draws a kit's `decorateUnder` under the overlays and its `decorate` over
 them, so canvas chrome can sit on either side (grids and frame labels under the selection, a
 size pill and rulers over it). When the view zooms, the active engine tool is asked for its

@@ -85,6 +85,25 @@ function pointerOf(event: { clientX: number; clientY: number; pressure: number; 
     shift: event.shiftKey,
     alt: event.altKey,
     meta: event.metaKey || event.ctrlKey,
+    ctrl: event.ctrlKey,
+  }
+}
+
+/** Presses this close in time (ms) and place (CSS pixels) to the last count as one more click. */
+const MULTI_CLICK_MS = 500
+const MULTI_CLICK_SLOP = 4
+
+/**
+ * Counts the clicks of a press, 1 to 3: the browser's own count is not on `pointerdown` (it is on
+ * the mouse events that follow, which the canvas does not get once it takes the press).
+ */
+export function clickCounter() {
+  let last: { at: number; x: number; y: number; button: number; clicks: number } | null = null
+  return (event: { timeStamp: number; clientX: number; clientY: number; button: number }) => {
+    const near = last && event.button === last.button && event.timeStamp - last.at <= MULTI_CLICK_MS && Math.hypot(event.clientX - last.x, event.clientY - last.y) <= MULTI_CLICK_SLOP
+    const clicks = near && last ? (last.clicks % 3) + 1 : 1
+    last = { at: event.timeStamp, x: event.clientX, y: event.clientY, button: event.button, clicks }
+    return clicks
   }
 }
 
@@ -260,6 +279,8 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
 
   // A pen's last pressure in the stroke, for its samples that report none.
   const lastPressure = useRef(1)
+  const countClicks = useRef<ReturnType<typeof clickCounter> | null>(null)
+  countClicks.current ??= clickCounter()
 
   const pointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const tools = context()
@@ -271,7 +292,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     if (editor && document.activeElement !== editor) editor.focus({ preventScroll: true })
     event.currentTarget.setPointerCapture(event.pointerId)
     const active = spaceHeld || event.button === 1 ? HAND_TOOL : tool
-    const pointer = pointerOf(event, tools.viewport)
+    const pointer = { ...pointerOf(event, tools.viewport), clicks: countClicks.current!(event) }
     lastPressure.current = pointer.pressure
     gesture.current = active.begin(pointer, tools) || null
   }

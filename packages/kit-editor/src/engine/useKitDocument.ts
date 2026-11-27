@@ -15,7 +15,16 @@ import type { RestoreOrigin } from '@kition/kit-ui-protocol'
  * when it is null, nothing when it is the empty area. React may take several refreshes in one
  * render; their areas are merged, never replaced by the last one's.
  */
-export type KitChange = { revision: number; damage: RasterRect | null }
+export type KitChange = {
+  revision: number
+  damage: RasterRect | null
+  /**
+   * Set when every refresh it holds is an engine tool's mid-gesture (its answer busy, not settled:
+   * a drag's moves): what follows a change but not each step of a drag (the commands' enabled
+   * state, the tool's state) waits for the change the release makes, which never has it.
+   */
+  gesture?: true
+}
 
 /**
  * What a command refreshes once it ran:
@@ -62,6 +71,11 @@ export function toolDamage(answer: unknown): RasterRect | null {
   const { x0, y0, x1, y1 } = damage as Record<string, unknown>
   const finite = [x0, y0, x1, y1].every((v) => typeof v === 'number' && Number.isFinite(v))
   return finite && (x1 as number) > (x0 as number) && (y1 as number) > (y0 as number) ? { x0: x0 as number, y0: y0 as number, x1: x1 as number, y1: y1 as number } : null
+}
+
+/** Whether an engine tool's answer says a gesture is under way (`busy`). */
+function toolBusy(answer: unknown) {
+  return answer !== null && typeof answer === 'object' && (answer as { busy?: unknown }).busy === true
 }
 
 /**
@@ -148,6 +162,14 @@ export type KitDocumentOptions = {
    * save; without the capability nothing is written. Read it back with `readViewState`.
    */
   viewState?: () => KitViewState | null | undefined
+  /**
+   * While an engine tool's gesture runs (its answers busy, not settled: a drag's moves), the
+   * engine's `inspect()` is not read again for each step: `info` follows the revision, size and
+   * saved state and keeps its last `inspected` until the release, which reads it once. For a kit
+   * whose panels do not follow a drag through `info` (live numbers come with the tool's answers);
+   * off by default.
+   */
+  quietGestures?: boolean
 }
 
 /**
@@ -219,16 +241,20 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
   const owed = owedRef.current
   const coveredRef = useRef(new WeakMap<KitChange, number>())
 
-  const refresh = useCallback((damage: RasterRect | null = null) => {
+  // Whether a refresh that is not a gesture's waits to be committed (see `KitChange.gesture`).
+  const plainOwed = useRef(false)
+  const refresh = useCallback((damage: RasterRect | null = null, gesture = false) => {
     const current = docRef.current
     if (!current) return
     setInfo(current.info)
     setState(describeRef.current(current.info))
     setDirty(current.info.dirty)
     owed.add(damage)
+    if (!gesture) plainOwed.current = true
+    const quiet = gesture && !plainOwed.current
     setChange((previous) => {
       // An area a change committed earlier already took: nothing is left to repaint for it.
-      const next: KitChange = { revision: previous.revision + 1, damage: owed.total() }
+      const next: KitChange = { revision: previous.revision + 1, damage: owed.total(), ...(quiet ? { gesture: true as const } : {}) }
       coveredRef.current.set(next, owed.last())
       return next
     })
@@ -238,6 +264,7 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
   useLayoutEffect(() => {
     const covered = coveredRef.current.get(change)
     if (covered) owed.paid(covered)
+    plainOwed.current = false
   }, [change, owed])
 
   /** Reads the file into a new document and swaps it in; the old one stays on screen until then. */
@@ -426,15 +453,16 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
    * repaints it; a settled one that changed nothing (a click that only selects) refreshes the
    * editor's state without repainting.
    */
+  const quietGestures = options.quietGestures === true
   const tool = useCallback(async <R,>(name: KitToolMethod, args: unknown[] = [], settled = false) => {
     const open = docRef.current
     if (!open) return null
     const before = open.info.revision
-    const { value, changed } = await track(open.tool<R>(name, args, settled))
+    const { value, changed } = await track(open.tool<R>(name, args, settled, quietGestures))
     // An answer that names the area it changed (`damage`: a caret moved) repaints only that area.
-    if (docRef.current === open && changed) refresh(open.info.revision === before ? NOTHING : toolDamage(value))
+    if (docRef.current === open && changed) refresh(open.info.revision === before ? NOTHING : toolDamage(value), !settled && toolBusy(value))
     return value
-  }, [refresh, track])
+  }, [quietGestures, refresh, track])
   if (!COMMAND_ORDER.has(tool)) COMMAND_ORDER.set(tool, order)
 
   const commands = useCallback(async () => (docRef.current ? docRef.current.commands() : []), [])

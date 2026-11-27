@@ -2316,6 +2316,35 @@ features:
     cases:
       - sdk.editor.lazy-fonts/loader
     since: "2026-11-18"
+  - id: sdk.editor.canvas-by-hand
+    title: "The canvas keeps up with a hand: a pan past the painted frame shows at once and renders only the strip it uncovered; a whole render with a frame on screen paints the view first and its margin once the canvas is still; frames lie on whole device pixels at every zoom; a drag's steps ask no state query or disabled commands (and, with quietGestures, no inspect) until the release; useEngineTools' result is stable; pointers carry the real Control key, a press's click count, every sample of a tool that keeps them, and the pointer leaving the canvas"
+    dimension: [function, performance]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/rasterViewport.ts
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - packages/kit-editor/src/engine/kitTools.ts
+      - packages/kit-editor/src/engine/engineTools.ts
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/engine/kitEngine.ts
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/engine/rasterViewport.pan.test.ts
+      - packages/kit-editor/src/engine/engineTools.quiet.test.tsx
+      - packages/kit-editor/src/engine/useKitDocument.gesture.test.tsx
+      - packages/kit-editor/src/engine/kitEngine.quietGestures.test.ts
+      - packages/kit-editor/src/engine/KitCanvas.pointer.test.tsx
+      - packages/kit-editor/src/editor.gesture.test.tsx
+      - packages/kit-editor/README.md
+      - docs/platform/kits/engine.md
+      - docs/platform/kits/ui.md
+      - docs/platform/reference/contract.md
+    cases:
+      - sdk.editor.canvas-by-hand/pan-and-margin
+      - sdk.editor.canvas-by-hand/quiet-gestures
+      - sdk.editor.canvas-by-hand/pointer-fields
+    since: "2026-11-26"
   - id: sdk.dev-host.watch-page
     title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens
     dimension: [robustness]

@@ -92,7 +92,7 @@ export type KitEngineRequest =
   | { method: 'info' }
   | { method: 'fonts' }
   | { method: 'invoke'; name: string; args: unknown[] }
-  | { method: 'tool'; name: KitToolMethod; args: unknown[]; settled: boolean }
+  | { method: 'tool'; name: KitToolMethod; args: unknown[]; settled: boolean; quiet?: boolean }
   | { method: 'saveWithReplica' }
   | { method: 'replicaVersion' }
   | { method: 'replicaExport'; since: ArrayBuffer }
@@ -110,7 +110,11 @@ export type KitEngineRequest =
   | { method: 'inspectAt'; context: KitCallContext; part?: number }
 
 /** The engine-tools capability's methods (kit editors U8b), each answering JSON. */
-export type KitToolMethod = 'tools' | 'tool' | 'selectTool' | 'pointer' | 'toolKey' | 'toolText' | 'toolState'
+/**
+ * The engine tools' members (contract "Engine tools"). `pointerLeft` is optional: a kit without it
+ * answers nothing, and the call changes nothing.
+ */
+export type KitToolMethod = 'tools' | 'tool' | 'selectTool' | 'pointer' | 'pointerLeft' | 'toolKey' | 'toolText' | 'toolState'
 
 /**
  * A refusal names its reason (`read-only`; `invalid-params` with the engine's `errors`;
@@ -450,9 +454,12 @@ export class KitEngine {
    * Calls one of the engine's tool methods and returns its parsed answer. `info` is brought up
    * to date when the call changed the document, or always when `settled` (the end of a gesture,
    * which may change only the selection); mid-drag calls skip that, since `inspect()` costs.
+   * `quiet`: while the answer is a gesture's (busy, not settled), `inspect()` is not read again at
+   * all: `info` follows the revision, size and saved state, and keeps its last `inspected` until
+   * the settled call that ends the gesture reads it once.
    */
-  async tool<T = unknown>(name: KitToolMethod, args: unknown[] = [], settled = false) {
-    const { value, info } = (await this.call({ method: 'tool', name, args, settled })) as { value: T; info: KitEngineInfo | null }
+  async tool<T = unknown>(name: KitToolMethod, args: unknown[] = [], settled = false, quiet = false) {
+    const { value, info } = (await this.call({ method: 'tool', name, args, settled, ...(quiet ? { quiet } : {}) })) as { value: T; info: KitEngineInfo | null }
     if (info) this.info = info
     return { value, changed: info != null }
   }
