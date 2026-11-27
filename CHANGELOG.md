@@ -11,7 +11,7 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
   `commands.didChangeEnabled` are `command.*` (also in `kition serve`); the host's file service
   `files.stat|read|list|write|resolve|release|print` and `files.revoked` are `storage.*`, with
   `files.create` as `storage.new` (the standard replaces `create`); `history.blob.read` is
-  `history.readBlob`. The features `document.identity`, `document.check` and `document.links` are
+  `history.readBlob` and `model.blob.read` is `model.readBlob`. The features `document.identity`, `document.check` and `document.links` are
   `file.identity`, `file.check` and `file.links`, and the `hostServices` `files`, `files.print`
   and `history.blob.read` are `storage`, `storage.print` and `history.readBlob`: a kit's
   `kit.json` `headless.features` and a host's `hostServices` change with them.

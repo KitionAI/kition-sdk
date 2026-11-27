@@ -1003,7 +1003,7 @@ impl Reader<'_> {
             .flatten(),
             Self::Kit(view) => kits.model(Caller::Agent, view.kit_id, &view.document_id, method, params.as_object().cloned().unwrap_or_default()).await.ok(),
             Self::Editor(document) => {
-                if method == "model.blob.read" {
+                if method == "model.readBlob" {
                     return kits.bridge().call(document, "premise", json!({"method":"blob","params":params})).await.ok();
                 }
                 let tool = method.strip_prefix("model.")?;

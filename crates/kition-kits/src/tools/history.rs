@@ -243,7 +243,7 @@ pub(crate) async fn capture_from(kits: &KitManager, key: &str, reader: super::gu
         let mut bytes = Vec::with_capacity(*size);
         while bytes.len() < *size {
             let params = json!({"hash":hash,"offset":bytes.len(),"length":CHUNK.min(*size-bytes.len())});
-            let Some(answer) = reader.model(kits, "model.blob.read", params).await else {
+            let Some(answer) = reader.model(kits, "model.readBlob", params).await else {
                 break;
             };
             if answer["available"] != true || answer["size"].as_u64() != Some(*size as u64) {

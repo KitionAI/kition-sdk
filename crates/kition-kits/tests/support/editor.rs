@@ -188,7 +188,7 @@ async fn answer(
                 return Ok(json!({"available":described["blobBytes"] == true}));
             }
             if method == "blob" {
-                return model("model.blob.read", json!(params)).await;
+                return model("model.readBlob", json!(params)).await;
             }
             if method == "state" {
                 return backend

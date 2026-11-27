@@ -73,7 +73,7 @@ The SDK retains historical bytes across headless file reloads. Complete blob
 references remain in journal `before` values; public `after` values remain size
 summaries. A kit opts in with `KitDocument::blob_source()`, returning its open
 session's `BlobSource`. Headless advertises `model.describe.blobBytes: true`
-and serves ranged `model.blob.read {hash,offset,length}` requests. Custom kit
+and serves ranged `model.readBlob {hash,offset,length}` requests. Custom kit
 servers implement these methods themselves. Existing kits do not opt in and
 their existing `covered` hooks continue to work.
 

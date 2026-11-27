@@ -1206,7 +1206,7 @@ impl Kit {
                 let _ = id;
                 Ok(json!({"covered":covered,"under":under}))
             }
-            "model.blob.read" if *crate::raster::RASTER => {
+            "model.readBlob" if *crate::raster::RASTER => {
                 let id = document_param(&params)?;
                 self.with_document(&id,|document|{
                     let replica=document.model()?;

@@ -1754,7 +1754,7 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
     }
 
     fn model(&mut self, method: &str, params: Value) -> Result<Value, RpcError> {
-        if method == "model.blob.read" {
+        if method == "model.readBlob" {
             let id = params["documentId"].as_str().ok_or_else(|| RpcError::invalid_params("documentId required"))?;
             let index = self.position(id)?;
             let unavailable = || json!({"available": false, "reason":"missing"});
