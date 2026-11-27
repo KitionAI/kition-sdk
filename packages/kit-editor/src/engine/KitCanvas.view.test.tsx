@@ -84,8 +84,11 @@ describe('KitCanvas view and pointer reports', () => {
     expect(reported.zoom).toBeCloseTo(Math.min((800 - 64) / 400, (400 - 64) / 200))
     expect(ref.current!.view()).toEqual({ zoom: reported.zoom, x: reported.x, y: reported.y, width: 800, height: 400 })
     act(() => ref.current!.panTo(10, 20))
-    expect(onView.mock.calls.at(-1)![0]).toMatchObject({ x: 10, y: 20, width: 800, height: 400 })
-    expect(ref.current!.view()).toMatchObject({ x: 10, y: 20 })
+    // The view as it is drawn: the one asked for moved onto a whole device pixel (a 1x screen here),
+    // 10 × 1.68 = 16.8 to 17 device pixels (case regressions/issue-reported-view-is-drawn-view).
+    const placed = (value: number) => Math.round(value * reported.zoom) / reported.zoom
+    expect(onView.mock.calls.at(-1)![0]).toMatchObject({ x: placed(10), y: placed(20), width: 800, height: 400 })
+    expect(ref.current!.view()).toMatchObject({ x: placed(10), y: placed(20) })
   })
 
   it('tracks the pointer while it hovers, in a gesture, and while Space pans; hover only while it hovers', () => {

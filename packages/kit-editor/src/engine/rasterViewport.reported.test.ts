@@ -33,9 +33,15 @@ function setup({ width, height, docWidth, docHeight, left = 0, top = 0 }: { widt
   return { viewport, onChange, left, top }
 }
 
-/** A document point placed on screen from the reported view lands where the canvas draws it, and a pointer there reads it back exactly. */
+/**
+ * A document point placed on screen from the reported view lands where the canvas draws it, and a
+ * pointer there reads it back exactly. The points lie right of and below the view's top-left (a
+ * pointer left of or above the canvas would read as in a pinned band), and on the document.
+ */
 function expectReportedIsDrawn(viewport: RasterViewport, reported: RasterView, left: number, top: number) {
-  for (const [x, y] of [[0, 0], [24, 72], [33.25, 17.5]]) {
+  const x0 = Math.max(0, Math.ceil(reported.x))
+  const y0 = Math.max(0, Math.ceil(reported.y))
+  for (const [x, y] of [[x0, y0], [x0 + 24, y0 + 30], [x0 + 33.25, y0 + 17.5]]) {
     const screen = { x: (x - reported.x) * reported.zoom, y: (y - reported.y) * reported.zoom }
     const drawn = viewport.toScreen(x, y)
     expect(drawn.x).toBeCloseTo(screen.x, 9)
