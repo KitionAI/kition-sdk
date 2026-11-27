@@ -40,7 +40,7 @@ try {
   await kits.call('kits.initialize', { client: { name: 'node-example', version: '1' } })
   const document = await kits.call('documents.open', { path: file })
   const target = { kit: document.kitId, documentId: document.documentId }
-  await kits.call('commands.execute', { ...target, command, params: JSON.parse(params), origin: 'system' })
+  await kits.call('command.execute', { ...target, command, params: JSON.parse(params), origin: 'system' })
   const saved = await kits.call('documents.save', target)
   console.log(JSON.stringify({ path: saved.path, dirty: saved.dirty }))
 } catch (error) {

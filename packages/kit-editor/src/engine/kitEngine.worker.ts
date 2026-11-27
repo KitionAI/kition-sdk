@@ -604,7 +604,7 @@ async function executeCommand(request: Extract<KitEngineRequest, { method: 'exec
   const asOrigin = origin && typeof open.executeAs === 'function'
   // A host's change (origin `system`) is no undo step in any history: an engine that cannot
   // run it as that origin would make it the person's step, so it is refused (Kit UI protocol
-  // 2.7, as Kit Process Protocol's `commands.execute` refuses it).
+  // 2.7, as Kit Process Protocol's `command.execute` refuses it).
   const system = origin?.kind === 'system'
   if (system && !asOrigin) throw new KitEngineRefusal(UNSUPPORTED_REASON, `\`${request.command}\` was not run: this kit cannot keep a host's change out of the undo history`)
   const execute = asOrigin ? () => open.executeAs!(request.command, JSON.stringify(request.params), encodeOrigin(origin)) : () => open.execute(request.command, JSON.stringify(request.params))

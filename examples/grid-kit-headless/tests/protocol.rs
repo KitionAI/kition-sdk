@@ -1,7 +1,7 @@
 //! A host written from `docs/platform/reference/kit-process-protocol.md` alone, with no
 //! Kition crate, starts the reference grid kit on Kit Process Protocol version 1 and drives it: the
 //! ready line and `kit.initialize` say 1, the kit reads and writes its document only through the
-//! host's `files.*` on file handles, a save commits with the version it read, and a stale version
+//! host's `storage.*` on file handles, a save commits with the version it read, and a stale version
 //! is a `file_conflict`. This is the wire as a Go, Python or Swift host speaks it.
 #![cfg(unix)]
 
@@ -39,7 +39,7 @@ struct Grant {
 #[derive(Default)]
 struct Files {
     grants: HashMap<String, Grant>,
-    /// Every `files.*` method the kit called, in order.
+    /// Every `storage.*` method the kit called, in order.
     calls: Vec<String>,
 }
 
@@ -88,21 +88,21 @@ impl Files {
     fn serve(&mut self, method: &str, params: &Value) -> Result<Value, Value> {
         self.calls.push(method.to_owned());
         let handle = params["handle"].as_str().unwrap_or_default();
-        if method == "files.release" {
+        if method == "storage.release" {
             return Ok(json!({}));
         }
         let Some(grant) = self.grants.get_mut(handle) else { return Err(kit_error(-32014, "file_not_granted")) };
         let name = grant.path.file_name().unwrap().to_string_lossy().into_owned();
         match method {
-            "files.stat" => Ok(json!({ "handle": handle, "name": name, "kind": "file", "version": version(&grant.path), "rights": grant.rights })),
-            "files.read" => {
+            "storage.stat" => Ok(json!({ "handle": handle, "name": name, "kind": "file", "version": version(&grant.path), "rights": grant.rights })),
+            "storage.read" => {
                 if !grant.rights.contains(&"read") {
                     return Err(kit_error(-32014, "file_not_granted"));
                 }
                 let bytes = std::fs::read(&grant.path).map_err(|_| kit_error(-32013, "io_error"))?;
                 Ok(json!({ "data": b64(&bytes), "version": version(&grant.path), "size": bytes.len() }))
             }
-            "files.write" => {
+            "storage.write" => {
                 let creating = grant.rights.contains(&"create") && !grant.committed;
                 if !creating && !grant.rights.contains(&"write") {
                     return Err(kit_error(-32014, "file_not_granted"));
@@ -131,7 +131,7 @@ impl Files {
     }
 }
 
-/// One connection: requests to the kit, and `files.*` requests from the kit answered by `files`.
+/// One connection: requests to the kit, and `storage.*` requests from the kit answered by `files`.
 struct Connection {
     writer: Arc<Mutex<UnixStream>>,
     replies: mpsc::Receiver<Value>,
@@ -226,7 +226,7 @@ fn launch(dir: &Path, protocol: &str) -> (Kit, Option<Value>) {
 fn initialize(connection: &mut Connection, role: &str, version: u32) -> Result<Value, Value> {
     let mut params = json!({ "protocolVersion": version, "token": TOKEN, "role": role, "client": { "name": "spec-host", "version": "0" } });
     if role == "host" {
-        params["hostServices"] = json!(["files"]);
+        params["hostServices"] = json!(["storage"]);
     }
     let result = connection.call("kit.initialize", params)?;
     connection.notify("kit.initialized");
@@ -257,24 +257,24 @@ fn a_host_written_from_the_spec_drives_the_kit() {
     // the grid kit's engine cannot keep one out of its undo, so it refuses it rather than make it
     // undoable, and the host edits as the person.
     let edit = json!({ "documentId": id, "command": "grid.set", "params": { "x": 1, "y": 1, "grey": 200 }, "origin": "system" });
-    let refused = host.call("commands.execute", edit.clone()).unwrap_err();
+    let refused = host.call("command.execute", edit.clone()).unwrap_err();
     assert_eq!(refused["data"]["reason"], "command_disabled", "{refused}");
     let person_edit = json!({ "documentId": id, "command": "grid.set", "params": { "x": 1, "y": 1, "grey": 200 }, "origin": "user" });
-    assert_eq!(host.call("commands.execute", person_edit.clone()).unwrap()["changed"], true);
+    assert_eq!(host.call("command.execute", person_edit.clone()).unwrap()["changed"], true);
     let saved = host.call("file.save", json!({ "documentId": id })).unwrap();
     assert_eq!(saved["name"], "plan.grid");
     assert_eq!(saved["version"].as_str(), version(&target).as_deref(), "the version the commit answered");
     assert!(std::fs::read(&target).unwrap().starts_with(b"GRID"));
 
     // A second save replaces the file with the version the first one left (FA9).
-    host.call("commands.execute", person_edit).unwrap();
-    host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 1, "grey": 9 }, "origin": "user" })).unwrap();
+    host.call("command.execute", person_edit).unwrap();
+    host.call("command.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 1, "grey": 9 }, "origin": "user" })).unwrap();
     host.call("file.save", json!({ "documentId": id })).unwrap();
 
     // Someone else changes the file; the next save is a conflict, and the file is theirs (H4).
     std::thread::sleep(Duration::from_millis(20));
     std::fs::write(&target, b"GRID 1 1\n\x07").unwrap();
-    host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 0, "y": 0, "grey": 1 }, "origin": "user" })).unwrap();
+    host.call("command.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 0, "y": 0, "grey": 1 }, "origin": "user" })).unwrap();
     let conflict = host.call("file.save", json!({ "documentId": id })).unwrap_err();
     assert_eq!(conflict["code"], -32015, "{conflict}");
     assert_eq!(conflict["data"]["reason"], "file_conflict");
@@ -282,7 +282,7 @@ fn a_host_written_from_the_spec_drives_the_kit() {
 
     // The kit touched the file only through files.* (section 5): no write without a commit.
     let calls = files.lock().unwrap().calls.clone();
-    assert!(calls.contains(&"files.write".to_owned()), "{calls:?}");
+    assert!(calls.contains(&"storage.write".to_owned()), "{calls:?}");
     assert!(!dir.join("plan.part").exists());
 
     // An existing file, read through its handle; an ungranted handle is the host's refusal.
@@ -295,12 +295,12 @@ fn a_host_written_from_the_spec_drives_the_kit() {
     // An agent may not act as the system (section 6).
     let mut agent = Connection::open(&kit.endpoint, Arc::new(Mutex::new(Files::default())));
     initialize(&mut agent, "agent", 1).unwrap();
-    let forbidden = agent.call("commands.execute", edit).unwrap_err();
+    let forbidden = agent.call("command.execute", edit).unwrap_err();
     assert_eq!(forbidden["data"]["reason"], "role_forbidden", "{forbidden}");
     // regressions/issue-agent-command-gate: nor as the person, whose commands get no agent limits
     // (section 1: the agent's connection is where the kit enforces them).
     let as_person = json!({ "documentId": id, "command": "grid.set", "params": { "x": 1, "y": 1, "grey": 7 }, "origin": "user" });
-    let forbidden = agent.call("commands.execute", as_person).unwrap_err();
+    let forbidden = agent.call("command.execute", as_person).unwrap_err();
     assert_eq!(forbidden["data"]["reason"], "role_forbidden", "{forbidden}");
 
     host.call("kit.shutdown", json!({})).unwrap();
@@ -389,7 +389,7 @@ fn a_kit_ends_when_its_host_connection_closes_without_shutdown() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// `document.identity` and `document.fork` (section 5.6) on a kit whose files embed no replica,
+/// `file.identity` and `file.fork` (section 5.6) on a kit whose files embed no replica,
 /// served by kition-kit-server's default: the kit lists the feature, a file carries no identity,
 /// and a fork is the same bytes in a new file, which it never replaces.
 #[test]
@@ -399,27 +399,27 @@ fn a_kit_whose_files_embed_no_replica_has_no_identity_and_forks_the_same_bytes()
     let files = Arc::new(Mutex::new(Files::default()));
     let mut host = Connection::open(&kit.endpoint, Arc::clone(&files));
     let initialized = initialize(&mut host, "host", 1).unwrap();
-    assert!(initialized["capabilities"]["features"].as_array().unwrap().contains(&json!("document.identity")), "{initialized}");
+    assert!(initialized["capabilities"]["features"].as_array().unwrap().contains(&json!("file.identity")), "{initialized}");
 
     let source = dir.join("plan.grid");
     let handle = files.lock().unwrap().grant("fh_00000000000000000000000000000011", source.clone(), &["read", "create", "write"]);
     let opened = host.call("file.open", json!({ "file": handle, "create": { "format": "grid" } })).unwrap();
     let id = opened["documentId"].clone();
-    host.call("commands.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 3, "grey": 90 }, "origin": "user" })).unwrap();
+    host.call("command.execute", json!({ "documentId": id, "command": "grid.set", "params": { "x": 2, "y": 3, "grey": 90 }, "origin": "user" })).unwrap();
     host.call("file.save", json!({ "documentId": id })).unwrap();
 
     let read = files.lock().unwrap().grant("fh_00000000000000000000000000000012", source.clone(), &["read"]);
-    assert_eq!(host.call("document.identity", json!({ "file": read })).unwrap(), json!({ "docId": null }));
+    assert_eq!(host.call("file.identity", json!({ "file": read })).unwrap(), json!({ "docId": null }));
     let target = dir.join("copy.grid");
     let create = files.lock().unwrap().grant("fh_00000000000000000000000000000013", target.clone(), &["create"]);
-    let forked = host.call("document.fork", json!({ "file": read, "target": create })).unwrap();
+    let forked = host.call("file.fork", json!({ "file": read, "target": create })).unwrap();
     assert_eq!(forked["docId"], Value::Null, "{forked}");
     assert_eq!(forked["name"], "copy.grid");
     assert_eq!(std::fs::read(&target).unwrap(), std::fs::read(&source).unwrap());
 
     // The target is a `create` handle: a second fork into it is the host's refusal.
     let again = files.lock().unwrap().grant("fh_00000000000000000000000000000014", target.clone(), &["create"]);
-    let refused = host.call("document.fork", json!({ "file": read, "target": again })).unwrap_err();
+    let refused = host.call("file.fork", json!({ "file": read, "target": again })).unwrap_err();
     assert_eq!(refused["data"]["reason"], "file_conflict", "{refused}");
 
     host.call("kit.shutdown", json!({})).unwrap();

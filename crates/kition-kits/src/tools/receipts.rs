@@ -16,7 +16,7 @@
 //!
 //! A file open in an editor that lists `changes` (C3b) gets the same receipt: the editor answers
 //! the bridge's `version`, `changes` and `check` from its replica ([`Source::Editor`]).
-//! - `diagnostics: { new, resolved }`: the kit's check (`document.check`) before the first step and
+//! - `diagnostics: { new, resolved }`: the kit's check (`file.check`) before the first step and
 //!   after the last, matched by `code` and `target`; `check: false` skips both checks.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -99,7 +99,7 @@ fn unavailable(kit_name: &str, error: &KitError) -> (String, bool) {
 /// Where a receipt reads the document: a kit session's document through the Kit Process Protocol, or
 /// the document in its open editor through the Kit AI bridge, when the editor lists the capability
 /// `changes` (C3b: the bridge's `version`, `changes` and `check`, answered from the editor's
-/// replica as `model.version`, `model.changes` and `document.check` are).
+/// replica as `model.version`, `model.changes` and `file.check` are).
 #[derive(Clone, Copy)]
 pub enum Source<'a> {
     Kit { kit_id: &'a str, document_id: &'a str },

@@ -116,7 +116,7 @@ async fn a_host_opens_edits_and_saves_by_path_and_hears_of_conflicts() {
 
     // The host's own change on the person's behalf, then a save through the kit's files.*.
     let append = |text: &str, origin: &str| json!({ "kit": "kit.example", "documentId": opened["documentId"], "command": "text.append", "params": { "text": text }, "origin": origin });
-    let executed = service.call("commands.execute", append(" world", "system")).await.unwrap();
+    let executed = service.call("command.execute", append(" world", "system")).await.unwrap();
     check("executeResult", &executed);
     assert_eq!(executed["changed"], true);
     assert_eq!(executed["document"]["dirty"], true);
@@ -127,7 +127,7 @@ async fn a_host_opens_edits_and_saves_by_path_and_hears_of_conflicts() {
     // Someone else changes the file: the next save is a conflict, and their change stays.
     tokio::time::sleep(Duration::from_millis(20)).await;
     std::fs::write(workspace.join("art/Note.example"), "theirs").unwrap();
-    service.call("commands.execute", append("!", "user")).await.unwrap();
+    service.call("command.execute", append("!", "user")).await.unwrap();
     let conflict = service.call("documents.save", document.clone()).await.unwrap_err();
     assert_eq!((conflict["code"].as_i64(), conflict["data"]["reason"].as_str()), (Some(-32015), Some("file_conflict")), "{conflict}");
     check("error", &conflict);
@@ -139,7 +139,7 @@ async fn a_host_opens_edits_and_saves_by_path_and_hears_of_conflicts() {
     check("document", &reloaded);
     assert_eq!((reloaded["conflict"].as_bool(), reloaded["dirty"].as_bool()), (Some(false), Some(false)), "{reloaded}");
     // A change outside the kits, told to the service, puts a dirty document in conflict at once.
-    service.call("commands.execute", append("?", "user")).await.unwrap();
+    service.call("command.execute", append("?", "user")).await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
     std::fs::write(workspace.join("art/Note.example"), "theirs again").unwrap();
     service.call("documents.changedOnDisk", json!({ "path": "art/Note.example" })).await.unwrap();

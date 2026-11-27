@@ -2,10 +2,10 @@ format: 1
 id: regressions/issue-agent-command-gate
 feature: sdk.security.agent-command-gate
 intent: >-
-  Every way an agent runs a command passes the gate `commands.execute` applies (KHP A28, A29,
+  Every way an agent runs a command passes the gate `command.execute` applies (KHP A28, A29,
   §10.6): a `command` operation of `model.batch` naming a command that names files, or one the
   manifest keeps from the agent (`agent.exclude`), fails the whole batch before anything runs with
-  the error `commands.execute` answers and `data.model.code` `not-allowed` (an unknown id
+  the error `command.execute` answers and `data.model.code` `not-allowed` (an unknown id
   `unknown-command`); a kit's own dispatcher (macro, script, step list) asks
   `kition_kit::dispatch::may_run` before each step and fails on a step the caller may not run;
   an agent's connection runs nothing as the person. Before, a batch's command operation went

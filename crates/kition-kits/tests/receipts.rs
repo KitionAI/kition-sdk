@@ -1,7 +1,7 @@
 //! Receipts: every accepted write of `<prefix>_run` and `<prefix>_batch` on a file the headless
 //! kit edits, or on its headless draft, answers what it changed (`changes`, by the ids the tools
 //! use), the document's `revision`, and the diagnostics it introduced and resolved, computed by
-//! the SDK from the document's data model (`model.version`, `model.changes`, `document.check`),
+//! the SDK from the document's data model (`model.version`, `model.changes`, `file.check`),
 //! against the mock kit. A failed run answers none; a kit without an object model and a file open
 //! in its editor say why (`changesUnavailable`) instead of an empty change set.
 //!

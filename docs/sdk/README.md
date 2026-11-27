@@ -19,7 +19,7 @@ contracts behind this guide.
 - **Command API**: each kit's catalogue of named commands, each with a parameter schema. Agents
   call it over MCP (`kition mcp`: `<kit>_run`, `<kit>_commands`, ...; [agent.md](agent.md)), the
   `kition` command line serves it, and programs in any language call it as JSON lines
-  (`kition serve`: `command.list`, `commands.execute`; [hosts.md](hosts.md)). An editor embedded
+  (`kition serve`: `command.list`, `command.execute`; [hosts.md](hosts.md)). An editor embedded
   in your page serves the same tools to your agent (`editor.agentPort`, [embed.md](embed.md)).
 - **Script API**: the typed object model for TypeScript, `@kition/script` ([script.md](script.md)):
   the same script runs in a page on an embedded editor, in Node on the kit's WebAssembly engine,

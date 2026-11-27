@@ -46,7 +46,7 @@ def main(executable, workspace, kits_dir, file, command, params):
         kits.call("kits.initialize", client={"name": "python-example", "version": "1"})
         document = kits.call("documents.open", path=file)
         target = {"kit": document["kitId"], "documentId": document["documentId"]}
-        kits.call("commands.execute", command=command, params=json.loads(params), origin="system", **target)
+        kits.call("command.execute", command=command, params=json.loads(params), origin="system", **target)
         saved = kits.call("documents.save", **target)
         print(json.dumps({"path": saved["path"], "dirty": saved["dirty"]}))
     except KitsError as error:

@@ -1,7 +1,7 @@
 format: 1
 id: regressions/issue-reread-deleted-before-write
 feature: sdk.agent.premise-guard
-intent: A kit that reads a changed file again on its own (document.didChangeOnDisk, handled on the host's connection) while the server reads the document on the agent's connection does not hide what the change deleted. When the kit's object-model version moves between the server's reads, the server compares against the snapshot it kept, so a stale write on a replica-only object the change removed is refused as a conflict with reason deleted and others.deleted, not run to fail not-found. On Ubuntu CI the kit reread between the two reads and the write failed not-found.
+intent: A kit that reads a changed file again on its own (file.didChangeOnDisk, handled on the host's connection) while the server reads the document on the agent's connection does not hide what the change deleted. When the kit's object-model version moves between the server's reads, the server compares against the snapshot it kept, so a stale write on a replica-only object the change removed is refused as a conflict with reason deleted and others.deleted, not run to fail not-found. On Ubuntu CI the kit reread between the two reads and the write failed not-found.
 layer: gate
 source: { kind: synthetic, from: SDK regression suite, license: owned }
 input: []

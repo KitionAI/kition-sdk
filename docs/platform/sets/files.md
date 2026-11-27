@@ -77,7 +77,7 @@ A handle is granted through one of four flows.
 | **Pick** (`files/pick`; or a drop on the kit's frame, `files/dropped`, [`KitPointer 1.0`](pointer.md) section 9) | The person, in the host's own picker, inside a gesture; or by dropping the files | `read` (mode `open`, and drops); `read` on a folder (mode `folder`); `create`, or `write` on an existing file the person chose to replace (mode `save`) | Insert pages from a file, place an image, choose a batch folder, Save a Copy to a chosen place |
 | **Create** (`files/create`) | Policy: a new file beside the document destroys nothing; a host MAY still ask | `create` on a new file | Export As, Quick Export, Layers to Files, split into files |
 | **Agent request** (a command parameter typed `file`, [`KitAgent 1.4`](agent.md) A28) | The harness's policy for the run, logged; the person sees it in the tool card | `read`; `create`; `write` only under FA13 | An agent combines PDFs, exports a PNG, runs a data-set batch |
-| **Link** (`links/resolve`, headless `links.resolve` and `files.resolve`; [`KitLinks 1.0`](links.md) LR1) | Implicit: the document already links the target; LR2 and LR3 bound it | `read` only, on a file | A note embeds a section of another note, a board draws a note card, a kit checks for broken links |
+| **Link** (`links/resolve`, headless `links.resolve` and `storage.resolve`; [`KitLinks 1.0`](links.md) LR1) | Implicit: the document already links the target; LR2 and LR3 bound it | `read` only, on a file | A note embeds a section of another note, a board draws a note card, a kit checks for broken links |
 
 - **FA6** `files/pick` asks the host to show its picker. Params:
 
@@ -222,18 +222,18 @@ prints.
 
 ### 8.2 Kit Process Protocol (headless)
 
-- **FA12** The host serves `files.stat`, `files.read`, `files.list`,
-  `files.write`, `files.create`, `files.release`, and `files.resolve` (and
-  `files.print` where it prints) **to the kit** on the host connection:
+- **FA12** The host serves `storage.stat`, `storage.read`, `storage.list`,
+  `storage.write`, `storage.new`, `storage.release`, and `storage.resolve` (and
+  `storage.print` where it prints) **to the kit** on the host connection:
   JSON-RPC 2.0 is symmetric, so the kit sends these requests to its host on
-  the same connection. There is no `files.pick`: a headless kit has no
-  person to ask, and gets handles from the host's `document.*` requests and
+  the same connection. There is no `storage.pick`: a headless kit has no
+  person to ask, and gets handles from the host's `file.*` requests and
   from `file` parameters (A29). Bytes travel base64 in chunks of at most
   8 MiB.
 
-`file.open`, `document.saveAs`, and `file.export` take handles
+`file.open`, `file.saveAs`, and `file.export` take handles
 instead of URIs, and lent files are read through handles the host resolves
-(`files.resolve`). A headless kit process then needs no file-system access
+(`storage.resolve`). A headless kit process then needs no file-system access
 at all, and a host SHOULD run it with the platform's sandbox denying the
 file system (except its private cache directory) and the network. See the
 [Kit Process Protocol](../reference/kit-process-protocol.md) section 5.
@@ -273,7 +273,7 @@ reason.
 | --- | --- | --- |
 | `file-not-granted` | `-32014 file_not_granted` | Unknown, expired, revoked, or foreign handle, or a right the handle lacks (FA4, FA5) |
 | `not-allowed` | `-32018 file_not_allowed` | The host's policy refuses the grant or the file: an extension outside K15, outside the workspace, host data or a hidden path (FA7, FA8, LR2), an agent write without a draft or approval (FA13), a write in a read-only session (FA17) |
-| (none: the page reads lent files by path, not through `files/*`) | `-32023 file_not_found` | A file the kit asked for by path (`files.resolve`) that passes every check of FA8 and does not exist; never answered for a path that fails one |
+| (none: the page reads lent files by path, not through `files/*`) | `-32023 file_not_found` | A file the kit asked for by path (`storage.resolve`) that passes every check of FA8 and does not exist; never answered for a path that fails one |
 | `no-gesture` | (none: headless has no picker) | `files/pick` or `files/print` without a recent gesture (FA6, FA11) |
 | `already-committed` | `-32016 file_already_committed` | A second commit of a `create` handle (FA9) |
 | `conflict` | `-32015 file_conflict` | The file's version is no longer `expected` (FA9) |
@@ -287,7 +287,7 @@ reason.
 | `files` | Host, Kit UI `ui/initialize` `capabilities` | Serves `files/stat`, `read`, `list`, `write`, `create`, `release`, and sends `files/revoked` |
 | `files-pick` | Host, Kit UI `ui/initialize` `capabilities` | Serves `files/pick` |
 | `print` | Host, Kit UI `ui/initialize` `capabilities` | Serves `files/print` |
-| `files`, `files.print` | Host, Kit Process Protocol `kit.initialize` param `hostServices` | Serves `files.*` (always) and `files.print` |
+| `storage`, `storage.print` | Host, Kit Process Protocol `kit.initialize` param `hostServices` | Serves `storage.*` (always) and `storage.print` |
 | `files` | Kit, manifest `capabilities` (K15) | Uses this set; declares `files` lists |
 
 ## 11. What replaces today's methods

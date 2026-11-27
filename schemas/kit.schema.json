@@ -570,7 +570,7 @@
         },
         "features": {
           "type": "array",
-          "description": "Optional Kit Process Protocol features the executable serves, as kit.initialize lists them in capabilities.features (for example model.describe and model.batch, the object model; document.identity, the document.identity and document.fork requests).",
+          "description": "Optional Kit Process Protocol features the executable serves, as kit.initialize lists them in capabilities.features (for example model.describe and model.batch, the object model; file.identity, the file.identity and file.fork requests).",
           "uniqueItems": true,
           "items": {
             "type": "string",

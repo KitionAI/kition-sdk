@@ -4,7 +4,7 @@
 //! A host that serves a kit (kition-headless) checks each command before the engine runs it: the
 //! command exists, the caller may run it (a command whose parameters name files is not offered,
 //! nor one the manifest keeps from the agent), and its parameters fit its schema. It does so for
-//! `commands.execute` and for each `command` operation of an object-model batch, and while the
+//! `command.execute` and for each `command` operation of an object-model batch, and while the
 //! engine runs it keeps the same check here, for the caller's [`Role`], so that what the engine
 //! dispatches itself goes through it too.
 //!

@@ -238,7 +238,7 @@ fn workspace(name: &str) -> PathBuf {
     std::fs::canonicalize(dir).unwrap()
 }
 
-/// Serves the kit the files under `root` through an in-process host's `files.*`.
+/// Serves the kit the files under `root` through an in-process host's `storage.*`.
 fn serve<D: KitDocument + Send + 'static>(kit: &mut Headless<D>, root: &Path) -> HostFolder {
     let folder = HostFolder::new(root).unwrap();
     kit.set_host(folder.host());
@@ -280,7 +280,7 @@ fn opens_edits_and_saves_documents_in_the_workspace() {
     let (saved, written) = kit.save(&info.id, None, None).unwrap();
     assert!(!saved.dirty);
     assert_eq!(written.name, "a.grid");
-    let stat = folder.files().serve("files.stat", json!({ "handle": folder.file("art/a.grid").unwrap() })).unwrap();
+    let stat = folder.files().serve("storage.stat", json!({ "handle": folder.file("art/a.grid").unwrap() })).unwrap();
     assert_eq!(json!(written.version), stat["version"], "the version the commit answered");
     let reopened = GridDocument::open("a.grid", &std::fs::read(&file).unwrap()).unwrap();
     assert_eq!(reopened.render(1.0, 1.0, 1.0, 1, 1).unwrap(), vec![0, 0, 0, 255]);
@@ -479,8 +479,8 @@ fn a_save_never_replaces_a_file_changed_since_it_was_read() {
 }
 
 /// A document with unsaved edits whose file changed is in conflict, which its state
-/// says (once, on `document.didChangeOnDisk`, or when a save fails `file_conflict`), until it is
-/// read again (`document.reload`) or saved; its edits are never dropped silently.
+/// says (once, on `file.didChangeOnDisk`, or when a save fails `file_conflict`), until it is
+/// read again (`file.reload`) or saved; its edits are never dropped silently.
 #[test]
 fn a_dirty_document_whose_file_changed_is_in_conflict_until_reloaded() {
     let _turn = lent_turn();
@@ -518,7 +518,7 @@ fn a_dirty_document_whose_file_changed_is_in_conflict_until_reloaded() {
 }
 
 /// E5 through the host: the files a document names are resolved beside it by the host
-/// (`files.resolve`) and read by handle, never outside the workspace.
+/// (`storage.resolve`) and read by handle, never outside the workspace.
 #[test]
 fn lent_files_are_resolved_and_read_through_the_host() {
     let _turn = lent_turn();
@@ -690,14 +690,14 @@ fn serves_the_object_model_through_the_exchange_and_on_the_session() {
         let serves = kit.serves_model();
         kition_kit_server::with_model_features(kit.capabilities(), serves)["features"].clone()
     };
-    assert_eq!(features(&mut plain), json!(["view.describe", "document.check"]));
+    assert_eq!(features(&mut plain), json!(["view.describe", "file.check"]));
     assert_eq!(
         features(&mut Headless::<notes::NotesDocument>::with_replica_port(notes_kit())),
-        json!(["view.describe", "document.check", "model.open", "model.import", "model.export", "model.save", "model.describe", "model.batch"])
+        json!(["view.describe", "file.check", "model.open", "model.import", "model.export", "model.save", "model.describe", "model.batch"])
     );
     assert_eq!(
         features(&mut Headless::<notes::NotesDocument>::with_session_model(notes_kit())),
-        json!(["view.describe", "document.check", "model.describe", "model.batch"])
+        json!(["view.describe", "file.check", "model.describe", "model.batch"])
     );
     let _ = std::fs::remove_dir_all(root);
 }
@@ -752,7 +752,7 @@ fn opens_a_replica_without_a_file_and_imports_exports_and_saves_it() {
     use kition_kit::session::KitSessionDocument as _;
 
     let mut kit = Headless::<notes::NotesDocument>::with_replica_port(notes_kit());
-    assert_eq!(kit.capabilities()["features"], json!(["view.describe", "document.check", "model.open", "model.import", "model.export", "model.save"]));
+    assert_eq!(kit.capabilities()["features"], json!(["view.describe", "file.check", "model.open", "model.import", "model.export", "model.save"]));
     // The room's document, as a collaborator holds it.
     let mut peer = <notes::NotesDocument as KitDocument>::create("ideas.notes", 1, 1).unwrap();
     let snapshot = peer.session().snapshot().unwrap();
@@ -804,13 +804,13 @@ fn opens_a_replica_without_a_file_and_imports_exports_and_saves_it() {
 
     // A kit on its own session model has no replica constructor.
     let mut session = Headless::<notes::NotesDocument>::with_session_model(notes_kit());
-    assert_eq!(session.capabilities()["features"], json!(["view.describe", "document.check"]));
+    assert_eq!(session.capabilities()["features"], json!(["view.describe", "file.check"]));
     assert!(session.model("model.open", json!({ "name": "ideas.notes", "snapshot": base64::encode(&snapshot) })).is_err());
 }
 
 /// regressions/issue-kdm-shallow-export: a kit on the change exchange (`with_replica_port`) serves
 /// a document forked as a new document, as a file
-/// `document.fork` wrote or a room started from such a file holds it: `model.batch` and
+/// `file.fork` wrote or a room started from such a file holds it: `model.batch` and
 /// `model.describe` read it, and an agent's draft (`model.export`, then `model.open`) opens, edits
 /// and merges back with `model.import`.
 #[test]

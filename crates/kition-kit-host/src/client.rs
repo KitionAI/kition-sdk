@@ -1,6 +1,6 @@
 //! A Kit Process Protocol client connection: request and response correlation,
 //! timeouts with `$/cancelRequest`, a notification stream, and, on the host
-//! connection, the answers to the kit's own requests (`files.*`, section 5.1).
+//! connection, the answers to the kit's own requests (`storage.*`, section 5.1).
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -396,7 +396,7 @@ mod control_tests {
             let (client, mut reader, _writer) = pair();
             let (cancel_tx, cancelled) = watch::channel(false);
             let control = RequestControl::new(cancelled, None);
-            let request = control.scope(client.request("commands.execute", json!({}), Some(Duration::from_millis(20))));
+            let request = control.scope(client.request("command.execute", json!({}), Some(Duration::from_millis(20))));
             let peer = async {
                 let request = read_frame_async(&mut reader, &mut Vec::new()).await.unwrap().unwrap();
                 let request: Value = serde_json::from_str(&request).unwrap();

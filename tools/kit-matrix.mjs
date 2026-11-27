@@ -4,7 +4,7 @@
 // kit repository's files. With --dynamic, the dynamic rows this tool can settle (DYNAMIC_CHECKS)
 // are too: it builds each kit's headless executable (`cargo build -p kition-<kit>` in the kit's
 // repository) and asks it, through kition-sdk's `kit-probe`, for its commands as an agent sees
-// them and for `document.check` on each of the kit's conformance fixtures.
+// them and for `file.check` on each of the kit's conformance fixtures.
 //
 //   node tools/kit-matrix.mjs --requirements <kit-requirements.yaml> --repos <folder of kition-<kit>>
 //     [--waivers <folder of <kit>.yaml>] [--date YYYY-MM-DD] [--out <folder>]
@@ -382,7 +382,7 @@ export const DYNAMIC_CHECKS = {
     return problems.length ? fail(`${problems.join('; ')}; ${facts}`) : pass(facts)
   },
   // AX6: the check is real: agent/checks.json lists every code with a fixture in conformance/, and
-  // the kit's document.check on each fixture yields that code.
+  // the kit's file.check on each fixture yields that code.
   'agent-ready.check-catalogue': (source, probe) => {
     const text = source.text('agent/checks.json')
     if (text === null) return fail('no agent/checks.json')

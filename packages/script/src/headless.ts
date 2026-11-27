@@ -271,7 +271,7 @@ export class HeadlessDocument {
    * A `system` change is no undo step: neither the person's undo nor an agent's takes it back.
    */
   async execute(command: string, params: Record<string, unknown> = {}, origin: 'user' | 'agent' | 'system' = 'user', originLabel?: string): Promise<unknown> {
-    const answer = await this.request<{ result?: unknown; document: HeadlessDocumentState }>('commands.execute', {
+    const answer = await this.request<{ result?: unknown; document: HeadlessDocumentState }>('command.execute', {
       command,
       params,
       origin,

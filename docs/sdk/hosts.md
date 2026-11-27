@@ -11,7 +11,7 @@ asks of a host, so no host has to implement it:
 
 - it starts each kit's headless executable when a file of its kind is first opened, and stops it
   when the host goes away;
-- it gives the kit a file handle for each file instead of a path, and answers the kit's `files.*`
+- it gives the kit a file handle for each file instead of a path, and answers the kit's `storage.*`
   requests from the workspace, never outside it, never a hidden file (`.git/`, `.kition/`);
 - a save is written to a temporary file and moved into place in one step, and only while the
   file is still the version the kit read: if someone changed it meanwhile, the save fails with
@@ -53,7 +53,7 @@ request at a time can simply read the next line.
 ← {"jsonrpc":"2.0","id":1,"result":{"serviceVersion":1,"protocolVersion":1,"workspace":true,"kits":[{"id":"kit.note","name":"Note","extensions":["md","markdown"],"creates":["md"],"installed":true}]}}
 → {"jsonrpc":"2.0","id":2,"method":"documents.open","params":{"path":"Plan.md"}}
 ← {"jsonrpc":"2.0","id":2,"result":{"kitId":"kit.note","documentId":"82aab04c…:1","path":"Plan.md","format":"markdown","readOnly":false,"dirty":false,"canUndo":false,"canRedo":false,"conflict":false,"details":{…},…}}
-→ {"jsonrpc":"2.0","id":3,"method":"commands.execute","params":{"kit":"kit.note","documentId":"82aab04c…:1","command":"block.append","params":{"markdown":"- [ ] Ship the plan"},"origin":"system"}}
+→ {"jsonrpc":"2.0","id":3,"method":"command.execute","params":{"kit":"kit.note","documentId":"82aab04c…:1","command":"block.append","params":{"markdown":"- [ ] Ship the plan"},"origin":"system"}}
 → {"jsonrpc":"2.0","id":4,"method":"documents.save","params":{"kit":"kit.note","documentId":"82aab04c…:1"}}
 ```
 
@@ -77,7 +77,7 @@ it if your language likes them.
 | `documents.preview` | `kit`, `documentId`, optional `maxSize` | `{ mimeType, data }`, a base64 PNG |
 | `documents.check` | `kit`, `documentId` | `{ diagnostics }` |
 | `command.list` | `kit`, optional `documentId`, optional `query` | `{ commands }` |
-| `commands.execute` | `kit`, `documentId`, `command`, `params`, `origin` (`user`, `agent` or `system`), optional `originLabel` | `{ changed, result, document }` |
+| `command.execute` | `kit`, `documentId`, `command`, `params`, `origin` (`user`, `agent` or `system`), optional `originLabel` | `{ changed, result, document }` |
 | `model.describe`, `model.batch` | `kit`, `documentId`, and the batch | as in the [object model](../platform/reference/object-model.md) |
 | `tools.list`, `tools.call` | as MCP's `tools/list` and `tools/call` | the kits' agent tools, for a host's own agent |
 
@@ -108,7 +108,7 @@ An error has a `code` and a stable `data.reason`; `data.detail` is a message for
 ## Hosts that serve files themselves
 
 A host that keeps files somewhere other than a local folder (a cloud store, a database, a page's
-storage) can speak the Kit Process Protocol to each kit directly instead, and serve `files.*` from its
+storage) can speak the Kit Process Protocol to each kit directly instead, and serve `storage.*` from its
 storage: the [protocol](../platform/reference/kit-process-protocol.md), its
 [schema](../../schemas/kit-process-protocol.schema.json), and [files beyond the open document](../platform/sets/files.md)
 say everything it must do. The published kits are its test: the `regressions/issue-2` case in

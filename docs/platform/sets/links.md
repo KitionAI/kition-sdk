@@ -92,7 +92,7 @@ holds for every read of this set.
 - **LR1 Scope.** For a kit that lists the capability `links` (K18), a host
   serves, besides the document and its lent files, `read` handles for the
   **targets of the document's links**: the links the kit last reported
-  (`links/changed`, headless `document.links`) and the ones it asks to
+  (`links/changed`, headless `file.links`) and the ones it asks to
   resolve (`links/resolve`). A host MAY refuse to resolve a target that is
   not in the last reported link set (`not-linked`). Every target stays
   inside the workspace (H3) and outside LR2.
@@ -308,7 +308,7 @@ answer backlinks and rewrite links when files move.
   `links/changed { links }` after it opens and after every committed change
   that altered its link set, at most about once a second while the person
   types; the host keeps the latest as the document's live link set (LR1).
-  Headless, the host asks `document.links`.
+  Headless, the host asks `file.links`.
 - **LK5 Backlinks.** `links/backlinks {}` answers
   `{ backlinks: [{ source: { path, name, docId?, kit? }, link }] }` for the
   current document, `source.path` document-relative (HC-P2). The host sends
@@ -325,7 +325,7 @@ answer backlinks and rewrite links when files move.
 - **LK7 The index.** A host keeps an index from every workspace document of
   a kit that lists `links` to its links (LK1), keyed by `docId` and path.
   Open documents report through their editor (LK4); closed ones are indexed
-  with the kit's headless executable (`document.links`, which runs the same
+  with the kit's headless executable (`file.links`, which runs the same
   `linksOf`); a file changed on disk while closed is indexed again. A host
   MAY persist the index; it is derived data and never part of a document.
 - **LK8 Rename and move.** After a rename or move of a file or folder that
@@ -403,10 +403,10 @@ See [`KitAgent 1.4`](agent.md) section 2.2.
 | Meaning | Kit UI protocol (page) | Kit Process Protocol (headless) | `KitEmbed 1.5` |
 | --- | --- | --- | --- |
 | Resolve | `links/resolve` | `links.resolve { documentId, links }`, served by the host; `file` always a handle | EM25 `resolveLink` |
-| Read a target | the link handle (FA18), read by the engine through `kition_kit::host` (LR6) | `files.read` on the link handle; `files.resolve` also resolves link targets (section 5.4 there) | the embed's handles (EM23) |
-| Report links | `links/changed` | `document.links { documentId }`, asked by the host | the page's own index, if any |
+| Read a target | the link handle (FA18), read by the engine through `kition_kit::host` (LR6) | `storage.read` on the link handle; `storage.resolve` also resolves link targets (section 5.4 there) | the embed's handles (EM23) |
+| Report links | `links/changed` | `file.links { documentId }`, asked by the host | the page's own index, if any |
 | Backlinks | `links/backlinks`, `links/backlinksChanged` | `links.backlinks { documentId }` (optional) | EM26 `backlinks` |
-| Retarget | `links/retarget` (host to kit) | `commands.execute { command: "link.retarget", origin: "system" }` | EM27 `renamed` |
+| Retarget | `links/retarget` (host to kit) | `command.execute { command: "link.retarget", origin: "system" }` | EM27 `renamed` |
 | Target changed | `links/targetChanged` | `links.targetChanged` (optional notification) | from the page's storage events |
 | Preview | `host/preview` | `links.preview` (optional, PV8) | EM25 `preview` |
 | Open a file | `host/open`, `document.view`, `document/reveal` | none: headless has no person | EM25 `open` |
@@ -458,7 +458,7 @@ The Kit UI protocol and the embed carry a refusal as `-32000` with
 | `links` | Kit, `ui/initialize` answer and manifest (K18) | Reports links and answers `links/retarget` |
 | `render` | Kit, `ui/initialize` answer | Answers `view/render` in a preview frame (PV1) |
 | `links`, `links.preview` | Host, Kit Process Protocol `hostServices` | Serves `links.resolve` (and `links.backlinks` when it has an index), and `links.preview` |
-| `document.links` | Kit, Kit Process Protocol `capabilities.features` and `headless.features` | Answers `document.links` |
+| `file.links` | Kit, Kit Process Protocol `capabilities.features` and `headless.features` | Answers `file.links` |
 
 ## 12. Security considerations
 
@@ -504,7 +504,7 @@ passes these tests (see [conformance.md](../conformance.md#kitlinks-10)):
 | Who | Test | Rules |
 | --- | --- | --- |
 | Kits (page), `@kition/kit-dev-host` `checkLinks` | 1. A fixture with known links (paths, names, embeds, cards, a link inside a comment): `links/changed` lists exactly the expected set, comments excluded. 2. `link.retarget` for a file and for a folder: the saved bytes differ only in link spans; syntax, aliases, and suffixes are kept; a second run answers `changed: 0`. 3. Undo of the retarget restores the bytes. 4. Against a host without `preview-files`, `open-file`, `open-url`, or `links`, the kit opens, draws placeholders, and sends no request it was not offered. 5. No request carries an absolute path or a path above the workspace (`checkNoPaths`). 6. `host/open` and `host/openUrl` are sent only from a gesture | LK1–LK4, HC-P2, HC-P3, OP1, OP6, UI-K8 |
-| Kits (headless), `kition-kit-conformance` | `document.links` equals the page's `linksOf` for the same fixture; `link.retarget` run with origin `system` saves atomically; linked reads go only through link handles (check 13 of the Kit Process Protocol suite) | LK1, LK2, LK7, LR6 |
+| Kits (headless), `kition-kit-conformance` | `file.links` equals the page's `linksOf` for the same fixture; `link.retarget` run with origin `system` saves atomically; linked reads go only through link handles (check 13 of the Kit Process Protocol suite) | LK1, LK2, LK7, LR6 |
 | Kits (manifest), `tools/check-manifest.mjs` | `links` declared when the capability is listed; `preview-files`, `open-file`, `open-url` listed when used | K18 |
 | Hosts (Chromium and WebKit) | Read refusals: the host's store, hidden paths, undeclared extensions, `..`, unlinked targets, all answered alike. The name resolution order of LR4. Previews: oversize answers `too-large`, a slow fixture `timeout`, the concurrency cap queues, `version` changes after a save and `links/targetChanged` arrives, no kit code runs on the host page's origin. Opening: no gesture refused, `view` reaches the opened kit, `create` makes a new file only. Web addresses: other schemes refused, confirmation shown, nothing returned but `opened`. Rename: an open document with unsaved edits keeps them and gains the retarget; a closed one is rewritten atomically; a conflict is reported, not overwritten; a read-only shared document is reported; Undo restores every file byte for byte | LR1–LR5, PV1–PV7, OP1–OP9, LK7–LK13, H15–H17 |
 | Embeds | EM25–EM27 with a fake storage: resolve, open, open-url, and preview callbacks; capabilities absent without them | EM25–EM27 |

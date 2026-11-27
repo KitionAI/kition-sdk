@@ -51,10 +51,10 @@ pub struct InitializeParams {
     pub host_services: Vec<String>,
 }
 
-/// The host serves `files.*` to the kit (`KitFiles 1.1` FA12); every host does.
-pub const HOST_SERVICE_FILES: &str = "files";
-/// The host prints (`files.print`).
-pub const HOST_SERVICE_FILES_PRINT: &str = "files.print";
+/// The host serves `storage.*` to the kit (`KitFiles 1.1` FA12); every host does.
+pub const HOST_SERVICE_FILES: &str = "storage";
+/// The host prints (`storage.print`).
+pub const HOST_SERVICE_FILES_PRINT: &str = "storage.print";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KitInfo {
@@ -123,7 +123,7 @@ pub struct DocumentState {
     pub can_undo: bool,
     pub can_redo: bool,
     /// The file changed since the kit read it while the document has unsaved edits: the next
-    /// `file.save` fails `file_conflict` (section 5). `document.reload`, `saveAs` or a close
+    /// `file.save` fails `file_conflict` (section 5). `file.reload`, `saveAs` or a close
     /// without saving resolves it.
     pub conflict: bool,
 }
@@ -179,7 +179,7 @@ pub struct DocumentExportParams {
     pub options: Option<Map<String, Value>>,
 }
 
-/// `document.identity` (section 5.6, feature [`DOCUMENT_IDENTITY_FEATURE`]): the file of a `read`
+/// `file.identity` (section 5.6, feature [`DOCUMENT_IDENTITY_FEATURE`]): the file of a `read`
 /// handle, read without opening it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentIdentityParams {
@@ -194,7 +194,7 @@ pub struct DocumentIdentityResult {
     pub doc_id: Option<String>,
 }
 
-/// `document.fork` (section 5.6): the file of the `read` handle `file` as a new document, written
+/// `file.fork` (section 5.6): the file of the `read` handle `file` as a new document, written
 /// to the `create` handle `target` (a fork never replaces a file).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentForkParams {
@@ -202,7 +202,7 @@ pub struct DocumentForkParams {
     pub target: String,
 }
 
-/// What `document.fork` wrote: the new document's id (the kit made it), or `None` (`null`) when
+/// What `file.fork` wrote: the new document's id (the kit made it), or `None` (`null`) when
 /// the file carries no identity and was written unchanged; the target's display name and the
 /// version its commit answered.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -214,10 +214,10 @@ pub struct DocumentForkResult {
 }
 
 /// The feature a kit lists in `capabilities.features` (and its manifest's `headless.features`)
-/// when it answers `document.identity` and `document.fork` (section 5.6).
-pub const DOCUMENT_IDENTITY_FEATURE: &str = "document.identity";
+/// when it answers `file.identity` and `file.fork` (section 5.6).
+pub const DOCUMENT_IDENTITY_FEATURE: &str = "file.identity";
 
-/// What `file.save`, `document.saveAs` and `file.export` wrote: the file's display name
+/// What `file.save`, `file.saveAs` and `file.export` wrote: the file's display name
 /// and the version its commit answered.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentWritten {
@@ -248,7 +248,7 @@ pub struct CommandInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub group: String,
-    /// JSON Schema (draft 2020-12) for `commands.execute` params.
+    /// JSON Schema (draft 2020-12) for `command.execute` params.
     pub params: Value,
     /// JSON Schema (draft 2020-12) for the command's result, when the kit says (KHP A1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -461,7 +461,7 @@ pub struct FileStat {
     pub rights: Vec<FileRight>,
 }
 
-/// The most bytes one `files.read` answers or one `files.write` carries (section 2).
+/// The most bytes one `storage.read` answers or one `storage.write` carries (section 2).
 pub const FILE_CHUNK: usize = 8 << 20;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -530,7 +530,7 @@ pub struct FilesCreateParams {
     pub document_id: Option<String>,
 }
 
-/// `files.resolve`: a `read` handle for a file the document refers to (a lent file, E5). The
+/// `storage.resolve`: a `read` handle for a file the document refers to (a lent file, E5). The
 /// document is named by its id, or by its file's handle while it is still opening.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

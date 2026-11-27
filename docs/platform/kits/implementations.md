@@ -64,7 +64,7 @@ The Rust reference for diagnostics (A21) is `kition_kit::diagnostics` and `KitDo
 - K9 is enforced by Kition's `kition-kit-conformance`: it compares a kit's
   `headless.features` with what its executable's `kit.initialize` answers and
   lists the missing and extra features. Every kit built on `kition-headless`
-  answers `view.describe`, `document.check`, `model.open`,
+  answers `view.describe`, `file.check`, `model.open`,
   `model.import`, `model.export`, `model.save`, `model.describe`, and
   `model.batch`. Agent object-model tools are offered only when the kit
   declares `agent.objectModel: true`.

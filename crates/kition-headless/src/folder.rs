@@ -1,4 +1,4 @@
-//! A folder as a kit's host serves it (Kit Process Protocol `files.*`), in the kit's own process: for
+//! A folder as a kit's host serves it (Kit Process Protocol `storage.*`), in the kit's own process: for
 //! a kit's tests and the Agent-ready checks, which drive a [`crate::Headless`] backend directly
 //! rather than through a host. It is the host side Kition and `kition-kits serve` use
 //! (`kition_kit_host::KitFiles`), so a test sees the same grants, confinement and conflicts.
@@ -38,7 +38,7 @@ impl HostFolder {
         Self::with_manifest(root, FilesManifest::default())
     }
 
-    /// [`HostFolder::new`] for a kit whose manifest `files` lists bound `files.create` (K15).
+    /// [`HostFolder::new`] for a kit whose manifest `files` lists bound `storage.new` (K15).
     pub fn with_manifest(root: &Path, manifest: FilesManifest) -> Result<Self, RpcError> {
         let root = std::fs::canonicalize(root).map_err(|error| RpcError::invalid_params(format!("the folder: {}", error.kind())))?;
         let store = Arc::new(GrantStore::new(Some(root.clone())));

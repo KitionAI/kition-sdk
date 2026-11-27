@@ -1,4 +1,4 @@
-//! The host's `files.*` for one kit process (Kit Process Protocol section 5.1, `KitFiles 1.1` FA12):
+//! The host's `storage.*` for one kit process (Kit Process Protocol section 5.1, `KitFiles 1.1` FA12):
 //! a [`GrantStore`] session for the host connection, the handles the host mints for the documents
 //! it names, and the answers to the kit's requests. A host written in Rust serves its kits with
 //! it; a host in another language runs `kition-kits serve`, which does.
@@ -62,13 +62,13 @@ fn stat_json(stat: &FileStat) -> Value {
 
 impl KitFiles {
     /// A grant session for the kit `kit`, acting for `principal`; `manifest` is the kit's
-    /// manifest `files` lists (K15), which bound `files.create`.
+    /// manifest `files` lists (K15), which bound `storage.new`.
     pub fn open(store: Arc<GrantStore>, kit: &str, principal: &str, manifest: FilesManifest) -> Result<Self, FileError> {
         let session = store.open_session(SessionRequest { kit, principal, document: None, manifest, read_only: false })?;
         Ok(Self { store, session, principal: principal.to_owned(), documents: Mutex::default() })
     }
 
-    /// A handle on the workspace file `path` for `file.open` or `document.saveAs`: `read` and
+    /// A handle on the workspace file `path` for `file.open` or `file.saveAs`: `read` and
     /// `write` on an existing file, `read`, `create` and `write` on a new one (its first save makes
     /// it, H3). `read_only` grants `read` alone. `own` admits the host's own hidden files.
     pub fn document(&self, path: &str, read_only: bool, own: bool) -> Result<FileStat, FileError> {
@@ -123,21 +123,21 @@ impl HostService for KitFiles {
     fn serve(&self, method: &str, request: Value) -> Result<Value, RpcError> {
         let (store, session, principal) = (&self.store, self.session.as_str(), self.principal.as_str());
         match method {
-            "files.stat" => {
+            "storage.stat" => {
                 let file: FileRef = params(request)?;
                 store.stat(session, principal, &file.handle).map(|stat| stat_json(&stat)).map_err(|error| file_error(&error))
             }
-            "files.read" => {
+            "storage.read" => {
                 let read: FilesReadParams = params(request)?;
                 let answer = store.read(session, principal, &read.handle, read.offset.unwrap_or(0), read.length).map_err(|error| file_error(&error))?;
                 Ok(json!({ "data": base64::encode(&answer.bytes), "version": answer.version, "size": answer.size }))
             }
-            "files.list" => {
+            "storage.list" => {
                 let folder: FileRef = params(request)?;
                 let files = store.list(session, principal, &folder.handle).map_err(|error| file_error(&error))?;
                 Ok(json!({ "files": files.iter().map(stat_json).collect::<Vec<_>>() }))
             }
-            "files.write" => {
+            "storage.write" => {
                 let write: FilesWriteParams = params(request)?;
                 let bytes = base64::decode(&write.data).ok_or_else(|| RpcError::invalid_params("`data` is base64"))?;
                 let chunk = WriteChunk { bytes: &bytes, offset: write.offset, last: write.last == Some(true), expected: write.expected.as_deref() };
@@ -147,7 +147,7 @@ impl HostService for KitFiles {
                     None => json!({}),
                 })
             }
-            "files.create" => {
+            "storage.new" => {
                 let create: FilesCreateParams = params(request)?;
                 let stat = match (&create.folder, &create.document_id) {
                     (Some(folder), _) => store.create(session, principal, &create.suggested_name, create.mime.as_deref(), Some(folder)),
@@ -155,16 +155,16 @@ impl HostService for KitFiles {
                         let document = self.handle_of(id).ok_or_else(|| RpcError::kit(ErrorReason::DocumentNotFound))?;
                         store.create_beside(session, principal, &create.suggested_name, create.mime.as_deref(), &document)
                     }
-                    (None, None) => return Err(RpcError::invalid_params("`files.create` names a `folder` or a `documentId` to create beside")),
+                    (None, None) => return Err(RpcError::invalid_params("`storage.new` names a `folder` or a `documentId` to create beside")),
                 };
                 stat.map(|stat| stat_json(&stat)).map_err(|error| file_error(&error))
             }
-            "files.resolve" => {
+            "storage.resolve" => {
                 let resolve: FilesResolveParams = params(request)?;
                 let document = self.document_handle(resolve.document_id.as_deref(), resolve.file.as_deref())?;
                 store.resolve(session, principal, &document, &resolve.link).map(|stat| stat_json(&stat)).map_err(|error| file_error(&error))
             }
-            "files.release" => {
+            "storage.release" => {
                 let release: FilesReleaseParams = params(request)?;
                 store.release(session, principal, &release.handles);
                 Ok(json!({}))
@@ -201,16 +201,16 @@ mod tests {
         let stat = files.document("plan.grid", false, false).unwrap();
         assert_eq!(stat.version, None);
         let handle = stat.handle;
-        let first = call(&files, "files.write", json!({ "handle": handle, "data": base64::encode(b"one"), "offset": 0, "final": true })).unwrap();
+        let first = call(&files, "storage.write", json!({ "handle": handle, "data": base64::encode(b"one"), "offset": 0, "final": true })).unwrap();
         assert_eq!(std::fs::read(root.join("plan.grid")).unwrap(), b"one");
         // The next save replaces it, with the version the first answered; a stale one is refused.
-        let stale = call(&files, "files.write", json!({ "handle": handle, "data": base64::encode(b"x"), "offset": 0, "final": true, "expected": "\"0-0\"" }));
+        let stale = call(&files, "storage.write", json!({ "handle": handle, "data": base64::encode(b"x"), "offset": 0, "final": true, "expected": "\"0-0\"" }));
         assert_eq!(stale.unwrap_err().reason(), Some(ErrorReason::FileConflict));
-        call(&files, "files.write", json!({ "handle": handle, "data": base64::encode(b"tw"), "offset": 0 })).unwrap();
-        call(&files, "files.write", json!({ "handle": handle, "data": base64::encode(b"o"), "offset": 2, "final": true, "expected": first["version"] }))
+        call(&files, "storage.write", json!({ "handle": handle, "data": base64::encode(b"tw"), "offset": 0 })).unwrap();
+        call(&files, "storage.write", json!({ "handle": handle, "data": base64::encode(b"o"), "offset": 2, "final": true, "expected": first["version"] }))
             .unwrap();
         assert_eq!(std::fs::read(root.join("plan.grid")).unwrap(), b"two");
-        let read = call(&files, "files.read", json!({ "handle": handle })).unwrap();
+        let read = call(&files, "storage.read", json!({ "handle": handle })).unwrap();
         assert_eq!(base64::decode(read["data"].as_str().unwrap()).unwrap(), b"two");
         // The same file asked for again is the same handle: one document (section 5).
         assert_eq!(files.document("plan.grid", false, false).unwrap().handle, handle);
@@ -221,7 +221,7 @@ mod tests {
     fn handles_are_this_session_s_and_paths_stay_in_the_workspace() {
         let root = workspace("confine");
         let files = files(&root);
-        let foreign = call(&files, "files.read", json!({ "handle": "fh_00000000000000000000000000000000" }));
+        let foreign = call(&files, "storage.read", json!({ "handle": "fh_00000000000000000000000000000000" }));
         assert_eq!(foreign.unwrap_err().reason(), Some(ErrorReason::FileNotGranted));
         assert!(files.document("../outside.grid", false, false).is_err());
         assert!(files.document(".kition/drafts/a.grid", false, false).is_err());
@@ -230,7 +230,8 @@ mod tests {
         assert!(matches!(files.export("a.grid"), Err(FileError::Conflict(_))));
         let read_only = files.document("a.grid", true, false).unwrap();
         assert_eq!(read_only.rights, vec![Right::Read]);
-        let refused = call(&files, "files.write", json!({ "handle": read_only.handle, "data": "", "offset": 0, "final": true, "expected": read_only.version }));
+        let refused =
+            call(&files, "storage.write", json!({ "handle": read_only.handle, "data": "", "offset": 0, "final": true, "expected": read_only.version }));
         assert_eq!(refused.unwrap_err().reason(), Some(ErrorReason::FileNotGranted));
         let _ = std::fs::remove_dir_all(root);
     }
@@ -244,25 +245,25 @@ mod tests {
         let files = files(&root);
         let document = files.document("films/cut.grid", false, false).unwrap().handle;
         // While the document opens, the kit names it by its handle.
-        let lent = call(&files, "files.resolve", json!({ "file": document, "link": "../media/a.png" })).unwrap();
+        let lent = call(&files, "storage.resolve", json!({ "file": document, "link": "../media/a.png" })).unwrap();
         assert_eq!(lent["name"], "a.png");
         assert_eq!(lent["rights"], json!(["read"]));
-        let bytes = call(&files, "files.read", json!({ "handle": lent["handle"] })).unwrap();
+        let bytes = call(&files, "storage.read", json!({ "handle": lent["handle"] })).unwrap();
         assert_eq!(bytes["data"], base64::encode(b"PNG"));
         // Then by its id.
         files.opened("1", &document);
-        assert_eq!(call(&files, "files.resolve", json!({ "documentId": "1", "link": "/media/a.png" })).unwrap()["handle"], lent["handle"]);
+        assert_eq!(call(&files, "storage.resolve", json!({ "documentId": "1", "link": "/media/a.png" })).unwrap()["handle"], lent["handle"]);
         for outside in ["../../etc/passwd", "../.git/config"] {
-            let refused = call(&files, "files.resolve", json!({ "documentId": "1", "link": outside })).unwrap_err();
+            let refused = call(&files, "storage.resolve", json!({ "documentId": "1", "link": outside })).unwrap_err();
             assert_eq!(refused.reason(), Some(ErrorReason::FileNotAllowed), "{outside}");
         }
         // A missing file the kit may see is not found (regressions/issue-file-not-found).
-        let missing = call(&files, "files.resolve", json!({ "documentId": "1", "link": "missing.png" })).unwrap_err();
+        let missing = call(&files, "storage.resolve", json!({ "documentId": "1", "link": "missing.png" })).unwrap_err();
         assert_eq!(missing.reason(), Some(ErrorReason::FileNotFound));
-        let created = call(&files, "files.create", json!({ "suggestedName": "cut.png", "documentId": "1" })).unwrap();
-        call(&files, "files.write", json!({ "handle": created["handle"], "data": base64::encode(b"P"), "offset": 0, "final": true })).unwrap();
+        let created = call(&files, "storage.new", json!({ "suggestedName": "cut.png", "documentId": "1" })).unwrap();
+        call(&files, "storage.write", json!({ "handle": created["handle"], "data": base64::encode(b"P"), "offset": 0, "final": true })).unwrap();
         assert!(root.join("films/cut.png").is_file());
-        let not_declared = call(&files, "files.create", json!({ "suggestedName": "cut.exe", "documentId": "1" })).unwrap_err();
+        let not_declared = call(&files, "storage.new", json!({ "suggestedName": "cut.exe", "documentId": "1" })).unwrap_err();
         assert_eq!(not_declared.reason(), Some(ErrorReason::FileNotAllowed));
         assert_eq!(files.path_of(&document).as_deref(), Some("films/cut.grid"));
         let _ = std::fs::remove_dir_all(root);
@@ -298,7 +299,7 @@ mod tests {
     }
 
     fn resolve(files: &KitFiles, link: &str) -> Result<Value, RpcError> {
-        call(files, "files.resolve", json!({ "documentId": "1", "link": link }))
+        call(files, "storage.resolve", json!({ "documentId": "1", "link": link }))
     }
 
     // regressions/issue-file-not-found: a file the kit asks for by path that passes every check

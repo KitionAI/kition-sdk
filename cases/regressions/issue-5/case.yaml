@@ -1,7 +1,7 @@
 format: 1
 id: regressions/issue-5
 feature: sdk.host.headless-kit
-intent: A host's change (commands.execute with origin system, optional originLabel) is no undo step in any history. The person's undo takes back their own steps and leaves the host's change, and it is recorded under the system origin with its label. A kit whose engine cannot keep a change out of its undo histories refuses origin system with command_disabled and changes nothing. Before, kition-headless ran origin system as the person's command, so the person's undo removed a host's write.
+intent: A host's change (command.execute with origin system, optional originLabel) is no undo step in any history. The person's undo takes back their own steps and leaves the host's change, and it is recorded under the system origin with its label. A kit whose engine cannot keep a change out of its undo histories refuses origin system with command_disabled and changes nothing. Before, kition-headless ran origin system as the person's command, so the person's undo removed a host's write.
 layer: gate
 source:
   kind: issue

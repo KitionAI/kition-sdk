@@ -10,13 +10,13 @@
 //! Natively, tests lend a directory with [`set_root`] and name the document's folder in it with
 //! [`set_folder`], with the same resolution rules. A headless kit lends nothing from the file
 //! system: [`set_lender`] installs its binding, which asks the host for each path (Kit Process
-//! Protocol `files.resolve`, then `files.read`).
+//! Protocol `storage.resolve`, then `storage.read`).
 //!
 //! A file the person granted (engine contract E15, KitFiles 1.0) reads the same way, named by its handle
 //! (`fh_…`) instead of a path: a command's parameters carry the handle, and the engine passes it
 //! back here. The engine never sees the file's path. In the page the binding lends the handle's
 //! bytes to the worker before the command runs (`kitionHost`); natively [`set_handles`] installs
-//! what answers handles, such as a [`HandleTable`] or the headless binding's `files.read`.
+//! what answers handles, such as a [`HandleTable`] or the headless binding's `storage.read`.
 
 /// The prefix of a file handle (`fh_`); anything else is a lent path.
 pub const HANDLE_PREFIX: &str = "fh_";

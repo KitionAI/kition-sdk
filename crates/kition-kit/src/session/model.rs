@@ -94,7 +94,7 @@ impl<D: KitSessionDocument> BatchTarget for SessionTarget<'_, D> {
         }
     }
 
-    /// Through the gate of the call the host runs (`crate::dispatch`), as `commands.execute`.
+    /// Through the gate of the call the host runs (`crate::dispatch`), as `command.execute`.
     fn command(&mut self, id: &str, params: Value, origin: &Origin) -> Result<Value, String> {
         crate::dispatch::may_run(id, &params)?;
         self.document.execute_as(id, params, origin)
@@ -260,7 +260,7 @@ impl<P: ReplicaPort + crate::KitDocument> BatchTarget for ExchangeTarget<'_, P> 
         Ok(())
     }
 
-    /// Through the gate of the call the host runs (`crate::dispatch`), as `commands.execute`.
+    /// Through the gate of the call the host runs (`crate::dispatch`), as `command.execute`.
     fn command(&mut self, id: &str, params: Value, origin: &Origin) -> Result<Value, String> {
         crate::dispatch::may_run(id, &params)?;
         self.port.model_command(id, params, origin)

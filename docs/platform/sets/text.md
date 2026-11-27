@@ -44,7 +44,7 @@ read them by knowing the file format, which a host must not do:
 "headless": {
   "executable": "example-pages",
   "protocol": "kition-kit/1",
-  "features": ["view.describe", "document.check"],
+  "features": ["view.describe", "file.check"],
   "capabilities": ["document-text"]
 }
 ```

@@ -28,7 +28,7 @@ async fn probe(process: &KitProcess) -> Value {
     };
     client.initialize(&params).await.unwrap();
     let execute = json!({ "documentId": "none", "command": "probe.environment", "params": {}, "origin": "user" });
-    let answer = client.request("commands.execute", execute, None).await.unwrap();
+    let answer = client.request("command.execute", execute, None).await.unwrap();
     answer["result"].clone()
 }
 

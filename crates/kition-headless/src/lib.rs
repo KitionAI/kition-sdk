@@ -11,10 +11,10 @@
 //! ```
 //!
 //! Files (Kit Process Protocol, section 5): the kit touches no file itself. It opens and
-//! saves a document through the host's `files.*` on the handle the host gave it, and a save
+//! saves a document through the host's `storage.*` on the handle the host gave it, and a save
 //! commits with the version it read, so a file someone changed meanwhile is a conflict, never
 //! overwritten. The files a document refers to are lent through [`kition_kit::host`]: the binding
-//! asks the host to resolve each path (`files.resolve`) and reads it by handle. Engines that reach
+//! asks the host to resolve each path (`storage.resolve`) and reads it by handle. Engines that reach
 //! the file system on their own must not be able to through the agent, so commands whose
 //! parameters name a file or folder are refused and left unlisted, unless the kit lists them as
 //! `sandboxed` (its I/O is in memory or through lent files).
@@ -301,8 +301,8 @@ pub struct Headless<D> {
     /// started it), for engines that record who acts: contract 2 kits. `None`: contract 1, whose
     /// `execute` knows no origin.
     run_as: Option<RunAs<D>>,
-    /// How the kit's files carry their document's identity (`document.identity`,
-    /// `document.fork`); `None`: the kit says nothing and serves neither.
+    /// How the kit's files carry their document's identity (`file.identity`,
+    /// `file.fork`); `None`: the kit says nothing and serves neither.
     file_identity: Option<FileIdentity>,
     _doc: PhantomData<fn() -> D>,
 }
@@ -333,13 +333,13 @@ pub const HOST_PERSON: &str = "person:local";
 
 /// The engine's reads of the files a document refers to (E5) and of granted handles (E15),
 /// answered by the host: a path is resolved against the document being served
-/// (`files.resolve`) and read by the handle it answers (`files.read`).
+/// (`storage.resolve`) and read by the handle it answers (`storage.read`).
 #[derive(Default)]
 struct Lent {
     host: Mutex<Option<Host>>,
     /// The handle of the document the engine is serving now.
     document: Mutex<Option<String>>,
-    /// `(document handle, path)` to the handle `files.resolve` answered.
+    /// `(document handle, path)` to the handle `storage.resolve` answered.
     resolved: Mutex<HashMap<(String, String), String>>,
 }
 
@@ -481,10 +481,10 @@ fn names_files(command: &KitCommand) -> bool {
     }
 }
 
-/// What `commands.execute` answers when a command names files the agent may not name.
+/// What `command.execute` answers when a command names files the agent may not name.
 const NAMES_FILES: &str = "commands that name files are not available to the agent; the host opens and saves documents";
 
-/// The one gate every way a caller runs a command passes (KHP A28, A29, §10.6): `commands.execute`,
+/// The one gate every way a caller runs a command passes (KHP A28, A29, §10.6): `command.execute`,
 /// each `command` operation of `model.batch`, and every step a kit's own batch, macro, or script
 /// command dispatches through [`kition_kit::dispatch::may_run`] while either runs. It holds the
 /// document's commands as they were when the call began.
@@ -563,7 +563,7 @@ impl Gate for CommandGate {
     }
 }
 
-/// A refusal of the gate as the protocol error `commands.execute` answers for it, with `detail`.
+/// A refusal of the gate as the protocol error `command.execute` answers for it, with `detail`.
 fn refusal_error(refusal: &Refusal, detail: String) -> RpcError {
     match refusal.code {
         RefusalCode::UnknownCommand => RpcError::kit_detail(ErrorReason::CommandNotFound, detail),
@@ -583,7 +583,7 @@ fn nested_refusal(refusal: &Refusal) -> RpcError {
     refusal_error(refusal, format!("`{}`: {}", refusal.command, refusal.message))
 }
 
-/// A refused `command` operation of a batch: what `commands.execute` answers for the command,
+/// A refused `command` operation of a batch: what `command.execute` answers for the command,
 /// with the object model's `data.model` (`{ code, index, message }`, KHP A18 codes).
 fn batch_refusal(refusal: &Refusal, index: Option<usize>) -> RpcError {
     let message = format!("`{}`: {}", refusal.command, refusal.message);
@@ -903,7 +903,7 @@ impl<D: KitDocument + Send + 'static> Headless<D> {
         }
     }
 
-    /// Serves `document.identity` and `document.fork` (Kit Process Protocol section 5.6):
+    /// Serves `file.identity` and `file.fork` (Kit Process Protocol section 5.6):
     /// [`FileIdentity::NotEmbedded`] for a kit whose files embed no replica,
     /// [`FileIdentity::Embedded`] with where its container keeps one.
     pub fn with_file_identity(mut self, identity: FileIdentity) -> Self {
@@ -1208,7 +1208,7 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
 
     fn capabilities(&self) -> Value {
         let formats: Vec<&str> = self.kit.formats.iter().map(|(id, _)| id.as_str()).collect();
-        let mut features = vec!["view.describe", "document.check"];
+        let mut features = vec!["view.describe", "file.check"];
         if self.model.as_ref().is_some_and(|hooks| hooks.open.is_some()) {
             features.extend(REPLICA_FEATURES);
         }
@@ -1296,7 +1296,7 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
         self.position(id).map(|_| ())
     }
 
-    /// Saves through the host: staged `files.write` on the document's handle (or `target`'s),
+    /// Saves through the host: staged `storage.write` on the document's handle (or `target`'s),
     /// committed with the version read, so a file changed meanwhile is a `file_conflict` (FA9).
     fn save(&mut self, id: &str, target: Option<&str>, format: Option<&str>) -> Result<(DocumentInfo, Written), RpcError> {
         let index = self.position(id)?;
@@ -1794,7 +1794,7 @@ impl<D: KitDocument + Send + 'static> KitBackend for Headless<D> {
                 }
                 answer
             }),
-            // Its `command` operations pass the gate `commands.execute` applies, for whom the
+            // Its `command` operations pass the gate `command.execute` applies, for whom the
             // batch runs (its `origin`): every one before anything runs, then each again with the
             // parameters it gets, and what the engine dispatches while one runs.
             "model.batch" if !command_ops(&params).is_empty() => {

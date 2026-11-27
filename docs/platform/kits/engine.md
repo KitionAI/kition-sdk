@@ -111,7 +111,7 @@ The engine contract is specified member by member in
   offset, len)` and `size(handle)`, with the handle string (`fh_…`) in place
   of a path. The binding serves those reads from the same synchronous ranged
   path as lent files: in a page, a handle-scoped URL the host serves (or
-  bytes the binding read ahead with `files/read`); headless, `files.read`
+  bytes the binding read ahead with `files/read`); headless, `storage.read`
   on the host connection. A command names such a file by a `file`-typed
   parameter ([`KitAgent 1.4`](../sets/agent.md) A28), whose value the engine
   passes back to `host` unchanged; it never sees a path.
@@ -143,7 +143,7 @@ The engine contract is specified member by member in
   previews of part of a document (PV2); without it, a preview of a `view`
   is refused as `unsupported-view`.
 - **E20** *(proposed)* *No prompts.* A command called by a program
-  (`commands.execute` headless, an agent's `<prefix>_run`, `call` from a
+  (`command.execute` headless, an agent's `<prefix>_run`, `call` from a
   host or script) MUST run to an answer without waiting for a person: it
   never opens a dialog, picker, confirmation, or alert, in the engine or
   through its binding. Input it lacks or must not guess is an error with a
@@ -155,7 +155,7 @@ The engine contract is specified member by member in
   command) MUST ask `kition_kit::dispatch::may_run(command, params)` before
   each step it dispatches and fail the call, before the step runs, when it
   answers an error. A host that serves the kit (`kition-headless`) checks
-  every command a caller runs, from `commands.execute` and from each
+  every command a caller runs, from `command.execute` and from each
   `command` operation of `model.batch` alike: it exists, the caller may run it
   (no parameter naming a file the kit did not declare safe, nothing the
   manifest keeps from the agent with `agent.include` or `agent.exclude`), and

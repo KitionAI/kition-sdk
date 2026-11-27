@@ -1825,7 +1825,7 @@ async fn outside_change(kits: &KitManager, path: &str, file: &std::path::Path, k
                 }
                 let read = guard::objects(kits, &view).await;
                 // The kit may read the file again on its own while these reads run (it handles
-                // `document.didChangeOnDisk` on the host's connection, these come on the agent's):
+                // `file.didChangeOnDisk` on the host's connection, these come on the agent's):
                 // what they read is the state last served only if the version did not move.
                 let still = model_version(kits, view.kit_id, &view.document_id).await.map(|version| (view.document_id.clone(), version));
                 if still == current {

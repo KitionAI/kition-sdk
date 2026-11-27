@@ -135,7 +135,7 @@ async fn answer(shared: Arc<Shared>, peer: Arc<Peer>, request: Request) {
         "file.open" => {
             let host = shared.host.lock().await.clone().unwrap();
             let file = params["file"].as_str().unwrap().to_owned();
-            let bytes = host.call("files.read", json!({ "handle": file })).await;
+            let bytes = host.call("storage.read", json!({ "handle": file })).await;
             let mut data = shared.data.lock().await;
             if data.file.as_deref() != Some(file.as_str()) {
                 data.text = String::from_utf8(kition_kit_process_protocol::base64::decode(bytes["data"].as_str().unwrap()).unwrap()).unwrap();
@@ -153,7 +153,7 @@ async fn answer(shared: Arc<Shared>, peer: Arc<Peer>, request: Request) {
             let mut data = shared.data.lock().await;
             let written = host
                 .call(
-                    "files.write",
+                    "storage.write",
                     json!({ "handle": data.file, "data": kition_kit_process_protocol::base64::encode(data.text.as_bytes()),
                 "offset": 0, "final": true, "expected": data.version }),
                 )
@@ -169,7 +169,7 @@ async fn answer(shared: Arc<Shared>, peer: Arc<Peer>, request: Request) {
             });
             json!({ "summary": data.text, "state": { "pid": std::process::id(), "addressSpace": address_space } })
         }
-        "commands.execute" => {
+        "command.execute" => {
             let mut data = shared.data.lock().await;
             if params["command"] == "hang" {
                 peer.send(json!({ "jsonrpc": "2.0", "method": "kit.progress", "params": {

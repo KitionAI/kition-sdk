@@ -1,6 +1,6 @@
 //! File grants for kits (Kition platform `KitFiles 1.1`): a host's grant table and the files it
 //! serves through them, to kit editor pages (Kit UI `files/*`) and to headless kits (Kit Process
-//! Protocol `files.*`, [`crate::KitFiles`]).
+//! Protocol `storage.*`, [`crate::KitFiles`]).
 //!
 //! A **session** is one kit editor page or one headless host connection. It is
 //! bound to a kit, a person (the principal), the document it opened, and the kit manifest's
@@ -12,7 +12,7 @@
 //! Every path is confined to the workspace: no `..`, no hidden segment (`.kition/` among them),
 //! and no link that leads out of the workspace or into a hidden folder (H3, LR2, FA8). A file the
 //! kit may not see is refused the same way whether it exists or not; only a path that passes every
-//! one of those checks and names nothing is "not found" (`files.resolve`). Writes are staged in a
+//! one of those checks and names nothing is "not found" (`storage.resolve`). Writes are staged in a
 //! temporary file beside the target and commit atomically (FA9); a `create` handle never replaces
 //! a file (H5). Every grant, commit, release, and revocation is recorded in the session's log.
 
@@ -72,7 +72,7 @@ pub enum Flow {
     /// The document file the host opens in a headless kit, or saves it to (Kit Process Protocol
     /// `file.open`, `saveAs`, `export`): the host chose it, under the kit's formats.
     Document,
-    /// A file a document refers to, resolved from its stored path (`files.resolve`, E5): `read`.
+    /// A file a document refers to, resolved from its stored path (`storage.resolve`, E5): `read`.
     Lent,
 }
 
@@ -965,7 +965,7 @@ impl GrantStore {
         })
     }
 
-    /// `files.resolve`: a `read` handle on a file the document of handle `document` refers to by
+    /// `storage.resolve`: a `read` handle on a file the document of handle `document` refers to by
     /// `link`, the path as the document stores it: relative to the document's folder, or from the
     /// workspace with a leading `/`, never outside it or into a hidden folder (E5, H3, LR2). A link
     /// that passes every one of those checks and names nothing is [`FileError::NotFound`]; one that
@@ -997,7 +997,7 @@ impl GrantStore {
         })
     }
 
-    /// `files.create` beside the document of handle `document` (`documentId` in the request).
+    /// `storage.new` beside the document of handle `document` (`documentId` in the request).
     pub fn create_beside(&self, session: &str, principal: &str, suggested_name: &str, mime: Option<&str>, document: &str) -> Result<FileStat, FileError> {
         self.with_session(session, principal, |_, session| {
             let parent = session.granted(document)?.path.parent().map(Path::to_path_buf).ok_or(FileError::Io)?;
@@ -1080,7 +1080,7 @@ impl GrantStore {
         Ok(parent.join(name))
     }
 
-    /// A file the kit reads by path (`files.resolve`): `Some` real path when the workspace path
+    /// A file the kit reads by path (`storage.resolve`): `Some` real path when the workspace path
     /// `path` names an entry the kit may reach ([`Self::confine`]), `None` when it passes every
     /// check and names nothing. Every check runs before the answer can be `None`: no `..`, no
     /// hidden segment (the host's own `.kition/` among them), and the nearest folder that exists,

@@ -29,7 +29,7 @@ yourself:
 - **From an agent**: `kition mcp` (`npm install -g @kition/cli`) launches the executables for you
   ([agent.md](agent.md)).
 - **As your own host**: a host that keeps files elsewhere than a folder speaks the protocol to each
-  kit and serves its `files.*` ([hosts.md](hosts.md#hosts-that-serve-files-themselves)).
+  kit and serves its `storage.*` ([hosts.md](hosts.md#hosts-that-serve-files-themselves)).
 
 Rules a host keeps ([host contract](../platform/kits/host.md), [engine contract](../platform/kits/engine.md)):
 

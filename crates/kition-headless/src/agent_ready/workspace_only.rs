@@ -129,7 +129,7 @@ async fn sweep(
     let run = |command: String, params: Value| {
         let kit = &kit;
         let id = id.clone();
-        async move { kit.request("commands.execute", json!({ "documentId": id, "command": command, "params": params, "origin": "agent" }), LIMIT).await }
+        async move { kit.request("command.execute", json!({ "documentId": id, "command": command, "params": params, "origin": "agent" }), LIMIT).await }
     };
     let edit = std::fs::read_to_string(scratch.repo.join("conformance/edit.json")).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok());
     for step in edit.as_ref().and_then(|edit| edit["steps"].as_array()).into_iter().flatten() {

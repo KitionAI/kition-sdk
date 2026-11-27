@@ -1,7 +1,7 @@
 //! Launch, the connection loop, roles, requests to the host, and method dispatch.
 //!
 //! Every connection has a reader, a worker and a writer. The reader routes the host's answers to
-//! the kit's own requests (`files.*`) at once and queues everything else; the worker handles the
+//! the kit's own requests (`storage.*`) at once and queues everything else; the worker handles the
 //! queue in order, one message at a time, so a backend call may wait for the host's answer
 //! (protocol section 5.1) while the reader goes on reading it.
 
@@ -391,7 +391,7 @@ async fn with_backend<B: KitBackend, T: Send + 'static>(
 async fn notification<B: KitBackend>(shared: &Arc<Shared<B>>, connection: &Connection, method: &str, params: Value) -> After {
     let mut after = After::default();
     if connection.role == Some(Role::Host)
-        && method == "document.didChangeOnDisk"
+        && method == "file.didChangeOnDisk"
         && let Ok(target) = reply::params::<p::DocumentRef>(params)
         && let Ok(Some(info)) = with_backend(shared, move |b| Ok(b.did_change_on_disk(&target.document_id))).await
     {
@@ -462,7 +462,7 @@ async fn request<B: KitBackend>(
             let (info, written) = with_backend(shared, move |b| b.save(&target.document_id, None, None)).await?;
             Ok(saved(&info, &written, after))
         }
-        "document.saveAs" => {
+        "file.saveAs" => {
             let save: p::DocumentSaveAsParams = reply::params(params)?;
             let (info, written) = with_backend(shared, move |b| b.save(&save.document_id, Some(&save.file), save.format.as_deref())).await?;
             Ok(saved(&info, &written, after))
@@ -472,13 +472,13 @@ async fn request<B: KitBackend>(
             let written = with_backend(shared, move |b| b.export(&export.document_id, &export.file, &export.format, export.options.as_ref())).await?;
             Ok(json!({ "name": written.name, "version": written.version }))
         }
-        "document.reload" => {
+        "file.reload" => {
             let target: p::DocumentRef = reply::params(params)?;
             let info = with_backend(shared, move |b| b.reload(&target.document_id)).await?;
             after.notifications.push(state_notification(&info));
             Ok(state(&info))
         }
-        "document.close" => {
+        "file.close" => {
             let close: p::DocumentCloseParams = reply::params(params)?;
             with_backend(shared, move |b| b.close(&close.document_id, close.discard_changes == Some(true))).await?;
             Ok(json!({}))
@@ -518,7 +518,7 @@ async fn request<B: KitBackend>(
                 .collect();
             Ok(json!({ "commands": commands }))
         }
-        "commands.execute" => {
+        "command.execute" => {
             let execute: p::CommandsExecuteParams = reply::params(params)?;
             // `system` is the host acting for the person (section 6); an agent never is.
             if execute.origin == Origin::System && role != Role::Host {
@@ -561,26 +561,26 @@ async fn request<B: KitBackend>(
             let image = with_backend(shared, move |b| b.screenshot(&document_id, &shot)).await?;
             Ok(json!({ "mimeType": "image/png", "width": image.width, "height": image.height, "data": base64::encode(&image.png) }))
         }
-        "document.check" => {
+        "file.check" => {
             let target: p::DocumentRef = reply::params(params)?;
             with_backend(shared, move |b| b.check(&target.document_id)).await
         }
-        "document.identity" => {
+        "file.identity" => {
             let identity: p::DocumentIdentityParams = reply::params(params)?;
             let host = host_of(shared);
             with_backend(shared, move |b| {
-                let kind = b.file_identity().ok_or_else(|| RpcError::method_not_found("document.identity"))?;
+                let kind = b.file_identity().ok_or_else(|| RpcError::method_not_found("file.identity"))?;
                 let file = host.read(&identity.file)?;
                 let doc_id = kind.identity(&file.bytes)?;
                 Ok(json!(p::DocumentIdentityResult { doc_id: doc_id.map(|id| id.to_string()) }))
             })
             .await
         }
-        "document.fork" => {
+        "file.fork" => {
             let fork: p::DocumentForkParams = reply::params(params)?;
             let host = host_of(shared);
             with_backend(shared, move |b| {
-                let kind = b.file_identity().ok_or_else(|| RpcError::method_not_found("document.fork"))?;
+                let kind = b.file_identity().ok_or_else(|| RpcError::method_not_found("file.fork"))?;
                 let file = host.read(&fork.file)?;
                 let (bytes, doc_id) = kind.fork(&file.bytes)?;
                 // A fork never replaces a file: the target is a `create` handle, committed once.
@@ -760,7 +760,7 @@ fn context_params(params: Value, members: &[&str]) -> Result<(String, serde_json
 }
 
 /// `kit.initialize`'s `capabilities`: the backend's, with the object model's features when it
-/// serves one and `document.identity` when it says how its files carry their identity.
+/// serves one and `file.identity` when it says how its files carry their identity.
 fn capabilities_of<B: KitBackend>(backend: &mut B) -> Value {
     let serves = backend.serves_model();
     let mut capabilities = with_model_features(backend.capabilities(), serves);
@@ -774,7 +774,7 @@ fn capabilities_of<B: KitBackend>(backend: &mut B) -> Value {
     capabilities
 }
 
-/// The host's `files.*` for a request the server answers itself (section 5.6).
+/// The host's `storage.*` for a request the server answers itself (section 5.6).
 fn host_of<B>(shared: &Shared<B>) -> Host {
     Host::new(Vec::new(), Arc::new(HostLink { requests: Arc::clone(&shared.host) }))
 }
@@ -784,7 +784,7 @@ fn initialize_result(id: &str, version: &str, capabilities: Value) -> Value {
 }
 
 fn saved(info: &DocumentInfo, written: &Written, after: &mut After) -> Value {
-    after.notifications.push(reply::notification("document.didSave", json!({ "documentId": info.id, "name": written.name, "version": written.version })));
+    after.notifications.push(reply::notification("file.didSave", json!({ "documentId": info.id, "name": written.name, "version": written.version })));
     after.notifications.push(state_notification(info));
     json!({ "name": written.name, "version": written.version })
 }
@@ -804,7 +804,7 @@ fn state(info: &DocumentInfo) -> Value {
 }
 
 fn state_notification(info: &DocumentInfo) -> Value {
-    reply::notification("document.didChangeState", state(info))
+    reply::notification("file.didChangeState", state(info))
 }
 
 #[cfg(test)]
@@ -861,7 +861,7 @@ mod tests {
     #[test]
     fn a_host_request_without_a_host_fails_at_once() {
         let link = HostLink { requests: Arc::default() };
-        let error = link.call("files.stat", json!({ "handle": "fh_1" })).unwrap_err();
+        let error = link.call("storage.stat", json!({ "handle": "fh_1" })).unwrap_err();
         assert_eq!(error.reason(), Some(ErrorReason::IoError));
     }
 
@@ -871,9 +871,9 @@ mod tests {
         let (out, mut sent) = mpsc::unbounded_channel();
         host_requests(&requests).connection = Some((7, out));
         let link = HostLink { requests: Arc::clone(&requests) };
-        let waiting = std::thread::spawn(move || link.call("files.stat", json!({ "handle": "fh_1" })));
+        let waiting = std::thread::spawn(move || link.call("storage.stat", json!({ "handle": "fh_1" })));
         let Some(Out::Message(request)) = sent.blocking_recv() else { panic!("no request") };
-        assert_eq!(request["method"], "files.stat");
+        assert_eq!(request["method"], "storage.stat");
         let shared = Shared { backend: Mutex::new(()), token: String::new(), clients: Mutex::default(), host: Arc::clone(&requests), shutdown: Notify::new() };
         // Another connection's answer is not the host's.
         answer_host_request(&shared, 8, Response { id: Some(RequestId::Number(1)), outcome: Ok(json!({ "wrong": true })) });

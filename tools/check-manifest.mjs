@@ -146,7 +146,7 @@ if (agentReady && manifest.agent && manifest.agent.objectModel !== true && serve
 if (manifest.agent && !manifest.agent.tools) fail('agent.tools', `say "document" or "commands" ${PLATFORM('kits/manifest.md')}`)
 if (agentReady) {
   if (!manifest.headless?.executable) warn('headless.executable', `an ${level} Kition kit serves its tools from a headless executable ${PLATFORM('K16, proposed')}`)
-  else if (!serves('document.check')) warn('headless.features', `an ${level} Kition kit serves document.check ${PLATFORM('K16, proposed')}`)
+  else if (!serves('file.check')) warn('headless.features', `an ${level} Kition kit serves file.check ${PLATFORM('K16, proposed')}`)
   if (manifest.agent?.layout === true && manifest.headless?.executable && !serves('view.layout')) {
     warn('headless.features', `an ${level} layout kit serves view.layout ${PLATFORM('K16, proposed')}`)
   }

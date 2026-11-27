@@ -1,4 +1,4 @@
-//! `document.identity` and `document.fork` (protocol section 5.6): the permanent document id
+//! `file.identity` and `file.fork` (protocol section 5.6): the permanent document id
 //! (KDM `DocId`, KitModel M7) a file carries, and the file as a new document (M7a).
 //!
 //! A kit says how its files carry a document with [`KitBackend::file_identity`]

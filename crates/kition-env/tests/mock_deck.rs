@@ -1,7 +1,7 @@
 //! What the mock kit's decks add for the environment: a shape's text or colour holding `|`,
 //! `#` or a line break (the separators of the deck's file) is refused, by a batch and by the
 //! deck's commands, and leaves the file as it was; a shape without text is an error diagnostic of
-//! `document.check`, which goes when it has text again.
+//! `file.check`, which goes when it has text again.
 //!
 //! Cases: `sdk.agent.kit-env/mock-deck`.
 //!

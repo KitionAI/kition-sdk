@@ -297,7 +297,7 @@ export type AiRunResult = { completed: Array<{ command: string; changed: boolean
  * "system"` they are the host's own change on the person's behalf (a host feature such as mail
  * sync writing into the open document): no undo step in any history, recorded under the KDM
  * `system` origin with `originLabel` (`ORIGIN_LABEL`; `host` when absent), as Kit Process Protocol's
- * `commands.execute` runs them. Only the host sends it, never for a model's call, and never with
+ * `command.execute` runs them. Only the host sends it, never for a model's call, and never with
  * `draft`.
  */
 export type AiRunParams = { steps: AiStep[]; save: boolean; draft?: boolean; origin?: 'system'; originLabel?: string }

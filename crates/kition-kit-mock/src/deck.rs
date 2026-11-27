@@ -15,7 +15,7 @@
 //!
 //! A text or colour holding one of the file's separators (`|`, `#`, a line break) would not read
 //! back, so commands and batches refuse it ([`separators`]); a shape without text is an error
-//! `document.check` reports ([`diagnostics`]).
+//! `file.check` reports ([`diagnostics`]).
 //!
 //! `KITION_KIT_MOCK_DECK=nested` models the deck as a real slide kit does ([`SCHEMA_NESTED`]), so
 //! what only a real kit had cannot hide from tests:
@@ -494,7 +494,7 @@ pub fn separators(field: &str, value: &str) -> Result<(), String> {
     }
 }
 
-/// What `document.check` reports about the deck: each shape without text is an error, aimed at
+/// What `file.check` reports about the deck: each shape without text is an error, aimed at
 /// the shape by its tool id.
 pub fn diagnostics(replica: &Replica) -> Vec<Value> {
     let mut found = Vec::new();

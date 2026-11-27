@@ -204,7 +204,7 @@ features:
     cases: [sdk.model.content-encoding/canonical-bytes, sdk.model.content-encoding/load-from]
     since: "2026-11-24"
   - id: sdk.host.document-fork
-    title: A host reads the docId a file carries and forks a file into a new document through the kit (Kit Process Protocol document.identity, document.fork)
+    title: A host reads the docId a file carries and forks a file into a new document through the kit (Kit Process Protocol file.identity, file.fork)
     dimension: [function, collab, data-safety]
     priority: P0
     status: has
@@ -1967,7 +1967,7 @@ features:
       - regressions/issue-unknown-params-generic
     since: "2026-11-16"
   - id: sdk.security.agent-command-gate
-    title: Every way an agent runs a command passes the gate commands.execute applies, and a kit's own dispatchers ask it before each step
+    title: Every way an agent runs a command passes the gate command.execute applies, and a kit's own dispatchers ask it before each step
     dimension: [ai, security]
     priority: P0
     status: has

@@ -20,7 +20,7 @@
 //! A22, A38); a real preview (A39); and every `creates` entry and every `exports` extension (through
 //! `agent.export`, as `<prefix>_export` writes it) working, with handles
 //! the host never granted refused (A29, A41). The backend reads and writes the workspace through
-//! the host's `files.*` ([`crate::HostFolder`]), as it does in a host.
+//! the host's `storage.*` ([`crate::HostFolder`]), as it does in a host.
 //!
 //! A kit adds its own tests for what only it can say (framing to its content, a target's size). The
 //! same phases over MCP are `khp check`; this is the in-process form, so a kit sees a failure before
@@ -348,11 +348,11 @@ fn verify<B: KitBackend>(package: &Package, kit: &mut B, workspace: &Workspace) 
             match kit.check(&id).map(|answer| diagnostic_codes(&answer)) {
                 Ok(Some(codes)) if codes.is_empty() => {}
                 Ok(Some(codes)) => failures.push(format!("{basic} is not clean: {codes:?}")),
-                Ok(None) => failures.push("document.check has no diagnostics array".into()),
-                Err(e) => failures.push(format!("document.check failed: {}", e.message)),
+                Ok(None) => failures.push("file.check has no diagnostics array".into()),
+                Err(e) => failures.push(format!("file.check failed: {}", e.message)),
             }
             if state(kit, &id)? != was || kit.document(&id).map(|d| d.dirty).unwrap_or(true) {
-                failures.push("document.check changed the document".into());
+                failures.push("file.check changed the document".into());
             }
             let _ = kit.close(&id, true);
         }
@@ -375,7 +375,7 @@ fn verify<B: KitBackend>(package: &Package, kit: &mut B, workspace: &Workspace) 
                     failures.push(format!("{fixture}: {unknown} is not in agent/checks.json"));
                 }
             }
-            Err(e) => failures.push(format!("{fixture}: document.check failed: {}", e.message)),
+            Err(e) => failures.push(format!("{fixture}: file.check failed: {}", e.message)),
         }
         let _ = kit.close(&id, true);
     }
@@ -446,7 +446,7 @@ fn files<B: KitBackend>(package: &Package, kit: &mut B, workspace: &Workspace) -
                 match kit.check(&info.id).map(|answer| error_codes(&answer)) {
                     Ok(errors) if !errors.is_empty() => failures.push(format!("create {format}: a new document has error diagnostics: {errors:?}")),
                     Ok(_) => {}
-                    Err(e) => failures.push(format!("create {format}: document.check failed: {}", e.message)),
+                    Err(e) => failures.push(format!("create {format}: file.check failed: {}", e.message)),
                 }
                 if let Err(e) = kit.save(&info.id, None, None) {
                     failures.push(format!("create {format}: save failed: {}", e.message));

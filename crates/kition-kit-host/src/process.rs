@@ -38,7 +38,7 @@ pub struct LaunchOptions {
     /// [`crate::kit_home`] environment, so they pass whatever their names.
     pub env: Vec<(OsString, OsString)>,
     pub ready_timeout: Duration,
-    /// The folder whose files [`crate::HeadlessKit`] serves the kit (`files.*`); `None` serves
+    /// The folder whose files [`crate::HeadlessKit`] serves the kit (`storage.*`); `None` serves
     /// none, so the kit can open no file. A launch refuses a private folder inside it (KHP A58).
     pub workspace: Option<PathBuf>,
     /// How long [`crate::HeadlessKit::launch`] waits for `kit.initialize`.
@@ -311,7 +311,7 @@ impl KitProcess {
     }
 
     /// [`KitProcess::connect`] for the host connection, which answers the kit's requests with
-    /// `service` (its `files.*`, section 5.1).
+    /// `service` (its `storage.*`, section 5.1).
     pub async fn connect_serving(&self, service: Option<Arc<dyn crate::kit_files::HostService>>) -> std::io::Result<KitClient> {
         let (reader, writer) = transport::connect(self.endpoint.address()).await?;
         Ok(KitClient::serving(reader, writer, service))

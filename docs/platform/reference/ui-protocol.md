@@ -266,7 +266,7 @@ person sees it at once and there is one copy of the document. `originLabel`
 names the host feature (`emailsync`: 1 to 64 letters, digits, `.`, `_`, `-`;
 `host` when absent). The kit runs each step as the KDM origin `system` with
 that label (`system(label)`, principal `kdm`), exactly as Kit Process Protocol's
-`commands.execute` with origin `system` runs a change on a closed document
+`command.execute` with origin `system` runs a change on a closed document
 ([kit-process-protocol.md](kit-process-protocol.md) section 6): it is a step of **no** undo
 history, so neither the person's Undo nor an agent's `edit.undo` takes it
 back, and the document's history records which host feature wrote it. The

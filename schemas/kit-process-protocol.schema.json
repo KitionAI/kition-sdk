@@ -54,7 +54,7 @@
         "appearance": { "enum": ["light", "dark"] },
         "hostServices": {
           "type": "array",
-          "items": { "enum": ["files", "files.print", "links", "links.preview", "replica", "history.blob.read"] },
+          "items": { "enum": ["storage", "storage.print", "links", "links.preview", "replica", "history.readBlob"] },
           "uniqueItems": true
         }
       }
@@ -98,7 +98,7 @@
         },
         "features": {
           "type": "array",
-          "description": "Optional protocol features, for example view.describe or commands.didChangeEnabled.",
+          "description": "Optional protocol features, for example view.describe or command.didChangeEnabled.",
           "uniqueItems": true,
           "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9_.]*$" }
         },
@@ -278,7 +278,7 @@
         "group": { "type": "string", "minLength": 1 },
         "params": {
           "type": "object",
-          "description": "JSON Schema (draft 2020-12) for commands.execute params. Number/integer schemas accept inclusive minimum/maximum and positive, zero-based multipleOf, including inside unions. MCP bindings retain these keywords."
+          "description": "JSON Schema (draft 2020-12) for command.execute params. Number/integer schemas accept inclusive minimum/maximum and positive, zero-based multipleOf, including inside unions. MCP bindings retain these keywords."
         },
         "output": {
           "type": "object",

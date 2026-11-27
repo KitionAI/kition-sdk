@@ -96,7 +96,7 @@ manager; closing a kit session does not discard answerable history. Server
 restart and journal abandonment do not promise historical bytes or revisions.
 
 During a guarded callback the host lends a random capability bound to the kit,
-document journal and basis. `history.blob.read {token,hash,offset,length}` checks
+document journal and basis. `history.readBlob {token,hash,offset,length}` checks
 the capability, basis coverage and reference membership on every chunk, then
 answers `{available:true,hash,size,data:<base64>}` or `{available:false,reason}`.
 Chunks are at most 1 MiB. Reasons are `invalid-token`, `basis-expired`,

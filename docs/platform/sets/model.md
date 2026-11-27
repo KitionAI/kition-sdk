@@ -143,9 +143,9 @@ A kit on the KDM ships `model/schema.json`:
   keeps the `docId` and is merged back, a copy never is. For a kit whose
   files embed the model, a host reads the `docId` a file carries and makes a
   file into a new document through the kit, without knowing its format: the
-  Kit Process Protocol's `document.identity` and `document.fork`
+  Kit Process Protocol's `file.identity` and `file.fork`
   ([section 5.6](../reference/kit-process-protocol.md#56-document-identity-and-forks),
-  feature `document.identity`).
+  feature `file.identity`).
 - **M8** Objects have KDM ids (UUID strings), unique without coordination. Implementations generate UUID v7 ids and accept any UUID when
   loading. Engines MAY keep efficient local ids and file-format
   ids, mapped to KDM ids when loading, and MUST NOT allocate new persistent

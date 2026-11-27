@@ -71,7 +71,7 @@ async function fakeService() {
         return state()
       case 'command.list':
         return { commands: [{ id: 'page.clear', title: 'Clear', group: 'page', params: {}, mutates: true, enabled: true }] }
-      case 'commands.execute':
+      case 'command.execute':
         dirty = true
         return { changed: true, result: { origin: params.origin }, document: state() }
       case 'model.describe':
@@ -165,7 +165,7 @@ describe('@kition/script/node headless kits (kition-kits serve)', () => {
     // The host acting for the person: a command as `system`.
     expect(await file.execute('page.clear', {}, 'system')).toEqual({ origin: 'system' })
     await file.execute('page.clear', {}, 'system', 'emailsync')
-    expect(fake.calls.at(-1)).toMatchObject({ method: 'commands.execute', params: { origin: 'system', originLabel: 'emailsync' } })
+    expect(fake.calls.at(-1)).toMatchObject({ method: 'command.execute', params: { origin: 'system', originLabel: 'emailsync' } })
     await file.saveAs(join(fake.dir, 'copy.test'))
     expect(fake.calls.at(-1)).toMatchObject({ method: 'documents.saveAs', params: { path: 'copy.test' } })
   })

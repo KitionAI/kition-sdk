@@ -241,7 +241,7 @@ unchanged with a newer embed.
   open table), not as the agent: the embed sends `ai/run` with `origin:
   "system"` and `originLabel` (Kit UI protocol section 2), and the kit
   runs it as the KDM `system` origin with that label, the same change Kit
-  Process Protocol's `commands.execute` with origin `system` makes on a closed
+  Process Protocol's `command.execute` with origin `system` makes on a closed
   document. It is a step of no undo history: neither the person's Undo nor
   the agent's takes it back. `originLabel` names the page's feature
   (`emailsync`: 1 to 64 letters, digits, `.`, `_`, `-`; `host` when absent).

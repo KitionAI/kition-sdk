@@ -5,7 +5,7 @@ const doc = {
   id: 'kit.doc', name: 'Doc', agent: { prefix: 'doc', tools: 'document' },
   creates: [{ id: 'doc', baseName: 'Untitled doc', extension: 'docx' }],
   formats: [{ id: 'docx', extensions: ['docx'], mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }],
-  headless: { executable: 'kition-doc', features: ['document.check'] },
+  headless: { executable: 'kition-doc', features: ['file.check'] },
 }
 
 describe('Kition naming boundaries', () => {

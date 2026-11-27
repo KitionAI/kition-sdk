@@ -29,7 +29,7 @@ acronyms. A native extension is `.kname`; its MIME is
 (a zip package, a JSON document, or a SQLite 3 database).
 Standard formats and MIME types retain their standard names. Note uses Markdown.
 
-`KitDocument`, `document.check`, DOM `document`, word boundaries, and Office XML
+`KitDocument`, `file.check`, DOM `document`, word boundaries, and Office XML
 names retain their technical meanings. Only product identities follow these rules. A
 manifest carries no upstream fields: a kit derived from another project credits it
 only in its repository's `NOTICE`. `tools/check-kit-naming.mjs` checks manifests, schemas, package metadata
@@ -173,7 +173,7 @@ Requirements:
 - **K16** *(proposed; Agent-ready)* The manifest of a kit that claims the
   Agent-ready profile ([`KitAgent 1.4`](../sets/agent.md) section 10) MUST
   have `agent.prefix` and `headless.executable`, and its
-  `headless.features` MUST include `document.check`, `view.layout` for a
+  `headless.features` MUST include `file.check`, `view.layout` for a
   layout kit (A40), and `model.describe` and `model.batch` for a kit that
   lists `kdm` (K9 still requires them to match `kit.initialize`).
 - **K17** *(proposed; Agent-ready)* The package of an Agent-ready kit MUST
@@ -220,7 +220,7 @@ Requirements:
   read through link handles (LR3); `retarget: true` promises the command
   `link.retarget` (LK2, E18); `names: true` says it stores name links and
   needs name resolution (LR4). Its engine exports `linksOf` (E17), named in
-  `extras` (K6), and its `headless.features` include `document.links`. A
+  `extras` (K6), and its `headless.features` include `file.links`. A
   kit that asks for previews, opens files, or opens web addresses lists
   `preview-files`, `open-file`, or `open-url` in `capabilities`. A host
   MUST refuse a link grant outside `read` and SHOULD show these before it

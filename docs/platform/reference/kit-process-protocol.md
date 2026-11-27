@@ -12,7 +12,7 @@ Reference implementations:
 see section 15.
 
 The kit works on file handles
-([`KitFiles 1.1`](../sets/files.md)): the host serves `files.*` to the kit,
+([`KitFiles 1.1`](../sets/files.md)): the host serves `storage.*` to the kit,
 and the kit never sees a path (sections 5 and 5.3).
 
 A host in any language need not implement this protocol: `kition-kits serve`
@@ -40,12 +40,12 @@ is fixed.
 | Role | Who | Count per kit process | May use |
 | --- | --- | --- | --- |
 | `host` | Kition desktop (Tauri shell) | Exactly one, connects first | Everything |
-| `agent` | Kition runtime | Zero or more | `kit.*` except `kit.shutdown`, `document.*`, `commands.*`, `view.*`, naming files only by handles the host minted for the agent's run (A29) |
+| `agent` | Kition runtime | Zero or more | `kit.*` except `kit.shutdown`, `file.*`, `command.*`, `view.*`, naming files only by handles the host minted for the agent's run (A29) |
 
 The kit is the server. Clients connect to it. The Kition runtime runs inside
 the desktop process, but it still connects as a separate `agent` client so
 that the kit enforces agent limits itself. Everything an `agent` connection
-runs is the agent's: `commands.execute` takes only origin `agent` there, and
+runs is the agent's: `command.execute` takes only origin `agent` there, and
 a `model.batch` only `origin.kind` `agent`; anything else fails `-32003
 role_forbidden`. A host acting for an agent on its own connection sends
 origin `agent` too, and gets the same limits.
@@ -60,7 +60,7 @@ origin `agent` too, and gets the same limits.
   kit creates the pipe with remote clients rejected; the launch token is the
   access control.
 - Maximum message size is 64 MiB. File bytes travel base64 in chunks of at
-  most 8 MiB (`files.read`, `files.write`, section 5.1).
+  most 8 MiB (`storage.read`, `storage.write`, section 5.1).
 
 ## 3. Launch
 
@@ -196,7 +196,7 @@ Parameters:
 | `locale` | string | BCP 47, for example `en-US` or `zh-CN` (host only) |
 | `appearance` | `light` or `dark` | Host only |
 | `reservedShortcuts` | array of shortcut | Host only; see section 8 |
-| `hostServices` | array of string | Host only; the services the host serves to the kit on this connection: `files` (always), `files.print` when it prints (section 5.1), `links` and `links.preview` (section 5.4), and `replica` (section 5.5) |
+| `hostServices` | array of string | Host only; the services the host serves to the kit on this connection: `storage` (always), `storage.print` when it prints (section 5.1), `links` and `links.preview` (section 5.4), and `replica` (section 5.5) |
 
 Result:
 
@@ -250,7 +250,7 @@ A kit may hold several open documents. Documents are identified by an opaque
 
 A kit names files only by **file handles** (`fh_…`, [`KitFiles 1.1`](../sets/files.md)
 FA1 to FA5) that a client gave it in a request, and reads and writes them
-only through the host's `files.*` services (section 5.1). It needs no
+only through the host's `storage.*` services (section 5.1). It needs no
 file-system access except its own private cache directory, and a host SHOULD
 run it in the platform's sandbox, denying the rest of the file system and
 the network. A kit MUST NOT open network connections. A handle belongs to
@@ -263,30 +263,30 @@ client passes for that agent's run (A29), and they expire when the run ends.
 | `file.list` | request | none | `{ documents: DocumentState[] }` |
 | `file.activate` | request, host | `documentId` | `{}`; selects the active document |
 | `file.save` | request | `documentId` | `{ name, version }` |
-| `document.saveAs` | request | `documentId`, `file` (a `create` or `write` handle), optional `format` | `{ name, version }` |
+| `file.saveAs` | request | `documentId`, `file` (a `create` or `write` handle), optional `format` | `{ name, version }` |
 | `file.export` | request | `documentId`, `file` (a `create` handle), `format`, optional `options` | `{ name, version }` |
-| `document.close` | request | `documentId`, optional `discardChanges` | `{}`; fails with `-32011 document_dirty` if dirty and not discarding |
-| `document.didChangeOnDisk` | notification, host to kit | `documentId` | The kit reloads, or reports a conflict (below) |
-| `document.reload` | request, host | `documentId` | `DocumentState`; reads the file again, dropping unsaved edits |
-| `document.didChangeState` | notification, kit to all clients | `DocumentState` | Sent on dirty, title, undo, or redo changes |
-| `document.didSave` | notification, kit to all clients | `documentId`, `name`, `version` | |
+| `file.close` | request | `documentId`, optional `discardChanges` | `{}`; fails with `-32011 document_dirty` if dirty and not discarding |
+| `file.didChangeOnDisk` | notification, host to kit | `documentId` | The kit reloads, or reports a conflict (below) |
+| `file.reload` | request, host | `documentId` | `DocumentState`; reads the file again, dropping unsaved edits |
+| `file.didChangeState` | notification, kit to all clients | `DocumentState` | Sent on dirty, title, undo, or redo changes |
+| `file.didSave` | notification, kit to all clients | `documentId`, `name`, `version` | |
 
 `DocumentState` is `{ documentId, name, title, format, readOnly, dirty, canUndo, canRedo, conflict }`;
 `name` is the file's display name (a last segment, FA3).
 
 **Conflicts.** A document is in conflict when its file changed since the kit
-read it while the document has unsaved edits. On `document.didChangeOnDisk`
+read it while the document has unsaved edits. On `file.didChangeOnDisk`
 a kit reads a clean document again; it keeps a dirty one's edits, never
-silently, and sends `document.didChangeState` with `conflict: true` when the
-file is no longer the version it read (a `files.stat` tells). A save that
+silently, and sends `file.didChangeState` with `conflict: true` when the
+file is no longer the version it read (a `storage.stat` tells). A save that
 fails `-32015 file_conflict` puts the document in conflict too. The host
-resolves it: `document.reload` takes the file and drops the edits,
-`document.saveAs` keeps the edits in another file, or `document.close` with
+resolves it: `file.reload` takes the file and drops the edits,
+`file.saveAs` keeps the edits in another file, or `file.close` with
 `discardChanges`. A successful save or reload clears `conflict`.
 
-- The kit reads the document with `files.read` on its handle and saves it
-  with staged `files.write` on the same handle, with the version it read as
-  `expected` (FA9). `document.saveAs` (the document then lives in the new
+- The kit reads the document with `storage.read` on its handle and saves it
+  with staged `storage.write` on the same handle, with the version it read as
+  `expected` (FA9). `file.saveAs` (the document then lives in the new
   file) and `file.export` (the engine's output for `format`, E16) write
   the same way. A `create` handle commits once and never
   replaces a file (H5). A host names a document's new file (`file.open`
@@ -297,7 +297,7 @@ resolves it: `document.reload` takes the file and drops the edits,
 - Opening a handle to a file that is already open returns the existing
   `documentId`.
 - Every exposed command parameter that names a file is typed `file`
-  ([`KitAgent 1.4`](../sets/agent.md) A28); its value in `commands.execute`
+  ([`KitAgent 1.4`](../sets/agent.md) A28); its value in `command.execute`
   is a handle, never a path.
 
 ### 5.1 Host services (requests from the kit to the host)
@@ -308,30 +308,30 @@ host connection carries them; an agent client never serves them.
 
 | Method | Parameters | Result |
 | --- | --- | --- |
-| `files.stat` | `handle` | stat (`{ handle, name, kind, size?, mime?, version, rights }`, FA3) |
-| `files.read` | `handle`, optional `offset`, optional `length` (at most 8 MiB) | `{ data, version, size }`, `data` base64 |
-| `files.list` | `handle` (a folder, `read`) | `{ files: stat[] }` |
-| `files.write` | `handle`, `data` (base64, at most 8 MiB), `offset`, optional `final`, optional `expected` | `{}`, or `{ version }` when `final` |
-| `files.create` | `suggestedName`, optional `mime`, optional `folder` (a handle), optional `documentId` (create beside that document) | stat of a new `create` handle |
-| `files.resolve` | `documentId`, or `file` (the document's handle, while `file.open` still runs), and `link` (the path as the document stores it) | stat of a `read` handle for the lent file, resolved against the document's folder and confined as H3 and LR2; for a kit that lists `links`, also for a target of the document's links (section 5.4). A path that passes every check and names no file fails `-32023 file_not_found`; one that fails a check fails `-32018 file_not_allowed`, whether it exists or not (section 10) |
-| `files.release` | `handles` | `{}` |
-| `files.print` | `data` (base64 PDF) and `title`, or `handle` and `title`; only with `hostServices` `files.print` | `{ printed }` |
-| `files.revoked` | notification, host to kit: `handles` | |
+| `storage.stat` | `handle` | stat (`{ handle, name, kind, size?, mime?, version, rights }`, FA3) |
+| `storage.read` | `handle`, optional `offset`, optional `length` (at most 8 MiB) | `{ data, version, size }`, `data` base64 |
+| `storage.list` | `handle` (a folder, `read`) | `{ files: stat[] }` |
+| `storage.write` | `handle`, `data` (base64, at most 8 MiB), `offset`, optional `final`, optional `expected` | `{}`, or `{ version }` when `final` |
+| `storage.new` | `suggestedName`, optional `mime`, optional `folder` (a handle), optional `documentId` (create beside that document) | stat of a new `create` handle |
+| `storage.resolve` | `documentId`, or `file` (the document's handle, while `file.open` still runs), and `link` (the path as the document stores it) | stat of a `read` handle for the lent file, resolved against the document's folder and confined as H3 and LR2; for a kit that lists `links`, also for a target of the document's links (section 5.4). A path that passes every check and names no file fails `-32023 file_not_found`; one that fails a check fails `-32018 file_not_allowed`, whether it exists or not (section 10) |
+| `storage.release` | `handles` | `{}` |
+| `storage.print` | `data` (base64 PDF) and `title`, or `handle` and `title`; only with `hostServices` `storage.print` | `{ printed }` |
+| `storage.revoked` | notification, host to kit: `handles` | |
 
 - Lent files (E5): the kit's binding answers its engine's
-  `kition_kit::host::read_range(path, …)` from `files.read` on the handle
-  `files.resolve` gave for that path, and keeps the map for the session.
-  `kition_kit::host::exists(path)` answers `false` when `files.resolve`
+  `kition_kit::host::read_range(path, …)` from `storage.read` on the handle
+  `storage.resolve` gave for that path, and keeps the map for the session.
+  `kition_kit::host::exists(path)` answers `false` when `storage.resolve`
   fails `file_not_found`, so an engine's link check tells a missing file
   from a refused one.
 - Writes are staged and committed atomically (FA9); the rules of
-  `KitFiles 1.1` sections 2 to 7 hold unchanged. There is no `files.pick`:
+  `KitFiles 1.1` sections 2 to 7 hold unchanged. There is no `storage.pick`:
   a headless kit has no person to ask.
 
 ### 5.2 What a host does
 
 - It mints a handle for every file it names to the kit (`file.open`,
-  `saveAs`, `export`, `file` command parameters, `files.resolve`), with
+  `saveAs`, `export`, `file` command parameters, `storage.resolve`), with
   exactly the rights the request needs, and refuses foreign, expired, and
   ungranted handles (`-32014 file_not_granted`).
 - It applies the policy of `KitFiles 1.1` section 7 to agent clients: an
@@ -340,33 +340,33 @@ host connection carries them; an agent client never serves them.
 
 ### 5.3 Files by handle only
 
-- `file.open`, `document.saveAs` and `file.export` take `{ file: handle }`;
-  `file.save`, `saveAs`, `export` and `document.didSave` answer `{ name, version }`, and
+- `file.open`, `file.saveAs` and `file.export` take `{ file: handle }`;
+  `file.save`, `saveAs`, `export` and `file.didSave` answer `{ name, version }`, and
   `DocumentState.name` names the document.
 - `kit.initialize` carries `hostServices`; there are no workspace roots.
-- The kit reads and writes only through `files.*` (section 5.1); a file the host did not
+- The kit reads and writes only through `storage.*` (section 5.1); a file the host did not
   grant is refused with `-32014 file_not_granted`.
 - Parameters that name files are typed `file` (A28).
 
 ### 5.4 Links
 
 For kits whose documents link other files ([`KitLinks 1.0`](../sets/links.md)).
-A kit that answers `document.links` lists the feature `document.links` in
+A kit that answers `file.links` lists the feature `file.links` in
 `capabilities.features` and its manifest's `headless.features` (K9, K18).
 
 | Method | Direction | Parameters | Result |
 | --- | --- | --- | --- |
-| `document.links` | client to kit | `documentId` | `{ links }`: every outgoing link, as the engine's `linksOf` (LK1) |
+| `file.links` | client to kit | `documentId` | `{ links }`: every outgoing link, as the engine's `linksOf` (LK1) |
 | `links.resolve` | kit to host, `hostServices` `links` | `documentId`, `links` (link references `{ path?, name?, docId? }`) | `{ resolved }` as LR4, `file` always a handle stat when the read is allowed |
 | `links.backlinks` | kit to host, `hostServices` `links`, optional | `documentId` | `{ backlinks }` as LK5 |
 | `links.preview` | kit to host, `hostServices` `links.preview` | `documentId`, `link`, optional `view`, `width`, `height`, optional `scale`, optional `background` | `Image` plus `{ version, kit, name, area? }` (PV8) |
 | `links.targetChanged` | notification, host to kit, optional | `documentId`, `link`, `exists`, optional `version`, optional `path` | |
 
 - Retargeting is the command `link.retarget` (LK2), run with
-  `commands.execute` and origin `system`; a host saves the document
+  `command.execute` and origin `system`; a host saves the document
   afterwards with `file.save` (LK8). It is exposed like every command.
-- `files.resolve` serves link targets under LR1 to LR3: a target the
-  document's links name (the last `document.links` answer, or a
+- `storage.resolve` serves link targets under LR1 to LR3: a target the
+  document's links name (the last `file.links` answer, or a
   `links.resolve` answer), with an extension the manifest's `links.read`
   declares. A kit's binding answers its engine's lent reads of a link path
   from that handle (LR6), so an engine reads lent files and link targets the
@@ -392,7 +392,7 @@ when its engine keeps a replica (`open_with_replica`, the features
 
 - `snapshot` and `blobs` are base64 in the KDM's encodings, as the page's
   `host/replicaRead` carries them as bytes; `fileStamp` is the file's
-  version as `files.stat` answers it. A replica larger than the message
+  version as `storage.stat` answers it. A replica larger than the message
   limit (section 2) is answered `null` and the kit opens the file plainly.
 - **On open.** In `file.open`, a kit whose engine keeps a replica asks
   `replica.read` for the document's handle and follows UI-R1: the host
@@ -400,7 +400,7 @@ when its engine keeps a replica (`open_with_replica`, the features
   file with it, recording what the file changed since as one `import` change;
   a missing or unreadable snapshot is treated as none and never stops the
   file from opening.
-- **On save.** After `file.save` (and `document.saveAs`, for the new
+- **On save.** After `file.save` (and `file.saveAs`, for the new
   file's handle) committed, the kit writes the replica taken with the saved
   bytes under the version the commit answered (UI-R2); a failed
   `replica.write` never fails the save.
@@ -417,23 +417,23 @@ layout) makes every byte copy of a file the same document: a file copied, a
 template instantiated twice, the same file uploaded twice. These two requests
 let a host read the id a file carries, and make a file into a new document,
 without knowing the kit's format. A kit that answers them lists the feature
-`document.identity` in `capabilities.features` and its manifest's
+`file.identity` in `capabilities.features` and its manifest's
 `headless.features` (K9); a kit that does not answers both `-32601 method
 not found`.
 
 | Method | Direction | Parameters | Result |
 | --- | --- | --- | --- |
-| `document.identity` | request | `file` (a handle with `read`) | `{ docId }`: the id the file carries, or `null` |
-| `document.fork` | request | `file` (a handle with `read`), `target` (a `create` handle) | `{ docId, name, version }`: the new document's id, or `null`; the target's name and the version its commit answered |
+| `file.identity` | request | `file` (a handle with `read`) | `{ docId }`: the id the file carries, or `null` |
+| `file.fork` | request | `file` (a handle with `read`), `target` (a `create` handle) | `{ docId, name, version }`: the new document's id, or `null`; the target's name and the version its commit answered |
 
-- Both read the file through its handle (`files.read`); neither opens a
-  document nor needs one open. `document.fork` writes its answer to `target`
+- Both read the file through its handle (`storage.read`); neither opens a
+  document nor needs one open. `file.fork` writes its answer to `target`
   with one committed write and never replaces a file (a `create` handle, H5).
 - `docId` is a lower-case hyphenated UUID. It is `null` when the kit's files
   embed no replica (the kit makes a new one each time it opens a file) or
   when this file holds none (a file another program wrote); then
-  `document.fork` writes the file's bytes unchanged.
-- Otherwise `document.fork` writes the same file with its replica replaced by
+  `file.fork` writes the file's bytes unchanged.
+- Otherwise `file.fork` writes the same file with its replica replaced by
   a copy as a new document (M7a, `copy_as_new_document`): the same objects,
   object ids and values, no history (deleted content and earlier versions
   stay behind), empty undo, and a new `docId` the kit makes and answers; the
@@ -466,7 +466,7 @@ A kit built on the Kit Data Model lists these features in `kit.initialize`'s
 | `model.import` | `model.import` | `documentId`, `changes`, optional `blobs` | `{}` |
 | `model.export` | `model.export` | `documentId`, optional `since` | `{ changes, blobs? }` |
 | `model.save` | `model.save` | `documentId`, optional `format` | `{ data, format, name }` |
-| `document.check` | `document.check` | `documentId` | `{ diagnostics }` |
+| `file.check` | `file.check` | `documentId` | `{ diagnostics }` |
 
 The batch and the replica methods are specified in
 [the object model reference](object-model.md) (Headless kits); diagnostics in
@@ -567,7 +567,7 @@ Result: `{ commands: CommandInfo[] }` where `CommandInfo` is:
 | `title` | string | Localized to the host locale |
 | `description` | string | Optional: the engine's `KitCommand::description`, what the command does, when to choose it and what it changes or answers; absent when the kit gives none (a host never fills in parameter notation or the title) |
 | `group` | string | A tool group id declared in the manifest |
-| `params` | JSON Schema object | Parameters accepted by `commands.execute`; a `file` parameter is a string with `x-khp-file` (KitAgent A28, A29). The parameter that names what the command acts on (one id, or an `array` of ids) has `"x-khp-role": "targets"`, and `"x-khp-reads"` at the top lists the editor state the command reads besides its parameters (`selection`, `part`, `time`, `mode`, `active`, `area`; section 7a). A parameter that names a place rather than an object (a track, a time, an index) has `"x-khp-role": "place"` (section 7a, `context.under`); one besides the targets that names objects by id (a parent, a material) has `"x-khp-role": "object"`, and only there (or with `"x-khp-index"`) is a whole number read as an id. `"x-khp-position": "independent"` at the top says what the command does to its target does not depend on where the target is (its index, its `position` fields): an opacity, a colour. `"x-khp-index": "#"` on the target parameter says it also takes an object by its place in a list, the prefix and a number from 1 (`"#3"`): such a value, in that or any other parameter (`parent: "#2"`), is a place (`context.under` answers what it names), never an id, and a step's `on` refuses it; `"x-khp-index-numbers": true` beside it says a whole number there that names no object is such a place too (a motion kit's `layer: 3`); `"x-khp-index-order": "reversed"` beside it says the number counts from the other end of the list, `"#1"` the last item stored, while `context.under` still answers windows in stored order. `"x-khp-role": "object"` may sit on a member nested in a parameter (`rules[].target`): ids are read there at any depth. `"x-khp-types": ["Layer"]` on the target or an object parameter lists the types it names: an id of another type is not its object (with `x-khp-index-numbers`, a number naming no object of these types is a place). `"x-khp-name": "name"` on the target parameter says it also takes an object by its name, that stored field: a client holds that the name names the object it named at `basis`. A numeric string in an integer target or object parameter (`"9"`) is that integer  |
+| `params` | JSON Schema object | Parameters accepted by `command.execute`; a `file` parameter is a string with `x-khp-file` (KitAgent A28, A29). The parameter that names what the command acts on (one id, or an `array` of ids) has `"x-khp-role": "targets"`, and `"x-khp-reads"` at the top lists the editor state the command reads besides its parameters (`selection`, `part`, `time`, `mode`, `active`, `area`; section 7a). A parameter that names a place rather than an object (a track, a time, an index) has `"x-khp-role": "place"` (section 7a, `context.under`); one besides the targets that names objects by id (a parent, a material) has `"x-khp-role": "object"`, and only there (or with `"x-khp-index"`) is a whole number read as an id. `"x-khp-position": "independent"` at the top says what the command does to its target does not depend on where the target is (its index, its `position` fields): an opacity, a colour. `"x-khp-index": "#"` on the target parameter says it also takes an object by its place in a list, the prefix and a number from 1 (`"#3"`): such a value, in that or any other parameter (`parent: "#2"`), is a place (`context.under` answers what it names), never an id, and a step's `on` refuses it; `"x-khp-index-numbers": true` beside it says a whole number there that names no object is such a place too (a motion kit's `layer: 3`); `"x-khp-index-order": "reversed"` beside it says the number counts from the other end of the list, `"#1"` the last item stored, while `context.under` still answers windows in stored order. `"x-khp-role": "object"` may sit on a member nested in a parameter (`rules[].target`): ids are read there at any depth. `"x-khp-types": ["Layer"]` on the target or an object parameter lists the types it names: an id of another type is not its object (with `x-khp-index-numbers`, a number naming no object of these types is a place). `"x-khp-name": "name"` on the target parameter says it also takes an object by its name, that stored field: a client holds that the name names the object it named at `basis`. A numeric string in an integer target or object parameter (`"9"`) is that integer  |
 | `output` | JSON Schema object | Optional: the command's `result`, from the engine's `outputSchema` (KitAgent A1). An MCP binding sends it as the tool's `outputSchema`, with the A18 error result beside it |
 | `mutates` | boolean | `true` if it changes the document |
 | `enabled` | boolean | For the given document and current selection |
@@ -580,7 +580,7 @@ nested members (`KitCommand::name_params`); each parameter's `x-khp-types`
 limits both id and name resolution. A name's deleted object refuses as
 `deleted`, a rename-away or reassignment as `relocated`.
 
-### `commands.execute` (request)
+### `command.execute` (request)
 
 Parameters: `documentId`, `command`, `params`, `origin` (`user`, `agent`,
 or `system`; `system` only from the host connection, for changes the host
@@ -606,7 +606,7 @@ Errors: `-32020 command_not_found`, `-32021 command_disabled`,
 `-32022 invalid_params`.
 
 Every way a client runs a command passes the same check, for whom it runs:
-`commands.execute`, each `command` operation of `model.batch` (section 5a),
+`command.execute`, each `command` operation of `model.batch` (section 5a),
 and every step a command that runs other commands dispatches while it runs
 (a macro, a script; engine contract E21). The command must exist
 (`command_not_found`, with the closest ids the caller is offered); name no
@@ -616,7 +616,7 @@ states (`invalid_params`).
 
 Every executed command that mutates a document is one undo step.
 
-### `commands.didChangeEnabled` (notification, kit to all clients)
+### `command.didChangeEnabled` (notification, kit to all clients)
 
 `{ documentId, enabled: string[], disabled: string[] }`, sent when enablement
 changes. Clients that do not care may ignore it.
@@ -839,7 +839,7 @@ keep their meaning. Kit errors carry a stable string `data.reason`:
 | -32020 | `command_not_found` | Unknown command id |
 | -32021 | `command_disabled` | Command not enabled in the current state |
 | -32022 | `invalid_params` | Command parameters failed schema validation; `data.errors` lists them, one `{ path, message, expected? }` for each wrong parameter: `path` a JSON Pointer into the params (`/fields/0/type`), `expected` what the command takes there in words; `data.detail` repeats the first `message` |
-| -32023 | `file_not_found` | A file the kit asked for by path (`files.resolve`) that passes every check of the host's confinement and does not exist; never answered for a path that fails one (below) |
+| -32023 | `file_not_found` | A file the kit asked for by path (`storage.resolve`) that passes every check of the host's confinement and does not exist; never answered for a path that fails one (below) |
 | -32040 | `link_not_found` | No such link target, or one the person may not see ([`KitLinks 1.0`](../sets/links.md) LR2, PV7) |
 | -32041 | `link_not_linked` | The target is not in the document's link set (LR1) |
 | -32042 | `link_no_kit` | No kit draws the target |
@@ -849,7 +849,7 @@ keep their meaning. Kit errors carry a stable string `data.reason`:
 | -32800 | `request_cancelled` | Cancelled by `$/cancelRequest` |
 
 **Not found or not allowed.** A host answers a kit's request for a file by
-path (`files.resolve`) in this order. It first runs every check of its
+path (`storage.resolve`) in this order. It first runs every check of its
 confinement ([host contract](../kits/host.md) H3, LR2; [`KitFiles 1.1`](../sets/files.md)
 FA8): the path, once `..` and links are resolved, is inside the workspace;
 no segment is hidden (a dot first); it is none of the host's own data
@@ -868,7 +868,7 @@ A29). Only a path that passes every check and names no file fails
 | Launch to `ready` | 10 s |
 | `kit.initialize` | 10 s |
 | `kit.shutdown` to process exit | 5 s, then the host kills the process |
-| Other requests | 30 s, except the document methods (`file.*`, `document.*`) and `commands.execute`, which report `kit.progress` and have no fixed limit |
+| Other requests | 30 s, except the document methods (`file.*`) and `command.execute`, which report `kit.progress` and have no fixed limit |
 
 ## 12. Versioning
 
@@ -892,7 +892,7 @@ translates it:
 | Upstream concept | Kit Process Protocol |
 | --- | --- |
 | Engine command registry listing | `command.list` |
-| `engine.execute` | `commands.execute` |
+| `engine.execute` | `command.execute` |
 | `ui.screenshot` / offscreen render | `view.screenshot` |
 | MCP server tools | Not used directly; the Kition runtime builds agent tools from `command.list` |
 
@@ -907,7 +907,7 @@ feature or capability or keeps the replica they name, and are skipped otherwise:
 3. Agent role cannot call `kit.shutdown` or the other host-only methods.
 4. Open, edit by command, save, reopen, and compare a fixture document.
 5. `file_not_granted` for an ungranted, foreign, or expired handle;
-   `files.create` never replaces a file; a staged write commits atomically
+   `storage.new` never replaces a file; a staged write commits atomically
    and a stale `expected` fails `file_conflict`.
 6. Every listed command has a valid JSON Schema for `params`.
 7. `view.screenshot` works.
@@ -922,11 +922,11 @@ feature or capability or keeps the replica they name, and are skipped otherwise:
 12. Optional, for a kit that lists the feature `view.hitTest`: a point inside
     an object of the fixture answers that object's id first, a point on
     nothing answers `hits: []`, and the document's revision is unchanged.
-13. For a kit that lists the feature `document.links`: `document.links` of
+13. For a kit that lists the feature `file.links`: `file.links` of
     the fixture answers the links the kit's test states, comments excluded;
     `link.retarget` with origin `system` changes only link spans and a
     second run answers `changed: 0`; the engine's reads of link targets go
-    only through handles from `files.resolve` or `links.resolve`, and a
+    only through handles from `storage.resolve` or `links.resolve`, and a
     target outside `links.read` is refused.
 14. For a kit whose engine keeps a replica (features `model.open` and
     `model.export`, section 5.5), with the suite serving `hostServices`
@@ -934,7 +934,7 @@ feature or capability or keeps the replica they name, and are skipped otherwise:
     and opens with it (the reopened document keeps the replica's `docId`
     and comment threads); with a stale one it opens with it too (the same
     `docId` and threads, the file's changes as one `import` change); with a
-    damaged or missing (`null`) replica it opens the file plainly; `file.save`, and `document.saveAs` for the new
+    damaged or missing (`null`) replica it opens the file plainly; `file.save`, and `file.saveAs` for the new
     file's handle, are followed by `replica.write` for that handle with the
     replica taken with the saved bytes and the committed version; a failing
     `replica.write` leaves the save successful; and against a host without
@@ -986,8 +986,8 @@ and `kition-kit-host` each re-export as `protocol`.
 | Crate (kition-sdk) | Contents |
 | --- | --- |
 | `kition-kit-process-protocol` | The one definition for hosts and kits: types for every method in `schemas/kit-process-protocol.schema.json` (at the crate root), error codes, launch constants, framing, base64, and (with the `tokio` feature) the transport |
-| `kition-kit-server` | The kit side: launch, the two-way host connection, roles, and dispatch to a backend, which reads and writes through the host's `files.*` |
-| `kition-kit-host` | The host side: launch, endpoint, and client; `files` (the grant table of `KitFiles 1.1`) and `KitFiles`, the `files.*` a host serves one kit; `HeadlessKit`, a kit launched and initialized as the host of one workspace folder in one call |
+| `kition-kit-server` | The kit side: launch, the two-way host connection, roles, and dispatch to a backend, which reads and writes through the host's `storage.*` |
+| `kition-kit-host` | The host side: launch, endpoint, and client; `files` (the grant table of `KitFiles 1.1`) and `KitFiles`, the `storage.*` a host serves one kit; `HeadlessKit`, a kit launched and initialized as the host of one workspace folder in one call |
 | `kition-kits` | Kition's host of every kit (`KitManager`), and `kition-kits serve`, the same host for programs in any language |
 | `kition-kit-mock` | A headless reference kit for `.mocktext` documents, written apart from `kition-kit-server` |
 

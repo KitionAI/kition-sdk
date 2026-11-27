@@ -1,4 +1,4 @@
-//! `document.identity` and `document.fork` (Kit Process Protocol section 5.6) through a real kit
+//! `file.identity` and `file.fork` (Kit Process Protocol section 5.6) through a real kit
 //! process: the mock kit with `KITION_KIT_MOCK_FILE_REPLICA=1` keeps its document's replica inside
 //! its file, as the board, table, layout, design and scene kits do, so a byte copy of the file is
 //! the same document. A host reads the identity a file carries without parsing the kit's format,
@@ -63,7 +63,7 @@ async fn objects(kit: &HeadlessKit, path: &str) -> Value {
     assert!(ids.len() >= 3, "the root and two tags: {inventory}");
     let load: Vec<Value> = ids.iter().map(|id| json!({ "target": id })).collect();
     let loaded = batch(kit, &document, json!({ "ops": [], "load": load })).await.unwrap();
-    kit.request("document.close", json!({ "documentId": document }), LIMIT).await.unwrap();
+    kit.request("file.close", json!({ "documentId": document }), LIMIT).await.unwrap();
     json!({ "objects": inventory["objects"], "loaded": loaded["loaded"] })
 }
 
@@ -97,7 +97,7 @@ async fn made(kit: &HeadlessKit, path: &str) {
     batch(kit, &document, json!({ "ops": [{ "op": "delete", "target": secret }] })).await.unwrap();
     batch(kit, &document, json!({ "ops": [{ "op": "create", "type": "Tag", "in": "root.tags", "fields": { "name": "also kept" } }] })).await.unwrap();
     kit.request("file.save", json!({ "documentId": document }), LIMIT).await.unwrap();
-    kit.request("document.close", json!({ "documentId": document }), LIMIT).await.unwrap();
+    kit.request("file.close", json!({ "documentId": document }), LIMIT).await.unwrap();
 }
 
 /// The document's changes, as `model.export` answers them.
@@ -112,7 +112,7 @@ async fn changes_of(kit: &HeadlessKit, path: &str) -> (Value, String) {
 async fn a_file_that_embeds_its_replica_tells_its_identity_and_forks_into_a_new_document() {
     let dir = workspace("embedded");
     let Some(kit) = launch(&dir, true).await else { return };
-    assert!(kit.serves("document.identity"), "{}", kit.capabilities());
+    assert!(kit.serves("file.identity"), "{}", kit.capabilities());
     made(&kit, "a.mocktext").await;
 
     // The identity the file carries, read without opening it, and the same for a byte copy.
@@ -145,8 +145,8 @@ async fn a_file_that_embeds_its_replica_tells_its_identity_and_forks_into_a_new_
     assert!(detail(&refused).contains("belong to document"), "{refused}: {:?}", refused.data());
     let refused = kit.request("model.import", json!({ "documentId": a, "changes": b_changes }), LIMIT).await.unwrap_err();
     assert!(detail(&refused).contains("belong to document"), "{refused}: {:?}", refused.data());
-    kit.request("document.close", json!({ "documentId": a }), LIMIT).await.unwrap();
-    kit.request("document.close", json!({ "documentId": b }), LIMIT).await.unwrap();
+    kit.request("file.close", json!({ "documentId": a }), LIMIT).await.unwrap();
+    kit.request("file.close", json!({ "documentId": b }), LIMIT).await.unwrap();
 
     // A fork of a fork is a third document, with the content still the same.
     let again = kit.fork("b.mocktext", "c.mocktext", LIMIT).await.unwrap();
@@ -213,7 +213,7 @@ async fn a_file_without_a_replica_has_no_identity_and_forks_into_the_same_bytes(
 async fn a_kit_that_does_not_declare_the_feature_answers_method_not_found() {
     let dir = workspace("undeclared");
     let Some(kit) = launch(&dir, false).await else { return };
-    assert!(!kit.serves("document.identity"), "{}", kit.capabilities());
+    assert!(!kit.serves("file.identity"), "{}", kit.capabilities());
     std::fs::write(dir.join("a.mocktext"), "text").unwrap();
     for refused in [kit.identity("a.mocktext", LIMIT).await.unwrap_err(), kit.fork("a.mocktext", "b.mocktext", LIMIT).await.unwrap_err()] {
         assert_eq!(refused.rpc().map(|error| error.code), Some(-32601), "{refused}");

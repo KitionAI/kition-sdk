@@ -66,17 +66,17 @@ requests! {
     DocumentList = "file.list" (Empty) -> DocumentListResult;
     DocumentActivate = "file.activate" (DocumentRef) -> Empty;
     DocumentSave = "file.save" (DocumentRef) -> DocumentWritten;
-    DocumentSaveAs = "document.saveAs" (DocumentSaveAsParams) -> DocumentWritten;
+    DocumentSaveAs = "file.saveAs" (DocumentSaveAsParams) -> DocumentWritten;
     DocumentExport = "file.export" (DocumentExportParams) -> DocumentWritten;
-    DocumentClose = "document.close" (DocumentCloseParams) -> Empty;
-    /// Optional: a kit with the feature `document.identity` (section 5.6).
-    DocumentIdentity = "document.identity" (DocumentIdentityParams) -> DocumentIdentityResult;
-    /// Optional: a kit with the feature `document.identity` (section 5.6).
-    DocumentFork = "document.fork" (DocumentForkParams) -> DocumentForkResult;
+    DocumentClose = "file.close" (DocumentCloseParams) -> Empty;
+    /// Optional: a kit with the feature `file.identity` (section 5.6).
+    DocumentIdentity = "file.identity" (DocumentIdentityParams) -> DocumentIdentityResult;
+    /// Optional: a kit with the feature `file.identity` (section 5.6).
+    DocumentFork = "file.fork" (DocumentForkParams) -> DocumentForkResult;
     /// Host: reads the document's file again, dropping its unsaved edits (a conflict, section 5).
-    DocumentReload = "document.reload" (DocumentRef) -> DocumentState;
+    DocumentReload = "file.reload" (DocumentRef) -> DocumentState;
     CommandsList = "command.list" (CommandsListParams) -> CommandsListResult;
-    CommandsExecute = "commands.execute" (CommandsExecuteParams) -> CommandsExecuteResult;
+    CommandsExecute = "command.execute" (CommandsExecuteParams) -> CommandsExecuteResult;
     ViewScreenshot = "view.screenshot" (ViewScreenshotParams) -> Image;
     ViewDescribe = "view.describe" (DocumentRef) -> ViewDescribeResult;
     /// Optional: a kit with the capability `document-text` (`KitText 1.0`).
@@ -101,15 +101,15 @@ macro_rules! host_services {
 
 host_services! {
     /// Basis-scoped immutable blob bytes, available only during a guarded call.
-    HistoryBlobRead = "history.blob.read" (HistoryBlobReadParams) -> serde_json::Value;
-    FilesStat = "files.stat" (FileRef) -> FileStat;
-    FilesRead = "files.read" (FilesReadParams) -> FilesReadResult;
+    HistoryBlobRead = "history.readBlob" (HistoryBlobReadParams) -> serde_json::Value;
+    FilesStat = "storage.stat" (FileRef) -> FileStat;
+    FilesRead = "storage.read" (FilesReadParams) -> FilesReadResult;
     /// A folder handle's files.
-    FilesList = "files.list" (FileRef) -> FilesListResult;
-    FilesWrite = "files.write" (FilesWriteParams) -> FilesWriteResult;
-    FilesCreate = "files.create" (FilesCreateParams) -> FileStat;
-    FilesResolve = "files.resolve" (FilesResolveParams) -> FileStat;
-    FilesRelease = "files.release" (FilesReleaseParams) -> Empty;
+    FilesList = "storage.list" (FileRef) -> FilesListResult;
+    FilesWrite = "storage.write" (FilesWriteParams) -> FilesWriteResult;
+    FilesCreate = "storage.new" (FilesCreateParams) -> FileStat;
+    FilesResolve = "storage.resolve" (FilesResolveParams) -> FileStat;
+    FilesRelease = "storage.release" (FilesReleaseParams) -> Empty;
 }
 
 notifications! {
@@ -118,24 +118,24 @@ notifications! {
     /// Client to kit.
     CancelRequest = "$/cancelRequest" (CancelRequestParams);
     /// Host to kit.
-    DocumentDidChangeOnDisk = "document.didChangeOnDisk" (DocumentRef);
+    DocumentDidChangeOnDisk = "file.didChangeOnDisk" (DocumentRef);
     /// Kit to all clients.
-    DocumentDidChangeState = "document.didChangeState" (DocumentState);
+    DocumentDidChangeState = "file.didChangeState" (DocumentState);
     /// Kit to all clients.
-    DocumentDidSave = "document.didSave" (DocumentDidSaveParams);
+    DocumentDidSave = "file.didSave" (DocumentDidSaveParams);
     /// Kit to all clients.
-    CommandsDidChangeEnabled = "commands.didChangeEnabled" (CommandsDidChangeEnabledParams);
+    CommandsDidChangeEnabled = "command.didChangeEnabled" (CommandsDidChangeEnabledParams);
     /// Kit to all clients.
     Progress = "kit.progress" (ProgressParams);
     /// Kit to all clients.
     Log = "kit.log" (LogParams);
     /// Host to kit: the handles expired or were revoked.
-    FilesRevoked = "files.revoked" (FilesReleaseParams);
+    FilesRevoked = "storage.revoked" (FilesReleaseParams);
 }
 
 /// Whether only the `host` role may send this method (protocol section 1).
 pub fn is_host_only(method: &str) -> bool {
-    matches!(method, "kit.shutdown" | "kit.setPreferences" | "file.activate" | "document.didChangeOnDisk" | "document.reload")
+    matches!(method, "kit.shutdown" | "kit.setPreferences" | "file.activate" | "file.didChangeOnDisk" | "file.reload")
 }
 
 #[cfg(test)]
@@ -147,7 +147,7 @@ mod tests {
         for method in ["kit.shutdown", "kit.setPreferences", "file.activate"] {
             assert!(is_host_only(method), "{method}");
         }
-        for method in ["kit.ping", "file.open", "commands.execute", "view.screenshot"] {
+        for method in ["kit.ping", "file.open", "command.execute", "view.screenshot"] {
             assert!(!is_host_only(method), "{method}");
         }
     }

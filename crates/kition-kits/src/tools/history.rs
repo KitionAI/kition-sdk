@@ -181,11 +181,11 @@ pub(crate) struct Services {
 impl HostService for Services {
     fn services(&self) -> Vec<String> {
         let mut services = self.files.services();
-        services.push("history.blob.read".into());
+        services.push("history.readBlob".into());
         services
     }
     fn serve(&self, method: &str, params: Value) -> Result<Value, RpcError> {
-        if method == "history.blob.read" { Ok(self.cache.read(&self.journals, self.kit, params)) } else { self.files.serve(method, params) }
+        if method == "history.readBlob" { Ok(self.cache.read(&self.journals, self.kit, params)) } else { self.files.serve(method, params) }
     }
 }
 

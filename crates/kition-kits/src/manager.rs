@@ -2,7 +2,7 @@
 //!
 //! A kit starts on first use, headless; it serves previews and the agent (kit editors run in the
 //! page, `KitFrame`). Each kit process gets two connections: the `host` connection serves people
-//! and answers the kit's `files.*` from the workspace (Kit Process Protocol, section 5.1, through a
+//! and answers the kit's `storage.*` from the workspace (Kit Process Protocol, section 5.1, through a
 //! grant session of its own, `kition_kit_host::KitFiles`), and an `agent` connection serves agent
 //! tools, so the kit itself enforces the agent's role. The kit never sees a path: the manager
 //! mints a handle for every file it names to the kit. Kits stop when the manager is dropped, which
@@ -304,7 +304,7 @@ impl RunningKit {
         }
         match result {
             Ok(mut answer) => {
-                if matches!(method, "file.open" | "document.reload" | "model.open") {
+                if matches!(method, "file.open" | "file.reload" | "model.open") {
                     self.name_document(&mut answer, method == "file.open");
                 } else if method == "file.list"
                     && let Some(documents) = answer.get_mut("documents").and_then(Value::as_array_mut)
@@ -1272,7 +1272,7 @@ impl KitManager {
         Ok(ExecuteView { changed: executed.changed, result: executed.result, document })
     }
 
-    /// The kit's diagnostics on the document (KHP A21, `document.check`):
+    /// The kit's diagnostics on the document (KHP A21, `file.check`):
     /// `{ "diagnostics": [...] }`, or `None` when the running kit predates the method.
     pub async fn check(&self, caller: Caller, kit_id: &str, document_id: &str) -> Result<Option<Value>, KitError> {
         let key = self.document_key(&serde_json::json!({ "documentId": document_id }));
@@ -1284,7 +1284,7 @@ impl KitManager {
         let inner = document_id;
         let params = serde_json::json!({ "documentId": inner });
         let running = self.running_for(kit, &params).await?;
-        match running.request(caller, "document.check", params).await {
+        match running.request(caller, "file.check", params).await {
             Ok(answer) => Ok(Some(answer)),
             Err(ClientError::Rpc(error)) if error.code == -32601 => Ok(None),
             Err(error) => Err(KitError::from_client(kit, error)),

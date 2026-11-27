@@ -41,7 +41,7 @@ pub struct KitDefinition {
     /// `Untitled photo`.
     pub base_name: &'static str,
     /// Extensions the kit writes as new files: its `exports` and the files it creates beside its
-    /// documents (`files.create`, images pasted into a note). They are only ever new files:
+    /// documents (`storage.new`, images pasted into a note). They are only ever new files:
     /// `write_file` never replaces an existing one with them.
     pub exports: &'static [&'static str],
     /// The executable `kit.json` names (`headless.executable`), for example `kition-note`.

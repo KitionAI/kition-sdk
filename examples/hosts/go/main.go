@@ -98,7 +98,7 @@ func main() {
 	}
 	target := map[string]any{"kit": opened.KitID, "documentId": opened.DocumentID}
 	if err == nil {
-		err = k.call("commands.execute", map[string]any{"kit": opened.KitID, "documentId": opened.DocumentID, "command": command, "params": commandParams, "origin": "system"}, nil)
+		err = k.call("command.execute", map[string]any{"kit": opened.KitID, "documentId": opened.DocumentID, "command": command, "params": commandParams, "origin": "system"}, nil)
 	}
 	if err == nil {
 		err = k.call("documents.save", target, &saved)

@@ -239,7 +239,7 @@ export type DocumentChange = { dirty: boolean; revision: number; title: string }
 /**
  * `commands.run`'s options. `save: true` saves afterwards. `origin: 'system'` (`KitEmbed 1.8`,
  * EM31) runs the command as the page's own change on the person's behalf (a sync feature writing
- * into the open document), as Kit Process Protocol's `commands.execute` with origin `system` does on
+ * into the open document), as Kit Process Protocol's `command.execute` with origin `system` does on
  * a closed one: no undo step in any history, and the editor says the app made it. `originLabel`
  * names the page's feature (`emailsync`: 1 to 64 letters, digits, `.`, `_`, `-`; `host` when
  * absent). Without `origin` the command runs as the agent's step.

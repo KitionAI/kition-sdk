@@ -2,8 +2,8 @@ format: 1
 id: sdk.host.document-fork/identity-and-fork
 feature: sdk.host.document-fork
 intent: >-
-  Through a real kit process, a host reads the docId a file carries (document.identity) and forks a
-  file into a new document (document.fork) without parsing the kit's format: for a kit whose files
+  Through a real kit process, a host reads the docId a file carries (file.identity) and forks a
+  file into a new document (file.fork) without parsing the kit's format: for a kit whose files
   embed their replica a byte copy tells the same id, the fork has a new id, opens with the same
   content and object ids, holds none of the source's deleted content, refuses the source's changes
   and is refused by it, and forks again; a fork never replaces a file; a file without a replica, and

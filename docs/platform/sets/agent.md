@@ -308,8 +308,8 @@ trusting that its commands did what it meant.
   documents. A harness SHOULD tell the model to call it after editing. A
   harness MUST offer it for an Agent-ready kit (A35).
 - **A23** *Transports.* The [Kit Process Protocol](../reference/kit-process-protocol.md) serves diagnostics as
-  `document.check` `{ documentId }` → `{ diagnostics }`, listed as the
-  feature `document.check` in `kit.initialize`'s capabilities; the Kit UI
+  `file.check` `{ documentId }` → `{ diagnostics }`, listed as the
+  feature `file.check` in `kit.initialize`'s capabilities; the Kit UI
   protocol as the host request `document/check` `{ draft? }` →
   `{ diagnostics }`, from a kit that lists the capability `check`
   ([Kit UI protocol](../reference/ui-protocol.md) section 2). An embed reaches it through its kit connection
@@ -467,9 +467,9 @@ serves it on loopback, where calls reach documents open in kit editors (A7).
 
 A kit's headless executable serves one kit's documents over the Kit Process
 Protocol (`kition-kit/1`, JSON-RPC 2.0, one message per line on stdio), with
-the object model (`model.describe`, `model.batch`) and `document.check`
+the object model (`model.describe`, `model.batch`) and `file.check`
 (A23). Harnesses use it when no editor has the file open (A7). The
-kit names files only by handles the host serves (`files.*`), so the
+kit names files only by handles the host serves (`storage.*`), so the
 harness's host turns `path` arguments and `file` parameters into handles
 (A29). The protocol is specified in
 [the Kit Process Protocol reference](../reference/kit-process-protocol.md).
@@ -718,7 +718,7 @@ them yet.
   Long exports run stepped (E8) and report `kit.progress`; the result lists
   the files written (A30). Headless, `<prefix>_create` is `file.open`
   with `create: { format }` on the `create` handle, or `file.open` of the
-  template and `document.saveAs` to the handle, followed by `file.save`;
+  template and `file.saveAs` to the handle, followed by `file.save`;
   `<prefix>_export` is `file.export`, whose bytes the engine hands back
   as outputs (E16). The Kition SDK's `kition-headless` implements both from
   `KitDocument::create` and `KitDocument::save`, so a kit declares its

@@ -1,6 +1,6 @@
 //! A kit launched headless and initialized as the host in one call, for programs that run kits
 //! without Kition: a server's kit pool, a script runner, a desktop app's background work. It
-//! serves the kit the files of one workspace folder (`files.*`) and opens them by path.
+//! serves the kit the files of one workspace folder (`storage.*`) and opens them by path.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -139,9 +139,9 @@ impl HeadlessKit {
         Ok(state)
     }
 
-    /// `document.identity` (Kit Process Protocol section 5.6) of the workspace file `path`, through
+    /// `file.identity` (Kit Process Protocol section 5.6) of the workspace file `path`, through
     /// a `read` handle minted for it: the document id the file carries, `None` when it carries none.
-    /// A kit without the feature `document.identity` answers "method not found" (`-32601`).
+    /// A kit without the feature `file.identity` answers "method not found" (`-32601`).
     pub async fn identity(&self, path: &str, limit: Duration) -> Result<DocumentIdentityResult, ClientError> {
         let files = self.workspace_files()?;
         let file = files.document(path, true, false).map_err(|error| ClientError::Rpc(file_error(&error)))?.handle;
@@ -149,7 +149,7 @@ impl HeadlessKit {
         Ok(serde_json::from_value(answer)?)
     }
 
-    /// `document.fork` (section 5.6): the workspace file `path` as a new document in the new
+    /// `file.fork` (section 5.6): the workspace file `path` as a new document in the new
     /// workspace file `target` (a `create` handle: a fork never replaces a file). Answers the new
     /// document's id, or `None` when the file carries no identity and was copied unchanged.
     pub async fn fork(&self, path: &str, target: &str, limit: Duration) -> Result<DocumentForkResult, ClientError> {

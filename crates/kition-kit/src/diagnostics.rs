@@ -1,6 +1,6 @@
 //! Diagnostics (Kit Harness Protocol (KHP) Verify, A21): what a kit finds wrong with a document, so an agent
 //! can check its own output and a host can show it. [`KitDocument::check`](crate::KitDocument::check)
-//! answers them; hosts reach it as `<prefix>_check`, the Kit Process Protocol's `document.check`, and the
+//! answers them; hosts reach it as `<prefix>_check`, the Kit Process Protocol's `file.check`, and the
 //! Kit UI protocol's `document/check`, which all answer the same JSON.
 //!
 //! ```

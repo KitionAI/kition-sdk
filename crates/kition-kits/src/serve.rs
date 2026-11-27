@@ -1,7 +1,7 @@
 //! `kition-kits serve`: the Kits Service API, how a host written in any language uses Kition's
 //! kits. The host starts one process and speaks newline-delimited JSON-RPC 2.0 on its standard
 //! input and output, naming files by workspace paths; this process does everything the Kit Process
-//! Protocol asks of a host (launching the kits, serving their `files.*` with handles, staged and
+//! Protocol asks of a host (launching the kits, serving their `storage.*` with handles, staged and
 //! atomic writes with version checks, confinement to the workspace) through [`KitManager`], the
 //! same host Kition runs. The methods and their shapes are `schemas/kits-service.schema.json`;
 //! `docs/sdk/hosts.md` is the guide.
@@ -209,7 +209,7 @@ async fn handle_inner(kits: &KitManager, method: &str, request: Value) -> Result
             let commands = kits.commands(Caller::User, &list.kit, list.document_id.as_deref(), list.query.as_deref()).await.map_err(failed)?;
             Ok(json!({ "commands": commands }))
         }
-        "commands.execute" => {
+        "command.execute" => {
             let execute: ExecuteParams = params(request)?;
             let (caller, origin) = match execute.origin {
                 ServiceOrigin::User => (Caller::User, Origin::User),

@@ -88,7 +88,7 @@ const result = await doc.run(async (context) => {
 - `doc.on('saved' | 'conflict' | 'selection', …)` hears what the
   document's source reports; `doc.supports(event)` tells which it does.
   `saved` (`{ version, uri? }`): an `@kition/embed` editor wrote the storage
-  (its new version), a headless kit saved (`document.didSave`, the file's
+  (its new version), a headless kit saved (`file.didSave`, the file's
   `uri`), or a Node package document's `save()` made the bytes. `conflict`
   (`{ message }`): an embed editor's save was refused because the file
   changed elsewhere (`EmbedConflictError`); nothing was overwritten.
@@ -149,9 +149,9 @@ await file.shutdown()                // kit.shutdown; the process exits
   (`kit.open(path, { readOnly?, create? })`); `HeadlessKit.connect` takes an
   existing `KitProtocolConnection`.
 - A `HeadlessDocument` has `model(options?)`, `commands()` (`command.list`),
-  `execute(command, params)` (`commands.execute`, outside the object model),
+  `execute(command, params)` (`command.execute`, outside the object model),
   `save()`, `saveAs(path, format?)`, `close(discardChanges?)`, and `state`
-  (the last `document.didChangeState`).
+  (the last `file.didChangeState`).
 - Each `sync()` is one `model.batch` request; the kit runs it, so no replica
   is kept in Node. The schema for proxies is the registered kit's
   (`@kition/script/kits/*`) or, when none is, the one `model.describe` answers.
@@ -161,13 +161,13 @@ await file.shutdown()                // kit.shutdown; the process exits
   kit, so nothing else moves the document.
 - A read-only document (`readOnly: true`) refuses batches that write
   (`read-only`) and answers reads.
-- A batch's `command` operations pass the check `commands.execute` applies,
+- A batch's `command` operations pass the check `command.execute` applies,
   for whom the batch runs (its `origin`; an `agent` batch gets the agent's
   limits): the command exists, names no file the kit did not declare safe,
   is not kept from the agent by the manifest (`agent.include`,
   `agent.exclude`), and has the parameters its schema states. Every command
   operation is checked before anything runs; a refused one fails the whole
-  batch with the error `commands.execute` answers for it
+  batch with the error `command.execute` answers for it
   (`command_not_found`, `command_disabled`, `invalid_params`) and
   `data.model` `{ code, index, message }` with the A18 code
   (`unknown-command`, `not-allowed`, `invalid-params`). What a kit's own

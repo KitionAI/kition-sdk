@@ -121,7 +121,7 @@ static REPLICA: LazyLock<String> = LazyLock::new(|| std::env::var("KITION_KIT_MO
 /// `KITION_KIT_MOCK_FILE_REPLICA=1`: the file keeps the document's replica (as the board, table,
 /// layout, design and scene kits do): the text, [`REPLICA_MARK`], then the replica's content in
 /// base64. A document opens from it, keeping its docId and object ids, and a save writes it again.
-/// The kit then serves `document.identity` and `document.fork` (feature `document.identity`) and
+/// The kit then serves `file.identity` and `file.fork` (feature `file.identity`) and
 /// `model.export` and `model.import`; without it, it declares neither and answers both "method not
 /// found", as a kit that has not declared the feature does.
 static FILE_REPLICA: LazyLock<bool> = LazyLock::new(|| std::env::var_os("KITION_KIT_MOCK_FILE_REPLICA").is_some_and(|value| value == "1"));
@@ -153,7 +153,7 @@ fn joined_file(text: &str, replica: Option<&Replica>) -> Result<String, RpcError
     }
 }
 
-/// The diagnostic `document.check` answers while the text holds [`TODO`]: a warning about the
+/// The diagnostic `file.check` answers while the text holds [`TODO`]: a warning about the
 /// whole document, which goes once the text no longer holds it.
 const TODO: &str = "TODO";
 const TODO_CODE: &str = "mock.todo";
@@ -248,7 +248,7 @@ fn file_text(text: &str, current: usize) -> String {
 }
 
 /// Whether the kit reads a file that changed on disk late (`KITION_KIT_MOCK_REREAD=late`):
-/// `document.didChangeOnDisk` reads it again only after a `model.version` of the document was
+/// `file.didChangeOnDisk` reads it again only after a `model.version` of the document was
 /// answered, before the next request is handled, on whichever connection. A real kit handles the
 /// host's notification on the host's connection while it answers the agent's requests on the
 /// agent's, so the version a server reads first may be the one before the read and what it reads
@@ -623,7 +623,7 @@ struct State {
     plans: HashMap<String, PremisePlan>,
 }
 
-/// The kit's requests to its host (`files.*`, section 5.1) and their answers.
+/// The kit's requests to its host (`storage.*`, section 5.1) and their answers.
 #[derive(Default)]
 struct HostLine {
     /// The host connection's id and writer.
@@ -837,7 +837,7 @@ impl Kit {
                 surfaces: vec![Surface::Headless],
                 formats: Formats { open: vec![FORMAT.to_owned()], save: vec![FORMAT.to_owned()], export: vec![FORMAT.to_owned()] },
                 features: match (*MODEL, *FILE_REPLICA) {
-                    (true, true) => vec!["view.describe".to_owned(), "model.describe".to_owned(), "model.batch".to_owned(), "document.identity".to_owned()],
+                    (true, true) => vec!["view.describe".to_owned(), "model.describe".to_owned(), "model.batch".to_owned(), "file.identity".to_owned()],
                     (true, false) => vec!["view.describe".to_owned(), "model.describe".to_owned(), "model.batch".to_owned()],
                     (false, _) => vec!["view.describe".to_owned()],
                 },
@@ -971,7 +971,7 @@ impl Kit {
                     state: Map::from_iter([("text".to_owned(), json!(text)), ("length".to_owned(), json!(text.chars().count()))]),
                 })
             }
-            "document.check" => {
+            "file.check" => {
                 let params: DocumentRef = parse(params)?;
                 let text = self.with_document(&params.document_id, |document| Ok(document.text.clone()))?;
                 let mut diagnostics: Vec<Value> = if text.contains(TODO) {
@@ -984,13 +984,13 @@ impl Kit {
                 }
                 Ok(json!({ "diagnostics": diagnostics }))
             }
-            "document.identity" if *FILE_REPLICA => {
+            "file.identity" if *FILE_REPLICA => {
                 let params: DocumentIdentityParams = parse(params)?;
                 let (text, _) = self.read_file(&params.file)?;
                 let (_, embedded) = split_file(text)?;
                 to_value(DocumentIdentityResult { doc_id: embedded.map(|replica| replica.doc_id().to_string()) })
             }
-            "document.fork" if *FILE_REPLICA => self.fork(parse(params)?),
+            "file.fork" if *FILE_REPLICA => self.fork(parse(params)?),
             method if method.starts_with("model.") && !*MODEL => Err(RpcError::method_not_found(method)),
             "model.import" if *FILE_REPLICA => {
                 let id = document_param(&params)?;
@@ -1341,7 +1341,7 @@ impl Kit {
         to_value(document_state)
     }
 
-    /// `document.fork`: the file of `params.file` as a new document, written to `params.target`. Its
+    /// `file.fork`: the file of `params.file` as a new document, written to `params.target`. Its
     /// embedded replica is replaced by a copy under a new docId (no history: KDM
     /// `copy_as_new_document`); a file without one is written unchanged and has no identity.
     fn fork(&self, params: DocumentForkParams) -> Handled {
@@ -1413,7 +1413,7 @@ impl Kit {
         to_value(written)
     }
 
-    /// `document.didChangeOnDisk`: a clean text is read again; one with unsaved edits keeps them
+    /// `file.didChangeOnDisk`: a clean text is read again; one with unsaved edits keeps them
     /// and is in conflict when the file's version moved.
     fn reload(&self, document_id: &str, step: &mut Step) {
         let Ok((file, dirty, version, conflict)) =
@@ -1439,7 +1439,7 @@ impl Kit {
         }
     }
 
-    /// `document.reload`: the file's text again, its unsaved edits dropped.
+    /// `file.reload`: the file's text again, its unsaved edits dropped.
     fn read_again(&self, document_id: &str) -> Result<DocumentState, RpcError> {
         let file = self.with_document(document_id, |document| Ok(document.file.clone()))?;
         let (text, version) = self.read_file(&file)?;
@@ -2164,7 +2164,7 @@ impl Kit {
                         }
                         let answer = self.dispatch(
                             Role::Agent,
-                            "commands.execute",
+                            "command.execute",
                             json!({"documentId":token,"command":step["command"],"params":step.get("params").cloned().unwrap_or(json!({})),"origin":"agent"}),
                             &mut Step::default(),
                         )?;

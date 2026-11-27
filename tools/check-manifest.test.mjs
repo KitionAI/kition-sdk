@@ -263,7 +263,7 @@ describe('check-manifest KHP 1.0 fields', () => {
     ...example,
     level: 'agent-ready',
     agent: { ...example.agent, drafts: true, objectModel: true, layout: false },
-    headless: { executable: 'kit-grid', protocol: 'kition-kit/1', features: ['document.check', 'model.describe', 'model.batch'] },
+    headless: { executable: 'kit-grid', protocol: 'kition-kit/1', features: ['file.check', 'model.describe', 'model.batch'] },
   }
 
   it('names KHP rules and platform rules apart', () => {
@@ -307,7 +307,7 @@ describe('check-manifest KHP 1.0 fields', () => {
   })
 
   it('checks agent.objectModel against the headless object model features', () => {
-    const claimed = checkManifest({ ...example, agent: { ...example.agent, objectModel: true }, headless: { ...agentReady.headless, features: ['document.check'] } })
+    const claimed = checkManifest({ ...example, agent: { ...example.agent, objectModel: true }, headless: { ...agentReady.headless, features: ['file.check'] } })
     expect(claimed.out).toContain('FAIL agent.objectModel: is true, but headless.features lacks model.describe and model.batch (KHP K16), (platform K9)')
     const hidden = checkFolder({ ...agentReady, agent: { ...agentReady.agent, objectModel: false } }, { 'agent/checks.json': [] })
     expect(hidden.out).toContain('so the object model tools are offered: say true (KHP K16)')
@@ -318,7 +318,7 @@ describe('check-manifest KHP 1.0 fields', () => {
     expect(result.code).toBe(0)
     expect(result.out).toContain('WARN agent/checks.json: not beside kit.json')
     expect(result.out).toContain('(KHP K17)')
-    expect(result.out).toContain('WARN headless.features: an agent-ready Kition kit serves document.check (platform K16, proposed)')
+    expect(result.out).toContain('WARN headless.features: an agent-ready Kition kit serves file.check (platform K16, proposed)')
     expect(result.out).toContain('serves view.layout (platform K16, proposed)')
     const complete = checkFolder({ ...agentReady, level: 'agent-ready-complete' }, { 'agent/checks.json': [] })
     expect(complete.out).toContain('WARN agent/guide.md')

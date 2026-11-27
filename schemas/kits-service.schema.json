@@ -200,7 +200,7 @@
     "documents.preview": { "params": "#/$defs/previewParams", "result": "#/$defs/previewResult" },
     "documents.check": { "params": "#/$defs/documentRef" },
     "command.list": { "params": "#/$defs/commandsListParams", "result": "#/$defs/commandsListResult" },
-    "commands.execute": { "params": "#/$defs/executeParams", "result": "#/$defs/executeResult" },
+    "command.execute": { "params": "#/$defs/executeParams", "result": "#/$defs/executeResult" },
     "model.describe": { "params": "#/$defs/documentRef" },
     "model.batch": { "params": "#/$defs/documentRef" },
     "tools.list": {},

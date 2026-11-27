@@ -2,7 +2,7 @@
 //! worker thread, one call at a time, and turns an escaped panic into an internal error.
 //!
 //! A backend names files only by the handles the host gave it, and reads and writes them through
-//! [`Host`], the host's `files.*` services (protocol section 5.1).
+//! [`Host`], the host's `storage.*` services (protocol section 5.1).
 
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ pub trait HostCall: Send + Sync {
 }
 
 /// The host as a backend reaches it: the services it said it serves (`hostServices`) and its
-/// `files.*` (protocol section 5.1). Cheap to clone; a call fails once the host is gone.
+/// `storage.*` (protocol section 5.1). Cheap to clone; a call fails once the host is gone.
 #[derive(Clone)]
 pub struct Host {
     services: Vec<String>,
@@ -257,7 +257,7 @@ pub trait KitBackend: Send + 'static {
     }
     fn execute(&mut self, id: &str, command: &str, params: Map<String, Value>, origin: Origin) -> Result<Executed, RpcError>;
 
-    /// `commands.execute` with origin `system`: the host's change on the person's behalf, by the
+    /// `command.execute` with origin `system`: the host's change on the person's behalf, by the
     /// host feature `label` (`emailsync`). It is no undo step in any history (section 6): neither
     /// the person's nor an agent's undo takes it back. A backend that cannot keep a change out of
     /// its undo histories refuses it, as by default.
@@ -270,10 +270,10 @@ pub trait KitBackend: Send + 'static {
     fn screenshot(&mut self, id: &str, request: &ScreenshotRequest) -> Result<Screenshot, RpcError>;
     fn describe(&mut self, id: &str) -> Result<Describe, RpcError>;
 
-    /// `document.check` (standard 2.0 A21): `{ "diagnostics": [...] }` for the document. A kit
-    /// that serves it lists the feature `document.check`; by default there is no such method.
+    /// `file.check` (standard 2.0 A21): `{ "diagnostics": [...] }` for the document. A kit
+    /// that serves it lists the feature `file.check`; by default there is no such method.
     fn check(&mut self, _id: &str) -> Result<Value, RpcError> {
-        Err(RpcError::new(RpcError::METHOD_NOT_FOUND, "method not found: document.check"))
+        Err(RpcError::new(RpcError::METHOD_NOT_FOUND, "method not found: file.check"))
     }
 
     /// `file.text` (`KitText 1.0`): the document's words, at most `limit` Unicode scalar
@@ -347,10 +347,10 @@ pub trait KitBackend: Send + 'static {
         Err(RpcError::method_not_found("context.inputs"))
     }
 
-    /// How the kit's files carry their document's identity, for `document.identity` and
-    /// `document.fork` (section 5.6): [`FileIdentity::NotEmbedded`] for a kit whose files embed no
+    /// How the kit's files carry their document's identity, for `file.identity` and
+    /// `file.fork` (section 5.6): [`FileIdentity::NotEmbedded`] for a kit whose files embed no
     /// replica, [`FileIdentity::Embedded`] with where its container keeps one. `kit.initialize`
-    /// then lists the feature `document.identity`. By default the kit says nothing, lists no
+    /// then lists the feature `file.identity`. By default the kit says nothing, lists no
     /// feature and answers both "method not found": a kit whose files embed a replica must not
     /// claim they carry no identity.
     fn file_identity(&self) -> Option<FileIdentity> {
@@ -363,9 +363,9 @@ pub trait KitBackend: Send + 'static {
         None
     }
 
-    /// `document.reload`: reads the document's file again, dropping its unsaved edits.
+    /// `file.reload`: reads the document's file again, dropping its unsaved edits.
     fn reload(&mut self, _id: &str) -> Result<DocumentInfo, RpcError> {
-        Err(RpcError::method_not_found("document.reload"))
+        Err(RpcError::method_not_found("file.reload"))
     }
 
     /// Called once before the process exits after `kit.shutdown`. Documents close unsaved.

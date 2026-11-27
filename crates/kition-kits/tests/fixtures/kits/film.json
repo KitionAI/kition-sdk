@@ -402,8 +402,8 @@
     ],
     "features": [
       "view.describe",
-      "document.check",
-      "document.identity",
+      "file.check",
+      "file.identity",
       "model.open",
       "model.import",
       "model.export",

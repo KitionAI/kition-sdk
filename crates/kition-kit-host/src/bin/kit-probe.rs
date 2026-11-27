@@ -6,7 +6,7 @@
 //! ```
 //!
 //! It launches the kit on the workspace, lists its commands (for the `--open` document when one is
-//! given, as an agent sees them with a document open), and runs `document.check` on each `--check`
+//! given, as an agent sees them with a document open), and runs `file.check` on each `--check`
 //! file. Paths are relative to the workspace. A failure is reported in the JSON (`error`), and the
 //! exit status is 1 only when the kit cannot be launched or the arguments are wrong.
 
@@ -76,10 +76,10 @@ async fn probe(args: Args) -> Result<Value, String> {
     let mut checks = Map::new();
     for file in &args.check {
         let answer = match open(&kit, file).await {
-            Ok(id) => match kit.request("document.check", json!({ "documentId": id }), LIMIT).await {
+            Ok(id) => match kit.request("file.check", json!({ "documentId": id }), LIMIT).await {
                 Ok(report) => {
                     let codes: Vec<Value> = report["diagnostics"].as_array().map(|list| list.iter().map(|d| d["code"].clone()).collect()).unwrap_or_default();
-                    let _ = kit.request("document.close", json!({ "documentId": id, "discardChanges": true }), LIMIT).await;
+                    let _ = kit.request("file.close", json!({ "documentId": id, "discardChanges": true }), LIMIT).await;
                     json!({ "codes": codes })
                 }
                 Err(error) => json!({ "error": error.to_string() }),

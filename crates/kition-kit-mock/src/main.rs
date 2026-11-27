@@ -1,6 +1,6 @@
 //! A minimal kit for plain-text `.mocktext` documents. It implements the
 //! headless parts of Kit Process Protocol version 1, reading and writing its
-//! documents through the host's `files.*`, so a host and the conformance suite
+//! documents through the host's `storage.*`, so a host and the conformance suite
 //! can be tested without a real editor. It shares no code with
 //! `kition-kit-server`: it is a second, independent kit side, which enforces what a kit process
 //! serving that crate enforces (a `model.batch` on the agent's connection, a read included, names
@@ -17,12 +17,12 @@
 //! `export` enables only export, exercising file-copy review when replica opening fails. Without
 //! this option replica transport is absent. `KITION_KIT_MOCK_FILE_REPLICA=1` keeps the document's
 //! replica in its file (the text, a marker line, the content in base64), as kits whose files embed
-//! their replica do, and serves `document.identity` and `document.fork` (feature
-//! `document.identity`), `model.export` and `model.import`; without it the mock declares neither
+//! their replica do, and serves `file.identity` and `file.fork` (feature
+//! `file.identity`), `model.export` and `model.import`; without it the mock declares neither
 //! request and answers both "method not found". `KITION_KIT_MOCK_SCHEMA=none` leaves documents without
 //! an object model (every `model.*` request is not found). Documents with one answer `model.version` and
 //! `model.changes` (a change set since a version, KDM `Replica::changes_since`); a reload starts the
-//! object model again from the text. `document.check` warns (`mock.todo`) while the text holds `TODO`. It reports its manifest's version (`kit.json`), or what
+//! object model again from the text. `file.check` warns (`mock.todo`) while the text holds `TODO`. It reports its manifest's version (`kit.json`), or what
 //! `KITION_KIT_MOCK_VERSION` names when it stands in for another kit
 //! (`KITION_KIT_MOCK_AS`) or plays a stale executable. `KITION_KIT_MOCK_BATCH=commands` (in a deck, its editing commands)
 //! runs `text.append` and `text.clear` inside a `model.batch`, as a real kit runs its

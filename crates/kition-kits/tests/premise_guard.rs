@@ -658,7 +658,7 @@ async fn reread_reports_deleted_replica_only_objects_before_a_stale_write_runs()
     }
 }
 
-/// The kit reads the changed file again on its own (`document.didChangeOnDisk`, handled on the
+/// The kit reads the changed file again on its own (`file.didChangeOnDisk`, handled on the
 /// host's connection) while the server reads the document on the agent's: here between the
 /// server's `model.version` and its read of the objects (`KITION_KIT_MOCK_REREAD=late`). The
 /// replica-only object is still reported deleted, and the stale write on it is refused.

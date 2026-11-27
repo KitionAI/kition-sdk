@@ -1,7 +1,7 @@
 //! `kit-grid`: the reference grid kit for Kition's agent, served by `kition-headless` as its
 //! `kit.json` declares it. A grid file holds the grid alone (no replica: the kit makes one when it
-//! opens a file), so it says so (`FileIdentity::NotEmbedded`) and `document.identity` answers no
-//! identity and `document.fork` copies the bytes.
+//! opens a file), so it says so (`FileIdentity::NotEmbedded`) and `file.identity` answers no
+//! identity and `file.fork` copies the bytes.
 
 use kition_headless::{FileIdentity, Headless, KitInfo};
 

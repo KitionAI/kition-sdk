@@ -1,6 +1,6 @@
 //! regressions/issue-agent-command-gate: every way an agent runs a command passes the gate
-//! `commands.execute` applies (KHP A28, A29, §10.6). Before, a `command` operation of `model.batch`
-//! went straight to the kit's `execute_as`: a command that names files, which `commands.execute`
+//! `command.execute` applies (KHP A28, A29, §10.6). Before, a `command` operation of `model.batch`
+//! went straight to the kit's `execute_as`: a command that names files, which `command.execute`
 //! refuses and `command.list` leaves out, ran from an agent's batch (a workspace
 //! audit ran film's `lut.export`, vector's `file.export` and layout's `file.saveACopy` this
 //! way).
@@ -203,14 +203,14 @@ fn a_batch_runs_no_command_commands_execute_refuses() {
         for (command, params) in [("file.writeCopy", json!({ "path": "/tmp/outside.notes" })), ("notes.exportPicture", json!({ "to": "/tmp/outside.png" }))] {
             for kind in ["agent", "person"] {
                 let refused = kit.model("model.batch", batch(&id, kind, command, params.clone())).unwrap_err();
-                assert_eq!(reason(&refused), "command_disabled", "{name}: {command} as {kind}: as commands.execute answers: {refused:?}");
+                assert_eq!(reason(&refused), "command_disabled", "{name}: {command} as {kind}: as command.execute answers: {refused:?}");
                 let model = &refused.data.as_ref().unwrap()["model"];
                 assert_eq!((model["code"].as_str(), model["index"].as_u64()), (Some("not-allowed"), Some(2)), "{name}: {command}: {model}");
                 assert!(ran(&kit, &id).is_empty(), "{name}: {command} ran from a batch as {kind}");
                 assert_eq!(kit.describe(&id).unwrap().state["notes"], json!([]), "{name}: nothing in a refused batch runs");
             }
         }
-        // An id the kit does not have is the same unknown command commands.execute answers.
+        // An id the kit does not have is the same unknown command command.execute answers.
         let unknown = kit.model("model.batch", batch(&id, "agent", "note.clean", json!({}))).unwrap_err();
         assert_eq!(reason(&unknown), "command_not_found", "{name}: {unknown:?}");
         assert_eq!(unknown.data.as_ref().unwrap()["model"]["code"], "unknown-command", "{name}");
@@ -233,7 +233,7 @@ fn a_batch_runs_no_command_commands_execute_refuses() {
 
 /// A kit's own dispatcher (a batch, macro, or script command the agent may run) runs its steps
 /// through the same gate, for the caller the host runs the call for
-/// (`kition_kit::dispatch::may_run`), from `commands.execute` and from a batch alike; and the
+/// (`kition_kit::dispatch::may_run`), from `command.execute` and from a batch alike; and the
 /// agent's connection lists no command the manifest keeps from the agent.
 #[test]
 fn a_kits_own_dispatcher_runs_its_steps_through_the_gate() {

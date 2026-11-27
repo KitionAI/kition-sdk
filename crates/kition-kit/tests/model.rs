@@ -496,7 +496,7 @@ fn an_exchange_edits_the_engine_through_its_changes() {
 }
 
 /// regressions/issue-kdm-shallow-export: a document forked as a new document
-/// (`copy_as_new_document`, what `document.fork` writes into a file) is a shallow replica. The
+/// (`copy_as_new_document`, what `file.fork` writes into a file) is a shallow replica. The
 /// object model over the change exchange loads the engine's "every change" export, and an agent's
 /// draft opens from it; both work on a fork as on any document, and the draft merges back.
 #[test]

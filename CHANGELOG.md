@@ -4,6 +4,17 @@ The Kition SDK's versions (`sdk.json`). Each entry names the contract versions i
 
 ## Unreleased
 
+- **Kit Process Protocol method names follow the command naming standard** (owner, 2026-11-27;
+  `kition-plan/standards/commands.md`). Only the wire names change; no old name is accepted.
+  `document.saveAs|close|identity|fork|reload|check|links` are `file.*`, and the notifications
+  `document.didChangeOnDisk|didChangeState|didSave` are `file.*`; `commands.execute` and
+  `commands.didChangeEnabled` are `command.*` (also in `kition serve`); the host's file service
+  `files.stat|read|list|write|resolve|release|print` and `files.revoked` are `storage.*`, with
+  `files.create` as `storage.new` (the standard replaces `create`); `history.blob.read` is
+  `history.readBlob`. The features `document.identity`, `document.check` and `document.links` are
+  `file.identity`, `file.check` and `file.links`, and the `hostServices` `files`, `files.print`
+  and `history.blob.read` are `storage`, `storage.print` and `history.readBlob`: a kit's
+  `kit.json` `headless.features` and a host's `hostServices` change with them.
 - **A merge that changes nothing records nothing; follow-up writes join the merge's step.** A
   draft's merge (or a restore) whose operations and the kit's repair together leave the document
   as it was logs no change, keeps the version and records no undo step: `DraftMerge` has no
