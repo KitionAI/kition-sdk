@@ -675,13 +675,32 @@ export function useKitEditorState<T>(
     return !read || read.doc !== now.doc || read.revision !== now.change.revision || now.pending?.() === true
   }, [])
 
+  /** Queries asked before the document opened, answered once it is open (or failed, or the editor closed). */
+  const opening = useRef<Array<() => void>>([])
+  useEffect(() => {
+    if (!doc && !session.failure) return
+    const waiting = opening.current
+    opening.current = []
+    for (const go of waiting) go()
+  }, [doc, session.failure])
+  useEffect(
+    () => () => {
+      const waiting = opening.current
+      opening.current = []
+      for (const go of waiting) go()
+    },
+    [],
+  )
+
   /**
    * A query: a command that reads without editing, answered as JSON (no repaint). Read-only
    * queries are the kit's own engine reads, so the UI configuration does not refuse them; a
    * command the engine marks as editing (`mutates`) that the host denies answers null without
-   * running. Other edits go through the session's `run`.
+   * running. Other edits go through the session's `run`. One asked before the document opened (a
+   * ribbon drawn before the engine answers) waits for it, and answers null only if it fails to open.
    */
   const query = useCallback(async <R,>(id: string, params: Record<string, unknown> = {}): Promise<R | null> => {
+    if (!latest.current.doc && !latest.current.failure) await new Promise<void>((go) => opening.current.push(go))
     const open = latest.current.doc
     if (!open) return null
     const known = latestById.current.get(id)

@@ -1,0 +1,22 @@
+format: 1
+id: sdk.editor.slides-by-hand/query-before-open
+feature: sdk.editor.slides-by-hand
+intent: >-
+  A query asked before the document opened (a ribbon drawn before the engine answers, reading the
+  shape presets) waits for it and answers once it is open; it answers null only when the document
+  fails to open or the editor closes.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of slide usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/slidesByHand.test.tsx, -t, before the engine is ready]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-28"

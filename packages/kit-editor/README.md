@@ -166,6 +166,8 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
   frame by default) with the key, once; copy, cut and paste only move the keyboard there. It is
   heard as the key bubbles to the document, after a kit's own listeners.
 - `onFit` says what the status bar's Fit and Cmd+0 fit (a pager's current page).
+- `editor.query` asked before the document opened (a ribbon drawn before the engine answers)
+  waits for it and answers once it is open; null only if it fails to open or the editor closes.
 - A bare Home and End are command shortcuts as Page Up and Page Down are (a tool that takes keys
   has them first), and a command runs from each of its keys: its `shortcut`, which menus show, and
   its `moreShortcuts` (`KitCommand::more_shortcuts`; `commandShortcuts(command)` lists them).

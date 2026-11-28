@@ -17,6 +17,10 @@ import { toolDamage, type KitChange } from './useKitDocument'
 import { TextSink } from '../TextSink'
 import { bindableShortcut, commandForShortcut, commandShortcuts } from './kitShortcuts'
 import { kitModuleCommands, type KitCommand } from './kitModule'
+import { useKitEditorState, type KitEditor, type KitSession } from '../editor'
+import { createUiStore } from '../uiStore'
+import { EMPTY_UI_CONFIG } from '../uiConfig'
+import type { HostConnection } from '../host'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -396,5 +400,41 @@ describe('quiet answers (Stage S of slide usable by hand)', () => {
     const before = loud.at(-1)!.decorate
     await act(async () => loud.at(-1)!.canvasTool.hover!(at, context))
     expect(loud.at(-1)!.decorate).not.toBe(before)
+  })
+})
+
+describe('queries before the engine is ready (Stage S of slide usable by hand)', () => {
+  const host = { ui: createUiStore(EMPTY_UI_CONFIG, null, () => undefined) } as unknown as HostConnection
+
+  async function editorWith() {
+    let editor!: KitEditor
+    let session = { doc: null, failure: null, change: { revision: 0 } } as unknown as KitSession<unknown>
+    function Probe() {
+      editor = useKitEditorState(session, host, (key) => key, 'k')
+      return null
+    }
+    const root = createRoot(document.createElement('div'))
+    cleanups.push(() => act(() => root.unmount()))
+    await act(async () => root.render(<Probe />))
+    return {
+      get editor() { return editor },
+      async open(next: Partial<KitSession<unknown>>) {
+        session = { ...session, ...next } as KitSession<unknown>
+        await act(async () => root.render(<Probe />))
+      },
+    }
+  }
+
+  it('answers a query asked before the document opened once it is open, and null if it fails to open', async () => {
+    const kit = await editorWith()
+    const early = kit.editor.query<{ presets: number }>('shape.presets')
+    const execute = vi.fn(async () => '{"presets":170}')
+    await kit.open({ doc: { commands: async () => [], disabledCommands: async () => [], execute } as unknown as KitSession<unknown>['doc'] })
+    expect(await early).toEqual({ presets: 170 })
+    expect(execute).toHaveBeenCalledWith('shape.presets', {})
+    const failing = await editorWith()
+    const never = failing.editor.query('shape.presets')
+    await failing.open({ failure: 'not a slide file' } as Partial<KitSession<unknown>>)
+    expect(await never).toBeNull()
   })
 })
