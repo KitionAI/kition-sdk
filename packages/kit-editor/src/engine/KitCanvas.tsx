@@ -33,6 +33,42 @@ export type KitCanvasHandle = {
   retryRender: () => Promise<boolean>
 }
 
+/**
+ * A wheel's scroll (without Cmd or Ctrl) before the canvas pans by it: `dx` and `dy` as the canvas
+ * pans (the event's deltas, CSS pixels), the view now, and where its top-left would go (`x`, `y`,
+ * document pixels, before the pan bounds).
+ */
+export type KitWheelPan = { dx: number; dy: number; view: RasterView; x: number; y: number; event: WheelEvent }
+
+/** How far past each edge of the canvas's scrolling part the pointer is, in CSS pixels (0: not past it). */
+export type KitEdgePast = { left: number; right: number; top: number; bottom: number }
+
+/**
+ * Scrolling while a held gesture's pointer is past the edge of the canvas's scrolling part (the
+ * canvas without its pinned bands, `RasterSource.pinned`): a drag selection reaching what is out of
+ * view. A timer scrolls the view every frame, the pointer still or not, and sends the gesture's
+ * `move` again from the pointer's last place as the view now is. Past the left or top edge counts
+ * only while the view can scroll back that way. A pan with Space, the middle button or the Hand
+ * tool never scrolls.
+ */
+export type KitEdgeScroll = {
+  /**
+   * How fast the view scrolls along `axis`, in CSS pixels a second, with the pointer `over` CSS
+   * pixels past the edge (more than 0); 0 does not scroll (`onEdge` still hears it).
+   */
+  speed: (over: number, axis: 'x' | 'y') => number
+  /** Which ways the gesture may scroll now (`back` is left and up); null: none. All by default. */
+  ways?: (view: RasterView) => { x: boolean; y: boolean; back: boolean } | null
+  /**
+   * Whether the pointer is held at the edge it is past for the gesture: its moves and its release
+   * name the point just inside the edge (a cell selection reaches the cells at the edge, not the
+   * headings or the nothing past it). Off, they name where the pointer is.
+   */
+  hold?: boolean
+  /** During a held gesture: how far past the edges the pointer is, at each sample and frame while it is past one, then null once, when it is back or the gesture ends. */
+  onEdge?: (past: KitEdgePast | null) => void
+}
+
 type KitCanvasProps = {
   doc: KitEngine
   /** Moves with every document change; the canvas repaints what it names. */
@@ -62,6 +98,14 @@ type KitCanvasProps = {
    * that paints its own canvas around the document (slides on a pasteboard).
    */
   framed?: boolean
+  /**
+   * Where a wheel's scroll takes the view (`KitWheelPan`): the view's top-left, in document
+   * pixels, the canvas pans to instead (a sheet's whole rows); null or undefined pans by the wheel
+   * as usual. The wheel with Cmd or Ctrl zooms as before.
+   */
+  wheelPan?: ((pan: KitWheelPan) => { x: number; y: number } | null | undefined) | null
+  /** Scrolling while a held gesture's pointer is past the canvas's edge (`KitEdgeScroll`); none by default. */
+  edgeScroll?: KitEdgeScroll | null
   /** HTML laid over the canvas, for example an inline text field. */
   children?: ReactNode
   ref?: Ref<KitCanvasHandle>
@@ -77,7 +121,14 @@ export function pressureOf(event: { pressure: number; pointerType?: string }, pr
   return event.pressure > 0 ? event.pressure : previous
 }
 
-function pointerOf(event: { clientX: number; clientY: number; pressure: number; pointerType?: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean }, viewport: RasterViewport, previous = 1): KitPointer {
+/** What a pointer sample carries that a `KitPointer` is made of. */
+type PointerSample = { clientX: number; clientY: number; pressure: number; pointerType?: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean }
+
+const sampleOf = ({ clientX, clientY, pressure, pointerType, shiftKey, altKey, metaKey, ctrlKey }: PointerSample): PointerSample => ({ clientX, clientY, pressure, pointerType, shiftKey, altKey, metaKey, ctrlKey })
+
+const isPast = (past: KitEdgePast) => past.left > 0 || past.right > 0 || past.top > 0 || past.bottom > 0
+
+function pointerOf(event: PointerSample, viewport: RasterViewport, previous = 1): KitPointer {
   const point = viewport.toImage(event.clientX, event.clientY)
   const local = viewport.toScreen(point.x, point.y)
   return {
@@ -163,7 +214,7 @@ function useOverlay(overlayRef: RefObject<HTMLCanvasElement | null>, viewportRef
  * Hand tool pan; the wheel pans, and zooms with Cmd or Ctrl (and pinch). Escape drops a held
  * gesture.
  */
-export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMemory, initialArea = null, panBounds = null, decorate = null, animated = false, spacePans = true, framed = true, children, ref }: KitCanvasProps) {
+export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMemory, initialArea = null, panBounds = null, decorate = null, animated = false, spacePans = true, framed = true, wheelPan = null, edgeScroll = null, children, ref }: KitCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<RasterViewport | null>(null)
@@ -182,8 +233,8 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     setHovered(next)
   }
   const regionRef = useRef<HTMLDivElement>(null)
-  const latest = useRef({ doc, onView, onRender, initialArea, panBounds })
-  latest.current = { doc, onView, onRender, initialArea, panBounds }
+  const latest = useRef({ doc, onView, onRender, initialArea, panBounds, wheelPan, edgeScroll })
+  latest.current = { doc, onView, onRender, initialArea, panBounds, wheelPan, edgeScroll }
   const overlay = useOverlay(overlayRef, viewportRef)
 
   useEffect(() => {
@@ -219,7 +270,14 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
       const zoom = event.ctrlKey || event.metaKey
       if (!zoom && event.target !== canvas && scrollsInside(event.target, region, event.deltaX, event.deltaY)) return
       event.preventDefault()
-      if (zoom) viewport.zoomTo(viewport.view.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM_SPEED), event.clientX, event.clientY)
+      if (zoom) {
+        viewport.zoomTo(viewport.view.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM_SPEED), event.clientX, event.clientY)
+        return
+      }
+      const snap = latest.current.wheelPan
+      const view = viewport.view
+      const to = snap?.({ dx: event.deltaX, dy: event.deltaY, view: { ...view }, x: view.x + event.deltaX / view.zoom, y: view.y + event.deltaY / view.zoom, event })
+      if (to) viewport.panTo(to.x, to.y)
       else viewport.panBy(-event.deltaX, -event.deltaY)
     }
     region.addEventListener('wheel', wheel, { passive: false })
@@ -323,6 +381,118 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
   const countClicks = useRef<ReturnType<typeof clickCounter> | null>(null)
   countClicks.current ??= clickCounter()
 
+  /**
+   * Edge scrolling (`edgeScroll`): the held gesture's last sample, whether the gesture may scroll
+   * (not a pan), its timer, the last frame's time, and whether the pointer was past an edge.
+   */
+  const edge = useRef<{ sample: PointerSample | null; active: boolean; frame: number; then: number; past: boolean }>({ sample: null, active: false, frame: 0, then: 0, past: false })
+
+  /** How far past each edge of the scrolling part `sample` is, and the point just inside the edges it is past. */
+  const edgesOf = (sample: PointerSample, viewport: RasterViewport) => {
+    const scroll = latest.current.edgeScroll
+    const canvas = canvasRef.current
+    if (!scroll || !canvas || !edge.current.active) return null
+    const ways = scroll.ways ? scroll.ways({ ...viewport.view }) : { x: true, y: true, back: true }
+    if (!ways) return null
+    const box = canvas.getBoundingClientRect()
+    const right = box.left + canvas.clientWidth
+    const bottom = box.top + canvas.clientHeight
+    const { zoom } = viewport.view
+    const pins = viewport.pins
+    const left = box.left + pins.left * zoom
+    const top = box.top + pins.top * zoom
+    const past: KitEdgePast = {
+      left: ways.x && ways.back && viewport.canPanBy(1, 0) ? Math.max(0, left + 1 - sample.clientX) : 0,
+      right: ways.x ? Math.max(0, sample.clientX - (right - 1)) : 0,
+      top: ways.y && ways.back && viewport.canPanBy(0, 1) ? Math.max(0, top + 1 - sample.clientY) : 0,
+      bottom: ways.y ? Math.max(0, sample.clientY - (bottom - 1)) : 0,
+    }
+    const clientX = past.right > 0 ? right - 1 : past.left > 0 ? left + 1 : sample.clientX
+    const clientY = past.bottom > 0 ? bottom - 1 : past.top > 0 ? top + 1 : sample.clientY
+    return { past, clientX, clientY }
+  }
+
+  /** The held gesture's pointer for `sample`: held just inside the edge it is past when `edgeScroll.hold`. */
+  const gesturePointer = (sample: PointerSample, viewport: RasterViewport, previous: number) => {
+    const pointer = pointerOf(sample, viewport, previous)
+    if (!latest.current.edgeScroll?.hold) return pointer
+    const at = edgesOf(sample, viewport)
+    if (!at || (at.clientX === sample.clientX && at.clientY === sample.clientY)) return pointer
+    const point = viewport.toImage(at.clientX, at.clientY)
+    const local = viewport.toScreen(point.x, point.y)
+    return { ...pointer, x: point.x, y: point.y, canvasX: local.x, canvasY: local.y }
+  }
+
+  /** Tells the kit how far past the edges the pointer is (`onEdge`), and null once when it is back. */
+  const tellEdge = (past: KitEdgePast | null) => {
+    const state = edge.current
+    if (!past && !state.past) return
+    state.past = past !== null
+    latest.current.edgeScroll?.onEdge?.(past)
+  }
+
+  const edgeSpeed = (over: number, axis: 'x' | 'y') => {
+    const speed = over > 0 ? latest.current.edgeScroll?.speed(over, axis) ?? 0 : 0
+    return Number.isFinite(speed) && speed > 0 ? speed : 0
+  }
+
+  const edgeTick = (now: number) => {
+    const state = edge.current
+    state.frame = 0
+    const tools = context()
+    const current = gesture.current
+    const sample = state.sample
+    const at = tools && current && sample ? edgesOf(sample, tools.viewport) : null
+    if (!tools || !current || !sample || !at || !isPast(at.past)) {
+      tellEdge(null)
+      return
+    }
+    tellEdge(at.past)
+    const seconds = state.then ? Math.min(0.1, Math.max(0, (now - state.then) / 1000)) : 1 / 60
+    state.then = now
+    const dx = (edgeSpeed(at.past.right, 'x') - edgeSpeed(at.past.left, 'x')) * seconds
+    const dy = (edgeSpeed(at.past.bottom, 'y') - edgeSpeed(at.past.top, 'y')) * seconds
+    const before = tools.viewport.view
+    if (dx || dy) tools.viewport.panBy(-dx, -dy)
+    const after = tools.viewport.view
+    if (after.x !== before.x || after.y !== before.y) current.move?.(gesturePointer(sample, tools.viewport, lastPressure.current), tools)
+    state.frame = window.requestAnimationFrame(edgeTick)
+  }
+
+  /** After a held gesture's sample: tells the kit where the pointer is and starts the timer when it is past an edge. */
+  const edgeSample = (sample: PointerSample) => {
+    const state = edge.current
+    const tools = context()
+    if (!latest.current.edgeScroll || !state.active || !tools) return
+    state.sample = sampleOf(sample)
+    const at = edgesOf(state.sample, tools.viewport)
+    if (!at || !isPast(at.past)) {
+      tellEdge(null)
+      return
+    }
+    tellEdge(at.past)
+    if (state.frame) return
+    state.then = 0
+    state.frame = window.requestAnimationFrame(edgeTick)
+  }
+
+  /** The held gesture ended: the timer stops, and the kit hears the pointer is back. */
+  const edgeStop = () => {
+    const state = edge.current
+    if (state.frame) window.cancelAnimationFrame(state.frame)
+    state.frame = 0
+    state.sample = null
+    tellEdge(null)
+    state.active = false
+  }
+  useEffect(
+    () => () => {
+      if (edge.current.frame) window.cancelAnimationFrame(edge.current.frame)
+      edge.current.frame = 0
+    },
+    [],
+  )
+
   const pointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const tools = context()
     if (!tools || event.button === 2) return
@@ -335,7 +505,9 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     const active = spaceHeld || event.button === 1 ? HAND_TOOL : tool
     const pointer = { ...pointerOf(event, tools.viewport), clicks: countClicks.current!(event) }
     lastPressure.current = pointer.pressure
+    edgeStop()
     gesture.current = active.begin(pointer, tools) || null
+    edge.current.active = gesture.current !== null && active !== HAND_TOOL
   }
 
   const pointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -345,17 +517,20 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     if (tools && !current && !spaceHeld && event.buttons === 0 && tool.hover) showHover(tool.hover(pointerOf(event, tools.viewport), tools))
     if (!tools || !current?.move) return
     for (const sample of event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent]) {
-      const pointer = pointerOf(sample, tools.viewport, lastPressure.current)
+      const pointer = gesturePointer(sample, tools.viewport, lastPressure.current)
       lastPressure.current = pointer.pressure
       current.move(pointer, tools)
     }
+    edgeSample(event.nativeEvent)
   }
 
   const pointerUp = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const tools = context()
     const current = gesture.current
     gesture.current = null
-    if (tools && current) current.end?.(pointerOf(event, tools.viewport, lastPressure.current), tools)
+    const pointer = tools && current ? gesturePointer(event, tools.viewport, lastPressure.current) : null
+    edgeStop()
+    if (tools && current && pointer) current.end?.(pointer, tools)
   }
 
   // Escape while a gesture is held drops it (KitPointer 4.1, 4.3: cancel the gesture in progress,
@@ -366,6 +541,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     const current = gesture.current
     if (!current || event.key !== 'Escape' || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     gesture.current = null
+    edgeStop()
     const tools = context()
     if (tools) current.cancel?.(tools)
     overlay.clear()
@@ -384,6 +560,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     // Normal pointer-up also releases capture. Only a still-active gesture is interrupted.
     if (!current) return
     gesture.current = null
+    edgeStop()
     if (tools) current.cancel?.(tools)
     overlay.clear()
   }

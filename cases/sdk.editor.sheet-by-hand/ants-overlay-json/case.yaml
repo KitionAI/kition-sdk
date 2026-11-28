@@ -1,0 +1,21 @@
+format: 1
+id: sdk.editor.sheet-by-hand/ants-overlay-json
+feature: sdk.editor.sheet-by-hand
+intent: >-
+  ToolOverlay::Ants serializes as kind ants with its path, colour and width, as the editor reads
+  it.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of sheet usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -p, kition-kit, --lib, events_and_answers_have_a_stable_json_shape]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 600
+since: "2026-11-28"

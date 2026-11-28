@@ -30,17 +30,28 @@ function isMac() {
 }
 
 /**
- * Whether `event` is `shortcut`, written as kits write it: `Cmd+Shift+Z`, `Alt+Backspace`, `F12`.
- * `Delete` also answers to Backspace (the Mac delete key) unless `exact`.
+ * What a `Ctrl+…` shortcut means off a Mac, where Ctrl is the main modifier: `control` (the
+ * default) the Control key as on a Mac, which no key off a Mac matches (Ctrl is read as Cmd
+ * there); `primary` Ctrl itself, as `Cmd+…` is (Sheet's `Ctrl+Enter` fills the selection on
+ * Windows as WPS does). On a Mac `Ctrl` is always the Control key.
  */
-export function shortcutMatches(shortcut: string, event: KeyLike, mac = isMac(), exact = false) {
+export type CtrlShortcuts = 'control' | 'primary'
+
+/**
+ * Whether `event` is `shortcut`, written as kits write it: `Cmd+Shift+Z`, `Alt+Backspace`, `F12`.
+ * `Delete` also answers to Backspace (the Mac delete key) unless `exact`. `ctrl` is what a
+ * `Ctrl+…` shortcut means off a Mac (`CtrlShortcuts`).
+ */
+export function shortcutMatches(shortcut: string, event: KeyLike, mac = isMac(), exact = false, ctrl: CtrlShortcuts = 'control') {
   const parts = shortcut.split('+')
   const key = parts.length > 1 && parts[parts.length - 1] === '' ? '+' : parts.pop() ?? ''
   const mods = new Set(parts.filter(Boolean))
-  const wantCommand = mods.has('Cmd')
+  // Off a Mac, `primary` reads `Ctrl+…` (without Cmd) as `Cmd+…`: Ctrl is the main modifier there.
+  const primaryCtrl = !mac && ctrl === 'primary' && mods.has('Ctrl') && !mods.has('Cmd')
+  const wantCommand = mods.has('Cmd') || primaryCtrl
   const command = mac ? event.metaKey : event.ctrlKey
   const control = mac ? event.ctrlKey : false
-  if (wantCommand !== command || mods.has('Ctrl') !== control) return false
+  if (wantCommand !== command || (mods.has('Ctrl') && !primaryCtrl) !== control) return false
   if (mods.has('Shift') !== event.shiftKey || mods.has('Alt') !== event.altKey) return false
   if (/^[A-Za-z]$/.test(key)) return event.code === `Key${key.toUpperCase()}`
   if (/^[0-9]$/.test(key)) return event.code === `Digit${key}`
@@ -60,9 +71,12 @@ export function bindableShortcut(shortcut: string | null): shortcut is string {
 
 /**
  * The command whose shortcut is `event`, if any, whether or not it can run now. An exact key wins
- * over the Delete and Backspace alias (Film binds both, to different commands).
+ * over the Delete and Backspace alias (Film binds both, to different commands). With `ctrl`
+ * `primary`, a `Ctrl+…` shortcut off a Mac is pressed with Ctrl (`CtrlShortcuts`); one written
+ * with Cmd wins where both match.
  */
-export function commandForShortcut(commands: readonly KitCommand[], event: KeyLike, mac = isMac()) {
+export function commandForShortcut(commands: readonly KitCommand[], event: KeyLike, mac = isMac(), ctrl: CtrlShortcuts = 'control') {
   const bound = commands.filter((command) => bindableShortcut(command.shortcut))
-  return bound.find((command) => shortcutMatches(command.shortcut!, event, mac, true)) ?? bound.find((command) => shortcutMatches(command.shortcut!, event, mac))
+  const find = (mode: CtrlShortcuts) => bound.find((command) => shortcutMatches(command.shortcut!, event, mac, true, mode)) ?? bound.find((command) => shortcutMatches(command.shortcut!, event, mac, false, mode))
+  return find('control') ?? (ctrl === 'primary' && !mac ? find('primary') : undefined)
 }

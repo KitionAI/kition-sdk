@@ -1,0 +1,25 @@
+format: 1
+id: sdk.editor.sheet-by-hand/keys-and-dialog
+feature: sdk.editor.sheet-by-hand
+intent: >-
+  With zoomKeys commands a command whose shortcut is Cmd+0 or Cmd+- runs before the frame's Fit
+  and zoom, which take only a key no command has; with none the frame never zooms by key; by
+  default the frame keeps them. With ctrlShortcuts primary a Ctrl+ shortcut is pressed with Ctrl
+  off a Mac, a Cmd+ shortcut of the same key winning. commandDialog names fields and choices as
+  the kit says and, structured, gives lists, named numbers, choices and objects fields of their
+  own; by default a list stays one JSON text box under the schema's name.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of sheet usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/editor.test.tsx, packages/kit-editor/src/engine/kitShortcuts.test.ts, packages/kit-editor/src/CommandDialog.test.tsx, -t, sheet usable by hand]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-28"

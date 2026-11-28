@@ -645,6 +645,89 @@ describe('the keyboard when the page body holds it, and Fit (Stage S of PDF usab
   })
 })
 
+describe('zoom keys, Ctrl shortcuts and the parameters dialog (Stage S of sheet usable by hand)', () => {
+  const shortcut = (id: string, keys: string) => ({ ...command(id, ['Home']), shortcut: keys }) as KitCommand
+  const commands = [shortcut('column.hide', 'Cmd+0'), shortcut('row.delete', 'Cmd+-'), shortcut('range.fill', 'Ctrl+Enter'), shortcut('edit.find', 'Cmd+Enter')]
+  const frame = (editor: KitEditor, props: Partial<Parameters<typeof EditorFrame>[0]>) => {
+    const canvas = { current: { fit: vi.fn(), zoomTo: vi.fn(), zoomBy: vi.fn() } }
+    render(
+      <KitEditorProvider editor={editor} tools={null}>
+        <EditorFrame tabs={[]} canvas={canvas as unknown as Parameters<typeof EditorFrame>[0]['canvas']} zoom={1} {...props}>
+          {null}
+        </EditorFrame>
+      </KitEditorProvider>,
+    )
+    return canvas.current
+  }
+  // Off a Mac (jsdom's platform), Ctrl is the main modifier: Cmd+0 is pressed with Ctrl.
+  const press = async (key: string, code: string, ctrlKey = true) => {
+    const event = new KeyboardEvent('keydown', { key, code, ctrlKey, bubbles: true, cancelable: true })
+    await act(async () => void document.querySelector('.kui-app')?.dispatchEvent(event))
+    return event
+  }
+
+  it('keeps Cmd+0, Cmd+= and Cmd+- the frame\'s by default, before any command', async () => {
+    const editor = fakeEditor(store(), commands)
+    const canvas = frame(editor, {})
+    await press('0', 'Digit0')
+    await press('-', 'Minus')
+    expect(canvas.fit).toHaveBeenCalledTimes(1)
+    expect(canvas.zoomBy).toHaveBeenCalledTimes(1)
+    expect(editor.run).not.toHaveBeenCalled()
+  })
+
+  it('asks the commands first with zoomKeys commands, and zooms for a key no command has', async () => {
+    const editor = fakeEditor(store(), commands)
+    const canvas = frame(editor, { zoomKeys: 'commands' })
+    await press('0', 'Digit0')
+    await press('-', 'Minus')
+    expect(editor.run).toHaveBeenCalledWith('column.hide', {})
+    expect(editor.run).toHaveBeenCalledWith('row.delete', {})
+    expect(canvas.fit).not.toHaveBeenCalled()
+    await press('=', 'Equal')
+    expect(canvas.zoomBy).toHaveBeenCalledTimes(1)
+  })
+
+  it('never zooms by key with zoomKeys none', async () => {
+    const editor = fakeEditor(store(), [])
+    const canvas = frame(editor, { zoomKeys: 'none' })
+    const pressed = await press('=', 'Equal')
+    await press('0', 'Digit0')
+    expect(canvas.zoomBy).not.toHaveBeenCalled()
+    expect(canvas.fit).not.toHaveBeenCalled()
+    expect(pressed.defaultPrevented).toBe(false)
+  })
+
+  it('presses a Ctrl+ shortcut with Ctrl off a Mac with ctrlShortcuts primary; a Cmd+ one wins where both match', async () => {
+    const plain = fakeEditor(store(), commands)
+    frame(plain, {})
+    await press('Enter', 'Enter')
+    expect(plain.run).toHaveBeenCalledWith('edit.find', {})
+    expect(plain.run).not.toHaveBeenCalledWith('range.fill', {})
+    for (const root of roots) act(() => root.unmount())
+    roots = []
+    const primary = fakeEditor(store(), commands)
+    frame(primary, { ctrlShortcuts: 'primary' })
+    await press('Enter', 'Enter')
+    expect(primary.run).toHaveBeenCalledWith('edit.find', {})
+    for (const root of roots) act(() => root.unmount())
+    roots = []
+    const fill = fakeEditor(store(), [shortcut('range.fill', 'Ctrl+Enter')])
+    frame(fill, { ctrlShortcuts: 'primary' })
+    await press('Enter', 'Enter')
+    expect(fill.run).toHaveBeenCalledWith('range.fill', {})
+  })
+
+  it("gives the parameters dialog the kit's names and structured fields (commandDialog)", async () => {
+    const insert = command('row.insert', ['Home'], { count: { type: 'integer', required: true }, rows: { type: 'array', items: { type: 'integer' } } })
+    const editor = { ...fakeEditor(store(), [insert]), dialog: { command: insert, values: { rows: [2, 5] } } } as unknown as KitEditor
+    frame(editor, { commandDialog: { label: (param) => (param === 'count' ? 'How many' : null), structured: true } })
+    expect(document.querySelector('label[for="param-count"]')?.textContent).toContain('How many')
+    expect(document.querySelector('label[for="param-rows"]')?.textContent).toBe('rows')
+    expect((document.getElementById('param-rows-1') as HTMLInputElement).value).toBe('5')
+  })
+})
+
 describe('CommandButton', () => {
   it('a command the editor cannot run stays disabled even when the kit says enabled', () => {
     const editor = { ...fakeEditor(store({ disable: ['command:x'] })), enabled: () => false }

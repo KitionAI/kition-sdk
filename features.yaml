@@ -2376,6 +2376,35 @@ features:
       - regressions/issue-line-primary-menu-rows
       - sdk.editor.pages-by-hand/tools-wheel-keyboard
     since: "2026-11-27"
+  - id: sdk.editor.sheet-by-hand
+    title: "A grid editor keeps up with a hand: a kit can give Cmd+0, Cmd+= and Cmd+- to its commands, and press its Ctrl+ shortcuts with Ctrl off a Mac; a held gesture scrolls the view past the canvas's edge and is told; a kit can snap the wheel's pan; engine overlays have marching ants (animated only while shown) and labels on a box; the parameters dialog takes the kit's names and gives lists and objects fields of their own"
+    dimension: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/engine/kitShortcuts.ts
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - packages/kit-editor/src/engine/rasterViewport.ts
+      - packages/kit-editor/src/engine/engineOverlays.ts
+      - packages/kit-editor/src/engine/engineTools.ts
+      - packages/kit-editor/src/CommandDialog.tsx
+      - packages/kit-editor/src/styles.css
+      - packages/kit-editor/src/index.ts
+      - crates/kition-kit/src/tools.rs
+      - packages/kit-editor/src/editor.test.tsx
+      - packages/kit-editor/src/engine/kitShortcuts.test.ts
+      - packages/kit-editor/src/engine/KitCanvas.edge.test.tsx
+      - packages/kit-editor/src/engine/engineOverlays.ants.test.tsx
+      - packages/kit-editor/src/CommandDialog.test.tsx
+      - packages/kit-editor/README.md
+      - docs/platform/sets/pointer.md
+      - docs/platform/kits/ui.md
+    cases:
+      - sdk.editor.sheet-by-hand/keys-and-dialog
+      - sdk.editor.sheet-by-hand/canvas-edge-wheel-ants
+      - sdk.editor.sheet-by-hand/ants-overlay-json
+    since: "2026-11-28"
   - id: sdk.editor.slides-by-hand
     title: "The engine tools reach what a hand does on slides: a press's button and click count (right-click, triple click), an answer that says the tool takes the editing keys, where its caret is, that it is locked, or that no pixel changed"
     dimension: [function]

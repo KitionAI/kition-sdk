@@ -3,7 +3,7 @@ import type { KitToolMethod } from './kitEngine'
 import { HAND_TOOL, type KitPointer, type KitTool } from './kitTools'
 import type { RasterDecoration } from './rasterViewport'
 import { drawnOnce } from './decorations'
-import { drawEngineOverlays, overlayStyle as resolveOverlayStyle, type EngineOverlay, type OverlayDrawer, type OverlayStylePatch } from './engineOverlays'
+import { drawEngineOverlays, overlaysAnimate, overlayStyle as resolveOverlayStyle, type EngineOverlay, type OverlayDrawer, type OverlayStylePatch } from './engineOverlays'
 import { orderCommands, type KitChange } from './useKitDocument'
 
 /**
@@ -352,6 +352,8 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     () => (overlays?.length && !hostTool ? drawnOnce(drawEngineOverlays(overlays, style, drawOverlay)) : null),
     [drawOverlay, hostTool, overlays, style],
   )
+  // Marching ants move: the canvas redraws the overlays on a timer while they are shown, only then.
+  const animated = !hostTool && overlaysAnimate(overlays)
 
   /**
    * Gives a key to the tool when it is mid-gesture or taking text; returns whether it did.
@@ -442,8 +444,8 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   // value) does not render everything again for each answer that changed none of them.
   const wantsText = Boolean(response?.wantsText) && !hostTool
   return useMemo(
-    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, status, wantsText, keyDown, toolForKey }),
-    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, status, wantsText, keyDown, toolForKey],
+    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, animated, status, wantsText, keyDown, toolForKey }),
+    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, animated, status, wantsText, keyDown, toolForKey],
   )
 }
 

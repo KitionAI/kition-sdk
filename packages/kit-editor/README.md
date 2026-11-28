@@ -44,8 +44,8 @@ registerCommandIcons({
 
 ## Engine overlays in the kit's style
 
-`useEngineTools` draws the overlays an engine tool answers with (marquee, path, line, anchor,
-handle, label, measure, highlight, swatch) over the canvas, in Kition's style by default. A kit
+`useEngineTools` draws the overlays an engine tool answers with (marquee, path, marching ants,
+line, anchor, handle, label, measure, highlight, swatch) over the canvas, in Kition's style by default. A kit
 that needs its own look passes either or both of these options (keep them stable: module
 constants or memoized values, since a new object redraws):
 
@@ -53,7 +53,8 @@ constants or memoized values, since a new object redraws):
   the accent, surface and ink colours, the font, the marquee's fill, opacity, stroke, width,
   dash and whether the stroke lies inside, line and path widths and dashes, anchors' shape
   (`square` with a corner radius, or `circle`), default size, fill and ring width, handles'
-  radius, fill and ring, labels' font and offset, the measurement pill's fill, text colour,
+  radius, fill and ring, marching ants' dash, speed and gap colour, labels' font, offset, text
+  colour and box (fill, border, padding, radius; none by default), the measurement pill's fill, text colour,
   font, padding, height, radius, offset and alignment, and swatches' size, radius and rings.
 - `drawOverlay` (`OverlayDrawer`): called for each overlay with an `OverlayDrawContext` (the
   2D context on its own saved state, `toScreen` for document points, the `view` with its zoom,
@@ -106,6 +107,20 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
 - A wheel over the HTML a kit lays over the canvas (`KitDocumentCanvas`'s `children`) scrolls and
   zooms the document as over the canvas; one a child takes (default-prevented) or a scrolling
   element in it can still scroll by stays the child's.
+- Marching ants (the engine's `ToolOverlay::Ants`, overlay kind `ants`) move along their path at
+  `overlayStyle.ants.speed` CSS pixels a second: while one is shown the canvas redraws the overlays
+  on a timer (`useEngineTools`'s `animated`), and an idle canvas without them does not redraw.
+- `wheelPan` (on `KitDocumentCanvas` and `KitCanvas`) says where a wheel's scroll takes the view
+  (`KitWheelPan`: the deltas, the view, and the top-left the canvas would pan to); it answers the
+  top-left to pan to (a sheet's whole rows), or null to pan as usual. Cmd or Ctrl with the wheel
+  still zooms.
+- `edgeScroll` (`KitEdgeScroll`) scrolls the view while a held gesture's pointer is past the edge
+  of the canvas's scrolling part (the canvas without the document's pinned bands): every frame,
+  the pointer still or not, at `speed(over, axis)` CSS pixels a second, sending the gesture's move
+  again from the pointer's last place; `ways(view)` limits the directions (a column resize does
+  not scroll back), `hold` holds the pointer the gesture is given just inside the edge, and
+  `onEdge(past)` tells the kit how far past the edges the pointer is, then null once when it is
+  back. Past the left or top edge counts only while the view can go back that way. Off by default.
 
 ## Keys, reads and the frame
 
@@ -122,6 +137,17 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
   heard as the key bubbles to the document, after a kit's own listeners.
 - `onFit` says what the status bar's Fit and Cmd+0 fit (a pager's current page).
 - In Single line, a primary `RibbonMenu`'s open menu is drawn in the row with it.
+- `zoomKeys` says who has Cmd+0, Cmd+= and Cmd+-: `frame` (the default) fits and zooms before any
+  command; `commands` lets a command whose shortcut is one of them run first (a sheet's Hide
+  Columns on Cmd+0) and zooms only for a key no command has; `none` never zooms by key.
+- `ctrlShortcuts: 'primary'` presses a command's `Ctrl+…` shortcut with Ctrl off a Mac, the main
+  modifier there (by default it is the Control key, which no key off a Mac matches); a `Cmd+…`
+  shortcut of the same key wins. On a Mac `Ctrl` is the Control key either way.
+- `commandDialog` (`CommandDialogOptions`) shapes the parameters dialog: `label(param, command,
+  schema)` and `choice(param, value, command)` name fields and enum choices in the person's
+  language, and `structured` gives a list one field an item (Add, Remove), a list of named
+  numbers (`[x, y]`) a field each, a list of choices a check box each and an object a field per
+  property, instead of one JSON text box. A list of objects stays a JSON text box.
 
 `KitDocumentCanvas` draws a kit's `decorateUnder` under the overlays and its `decorate` over
 them, so canvas chrome can sit on either side (grids and frame labels under the selection, a

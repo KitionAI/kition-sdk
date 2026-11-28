@@ -1,7 +1,7 @@
 /**
  * Drawing the engine tools' overlays (kit editors U8b): the marquee, path and
  * line previews, anchors and handles, labels, measurement pills, highlights and swatches an
- * engine answers with, in document pixels. Kit-editor draws them in Kition's style unless the
+ * engine answers with (and marching ants), in document pixels. Kit-editor draws them in Kition's style unless the
  * kit asks otherwise, in two ways that combine:
  *
  * - `overlayStyle`: colours, sizes, shapes, dashes and fonts per overlay kind (`OverlayStyle`),
@@ -9,6 +9,9 @@
  * - `drawOverlay`: a hook that draws an overlay itself on the overlay canvas, with the current
  *   view transform; it returns `true` when it drew the overlay, and kit-editor draws the rest in
  *   the style.
+ *
+ * Marching ants (`ants`) move by themselves: while one is shown the canvas redraws the overlays
+ * on a timer (`KitCanvas`'s `animated`), and not at all otherwise (`overlaysAnimate`).
  */
 import type { RasterDecoration, RasterView } from './rasterViewport'
 
@@ -19,6 +22,7 @@ export type OverlayRgba = [number, number, number, number]
 export type EngineOverlay =
   | { kind: 'marquee'; x0: number; y0: number; x1: number; y1: number }
   | { kind: 'path'; d: string; color: OverlayRgba; width: number; dashed: boolean }
+  | { kind: 'ants'; d: string; color: OverlayRgba; width: number }
   | { kind: 'line'; ax: number; ay: number; bx: number; by: number; color: OverlayRgba; dashed: boolean }
   | { kind: 'anchor'; x: number; y: number; color: OverlayRgba; filled: boolean; size: number }
   | { kind: 'handle'; x: number; y: number; color: OverlayRgba }
@@ -63,6 +67,15 @@ export type OverlayStyle = {
     /** The dash pattern of a dashed line. */
     dash: number[]
   }
+  /** Marching ants (`ants`): dashes in the overlay's colour moving along its path. */
+  ants: {
+    /** The dash pattern; the dashes are the overlay's colour, the gaps `gap`. */
+    dash: number[]
+    /** How fast the dashes move along the path, in CSS pixels a second (0: they stand still). */
+    speed: number
+    /** The colour under the gaps (`null`: `surface`; `transparent` for none). */
+    gap: string | null
+  }
   anchor: {
     /** `square` (rounded by `radius`) or `circle`. */
     shape: 'square' | 'circle'
@@ -87,6 +100,15 @@ export type OverlayStyle = {
     /** The text's offset from the overlay's point (the text's baseline at `dy`). */
     dx: number
     dy: number
+    /** The text's colour (`null`: the overlay's colour). */
+    color: string | null
+    /** A box behind the text (`null`: none), as a tooltip's, padded by `padX` and `padY`. */
+    fill: string | null
+    /** The box's border (`null`: none), 1 pixel wide. */
+    stroke: string | null
+    padX: number
+    padY: number
+    radius: number
   }
   measure: {
     /** Pill colour (`null`: `ink`). */
@@ -129,9 +151,10 @@ export const DEFAULT_OVERLAY_STYLE: OverlayStyle = Object.freeze({
   marquee: { fill: null, fillOpacity: 0.08, stroke: null, width: 1, dash: [4, 3], inside: false },
   path: { minWidth: 1, dash: [4, 3] },
   line: { width: 1, dash: [4, 3] },
+  ants: { dash: [4, 4], speed: 16, gap: null },
   anchor: { shape: 'square', radius: 0, size: 6, fill: null, ringWidth: 1 },
   handle: { radius: 3, fill: null, ringWidth: 0 },
-  label: { font: null, dx: 4, dy: -4 },
+  label: { font: null, dx: 4, dy: -4, color: null, fill: null, stroke: null, padX: 4, padY: 2, radius: 3 },
   measure: { fill: null, color: null, font: null, padX: 6, height: 18, padY: 2, radius: 4, dx: 12, dy: 12, align: 'start' },
   swatch: { size: 12, radius: 3, ringWidth: 2, ring: null, selectedRing: null },
 }) as OverlayStyle
@@ -198,6 +221,14 @@ function pill(context: CanvasRenderingContext2D, x: number, y: number, text: str
   context.fillText(text, left + m.padX, y + height / 2)
 }
 
+/** Whether `overlays` move by themselves (marching ants): the canvas redraws them while they are shown. */
+export function overlaysAnimate(overlays: readonly EngineOverlay[] | null | undefined) {
+  return overlays?.some((overlay) => overlay.kind === 'ants') ?? false
+}
+
+/** The clock marching ants move by, in milliseconds. */
+const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
 /** Draws one overlay in `style`, on the context's current state. */
 export function drawOverlayInStyle(context: CanvasRenderingContext2D, toScreen: (x: number, y: number) => { x: number; y: number }, view: RasterView, overlay: EngineOverlay, style: OverlayStyle) {
   switch (overlay.kind) {
@@ -229,6 +260,25 @@ export function drawOverlayInStyle(context: CanvasRenderingContext2D, toScreen: 
       if (overlay.dashed) context.setLineDash(style.path.dash.map((n) => n / view.zoom))
       context.strokeStyle = overlayCss(overlay.color)
       context.stroke(new Path2D(overlay.d))
+      break
+    }
+    case 'ants': {
+      const s = style.ants
+      const origin = toScreen(0, 0)
+      const path = new Path2D(overlay.d)
+      context.translate(origin.x, origin.y)
+      context.scale(view.zoom, view.zoom)
+      context.lineWidth = Math.max(overlay.width, style.path.minWidth) / view.zoom
+      const gap = s.gap ?? style.surface
+      if (gap !== 'transparent') {
+        context.strokeStyle = gap
+        context.stroke(path)
+      }
+      const period = s.dash.reduce((sum, part) => sum + part, 0)
+      context.setLineDash(s.dash.map((n) => n / view.zoom))
+      if (period > 0 && s.speed !== 0) context.lineDashOffset = -(((clock() / 1000) * s.speed) % period) / view.zoom
+      context.strokeStyle = overlayCss(overlay.color)
+      context.stroke(path)
       break
     }
     case 'line': {
@@ -296,10 +346,35 @@ export function drawOverlayInStyle(context: CanvasRenderingContext2D, toScreen: 
       break
     }
     case 'label': {
+      const s = style.label
       const p = toScreen(overlay.x, overlay.y)
-      context.font = style.label.font ?? style.font
-      context.fillStyle = overlayCss(overlay.color)
-      context.fillText(overlay.text, p.x + style.label.dx, p.y + style.label.dy)
+      const font = s.font ?? style.font
+      const x = p.x + s.dx
+      const y = p.y + s.dy
+      context.font = font
+      if (s.fill || s.stroke) {
+        // The box round the text: its ink above and below the baseline, padded.
+        const metrics = context.measureText(overlay.text)
+        const size = fontSize(font)
+        const ascent = metrics.actualBoundingBoxAscent || size * 0.8
+        const descent = metrics.actualBoundingBoxDescent || size * 0.2
+        const box = { x: Math.round(x - s.padX), y: Math.round(y - ascent - s.padY), width: Math.ceil(metrics.width + s.padX * 2), height: Math.ceil(ascent + descent + s.padY * 2) }
+        context.beginPath()
+        context.roundRect(box.x, box.y, box.width, box.height, s.radius)
+        if (s.fill) {
+          context.fillStyle = s.fill
+          context.fill()
+        }
+        if (s.stroke) {
+          context.beginPath()
+          context.roundRect(box.x + 0.5, box.y + 0.5, box.width - 1, box.height - 1, Math.max(0, s.radius - 0.5))
+          context.strokeStyle = s.stroke
+          context.lineWidth = 1
+          context.stroke()
+        }
+      }
+      context.fillStyle = s.color ?? overlayCss(overlay.color)
+      context.fillText(overlay.text, x, y)
       break
     }
     case 'measure': {

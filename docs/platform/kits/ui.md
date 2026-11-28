@@ -59,8 +59,9 @@ shows it in an `<iframe>` and talks to it over the **UI protocol**.
   click count, and a pen's pressure and tilt (PT14). Each answer carries the
   requests only the editor around the canvas can fulfil (dialog, switch
   tool, status, context menu, copy, paste, reveal, undo group), the overlays
-  to draw (marquee, path, line, anchor, handle with its semantic role,
-  label, measure, highlight, swatch, caret, focus ring, guide), the cursor,
+  to draw (marquee, path, marching ants, line, anchor, handle with its
+  semantic role, label, measure, highlight, swatch, caret, focus ring,
+  guide), the cursor,
   whether the tool is busy or wants typed text, and, when they changed, the
   selection (PT7) and the caret rectangle (PT5). The kit's editor runs such
   tools through one generic bridge that gives every role the default keys

@@ -283,6 +283,33 @@ body {
   align-items: center;
 }
 
+/* A structured parameters dialog: a list one item a row, named numbers and choices side by side. */
+.kui-param-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.kui-param-item,
+.kui-param-tuple,
+.kui-param-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.kui-param-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kui-param-tuple .kui-field {
+  width: 6em;
+}
+
 /* Menus, the options bar, the tool rail. */
 
 /* The bar takes the top bar's free width; more menus than it holds scroll (OverflowStrip). */

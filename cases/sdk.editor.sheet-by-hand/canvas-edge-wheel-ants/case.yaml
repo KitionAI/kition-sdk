@@ -1,0 +1,26 @@
+format: 1
+id: sdk.editor.sheet-by-hand/canvas-edge-wheel-ants
+feature: sdk.editor.sheet-by-hand
+intent: >-
+  A held gesture's pointer past the canvas's scrolling part scrolls the view every frame at the
+  kit's speed, sends the move again (held at the edge with hold) and tells the kit how far past
+  it is, then null once; past the left edge counts only while the view can go back (a pinned band
+  stops it at 0); without edgeScroll nothing scrolls. wheelPan answers where a wheel's scroll
+  takes the view. Marching ants move with the clock in the kit's dash, speed and gap, and the
+  engine tools animate only while one is shown; a label stays text alone unless the style gives
+  it a box.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of sheet usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/KitCanvas.edge.test.tsx, packages/kit-editor/src/engine/engineOverlays.ants.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-28"

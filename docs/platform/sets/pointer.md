@@ -281,7 +281,7 @@ the engine contract reference lists them. The JSON shapes:
 | Pointer event | `action` (`down`, `drag`, `up`, `move`), `x`, `y` (document pixels), `mods`, `zoom`, `button`, `pointerType`, `clicks`, `pressure?`, `tilt?` (`{ x, y }` in degrees) |
 | Tool response | `requests`, `overlays`, `cursor`, `busy`, `wantsText`, `selection?` (PT7, when it changed), `caret?` (`{ x, y, height, angle? }` in document units) |
 | Request | `dialog`, `switchTool`, `status`, `contextMenu { x, y, commands }` (command ids), `copy { items }` (a map of MIME type to text), `paste { accept }` (MIME types), `reveal { rect }`, `undoGroup { phase: "begin" \| "end", label }` |
-| Overlay | `marquee`, `path`, `line`, `anchor`, `handle`, `label`, `measure`, `highlight`, `swatch`, `caret`, `focusRing { rect }` (a form field), `guide { axis, at }` (snapping); a `handle` carries `id` and `role` (`resize-n`, `resize-ne`, `resize-e`, `resize-se`, `resize-s`, `resize-sw`, `resize-w`, `resize-nw`, `rotate`, `move`, `anchor`, `control`) |
+| Overlay | `marquee`, `path`, `ants { d, color, width }` (marching ants: dashes moving along the path, a copied area; the editor redraws only while one is shown), `line`, `anchor`, `handle`, `label`, `measure`, `highlight`, `swatch`, `caret`, `focusRing { rect }` (a form field), `guide { axis, at }` (snapping); a `handle` carries `id` and `role` (`resize-n`, `resize-ne`, `resize-e`, `resize-se`, `resize-s`, `resize-sw`, `resize-w`, `resize-nw`, `rotate`, `move`, `anchor`, `control`) |
 
 A double or triple click is a `down` with `clicks` 2 or 3; there is no
 separate double-click action. The editor around the canvas (`@kition/kit-editor`'s

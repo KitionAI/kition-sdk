@@ -11,7 +11,7 @@ export { fileErrorReason, type KitFileErrorReason, type KitFileStat, type KitFil
 export { useKitSession, type KitSessionOptions } from './useKitSession'
 export { createStrings, type Catalog } from './strings'
 export { TextSink } from './TextSink'
-export { CommandDialog, needsParams } from './CommandDialog'
+export { CommandDialog, needsParams, type CommandDialogOptions } from './CommandDialog'
 export { PreviewDialog, type PreviewDialogPreview, type PreviewDialogProps, type PreviewStatus } from '@kition/tessera-ui'
 export {
   Button,
@@ -135,7 +135,7 @@ export { DISPLAY_MODES, LINE_MIN_WIDTH, modeStorageKey, type DisplayMode, type K
 export type { FocusTool } from './frame/FocusBar'
 export { catalogMenuTree, type CatalogMenu, type CatalogNode } from './catalogMenus'
 export type { MenuRow } from './uiCatalog'
-export { KitCanvas, type KitCanvasHandle, type KitCanvasView } from './engine/KitCanvas'
+export { KitCanvas, type KitCanvasHandle, type KitCanvasView, type KitEdgePast, type KitEdgeScroll, type KitWheelPan } from './engine/KitCanvas'
 export { canvasColor, useEngineBackdrop, type EngineBackdropOptions } from './engine/backdrop'
 export { KitEngine, type KitEngineInfo, type KitEngineSchema } from './engine/kitEngine'
 export { useEngineTools, type EngineToolInfo } from './engine/engineTools'
@@ -145,6 +145,7 @@ export {
   drawOverlayInStyle,
   overlayCss,
   overlayStyle,
+  overlaysAnimate,
   type EngineOverlay,
   type OverlayDrawContext,
   type OverlayDrawer,
@@ -163,7 +164,7 @@ export type { KitCheckpoint, KitCheckpointRequest, KitCheckpoints, KitHost, KitS
 export { CHECKPOINT_DESCRIPTION_LIMIT, CHECKPOINT_ERROR_REASONS, CHECKPOINT_LABEL_LIMIT, CHECKPOINT_LIST_LIMIT, KIT_CHECKPOINT_ORIGIN, VIEW_STATE_BYTES_LIMIT, VIEW_STATE_ERROR_REASONS, VIEW_STATE_JSON_LIMIT, historyErrorReason } from '@kition/kit-ui-protocol'
 export type { KitCheckpointErrorReason, KitViewStateErrorReason } from '@kition/kit-ui-protocol'
 export type { KitChange, KitDocumentOptions, KitRefresh, KitRepaint, KitRepaints, KitRunOptions } from './engine/useKitDocument'
-export { RESERVED_SHORTCUTS, bindableShortcut, commandForShortcut, shortcutMatches } from './engine/kitShortcuts'
+export { RESERVED_SHORTCUTS, bindableShortcut, commandForShortcut, shortcutMatches, type CtrlShortcuts } from './engine/kitShortcuts'
 export { oneInFlight } from './oneInFlight'
 export { kitLeases, leaseHeldByOther, scopesCollide, useLease, useLeases, type KitLease, type KitLeases, type LeaseOutcome } from './lease'
 export { drawPresence, kitPresence, peerColor, remoteCarets, remoteSelections, usePresence, useRemoteCarets, useRemoteSelections, PRESENCE_INTERVAL_MS, type KitPeerPresence, type KitPresence, type KitPresenceCaret, type KitPresenceStore, type PresenceRect, type RemoteCaret, type RemoteSelection } from './presence'

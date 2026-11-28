@@ -9,15 +9,15 @@ import { ChevronDownIcon as ChevronDown, ChevronRightIcon as ChevronRight, Chevr
 import { matchesShortcut, type KitUiElement } from '@kition/kit-ui-protocol'
 import { Button, ICON_STROKE, IconButton, MenuButton, MenuItem, MenuSeparator, menuKeyDown, OverflowStrip, RibbonButton, RibbonFitContext, FULL_RIBBON_FIT, RibbonGroup, RibbonItem, RibbonPresentationContext, StatusBar, lineSize, StatusSpacer, Toaster, ZoomControl, toast, StringsProvider, type RibbonButtonProps } from '@kition/tessera-ui'
 import { COMMAND_FALLBACK_ICON, commandIcon, toolIcon } from './toolIcons'
-import { CommandDialog, needsParams } from './CommandDialog'
+import { CommandDialog, needsParams, type CommandDialogOptions } from './CommandDialog'
 import { TextSink } from './TextSink'
 import { createStrings, type Catalog } from './strings'
 import type { Phrases } from './phrases'
 import { composingKey, isMac, type HostConnection } from './host'
 import type { useKitSession } from './useKitSession'
 import type { KitCommand } from './engine/kitModule'
-import { commandForShortcut } from './engine/kitShortcuts'
-import { KitCanvas, type KitCanvasHandle, type KitCanvasView } from './engine/KitCanvas'
+import { commandForShortcut, type CtrlShortcuts } from './engine/kitShortcuts'
+import { KitCanvas, type KitCanvasHandle, type KitCanvasView, type KitEdgeScroll, type KitWheelPan } from './engine/KitCanvas'
 import { repaintTaken, type KitRunOptions } from './engine/useKitDocument'
 import type { RasterDecoration, RasterRect, RasterView, RasterViewportStats } from './engine/rasterViewport'
 import { HAND_TOOL, type KitTool } from './engine/kitTools'
@@ -62,6 +62,8 @@ export const KIT_UI_CATALOGS: Record<string, Catalog> = {
     noHost: 'This editor runs inside a host, such as Kition.',
     selected: '{count} selected',
     moreOptions: 'More options',
+    addItem: 'Add',
+    removeItem: 'Remove',
     menuBar: 'Menu',
     ribbonScrollStart: 'Scroll ribbon left',
     ribbonScrollEnd: 'Scroll ribbon right',
@@ -304,6 +306,8 @@ export const KIT_UI_CATALOGS: Record<string, Catalog> = {
     noHost: '此编辑器需在宿主（如 Kition）中运行。',
     selected: '已选 {count} 项',
     moreOptions: '更多选项',
+    addItem: '添加',
+    removeItem: '移除',
     menuBar: '菜单',
     ribbonScrollStart: '向左滚动功能区',
     ribbonScrollEnd: '向右滚动功能区',
@@ -1149,6 +1153,8 @@ export function KitDocumentCanvas({
   tool,
   decorate,
   decorateUnder,
+  wheelPan,
+  edgeScroll,
   children,
 }: {
   canvas: RefObject<KitCanvasHandle | null>
@@ -1173,6 +1179,10 @@ export function KitDocumentCanvas({
    * selection and handles must cover (layout grids, frame name labels, a pixel grid).
    */
   decorateUnder?: RasterDecoration | null
+  /** Where a wheel's scroll takes the view (a sheet's whole rows); the canvas's own pan by default (`KitWheelPan`). */
+  wheelPan?: ((pan: KitWheelPan) => { x: number; y: number } | null | undefined) | null
+  /** Scrolling while a held gesture's pointer is past the canvas's edge (`KitEdgeScroll`); none by default. */
+  edgeScroll?: KitEdgeScroll | null
   /** Over the canvas: an editor's in-place fields (new text). */
   children?: ReactNode
 }) {
@@ -1210,7 +1220,9 @@ export function KitDocumentCanvas({
           initialArea={initialArea}
           panBounds={panBounds}
           framed={framed}
-          animated={animated}
+          animated={animated || tools?.animated === true}
+          wheelPan={wheelPan}
+          edgeScroll={edgeScroll}
           onView={(view, stats) => {
             // Overlays sized in screen pixels follow the zoom.
             tools?.viewZoom?.(view.zoom)
@@ -1284,6 +1296,26 @@ export type ShellProps = {
    * there, so their clipboard event follows to it.
    */
   keyboardHome?: () => HTMLElement | null
+  /**
+   * Who has Cmd+0, Cmd+= (Cmd++) and Cmd+-, the frame's Fit, zoom in and zoom out: `frame` (the
+   * default) before any command's shortcut; `commands` the engine's command shortcuts first, so a
+   * command whose shortcut is one of them runs (a sheet's Hide Columns on Cmd+0, Delete Rows on
+   * Cmd+-), and the frame zooms only for a key no command has; `none` never the frame (the status
+   * bar's zoom control stays). A command `hiddenCommands` hides has no key here either.
+   */
+  zoomKeys?: 'frame' | 'commands' | 'none'
+  /**
+   * What a command's `Ctrl+…` shortcut means off a Mac (`CtrlShortcuts`): `control` (the default)
+   * the Control key, which no key off a Mac matches; `primary` Ctrl, the main modifier there, as
+   * for `Cmd+…` (a shortcut written with Cmd wins where both match). On a Mac it is the Control key.
+   */
+  ctrlShortcuts?: CtrlShortcuts
+  /**
+   * How the parameters dialog (a command run from a menu with values to give) shows its fields:
+   * the parameters' names and whether lists and objects get fields of their own
+   * (`CommandDialogOptions`); by default the schema's names and one JSON text box.
+   */
+  commandDialog?: CommandDialogOptions
   children: ReactNode
 }
 
@@ -1400,7 +1432,7 @@ export type ShellFrameState = { ref: RefObject<HTMLDivElement | null>; mode: str
  * an Escape nothing took (left not default-prevented) leaves Focus.
  * @internal
  */
-export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom, onKeyDown, statusBar = true, hiddenCommands, fileChangedBar = true, onFit, keyboardHome, frame, children }: ShellProps & { top: ReactNode; frame?: ShellFrameState }) {
+export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom, onKeyDown, statusBar = true, hiddenCommands, fileChangedBar = true, onFit, keyboardHome, zoomKeys = 'frame', ctrlShortcuts = 'control', commandDialog, frame, children }: ShellProps & { top: ReactNode; frame?: ShellFrameState }) {
   const editor = useKitEditor()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const frameRoot = useRef(frame?.ref)
@@ -1531,7 +1563,10 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
       if (!ui.state('action:save').denied && !editor.host.readOnly) void editor.save()
       return
     }
-    if (canvas?.current && command && (key === '0' || key === '=' || key === '+' || key === '-')) {
+    const shortcut = commandForShortcut(hiddenCommands ? editor.commands.filter((item) => !hiddenCommands(item.id)) : editor.commands, event, isMac(), ctrlShortcuts)
+    // The zoom keys are the frame's, unless the kit gives them to its commands (`zoomKeys`).
+    const zoomKey = command && (key === '0' || key === '=' || key === '+' || key === '-')
+    if (canvas?.current && zoomKey && (zoomKeys === 'frame' || (zoomKeys === 'commands' && !shortcut))) {
       event.preventDefault()
       if (key === '0') {
         if (onFit) onFit()
@@ -1540,7 +1575,6 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
       else canvas.current.zoomBy(key === '-' ? 1 / ZOOM_STEP : ZOOM_STEP)
       return
     }
-    const shortcut = commandForShortcut(hiddenCommands ? editor.commands.filter((item) => !hiddenCommands(item.id)) : editor.commands, event)
     if (shortcut && editor.enabled(shortcut.id)) {
       event.preventDefault()
       void editor.run(shortcut.id, {})
@@ -1625,10 +1659,11 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
         {editor.dialog ? (
           <CommandDialog
             key={editor.dialog.command.id}
+            {...commandDialog}
             command={editor.dialog.command}
             values={editor.dialog.values}
             title={editor.phrase(editor.dialog.command.title)}
-            labels={{ run: t('run'), cancel: t('cancel'), required: t('required'), more: t('moreOptions') }}
+            labels={{ run: t('run'), cancel: t('cancel'), required: t('required'), more: t('moreOptions'), add: t('addItem'), remove: t('removeItem') }}
             onClose={() => editor.setDialog(null)}
             onRun={(params) => {
               const id = editor.dialog!.command.id

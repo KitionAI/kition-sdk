@@ -276,7 +276,8 @@ export class RasterViewport {
     return { width: this.canvas.clientWidth, height: this.canvas.clientHeight, dpr: window.devicePixelRatio || 1 }
   }
 
-  private get pins(): RasterPins {
+  /** The document's pinned bands (frozen headings and panes), in document pixels; none is 0. */
+  get pins(): RasterPins {
     const pins = this.doc.pinned
     return { left: Math.max(0, pins?.left ?? 0), top: Math.max(0, pins?.top ?? 0) }
   }
@@ -398,13 +399,9 @@ export class RasterViewport {
     this.setView(this.view, this.fitted)
   }
 
-  private setView(view: RasterView, fitted: RasterRect | null = null) {
-    // A render in flight stays: its frame knows the area it shows, so it is drawn where it belongs.
-    this.moves += 1
-    this.fitted = fitted
-    // Nothing scrolls out from under a pinned band.
+  /** `view` kept inside the pan bounds, and nothing scrolled out from under a pinned band. */
+  private limited(view: RasterView): RasterView {
     const { left, top } = this.pins
-    const before = this.shown
     const bounds = this.panBounds
     const { width, height } = this.size
     if (bounds && width > 0 && height > 0) {
@@ -412,7 +409,21 @@ export class RasterViewport {
         extent >= high - low ? (low + high - extent) / 2 : Math.max(low, Math.min(high - extent, position))
       view = { ...view, x: limit(view.x, bounds.x0, bounds.x1, width / view.zoom), y: limit(view.y, bounds.y0, bounds.y1, height / view.zoom) }
     }
-    this.view = { zoom: view.zoom, x: left > 0 ? Math.max(0, view.x) : view.x, y: top > 0 ? Math.max(0, view.y) : view.y }
+    return { zoom: view.zoom, x: left > 0 ? Math.max(0, view.x) : view.x, y: top > 0 ? Math.max(0, view.y) : view.y }
+  }
+
+  /** Whether `panBy(dx, dy)` would move the view: the pan bounds and the pinned bands may stop it. */
+  canPanBy(dx: number, dy: number) {
+    const next = this.limited({ ...this.view, x: this.view.x - dx / this.view.zoom, y: this.view.y - dy / this.view.zoom })
+    return Math.abs(next.x - this.view.x) > 1e-9 || Math.abs(next.y - this.view.y) > 1e-9
+  }
+
+  private setView(view: RasterView, fitted: RasterRect | null = null) {
+    // A render in flight stays: its frame knows the area it shows, so it is drawn where it belongs.
+    this.moves += 1
+    this.fitted = fitted
+    const before = this.shown
+    this.view = this.limited(view)
     view = this.view
     this.schedule()
     this.growLater()
