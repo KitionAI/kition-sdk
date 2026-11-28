@@ -1,11 +1,15 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type CompositionEvent, type KeyboardEvent } from 'react'
 import { composingKey } from './host'
 
 /**
  * Where typed text goes while an engine tool takes text (UI-K6): a hidden, focused text field.
  * Input methods (Chinese, Japanese, Korean) compose in it as in any field; finished text goes to
  * `onText`, and editing keys (Enter, Backspace, arrows, Escape, shortcuts) to `onKey`, which
- * answers whether it took the key. Raw key events alone cannot carry composed text.
+ * answers whether it took the key. Raw key events alone cannot carry composed text. What is being
+ * composed goes to `onCompose` as it changes, with the input method's cursor in it (characters),
+ * so the tool can show it at its caret; the empty text ends it, before the finished text reaches
+ * `onText`. The canvas puts the field on the tool's caret (`KitCanvas`' `caret`), so the input
+ * method's candidate window opens beside it.
  */
 /** A field the person is typing in themselves (the find bar, a font size): the sink leaves it be. */
 function editingElsewhere(sink: HTMLTextAreaElement | null) {
@@ -14,7 +18,16 @@ function editingElsewhere(sink: HTMLTextAreaElement | null) {
   return focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement || focused instanceof HTMLSelectElement || (focused instanceof HTMLElement && focused.isContentEditable)
 }
 
-export function TextSink({ active, onText, onKey }: { active: boolean; onText: (text: string) => void; onKey: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean }) {
+/** The input method's cursor in the composition `text`, in characters: where `field` has it, else at the end. */
+function cursorIn(field: HTMLTextAreaElement, text: string) {
+  const length = Array.from(text).length
+  // A composition event can come before the field shows what it composes.
+  if (field.value !== text) return length
+  const end = Math.min(field.selectionEnd ?? text.length, text.length)
+  return Math.min(Array.from(text.slice(0, end)).length, length)
+}
+
+export function TextSink({ active, onText, onKey, onCompose }: { active: boolean; onText: (text: string) => void; onKey: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean; onCompose?: (text: string, cursor: number) => void }) {
   const field = useRef<HTMLTextAreaElement>(null)
   const composing = useRef(false)
 
@@ -68,11 +81,18 @@ export function TextSink({ active, onText, onKey }: { active: boolean; onText: (
       autoComplete="off"
       autoCorrect="off"
       spellCheck={false}
-      onCompositionStart={() => {
+      onCompositionStart={(event: CompositionEvent<HTMLTextAreaElement>) => {
         composing.current = true
+        // A composition starts empty: nothing to show yet.
+        if (event.data) onCompose?.(event.data, cursorIn(event.currentTarget, event.data))
+      }}
+      onCompositionUpdate={(event: CompositionEvent<HTMLTextAreaElement>) => {
+        onCompose?.(event.data ?? '', cursorIn(event.currentTarget, event.data ?? ''))
       }}
       onCompositionEnd={() => {
         composing.current = false
+        // The composition goes before its finished text comes (or, cancelled, none does).
+        onCompose?.('', 0)
         flush()
       }}
       onInput={() => {

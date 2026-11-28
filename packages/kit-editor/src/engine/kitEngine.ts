@@ -114,7 +114,7 @@ export type KitEngineRequest =
  * The engine tools' members (contract "Engine tools"). `pointerLeft` is optional: a kit without it
  * answers nothing, and the call changes nothing.
  */
-export type KitToolMethod = 'tools' | 'tool' | 'selectTool' | 'pointer' | 'pointerLeft' | 'toolKey' | 'toolText' | 'toolState'
+export type KitToolMethod = 'tools' | 'tool' | 'selectTool' | 'pointer' | 'pointerLeft' | 'toolKey' | 'toolText' | 'toolPreedit' | 'toolState'
 
 /**
  * A refusal names its reason (`read-only`; `invalid-params` with the engine's `errors`;

@@ -11,6 +11,7 @@ import { Button, ICON_STROKE, IconButton, MenuButton, MenuItem, MenuSeparator, m
 import { COMMAND_FALLBACK_ICON, commandIcon, toolIcon } from './toolIcons'
 import { CommandDialog, needsParams, type CommandDialogOptions } from './CommandDialog'
 import { TextSink } from './TextSink'
+import type { KitWheelZoom } from './engine/KitCanvas'
 import { createStrings, type Catalog } from './strings'
 import type { Phrases } from './phrases'
 import { composingKey, isMac, type HostConnection } from './host'
@@ -1155,6 +1156,7 @@ export function KitDocumentCanvas({
   decorateUnder,
   wheelPan,
   edgeScroll,
+  wheelZoom,
   children,
 }: {
   canvas: RefObject<KitCanvasHandle | null>
@@ -1183,6 +1185,11 @@ export function KitDocumentCanvas({
   wheelPan?: ((pan: KitWheelPan) => { x: number; y: number } | null | undefined) | null
   /** Scrolling while a held gesture's pointer is past the canvas's edge (`KitEdgeScroll`); none by default. */
   edgeScroll?: KitEdgeScroll | null
+  /**
+   * The zoom a wheel with Cmd or Ctrl goes to (`KitWheelZoom`: notches of a mouse wheel, or a
+   * pinch's delta); a notch zooms `WHEEL_NOTCH_ZOOM` times by default.
+   */
+  wheelZoom?: (zoom: number, wheel: KitWheelZoom) => number
   /** Over the canvas: an editor's in-place fields (new text). */
   children?: ReactNode
 }) {
@@ -1220,6 +1227,8 @@ export function KitDocumentCanvas({
           initialArea={initialArea}
           panBounds={panBounds}
           framed={framed}
+          wheelZoom={wheelZoom}
+          caret={tools?.caret ?? null}
           animated={animated || tools?.animated === true}
           wheelPan={wheelPan}
           edgeScroll={edgeScroll}
@@ -1236,7 +1245,7 @@ export function KitDocumentCanvas({
       ) : (
         <div className="kui-message kui-muted">{t('opening')}</div>
       )}
-      {tools ? <TextSink active={tools.wantsText} onText={tools.typeText} onKey={(event) => tools.keyDown(event)} /> : null}
+      {tools ? <TextSink active={tools.wantsText} onText={tools.typeText} onKey={(event) => tools.keyDown(event)} onCompose={tools.compose} /> : null}
     </div>
   )
 }

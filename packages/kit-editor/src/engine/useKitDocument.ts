@@ -73,12 +73,17 @@ export type KitRunOptions = {
   inOrder?: boolean
 }
 
-/** The area an engine tool's answer says its event changed (`damage`), or null: repaint everything. */
+/**
+ * The area an engine tool's answer says its event changed (`damage`), or null: repaint everything.
+ * The empty area at the origin (`ToolDamage::NONE`) says no pixel changed though the document's
+ * state moved: `NOTHING`, nothing repaints. Any other empty or broken area repaints everything.
+ */
 export function toolDamage(answer: unknown): RasterRect | null {
   const damage = answer !== null && typeof answer === 'object' ? (answer as { damage?: unknown }).damage : null
   if (damage === null || typeof damage !== 'object') return null
   const { x0, y0, x1, y1 } = damage as Record<string, unknown>
   const finite = [x0, y0, x1, y1].every((v) => typeof v === 'number' && Number.isFinite(v))
+  if (finite && x0 === 0 && y0 === 0 && x1 === 0 && y1 === 0) return NOTHING
   return finite && (x1 as number) > (x0 as number) && (y1 as number) > (y0 as number) ? { x0: x0 as number, y0: y0 as number, x1: x1 as number, y1: y1 as number } : null
 }
 

@@ -2406,15 +2406,27 @@ features:
       - sdk.editor.sheet-by-hand/ants-overlay-json
     since: "2026-11-28"
   - id: sdk.editor.slides-by-hand
-    title: "The engine tools reach what a hand does on slides: a press's button and click count (right-click, triple click), an answer that says the tool takes the editing keys, where its caret is, that it is locked, or that no pixel changed"
+    title: "The editor and its engine tools reach what a hand does on slides: a wheel notch zooms a step (or the kit's own); a right-click reaches the tool in document pixels and the engine as a secondary press; a triple click's count; the editing keys reach a tool that takes them with nothing selected, Cmd and Ctrl apart; an input method's composition reaches the tool and the hidden text field sits on its caret; a tool chosen locked; an answer that changed no pixel repaints nothing; quietGestures from useKitSession"
     dimension: [function]
     priority: P1
     status: has
     paths:
       - crates/kition-kit/src/tools.rs
       - docs/platform/reference/contract.md
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - packages/kit-editor/src/engine/engineTools.ts
+      - packages/kit-editor/src/engine/kitTools.ts
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/engine/kitEngine.ts
+      - packages/kit-editor/src/engine/kitEngine.worker.ts
+      - packages/kit-editor/src/TextSink.tsx
+      - packages/kit-editor/src/useKitSession.ts
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/index.ts
+      - packages/kit-editor/src/engine/slidesByHand.test.tsx
     cases:
       - sdk.editor.slides-by-hand/engine-tool-answers
+      - sdk.editor.slides-by-hand/canvas-and-tools
     since: "2026-11-28"
   - id: sdk.dev-host.watch-page
     title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens

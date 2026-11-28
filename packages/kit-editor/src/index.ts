@@ -138,7 +138,8 @@ export type { MenuRow } from './uiCatalog'
 export { KitCanvas, type KitCanvasHandle, type KitCanvasView, type KitEdgePast, type KitEdgeScroll, type KitWheelPan } from './engine/KitCanvas'
 export { canvasColor, useEngineBackdrop, type EngineBackdropOptions } from './engine/backdrop'
 export { KitEngine, type KitEngineInfo, type KitEngineSchema } from './engine/kitEngine'
-export { useEngineTools, type EngineToolInfo } from './engine/engineTools'
+export { useEngineTools, type EngineToolCaret, type EngineToolChoice, type EngineToolInfo, type EngineToolResponse } from './engine/engineTools'
+export { WHEEL_NOTCH_ZOOM, defaultWheelZoom, wheelNotches, type KitWheelZoom } from './engine/KitCanvas'
 export {
   DEFAULT_OVERLAY_STYLE,
   drawEngineOverlays,

@@ -1,0 +1,29 @@
+format: 1
+id: sdk.editor.slides-by-hand/canvas-and-tools
+feature: sdk.editor.slides-by-hand
+intent: >-
+  A mouse wheel's notch with Cmd or Ctrl zooms one step (WHEEL_NOTCH_ZOOM, not e times), a pinch
+  continuously, and a kit may give its own steps (wheelZoom). A right-click reaches the tool's
+  contextMenu in document pixels (on a Mac, Ctrl and a click is one and no press); with
+  useEngineTools' onContextMenu the engine gets a secondary press and release, in input order,
+  before the kit's menu opens with the release's answer. A tool whose answer takes keys gets the
+  editing keys with nothing selected, not Escape, with Ctrl apart from Cmd. An input method's
+  composition reaches the tool (toolPreedit, the newest waiting), ended before its finished text;
+  the hidden text field sits on the tool's caret as the view moves. A tool chosen locked is sent
+  locked and the editor says whether the engine keeps it. The empty area at the origin repaints
+  nothing.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of slide usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/slidesByHand.test.tsx]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-28"

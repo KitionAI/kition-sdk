@@ -71,6 +71,12 @@ export type KitTool = {
   leave?: (context: KitToolContext) => void
   /** A double click, after its two presses reached `begin`. */
   doubleClick?: (pointer: KitPointer, context: KitToolContext) => void
+  /**
+   * A right-click on the canvas, where the kit opens its context menu; on a Mac a click with Ctrl
+   * held is one too (and reaches no `begin`). Without it the right button does nothing (the
+   * browser's own menu never opens on the canvas).
+   */
+  contextMenu?: (pointer: KitPointer, context: KitToolContext) => void
 }
 
 const MIN_ZOOM_DRAG = 4

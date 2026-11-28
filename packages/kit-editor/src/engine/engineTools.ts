@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KitToolMethod } from './kitEngine'
-import { HAND_TOOL, type KitPointer, type KitTool } from './kitTools'
+import { HAND_TOOL, type KitPointer, type KitTool, type KitToolContext } from './kitTools'
 import type { RasterDecoration } from './rasterViewport'
 import { drawnOnce } from './decorations'
 import { drawEngineOverlays, overlaysAnimate, overlayStyle as resolveOverlayStyle, type EngineOverlay, type OverlayDrawer, type OverlayStylePatch } from './engineOverlays'
@@ -33,7 +33,19 @@ export type EngineToolResponse = {
   cursor: string
   busy: boolean
   wantsText: boolean
+  /** The tool takes the editing keys now though neither busy nor taking text (Escape stays the editor's). */
+  takesKeys?: boolean
+  /** The text caret while the tool takes text, in document pixels: the hidden text field goes there. */
+  caret?: EngineToolCaret
+  /** The tool is locked: it stays for one object after another until Escape or another tool. */
+  toolLocked?: boolean
 }
+
+/** A text caret in document pixels: its top at (`x`, `y`), `height` tall, turned `angle` degrees clockwise about its top. */
+export type EngineToolCaret = { x: number; y: number; height: number; angle?: number }
+
+/** How a tool is chosen: `locked` keeps it for one object after another (Lock Drawing Mode), when the engine keeps locks. */
+export type EngineToolChoice = { locked?: boolean }
 
 type ToolCall = <R>(name: KitToolMethod, args?: unknown[], settled?: boolean) => Promise<R | null>
 
@@ -79,12 +91,21 @@ type EngineToolsOptions = {
    * sample, by engine tool id; unset, every tool's samples give way.
    */
   keepsDragSamples?: (tool: string) => boolean
+  /**
+   * A right-click on the canvas (on a Mac also Ctrl and a click), for a kit that opens its context
+   * menu there: the engine's tool first gets it as a press and a release with `button:
+   * "secondary"` (selecting what is under the pointer, as the kit decides), in the order of the
+   * input; then this is called with the pointer (document pixels and client pixels) and the
+   * tool's answer to the release. Without it the right button reaches no tool and does nothing.
+   */
+  onContextMenu?: (at: KitPointer, answer: EngineToolResponse | null) => void
 }
 
 /** Whether the host's UI configuration refuses a tool, by engine id. */
 type ToolDenied = (id: string) => boolean
 const NONE_DENIED: ToolDenied = () => false
 
+/** `command` is Command or Control (either one), `control` Control itself (KitPointer 2.2). */
 function mods(pointer: { shift: boolean; alt: boolean; meta: boolean; ctrl?: boolean }) {
   return { shift: pointer.shift, alt: pointer.alt, command: pointer.meta, control: pointer.ctrl === true, space: false }
 }
@@ -118,6 +139,8 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   const pendingSelection = useRef<number | null>(null)
   const [selection, setSelection] = useState(0)
   const activeChoice = useRef(options.initial)
+  /** The lock asked with the last choice, sent with its `selectTool` (once). */
+  const choiceLock = useRef<boolean | undefined>(undefined)
   const engineSelection = useRef<{ id: string; serial: number } | null>(null)
 
   // The hand tool: the kit's own host tool for it, or the shared one.
@@ -136,8 +159,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   hostIds.current = new Set(Object.keys(options.hostTools ?? {}))
   if (!tools.some((item) => item.id === HAND_TOOL.id)) hostIds.current.add(HAND_TOOL.id)
   /** Chooses a tool, unless the host denies it. */
-  const setActive = useCallback((id: string) => {
+  const setActive = useCallback((id: string, choice?: EngineToolChoice) => {
     if (latestDenied.current(id)) return
+    choiceLock.current = choice?.locked
     const serial = ++nextSelection.current
     pendingSelection.current = serial
     activeChoice.current = id
@@ -299,7 +323,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     const acknowledged = engineSelection.current
     engineSelection.current = null
     if (acknowledged?.id === active && acknowledged.serial === selection) return
-    send('selectTool', [active, zoom.current], true, false, selection)
+    const locked = choiceLock.current
+    choiceLock.current = undefined
+    send('selectTool', locked === undefined ? [active, zoom.current] : [active, zoom.current, locked], true, false, selection)
   }, [active, hostActive, ready, selection, send])
 
   // After any change (an undo, a menu command) the overlays follow the selection. Not after each
@@ -319,6 +345,7 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     send('pointer', [JSON.stringify({ action, x: at.x, y: at.y, mods: mods(at), pressure: at.pressure, zoom: viewZoom, ...clicks })], settled, coalesce, undefined, keep)
   }, [send])
 
+  const contextMenus = options.onContextMenu != null
   const canvasTool = useMemo<KitTool>(() => hostTool ?? {
     id: active,
     cursor: response?.cursor || 'default',
@@ -337,7 +364,23 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     // Alt is held) goes. A kit without `pointerLeft` answers nothing.
     leave: ({ viewport }) => send('pointerLeft', [viewport.view.zoom], false, true),
     doubleClick: (at, { viewport }) => pointer('doubleClick', at, viewport.view.zoom, true),
-  }, [active, hostTool, pointer, response?.cursor, send])
+    ...(contextMenus
+      ? {
+          // A right-click: a press and a release of the secondary button, then the kit's menu once
+          // the release is answered, all in the order of the input.
+          contextMenu: (at: KitPointer, { viewport }: KitToolContext) => {
+            const viewZoom = viewport.view.zoom
+            zoom.current = viewZoom
+            last.current = { x: at.x, y: at.y }
+            const event = (action: 'down' | 'up') => JSON.stringify({ action, x: at.x, y: at.y, mods: mods(at), pressure: 1, zoom: viewZoom, button: 'secondary', ...(action === 'down' ? { clicks: 1 } : {}) })
+            enqueue({ name: 'pointer', args: [event('down')], settled: false, coalesce: false })
+            enqueue({ name: 'pointer', args: [event('up')], settled: true, coalesce: false })
+            enqueue({ work: async () => latest.current.onContextMenu?.(at, latestResponse.current) })
+            void pump()
+          },
+        }
+      : {}),
+  }, [active, contextMenus, enqueue, hostTool, pointer, pump, response?.cursor, send])
 
   const overlays = response?.overlays
   const { overlayStyle, drawOverlay } = options
@@ -386,8 +429,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
         send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: false })), zoom.current], true)
         return true
       }
-    } else if (response?.busy && EDITING_KEYS.has(event.key)) {
-      send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: command })), zoom.current], true)
+    } else if ((response?.busy || (response?.takesKeys && event.key !== 'Escape')) && EDITING_KEYS.has(event.key)) {
+      // Cmd and Ctrl apart: `command` is either, `control` Ctrl itself (a Mac's Ctrl+Arrow is not its Cmd+Arrow).
+      send('toolKey', [event.key, JSON.stringify(mods({ shift: event.shiftKey, alt: event.altKey, meta: command, ctrl: event.ctrlKey })), zoom.current], true)
       return true
     }
     // An editing key the last answer does not take, pressed while an event that can change that
@@ -440,13 +484,32 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     if (text) send('toolText', [text, zoom.current], true)
   }, [send])
 
+  /**
+   * What an input method is composing for the active tool, and its cursor in it (characters): the
+   * engine shows it at the caret (`toolPreedit`; a kit without it answers nothing); the empty text
+   * ends it. A newer composition waiting replaces an older one.
+   */
+  const compose = useCallback((text: string, cursor: number) => {
+    if (!hostTool) send('toolPreedit', [text, cursor, zoom.current], false, true)
+  }, [hostTool, send])
+
   // The same object until one of its parts changes, so an editor that hands it on (a context's
   // value) does not render everything again for each answer that changed none of them.
   const wantsText = Boolean(response?.wantsText) && !hostTool
+  /** Whether the active tool is locked (the engine's last answer). */
+  const locked = Boolean(response?.toolLocked) && !hostTool
+  const caret = (wantsText && validCaret(response?.caret)) || null
   return useMemo(
-    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, animated, status, wantsText, keyDown, toolForKey }),
-    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, canvasTool, decorate, animated, status, wantsText, keyDown, toolForKey],
+    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, compose, canvasTool, decorate, animated, status, wantsText, caret, locked, keyDown, toolForKey }),
+    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, compose, canvasTool, decorate, animated, status, wantsText, caret, locked, keyDown, toolForKey],
   )
+}
+
+/** A caret an answer gave, when it is one (finite, with a height). */
+function validCaret(caret: EngineToolCaret | undefined): EngineToolCaret | null {
+  if (!caret || typeof caret !== 'object') return null
+  const { x, y, height, angle = 0 } = caret
+  return [x, y, height, angle].every((value) => typeof value === 'number' && Number.isFinite(value)) && height > 0 ? caret : null
 }
 
 /** A key held back until the answers on their way came, and where it was pressed. */

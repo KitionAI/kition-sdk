@@ -144,6 +144,12 @@ export type KitSessionOptions = {
   /** The person's view state kept with the host after each save (`KitDocumentOptions.viewState`, capability `view-state`). */
   viewState?: KitDocumentOptions['viewState']
   /**
+   * While an engine tool's gesture runs (a drag's moves), the engine's `inspect()` is not read
+   * again for each step, only once at the release (`KitDocumentOptions.quietGestures`): for a kit
+   * whose panels do not follow a drag through the editor's state. Off by default.
+   */
+  quietGestures?: boolean
+  /**
    * The person merged the agent's draft (`draft/merge`, section 7d): it is in the document as
    * one step of the person's Undo (KitModel 1.1 M12a). A kit that keeps its own undo history
    * records the step here. Called once the merge took changes in, before the host's answer.
@@ -192,7 +198,7 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
   const canComment = readOnly && host.init.document.comments?.canComment === true
   const commentList = manifest.commentCommands
   const comments = useMemo(() => commentCommands(commentList, canComment), [canComment, commentList])
-  const session = useKitDocument(host.files, manifest, path, true, describe, { readOnly, canComment, followFile: options.followFile, viewState: options.viewState })
+  const session = useKitDocument(host.files, manifest, path, true, describe, { readOnly, canComment, followFile: options.followFile, viewState: options.viewState, quietGestures: options.quietGestures })
   const { doc, failure } = session
   // The host hears of the engine's changes, keyed on its revision and saved state, not on the
   // editor's own refreshes (a view-only command refreshes the editor without changing the document).

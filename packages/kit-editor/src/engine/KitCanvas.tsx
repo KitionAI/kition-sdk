@@ -1,8 +1,9 @@
-import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react'
 import type { KitEngine } from './kitEngine'
 import { HAND_TOOL, type KitGesture, type KitOverlay, type KitPointer, type KitTool, type KitToolContext } from './kitTools'
 import { RasterViewport, isEmptyArea, type RasterDecoration, type RasterRect, type RasterView, type RasterViewportStats } from './rasterViewport'
 import type { KitChange, KitRepaint } from './useKitDocument'
+import { isMac } from '../host'
 
 const FALLBACK_BACKDROP = '#f3f3f6'
 
@@ -10,7 +11,47 @@ const FALLBACK_BACKDROP = '#f3f3f6'
 function backdrop() {
   return getComputedStyle(document.documentElement).getPropertyValue('--kit-canvas').trim() || FALLBACK_BACKDROP
 }
+/** A trackpad pinch (or a wheel too fine to be notches) zooms continuously: this much per pixel of delta. */
 const WHEEL_ZOOM_SPEED = 0.01
+/** How much one notch of a mouse wheel zooms, with Cmd or Ctrl (Office and WPS go about as far). */
+export const WHEEL_NOTCH_ZOOM = 1.2
+/** At most this many notches count in one wheel event (a fast spin). */
+const MAX_WHEEL_NOTCHES = 5
+
+/**
+ * How many notches of a mouse wheel a wheel event is, or 0 for a trackpad's scroll or pinch: a
+ * wheel counted in lines (three a notch) or pages, or in whole multiples of about 100 pixels (a
+ * browser's notch). At most five.
+ */
+export function wheelNotches(event: Pick<WheelEvent, 'deltaMode' | 'deltaY'>) {
+  const delta = Math.abs(event.deltaY)
+  let notches = 0
+  if (event.deltaMode === 1) notches = delta > 0 ? Math.max(1, Math.round(delta / 3)) : 0
+  else if (event.deltaMode === 2) notches = delta > 0 ? 1 : 0
+  else if (delta >= 50 && Number.isInteger(event.deltaY)) {
+    const whole = Math.round(delta / 100)
+    notches = whole >= 1 && Math.abs(delta - whole * 100) <= 10 * whole ? whole : 0
+  }
+  return Math.min(notches, MAX_WHEEL_NOTCHES)
+}
+
+/**
+ * A wheel with Cmd or Ctrl, as the canvas's `wheelZoom` gets it: `notches` of a mouse wheel (0 for
+ * a trackpad pinch), `direction` 1 to zoom in and -1 out, `deltaY` the event's own delta.
+ */
+export type KitWheelZoom = { notches: number; direction: 1 | -1; deltaY: number }
+
+/** The canvas's own wheel zoom: `WHEEL_NOTCH_ZOOM` a notch (before: e, 2.72 times, a notch), a pinch continuously. */
+export function defaultWheelZoom(zoom: number, wheel: KitWheelZoom) {
+  return wheel.notches ? zoom * WHEEL_NOTCH_ZOOM ** (wheel.notches * wheel.direction) : zoom * Math.exp(-wheel.deltaY * WHEEL_ZOOM_SPEED)
+}
+
+/** Zooms `viewport` for a wheel with Cmd or Ctrl, about the pointer: `zoom` decides how far. */
+function zoomByWheel(viewport: RasterViewport, event: WheelEvent, zoom: ((zoom: number, wheel: KitWheelZoom) => number) | undefined) {
+  const wheel: KitWheelZoom = { notches: wheelNotches(event), direction: event.deltaY < 0 ? 1 : -1, deltaY: event.deltaY }
+  const next = (zoom ?? defaultWheelZoom)(viewport.view.zoom, wheel)
+  if (Number.isFinite(next) && next > 0) viewport.zoomTo(next, event.clientX, event.clientY)
+}
 const DECORATION_FRAME_MS = 100
 
 /** The canvas's view (its zoom and the document point at its top-left) and its size in CSS pixels. */
@@ -106,6 +147,17 @@ type KitCanvasProps = {
   wheelPan?: ((pan: KitWheelPan) => { x: number; y: number } | null | undefined) | null
   /** Scrolling while a held gesture's pointer is past the canvas's edge (`KitEdgeScroll`); none by default. */
   edgeScroll?: KitEdgeScroll | null
+  /**
+   * The zoom a wheel with Cmd or Ctrl goes to from `zoom`, about the pointer (a kit's own steps:
+   * the next multiple of 10% a notch); `defaultWheelZoom` by default.
+   */
+  wheelZoom?: (zoom: number, wheel: KitWheelZoom) => number
+  /**
+   * The text caret while the tool takes text, in document pixels (its top and height): the
+   * editor's hidden text field (`TextSink`) is kept on it as the view moves, so an input method's
+   * candidate window opens just under the caret's line, lined up with the composition.
+   */
+  caret?: { x: number; y: number; height: number } | null
   /** HTML laid over the canvas, for example an inline text field. */
   children?: ReactNode
   ref?: Ref<KitCanvasHandle>
@@ -161,6 +213,11 @@ export function scrollsInside(target: EventTarget | null, region: Element, dx: n
   return false
 }
 
+/** A Mac's Ctrl and a click of the main button, which the Mac makes a right-click. */
+function macContextClick(event: { button: number; ctrlKey: boolean; metaKey: boolean }) {
+  return isMac() && event.button === 0 && event.ctrlKey && !event.metaKey
+}
+
 /** Presses this close in time (ms) and place (CSS pixels) to the last count as one more click. */
 const MULTI_CLICK_MS = 500
 const MULTI_CLICK_SLOP = 4
@@ -214,7 +271,7 @@ function useOverlay(overlayRef: RefObject<HTMLCanvasElement | null>, viewportRef
  * Hand tool pan; the wheel pans, and zooms with Cmd or Ctrl (and pinch). Escape drops a held
  * gesture.
  */
-export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMemory, initialArea = null, panBounds = null, decorate = null, animated = false, spacePans = true, framed = true, wheelPan = null, edgeScroll = null, children, ref }: KitCanvasProps) {
+export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMemory, initialArea = null, panBounds = null, decorate = null, animated = false, spacePans = true, framed = true, wheelZoom, caret = null, wheelPan = null, edgeScroll = null, children, ref }: KitCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<RasterViewport | null>(null)
@@ -236,6 +293,30 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
   const latest = useRef({ doc, onView, onRender, initialArea, panBounds, wheelPan, edgeScroll })
   latest.current = { doc, onView, onRender, initialArea, panBounds, wheelPan, edgeScroll }
   const overlay = useOverlay(overlayRef, viewportRef)
+  const latestWheelZoom = useRef(wheelZoom)
+  latestWheelZoom.current = wheelZoom
+  const latestCaret = useRef(caret)
+  latestCaret.current = caret
+  /** Puts the editor's text field on the caret, as the frame drawn has it. */
+  const placeSink = useRef(() => {
+    const at = latestCaret.current
+    const viewport = viewportRef.current
+    const canvas = canvasRef.current
+    if (!at || !viewport || !canvas) return
+    const frame = regionRef.current?.closest('.kui-app') ?? document
+    const field = frame.querySelector<HTMLTextAreaElement>('textarea.kui-text-sink')
+    if (!field) return
+    const point = viewport.toScreen(at.x, at.y)
+    const box = canvas.getBoundingClientRect()
+    const holder = (field.offsetParent ?? document.body).getBoundingClientRect()
+    const left = Math.round(box.left + point.x - holder.left)
+    const top = Math.round(box.top + point.y - holder.top)
+    const height = Math.max(1, Math.round(at.height * viewport.view.zoom))
+    if (![left, top, height].every(Number.isFinite)) return
+    // One line as tall as the caret: the composition starts where the caret is.
+    Object.assign(field.style, { left: `${left}px`, top: `${top}px`, height: `${height}px`, lineHeight: `${height}px`, fontSize: `${Math.max(1, Math.round(height * 0.8))}px` })
+  })
+  useLayoutEffect(() => placeSink.current(), [caret?.x, caret?.y, caret?.height])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -245,6 +326,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     const viewport = new RasterViewport(canvas, doc, backdrop(), (view, stats) => {
       if (placed) viewMemory.current = view
       latest.current.onView({ ...view, width: canvas.clientWidth, height: canvas.clientHeight }, stats)
+      placeSink.current()
     }, framed, (error) => { if (latest.current.doc === doc) latest.current.onRender?.(error) })
     viewportRef.current = viewport
     if (viewMemory.current) viewport.view = { ...viewMemory.current }
@@ -259,6 +341,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
       }
       if (placed) viewport.resized()
       void viewport.render()
+      placeSink.current()
     })
     observer.observe(canvas)
     // Heard on the whole region, so a wheel over the HTML a kit lays over the canvas (`children`:
@@ -271,7 +354,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
       if (!zoom && event.target !== canvas && scrollsInside(event.target, region, event.deltaX, event.deltaY)) return
       event.preventDefault()
       if (zoom) {
-        viewport.zoomTo(viewport.view.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM_SPEED), event.clientX, event.clientY)
+        zoomByWheel(viewport, event, latestWheelZoom.current)
         return
       }
       const snap = latest.current.wheelPan
@@ -496,6 +579,12 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
   const pointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const tools = context()
     if (!tools || event.button === 2) return
+    // On a Mac a click with Ctrl held is a right-click (its contextmenu follows) for a tool with a
+    // context menu: no press of the tool.
+    if (tool.contextMenu && macContextClick(event)) {
+      event.preventDefault()
+      return
+    }
     // Keyboard focus goes to the editor now (committing any open field), not on the browser's
     // mousedown afterwards, so a field a tool opens (Type) keeps the focus it takes.
     event.preventDefault()
@@ -588,7 +677,13 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
           const tools = context()
           if (tools) tool.doubleClick?.(pointerOf({ ...event, clientX: event.clientX, clientY: event.clientY, pressure: 1 }, tools.viewport), tools)
         }}
-        onContextMenu={(event) => event.preventDefault()}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          const tools = context()
+          // Not while a gesture is held (a right-click in the middle of a drag).
+          if (!tools || gesture.current || !tool.contextMenu) return
+          tool.contextMenu(pointerOf({ clientX: event.clientX, clientY: event.clientY, pressure: 1, shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey }, tools.viewport), tools)
+        }}
         data-testid="kit-canvas-surface"
       />
       <canvas ref={overlayRef} className="kui-canvas-overlay" aria-hidden="true" />

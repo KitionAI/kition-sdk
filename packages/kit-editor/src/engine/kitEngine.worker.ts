@@ -306,9 +306,9 @@ function inspectedInfo(open: KitModuleDocument): KitEngineInfo {
   }
 }
 
-const TOOL_METHODS = new Set<KitToolMethod>(['tools', 'tool', 'selectTool', 'pointer', 'pointerLeft', 'toolKey', 'toolText', 'toolState'])
+const TOOL_METHODS = new Set<KitToolMethod>(['tools', 'tool', 'selectTool', 'pointer', 'pointerLeft', 'toolKey', 'toolText', 'toolPreedit', 'toolState'])
 /** Tool members a kit may leave out: without one, the call answers nothing and changes nothing. */
-const OPTIONAL_TOOL_METHODS = new Set<KitToolMethod>(['pointerLeft'])
+const OPTIONAL_TOOL_METHODS = new Set<KitToolMethod>(['pointerLeft', 'toolPreedit'])
 
 /**
  * `info` mid-gesture without reading `inspect()` (KitEngine.tool's `quiet`): the last one, with
@@ -772,7 +772,8 @@ export async function handle(request: KitEngineRequest): Promise<{ value: unknow
       if (readOnly && READ_ONLY_RULES.refusedTools.includes(request.name)) throw new ReadOnlyError(`the engine tools' ${request.name}`)
       const before = open.revision
       const answer = guarded(open, `the engine tools' ${request.name}`, () => (method as (...args: unknown[]) => string).apply(open, request.args))
-      const value = request.name === 'tool' ? answer : JSON.parse(answer)
+      // `toolPreedit` answers nothing when the kit shows no composition.
+      const value = request.name === 'tool' ? answer : (answer as string | null | undefined) == null ? null : JSON.parse(answer)
       if (!request.settled && open.revision === before) return { value: { value, info: null } }
       const quiet = request.quiet === true && midGesture(value, request.settled)
       return { value: { value, info: sent(quiet ? gestureInfo(open) : info(open, request.settled)) } }
