@@ -1,0 +1,24 @@
+format: 1
+id: sdk.editor.slides-by-hand/engine-tool-answers
+feature: sdk.editor.slides-by-hand
+intent: >-
+  kition_kit's engine tools read a press's button and click count (a right-click, a triple click),
+  and an answer carries, beside the response, whether the tool takes the editing keys now, its text
+  caret, whether it is locked, and ToolDamage::NONE when no pixel changed; a state query takes no
+  damage; a kit that implements none of them answers none of them, keeps no lock and shows no
+  composition.
+layer: gate
+source:
+  kind: synthetic
+  from: kition-kit engine tools tests (stage S of slide usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kit, --lib, tools::tests]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 300
+since: "2026-11-28"

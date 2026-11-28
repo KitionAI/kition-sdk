@@ -91,10 +91,21 @@ fn agent_facing_commands_carry_schemas() {
 
 #[test]
 fn the_engine_tool_paints_and_reports_overlays() {
-    use kition_kit::tools::{KitTools, PointerAction, ToolMods, ToolPointer};
+    use kition_kit::tools::{KitTools, PointerAction, PointerButton, ToolMods, ToolPointer};
     let mut doc = GridDocument::open("x.grid", &fixture()).unwrap();
     let before = doc.revision();
-    let response = doc.pointer(&ToolPointer { action: PointerAction::Down, x: 1.5, y: 2.5, mods: ToolMods::default(), pressure: 1.0, zoom: 4.0 }).unwrap();
+    let response = doc
+        .pointer(&ToolPointer {
+            action: PointerAction::Down,
+            x: 1.5,
+            y: 2.5,
+            mods: ToolMods::default(),
+            pressure: 1.0,
+            zoom: 4.0,
+            button: PointerButton::Primary,
+            clicks: 1,
+        })
+        .unwrap();
     assert!(doc.revision() > before, "the pencil edited the grid");
     assert_eq!(response.cursor, "crosshair");
     assert_eq!(response.overlays.len(), 1);

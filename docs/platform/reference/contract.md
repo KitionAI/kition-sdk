@@ -197,20 +197,27 @@ Optional, with the `engine-tools` capability (standard U8b,
 | --- | --- |
 | `tools()` | JSON list of `{ id, label, shortcut, icon, group, role, mutates, hint }` |
 | `tool()` | The active tool's id |
-| `selectTool(id, zoom)` | A tool response |
+| `selectTool(id, zoom, locked?)` | A tool response; `locked` (Lock Drawing Mode) keeps the tool for one object after another until Escape or another tool (`KitTools::lock_tool`) |
 | `pointer(eventJson)` | A tool response; the event is `{ action: down\|drag\|up\|move, x, y, mods?, zoom, button, pointerType, clicks, pressure?, tilt? }` in document pixels (a double click is `down` with `clicks: 2`) |
 | `pointerLeft(zoom)` | Optional. A tool response; the pointer left the canvas with no gesture held (hover feedback goes). Without it the editor's call answers nothing |
 | `toolKey(key, modsJson, zoom)` | A tool response |
 | `toolText(text, zoom)` | A tool response |
+| `toolPreedit(text, cursor, zoom)` | Optional. A tool response, or nothing: what an input method is composing in the text the tool takes (shown at the caret, the document unchanged); the empty text ends it, and its finished text follows as `toolText` |
 | `toolState(x, y, modsJson, zoom)` | The overlays and cursor now |
 
 A tool response is `{ requests, overlays, cursor, busy, wantsText,
 selection?, caret? }`; `kition_kit::tools` defines every field.
 
 What `@kition/kit-editor` sends today: `mods` is `{ shift, alt, command, control, space }`, where
-`command` is Command or Control (either one) and `control` is Control itself; a press (`down`)
-carries `clicks` (1 to 3), which `kition_kit::tools::ToolPointer` does not read (an engine that
-wants it reads the event's JSON). While the engine answers, a drag sample waiting is replaced by
+`command` is Command or Control (either one) and `control` is Control itself, for pointers and keys
+alike (on a Mac, Cmd alone is `command` without `control`); a press (`down`) carries `clicks` (1 to
+3, `ToolPointer::clicks`); a right-click is a `down` and an `up` with `button: "secondary"`
+(`ToolPointer::button`), sent only when the kit opens context menus from the canvas
+(`useEngineTools`' `onContextMenu`). Beside the response an answer may carry `takesKeys` (the tool
+takes the editing keys now though neither busy nor taking text; Escape stays the editor's),
+`caret` (`{ x, y, height, angle }`, where the editor puts its hidden text field for input methods)
+and `toolLocked` (the tool is locked); `kition_kit::tools::__tool_answer` adds them from
+`KitTools::takes_keys`, `caret` and `tool_locked`, and `toolState` carries them too. While the engine answers, a drag sample waiting is replaced by
 the next one, unless the editor keeps every sample of that tool (`keepsDragSamples`, a pencil).
 While a gesture runs (`busy` answers before the settled release) the editor does not ask
 `toolState` or the disabled commands again after each step; the release's change asks once. Version 2 of
@@ -223,4 +230,6 @@ A response may also carry `damage: { x0, y0, x1, y1 }`, the document area (docum
 event changed when it changed only that: a caret or a text selection moved. The page then
 re-renders that area of every pane it reaches instead of the whole view, so it must cover every
 pixel the event changed. A kit gives it with `KitTools::take_damage` (none by default: a change
-repaints everything).
+repaints everything); the empty area at the origin, `{ x0: 0, y0: 0, x1: 0, y1: 0 }`
+(`ToolDamage::NONE`), says the event changed no pixel though the document's state moved (a
+selection only the overlays show): nothing repaints.

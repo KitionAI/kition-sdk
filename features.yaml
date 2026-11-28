@@ -2376,6 +2376,17 @@ features:
       - regressions/issue-line-primary-menu-rows
       - sdk.editor.pages-by-hand/tools-wheel-keyboard
     since: "2026-11-27"
+  - id: sdk.editor.slides-by-hand
+    title: "The engine tools reach what a hand does on slides: a press's button and click count (right-click, triple click), an answer that says the tool takes the editing keys, where its caret is, that it is locked, or that no pixel changed"
+    dimension: [function]
+    priority: P1
+    status: has
+    paths:
+      - crates/kition-kit/src/tools.rs
+      - docs/platform/reference/contract.md
+    cases:
+      - sdk.editor.slides-by-hand/engine-tool-answers
+    since: "2026-11-28"
   - id: sdk.dev-host.watch-page
     title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens
     dimension: [robustness]
