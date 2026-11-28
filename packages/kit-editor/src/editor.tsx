@@ -7,7 +7,7 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { ChevronDownIcon as ChevronDown, ChevronRightIcon as ChevronRight, ChevronsLeftIcon as ChevronsLeft, ChevronsRightIcon as ChevronsRight, EllipsisIcon as MoreHorizontal, Redo2Icon as Redo2, SaveIcon as Save, SparklesIcon as Sparkles, Undo2Icon as Undo2, type IconComponent } from '@kition/tessera-icons/react'
 import { matchesShortcut, type KitUiElement } from '@kition/kit-ui-protocol'
-import { Button, ICON_STROKE, IconButton, MenuButton, MenuItem, MenuSeparator, menuKeyDown, OverflowStrip, RibbonButton, RibbonFitContext, FULL_RIBBON_FIT, RibbonGroup, RibbonPresentationContext, StatusBar, lineSize, StatusSpacer, Toaster, ZoomControl, toast, StringsProvider, type RibbonButtonProps } from '@kition/tessera-ui'
+import { Button, ICON_STROKE, IconButton, MenuButton, MenuItem, MenuSeparator, menuKeyDown, OverflowStrip, RibbonButton, RibbonFitContext, FULL_RIBBON_FIT, RibbonGroup, RibbonItem, RibbonPresentationContext, StatusBar, lineSize, StatusSpacer, Toaster, ZoomControl, toast, StringsProvider, type RibbonButtonProps } from '@kition/tessera-ui'
 import { COMMAND_FALLBACK_ICON, commandIcon, toolIcon } from './toolIcons'
 import { CommandDialog, needsParams } from './CommandDialog'
 import { TextSink } from './TextSink'
@@ -637,20 +637,38 @@ export function useKitEditorState<T>(
     if (doc) void doc.commands().then(setCommands)
   }, [doc])
 
+  /** The document and change the list of disabled commands (`disabled`) was read for. */
+  const [listed, setListed] = useState<{ doc: unknown; revision: number } | null>(null)
   // Asked again after each change but a drag's steps (`change.gesture`): its release asks once.
   useEffect(() => {
     if (!doc || change.gesture) return undefined
     let stale = false
+    const revision = change.revision
     void doc
       .disabledCommands()
       .catch(() => [] as string[])
       .then((off) => {
-        if (!stale) setDisabled(new Set(off))
+        if (stale) return
+        setDisabled(new Set(off))
+        setListed({ doc, revision })
       })
     return () => {
       stale = true
     }
   }, [change.revision, change.gesture, doc])
+  const listedRef = useRef(listed)
+  listedRef.current = listed
+  /**
+   * Whether the list of what can run (`enabled`) may be behind the engine: it was not read for
+   * the document's last change yet (a change just made, a drag's steps), or commands and tool
+   * events are still on their way to the engine. A shortcut the list calls disabled is then asked
+   * of the engine (`runWhenEnabled`), with Cmd or Ctrl too: Cmd+Z right after an edit undoes it.
+   */
+  const listBehind = useCallback(() => {
+    const now = latest.current
+    const read = listedRef.current
+    return !read || read.doc !== now.doc || read.revision !== now.change.revision || now.pending?.() === true
+  }, [])
 
   /**
    * A query: a command that reads without editing, answered as JSON (no repaint). Read-only
@@ -772,7 +790,7 @@ export function useKitEditorState<T>(
     [byId, host, run, setDialog],
   )
 
-  return { session, host, t, phrase, testId, commands, byId, enabled, enabledByEngine, runWhenEnabled, run, ask, query, save, report, dialog, setDialog, comments, canUndo, canRedo }
+  return { session, host, t, phrase, testId, commands, byId, enabled, enabledByEngine, listBehind, runWhenEnabled, run, ask, query, save, report, dialog, setDialog, comments, canUndo, canRedo }
 }
 
 export type KitEditor = ReturnType<typeof useKitEditorState<unknown>>
@@ -918,16 +936,20 @@ export function ToolButton({ tool, testId: ownTestId, ...props }: Omit<RibbonBut
   )
 }
 
-/** A ribbon button that opens a menu (a split button's arrow, a gallery); `primary` shows it in Single line's row (its icon alone unless `lineLabel`). */
+/**
+ * A ribbon button that opens a menu (a split button's arrow, a gallery); `primary` shows it in
+ * Single line's row (its icon alone unless `lineLabel`), and its open menu's rows with it: the row
+ * draws only controls under a primary item, so the whole menu is under one.
+ */
 export function RibbonMenu({ icon, label, size = 'small', children, disabled, swatch, testId, primary, lineLabel }: { icon?: IconComponent; label: string; size?: 'large' | 'small' | 'icon'; children: ReactNode; disabled?: boolean; swatch?: string; testId?: string; primary?: boolean; lineLabel?: boolean }) {
   const presentation = useContext(RibbonPresentationContext)
   const fit = useContext(RibbonFitContext)
   if (presentation === 'primary' && !primary) return null
   const shown = lineSize(presentation, size, icon != null, lineLabel, fit.size)
-  return (
+  const menu = (
     <MenuButton
       trigger={({ toggle, open }) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center' }} data-primary={primary || undefined}>
+        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
           <RibbonButton icon={icon} label={label} size={shown} disabled={disabled} pressed={open} swatch={swatch} onClick={toggle} data-testid={testId} primary={primary} lineLabel={lineLabel} />
           {shown !== 'large' ? <ChevronDown size={11} strokeWidth={ICON_STROKE} aria-hidden="true" style={{ marginLeft: -4, opacity: 0.6 }} onClick={toggle} /> : null}
         </span>
@@ -939,6 +961,7 @@ export function RibbonMenu({ icon, label, size = 'small', children, disabled, sw
       </RibbonPresentationContext.Provider>
     </MenuButton>
   )
+  return primary ? <RibbonItem primary>{menu}</RibbonItem> : menu
 }
 
 /**
@@ -1249,7 +1272,28 @@ export type ShellProps = {
    * answer every save is refused, so the person could not keep their edits.
    */
   fileChangedBar?: boolean
+  /**
+   * What fits the document in view, for the status bar's Fit and Cmd+0 (a pager's current page);
+   * the canvas's whole document by default.
+   */
+  onFit?: () => void
+  /**
+   * The element that holds the keyboard when nothing does (a pager's pages); the frame by default.
+   * A key pressed while the page's body has the keyboard (a control that let go of it, a dialog
+   * closed) gives it the keyboard and the key, once; copy, cut and paste only move the keyboard
+   * there, so their clipboard event follows to it.
+   */
+  keyboardHome?: () => HTMLElement | null
   children: ReactNode
+}
+
+/** Copy, cut and paste: the keys whose default is the clipboard event. */
+const CLIPBOARD_KEYS = new Set(['c', 'x', 'v'])
+
+/** Whether no element holds the keyboard (the page's body has it). */
+function keyboardLost() {
+  const active = document.activeElement
+  return !active || active === document.body || active === document.documentElement || !active.isConnected
 }
 
 /**
@@ -1356,8 +1400,39 @@ export type ShellFrameState = { ref: RefObject<HTMLDivElement | null>; mode: str
  * an Escape nothing took (left not default-prevented) leaves Focus.
  * @internal
  */
-export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom, onKeyDown, statusBar = true, hiddenCommands, fileChangedBar = true, frame, children }: ShellProps & { top: ReactNode; frame?: ShellFrameState }) {
+export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom, onKeyDown, statusBar = true, hiddenCommands, fileChangedBar = true, onFit, keyboardHome, frame, children }: ShellProps & { top: ReactNode; frame?: ShellFrameState }) {
   const editor = useKitEditor()
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const frameRoot = useRef(frame?.ref)
+  frameRoot.current = frame?.ref
+  // The frame's root, for the frame (`frame.ref`) and for the keyboard's safety net below.
+  const setRoot = useCallback((node: HTMLDivElement | null) => {
+    rootRef.current = node
+    if (frameRoot.current) frameRoot.current.current = node
+  }, [])
+  const home = useRef(keyboardHome)
+  home.current = keyboardHome
+  // The safety net (S5): a key that finds the page's body holding the keyboard goes to the
+  // keyboard's home, so a way of losing the focus nobody thought of never leaves the keys dead.
+  // Heard on the document as the key bubbles, after a kit's own listeners (a key one took is
+  // default-prevented or stopped).
+  useEffect(() => {
+    const fallback = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || composingKey(event) || !keyboardLost()) return
+      if (event.target !== document.body && event.target !== document.documentElement) return
+      const root = rootRef.current
+      if (!root?.isConnected || document.querySelector('.kui-dialog-backdrop')) return
+      const target = home.current?.() ?? root
+      target.focus({ preventScroll: true })
+      if (document.activeElement !== target) return
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && CLIPBOARD_KEYS.has(event.key.toLowerCase())) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      target.dispatchEvent(new globalThis.KeyboardEvent('keydown', { key: event.key, code: event.code, location: event.location, repeat: event.repeat, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, bubbles: true, cancelable: true, composed: true }))
+    }
+    document.addEventListener('keydown', fallback)
+    return () => document.removeEventListener('keydown', fallback)
+  }, [])
   const tools = useKitTools()
   const { session, t, testId } = editor
   const { dirty } = session
@@ -1458,7 +1533,10 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
     }
     if (canvas?.current && command && (key === '0' || key === '=' || key === '+' || key === '-')) {
       event.preventDefault()
-      if (key === '0') canvas.current.fit()
+      if (key === '0') {
+        if (onFit) onFit()
+        else canvas.current.fit()
+      }
       else canvas.current.zoomBy(key === '-' ? 1 / ZOOM_STEP : ZOOM_STEP)
       return
     }
@@ -1466,6 +1544,15 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
     if (shortcut && editor.enabled(shortcut.id)) {
       event.preventDefault()
       void editor.run(shortcut.id, {})
+      return
+    }
+    // A key with Cmd or Ctrl whose command the list calls disabled while that list may be behind
+    // the engine (`listBehind`: Cmd+Z right after an edit) is the engine's to decide, as a plain
+    // key is below. Copy, cut and paste keep their default, the clipboard event, whatever the list.
+    const clipboard = command && !event.altKey && !event.shiftKey && (key === 'c' || key === 'x' || key === 'v')
+    if (shortcut && command && !clipboard && editor.enabledByEngine(shortcut.id) && editor.listBehind?.()) {
+      event.preventDefault()
+      void editor.runWhenEnabled(shortcut.id)
       return
     }
     // A key without Cmd or Ctrl has no default here to keep: when the list of what can run says
@@ -1490,7 +1577,7 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
   return (
     <UiProvider value={inner}>
       <div
-        ref={frame?.ref}
+        ref={setRoot}
         className="kui-app"
         data-mode={frame?.mode}
         data-chosen-mode={frame?.chosen}
@@ -1531,7 +1618,7 @@ export function ShellFrame({ top, status, statusEnd, onStatusClick, canvas, zoom
             <StatusSpacer />
             {statusEnd}
             {canvas && zoom != null ? (
-              <ZoomControl zoom={zoom} onZoom={(value) => canvas.current?.zoomTo(value)} onFit={() => canvas.current?.fit()} labels={{ out: t('zoomOut'), in: t('zoomIn'), fit: t('fit') }} />
+              <ZoomControl zoom={zoom} onZoom={(value) => canvas.current?.zoomTo(value)} onFit={() => (onFit ? onFit() : canvas.current?.fit())} labels={{ out: t('zoomOut'), in: t('zoomIn'), fit: t('fit') }} />
             ) : null}
           </StatusBar>
         ) : null}

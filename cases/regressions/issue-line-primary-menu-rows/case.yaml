@@ -1,0 +1,22 @@
+format: 1
+id: regressions/issue-line-primary-menu-rows
+feature: sdk.editor.pages-by-hand
+intent: >-
+  In Single line, a primary RibbonMenu's open menu is drawn in the row with its button: the whole
+  menu is under the primary item (data-primary), which the row's rule needs to draw a control.
+  Before, only the button was, so the menu opened with every row hidden.
+layer: gate
+source:
+  kind: issue
+  from: Kition PDF stage 5 (PDF usable by hand), fixed in stage S
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/ribbon.test.tsx, -t, primary RibbonMenu]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-27"

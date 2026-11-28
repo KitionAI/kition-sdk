@@ -36,3 +36,32 @@ it('asks for the disabled commands after a change, not after a drag’s steps', 
   await act(async () => root.render(<Probe />))
   expect(disabledCommands).toHaveBeenCalledTimes(1)
 })
+
+// Stage S of "PDF usable by hand": the list may be behind the engine until it is read for the last
+// change, and while commands or tool events are on their way; a Cmd shortcut then asks the engine.
+it('says the list of disabled commands is behind until it was read for the last change, and while work is on its way', async () => {
+  let answer: (off: string[]) => void = () => undefined
+  const disabledCommands = vi.fn(() => new Promise<string[]>((resolve) => { answer = resolve }))
+  const doc = { commands: async () => [], disabledCommands }
+  const host = { ui: createUiStore(EMPTY_UI_CONFIG, null, () => undefined) } as unknown as HostConnection
+  let change: KitChange = { revision: 0, damage: null }
+  let sending = false
+  let behind!: () => boolean
+  function Probe() {
+    behind = useKitEditorState({ doc, change, pending: () => sending } as unknown as KitSession<unknown>, host, (key) => key, 'k').listBehind
+    return null
+  }
+  const root = createRoot(document.createElement('div'))
+  cleanups.push(() => act(() => root.unmount()))
+  await act(async () => root.render(<Probe />))
+  expect(behind()).toBe(true)
+  await act(async () => answer([]))
+  expect(behind()).toBe(false)
+  change = { revision: 1, damage: null }
+  await act(async () => root.render(<Probe />))
+  expect(behind()).toBe(true)
+  await act(async () => answer(['edit.undo']))
+  expect(behind()).toBe(false)
+  sending = true
+  expect(behind()).toBe(true)
+})

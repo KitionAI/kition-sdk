@@ -1,0 +1,25 @@
+format: 1
+id: sdk.editor.pages-by-hand/tools-wheel-keyboard
+feature: sdk.editor.pages-by-hand
+intent: >-
+  A tool's hover may answer a CSS cursor, shown until it answers none, the pointer leaves or the
+  tool changes; the tool types (KitGesture, KitToolContext, KitOverlay) come from the package. A
+  wheel over HTML laid over the canvas scrolls the document, unless a scrolling element in it can
+  still scroll by it. A key pressed while the page's body holds the keyboard goes, once, to the
+  shell's keyboardHome (the frame by default) with the key; copy only moves the keyboard there.
+  onFit says what Cmd+0 and the status bar's Fit fit.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of PDF usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/KitCanvas.hover.test.tsx, packages/kit-editor/src/editor.test.tsx, -t, Stage S of PDF usable by hand]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-27"

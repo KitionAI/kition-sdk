@@ -54,8 +54,13 @@ export type KitTool = {
   id: string
   cursor: string
   begin: (pointer: KitPointer, context: KitToolContext) => KitGesture | void
-  /** The pointer moved with no button held (hover feedback, an open path's rubber band). */
-  hover?: (pointer: KitPointer, context: KitToolContext) => void
+  /**
+   * The pointer moved with no button held (hover feedback, an open path's rubber band). A cursor
+   * it answers as a string (a CSS cursor: `text` over text, `move` over an object) is the canvas's
+   * until the next hover, the pointer leaving, or another tool; any other answer (nothing) gives
+   * back `cursor`.
+   */
+  hover?: (pointer: KitPointer, context: KitToolContext) => unknown
   /**
    * The pointer moved over the canvas, whatever it is doing: hovering, in a gesture of this tool,
    * or panning the view (Space or the middle button). For readouts of the pointer's place

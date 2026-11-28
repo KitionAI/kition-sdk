@@ -305,6 +305,21 @@ describe('useKitSession', () => {
     expect(reply).not.toHaveBeenCalled()
   })
 
+  it('runs an ai/run step whose command only reads (mutates: false) as a read, so a read that changes nothing refreshes nothing (Stage S of PDF usable by hand)', async () => {
+    const { hostPeer, session, pending } = await mount(undefined, true)
+    await act(async () => {
+      for (const waiting of pending.splice(0)) waiting.resolve([...COMMANDS, { ...command('comment.list', ['Comment']), mutates: false }])
+    })
+    await act(async () => {
+      await hostPeer.request('ai/run', { steps: [{ command: 'comment.list' }, { command: 'layer.new' }, { command: 'edit.undo' }], save: false })
+    })
+    const origin = expect.objectContaining({ kind: 'agent' })
+    expect(session.run).toHaveBeenNthCalledWith(1, 'comment.list', {}, null, { origin, reads: true })
+    // An edit, and Undo whatever its catalog says, run as before.
+    expect(session.run).toHaveBeenNthCalledWith(2, 'layer.new', {}, null, { origin })
+    expect(session.run).toHaveBeenNthCalledWith(3, 'edit.undo', {}, null, { origin })
+  })
+
   it("a kit that opts in (agentSkipsUnchangedPaint) runs each ai/run step so that one which changes neither the revision nor inspect() does not repaint", async () => {
     const { hostPeer, session } = await mount(undefined, false, false, { agentSkipsUnchangedPaint: true })
     await act(async () => {

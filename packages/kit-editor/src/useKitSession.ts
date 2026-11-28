@@ -451,7 +451,11 @@ export function useKitSession<T>(host: HostConnection, manifest: KitModuleManife
               // Read once the step's lease is held: what changed while it was asked for is not the step's.
               before = open.info.revision
               if (track.last !== null && before !== track.last) track.meanwhile = true
-              return run(step.command, step.params ?? {}, null, options(step.context ?? null))
+              // A read (the catalog's `mutates: false`; Undo and Redo always count as edits) that
+              // changed nothing refreshes nothing: the person's selection and find matches, kept
+              // per change, stay as they are.
+              const reads = !UNDO_OR_REDO.has(step.command) && menus.current.commands?.get(step.command)?.mutates === false
+              return run(step.command, step.params ?? {}, null, { ...options(step.context ?? null), ...(reads ? { reads: true } : {}) })
             }
             result = await leasedStep(open, step.command, step.params ?? {}, index, runStep, by)
           } catch (error) {

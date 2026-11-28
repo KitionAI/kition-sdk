@@ -95,6 +95,21 @@ function pointerOf(event: { clientX: number; clientY: number; pressure: number; 
   }
 }
 
+/**
+ * Whether an element from `target` up to (not including) `region` can still scroll by (`dx`, `dy`):
+ * a list, a text area or a panel laid over the canvas keeps its own wheel until it reaches its end.
+ */
+export function scrollsInside(target: EventTarget | null, region: Element, dx: number, dy: number) {
+  for (let element = target instanceof Element ? target : null; element && element !== region; element = element.parentElement) {
+    if (element instanceof HTMLSelectElement) return true
+    const style = getComputedStyle(element)
+    const can = (overflow: string, scroll: number, size: number, at: number, delta: number) =>
+      (overflow === 'auto' || overflow === 'scroll') && scroll > size && (delta > 0 ? at + size < scroll - 0.5 : delta < 0 ? at > 0.5 : false)
+    if (can(style.overflowY, element.scrollHeight, element.clientHeight, element.scrollTop, dy) || can(style.overflowX, element.scrollWidth, element.clientWidth, element.scrollLeft, dx)) return true
+  }
+  return false
+}
+
 /** Presses this close in time (ms) and place (CSS pixels) to the last count as one more click. */
 const MULTI_CLICK_MS = 500
 const MULTI_CLICK_SLOP = 4
@@ -154,6 +169,19 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
   const viewportRef = useRef<RasterViewport | null>(null)
   const gesture = useRef<KitGesture | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
+  /** The cursor the tool's `hover` last answered, for that tool only. */
+  const [hovered, setHovered] = useState<{ tool: KitTool; cursor: string } | null>(null)
+  const hoveredRef = useRef(hovered)
+  hoveredRef.current = hovered
+  const showHover = (answer: unknown) => {
+    const cursor = typeof answer === 'string' && answer ? answer : null
+    const now = hoveredRef.current
+    if (cursor === null ? now === null : now?.tool === tool && now.cursor === cursor) return
+    const next = cursor === null ? null : { tool, cursor }
+    hoveredRef.current = next
+    setHovered(next)
+  }
+  const regionRef = useRef<HTMLDivElement>(null)
   const latest = useRef({ doc, onView, onRender, initialArea, panBounds })
   latest.current = { doc, onView, onRender, initialArea, panBounds }
   const overlay = useOverlay(overlayRef, viewportRef)
@@ -182,12 +210,19 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
       void viewport.render()
     })
     observer.observe(canvas)
+    // Heard on the whole region, so a wheel over the HTML a kit lays over the canvas (`children`:
+    // a form field, a note) scrolls and zooms the document too; one a child took (default
+    // prevented) or one a scrolling element in it can still scroll by stays the child's.
+    const region: HTMLElement = regionRef.current ?? canvas
     const wheel = (event: WheelEvent) => {
+      if (event.defaultPrevented) return
+      const zoom = event.ctrlKey || event.metaKey
+      if (!zoom && event.target !== canvas && scrollsInside(event.target, region, event.deltaX, event.deltaY)) return
       event.preventDefault()
-      if (event.ctrlKey || event.metaKey) viewport.zoomTo(viewport.view.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM_SPEED), event.clientX, event.clientY)
+      if (zoom) viewport.zoomTo(viewport.view.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM_SPEED), event.clientX, event.clientY)
       else viewport.panBy(-event.deltaX, -event.deltaY)
     }
-    canvas.addEventListener('wheel', wheel, { passive: false })
+    region.addEventListener('wheel', wheel, { passive: false })
     // The host's theme lands on the root element (`applyTheme`: its style and data-color-scheme):
     // the backdrop follows it, as the rest of the UI does through CSS.
     const theme = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => viewport.setBackdrop(backdrop()))
@@ -201,7 +236,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
       fonts()
       theme?.disconnect()
       observer.disconnect()
-      canvas.removeEventListener('wheel', wheel)
+      region.removeEventListener('wheel', wheel)
       viewport.dispose()
       viewportRef.current = null
     }
@@ -307,7 +342,7 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     const tools = context()
     const current = gesture.current
     if (tools) tool.track?.(pointerOf(event, tools.viewport), tools)
-    if (tools && !current && !spaceHeld && event.buttons === 0) tool.hover?.(pointerOf(event, tools.viewport), tools)
+    if (tools && !current && !spaceHeld && event.buttons === 0 && tool.hover) showHover(tool.hover(pointerOf(event, tools.viewport), tools))
     if (!tools || !current?.move) return
     for (const sample of event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent]) {
       const pointer = pointerOf(sample, tools.viewport, lastPressure.current)
@@ -354,11 +389,11 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
   }
 
   return (
-    <div className="kui-canvas" data-testid="kit-canvas">
+    <div ref={regionRef} className="kui-canvas" data-testid="kit-canvas">
       <canvas
         ref={canvasRef}
         className="kui-canvas-surface"
-        style={{ cursor: spaceHeld ? HAND_TOOL.cursor : tool.cursor }}
+        style={{ cursor: spaceHeld ? HAND_TOOL.cursor : hovered?.tool === tool ? hovered.cursor : tool.cursor }}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
@@ -367,7 +402,10 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
         onPointerLeave={() => {
           const tools = context()
           // A held gesture keeps the pointer (it is captured) until its release.
-          if (tools && !gesture.current) tool.leave?.(tools)
+          if (tools && !gesture.current) {
+            showHover(null)
+            tool.leave?.(tools)
+          }
         }}
         onDoubleClick={(event) => {
           const tools = context()

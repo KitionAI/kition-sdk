@@ -2351,6 +2351,31 @@ features:
       - sdk.editor.canvas-by-hand/pointer-fields
       - regressions/issue-reported-view-is-drawn-view
     since: "2026-11-26"
+  - id: sdk.editor.pages-by-hand
+    title: "The editor keeps up with a hand on pages: an agent's read that changes nothing leaves the change counter (and the person's selection) alone; a Cmd shortcut the list calls disabled asks the engine while the list may be behind it; a primary RibbonMenu's menu draws in Single line; a tool's hover can answer its cursor; a wheel over HTML on the canvas scrolls the document; a key the page's body holds reaches the keyboard's home; the kit can say what Fit fits; the tool types are exported"
+    dimension: [function]
+    priority: P1
+    status: has
+    paths:
+      - packages/kit-editor/src/engine/useKitDocument.ts
+      - packages/kit-editor/src/useKitSession.ts
+      - packages/kit-editor/src/editor.tsx
+      - packages/kit-editor/src/engine/KitCanvas.tsx
+      - packages/kit-editor/src/engine/kitTools.ts
+      - packages/kit-editor/src/index.ts
+      - packages/kit-editor/src/engine/useKitDocument.test.tsx
+      - packages/kit-editor/src/useKitSession.test.tsx
+      - packages/kit-editor/src/editor.test.tsx
+      - packages/kit-editor/src/editor.gesture.test.tsx
+      - packages/kit-editor/src/ribbon.test.tsx
+      - packages/kit-editor/src/engine/KitCanvas.hover.test.tsx
+      - packages/kit-editor/README.md
+    cases:
+      - regressions/issue-agent-read-keeps-change
+      - regressions/issue-cmd-shortcut-behind-list
+      - regressions/issue-line-primary-menu-rows
+      - sdk.editor.pages-by-hand/tools-wheel-keyboard
+    since: "2026-11-27"
   - id: sdk.dev-host.watch-page
     title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens
     dimension: [robustness]

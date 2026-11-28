@@ -100,6 +100,28 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
   past it once the canvas has been still for 120 ms, a quarter of the view at a time. Frames lie
   on whole device pixels at every zoom, and the view on screen is placed on one; `onView` and
   `view()` report that placed view, so a kit's own overlays land on the pixels drawn.
+- A tool's `hover` may answer a CSS cursor (`text` over text, `move` over a comment): the canvas
+  shows it until the next hover, the pointer leaving or another tool, with no new tool object.
+  `KitGesture`, `KitToolContext` and `KitOverlay` are exported for writing tools.
+- A wheel over the HTML a kit lays over the canvas (`KitDocumentCanvas`'s `children`) scrolls and
+  zooms the document as over the canvas; one a child takes (default-prevented) or a scrolling
+  element in it can still scroll by stays the child's.
+
+## Keys, reads and the frame
+
+- A Cmd or Ctrl shortcut the list of what can run calls disabled is asked of the engine while that
+  list may be behind it (`editor.listBehind()`: not read for the last change yet, or commands and
+  tool events on their way): Cmd+Z right after an edit undoes it. Copy, cut and paste keep their
+  clipboard event. With the list current, the key keeps its default.
+- An agent's `ai/run` step whose command only reads (the catalog's `mutates: false`; Undo and Redo
+  always count as edits) runs with `reads: true` (`KitRunOptions`): when it moved nothing `info`
+  holds, the change counter stays, so the person's text selection and find matches kept per change
+  stay too, and nothing repaints or reaches the host.
+- A key pressed while the page's body holds the keyboard goes to the shell's `keyboardHome()` (the
+  frame by default) with the key, once; copy, cut and paste only move the keyboard there. It is
+  heard as the key bubbles to the document, after a kit's own listeners.
+- `onFit` says what the status bar's Fit and Cmd+0 fit (a pager's current page).
+- In Single line, a primary `RibbonMenu`'s open menu is drawn in the row with it.
 
 `KitDocumentCanvas` draws a kit's `decorateUnder` under the overlays and its `decorate` over
 them, so canvas chrome can sit on either side (grids and frame labels under the selection, a

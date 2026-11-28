@@ -1,0 +1,26 @@
+format: 1
+id: regressions/issue-agent-read-keeps-change
+feature: sdk.editor.pages-by-hand
+intent: >-
+  An agent's ai/run step whose command only reads (the catalog's mutates false; Undo and Redo
+  always count as edits) runs as a read (KitRunOptions.reads). A read that moved nothing the
+  engine's info holds (revision, size, saved state, inspect()) refreshes nothing: the editor's
+  change counter stays, so what a kit keeps per change (the person's text selection, a find
+  match) stays too, and there is no describe, repaint or host notification. A read that did move
+  them, and every command without the option, refreshes as before. Before, an agent reading the
+  comments (comment.list) moved the change counter and cleared the person's selection.
+layer: gate
+source:
+  kind: issue
+  from: Kition PDF stage 2 (PDF usable by hand), fixed in stage S
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/useKitDocument.test.tsx, packages/kit-editor/src/useKitSession.test.tsx, -t, reads]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-27"

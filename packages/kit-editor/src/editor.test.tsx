@@ -557,6 +557,94 @@ describe('a plain shortcut the list of what can run calls disabled', () => {
   })
 })
 
+describe('a shortcut with Cmd the list of what can run calls disabled (Stage S of PDF usable by hand)', () => {
+  const commands = [{ ...command('edit.undo', ['Edit']), shortcut: 'Cmd+Z' } as KitCommand, { ...command('edit.copy', ['Edit']), shortcut: 'Cmd+C' } as KitCommand]
+  const press = (key: string) => {
+    const event = new KeyboardEvent('keydown', { key, code: `Key${key.toUpperCase()}`, metaKey: true, ctrlKey: true, bubbles: true, cancelable: true })
+    document.querySelector('.kui-app')?.dispatchEvent(event)
+    return event
+  }
+
+  it('is decided by the engine while the list may be behind it (Cmd+Z right after an edit), and keeps its default once the list is current', async () => {
+    let behind = true
+    const runWhenEnabled = vi.fn(async () => null)
+    const run = vi.fn(async () => null)
+    const editor = { ...fakeEditor(store(), commands), enabled: () => false, enabledByEngine: () => true, listBehind: () => behind, runWhenEnabled, run }
+    render(app(editor, null))
+    let pressed!: KeyboardEvent
+    await act(async () => void (pressed = press('z')))
+    expect(runWhenEnabled).toHaveBeenCalledWith('edit.undo')
+    expect(run).not.toHaveBeenCalled()
+    expect(pressed.defaultPrevented).toBe(true)
+    behind = false
+    runWhenEnabled.mockClear()
+    await act(async () => void (pressed = press('z')))
+    expect(runWhenEnabled).not.toHaveBeenCalled()
+    expect(pressed.defaultPrevented).toBe(false)
+  })
+
+  it('leaves copy, cut and paste their clipboard event, and is not asked when no answer could let it run', async () => {
+    const runWhenEnabled = vi.fn(async () => null)
+    let engineCould = true
+    const editor = { ...fakeEditor(store(), commands), enabled: () => false, enabledByEngine: () => engineCould, listBehind: () => true, runWhenEnabled }
+    render(app(editor, null))
+    let pressed!: KeyboardEvent
+    await act(async () => void (pressed = press('c')))
+    expect(pressed.defaultPrevented).toBe(false)
+    expect(runWhenEnabled).not.toHaveBeenCalled()
+    engineCould = false
+    await act(async () => void (pressed = press('z')))
+    expect(pressed.defaultPrevented).toBe(false)
+    expect(runWhenEnabled).not.toHaveBeenCalled()
+  })
+})
+
+describe('the keyboard when the page body holds it, and Fit (Stage S of PDF usable by hand)', () => {
+  it("gives a key the body holds to the keyboard's home, with the key, once; copy only moves the keyboard there", async () => {
+    const keys: string[] = []
+    const onKeyDown = vi.fn((event: { key: string }) => {
+      keys.push(event.key)
+      return true
+    })
+    render(
+      <KitEditorProvider editor={fakeEditor(store())} tools={null}>
+        <EditorFrame tabs={[]} onKeyDown={onKeyDown} keyboardHome={() => document.querySelector<HTMLElement>('[data-testid="pages"]')}>
+          <div data-testid="pages" tabIndex={-1} />
+        </EditorFrame>
+      </KitEditorProvider>,
+    )
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    expect(document.activeElement).toBe(document.body)
+    const key = new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true })
+    await act(async () => void document.body.dispatchEvent(key))
+    expect(document.activeElement).toBe(byTestId('pages'))
+    expect(keys).toEqual(['PageDown'])
+    expect(key.defaultPrevented).toBe(true)
+    ;(document.activeElement as HTMLElement).blur()
+    const copy = new KeyboardEvent('keydown', { key: 'c', code: 'KeyC', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true })
+    await act(async () => void document.body.dispatchEvent(copy))
+    expect(document.activeElement).toBe(byTestId('pages'))
+    expect(keys).toEqual(['PageDown'])
+    expect(copy.defaultPrevented).toBe(false)
+  })
+
+  it("lets the kit say what Fit and Cmd+0 fit (onFit)", async () => {
+    const fit = vi.fn()
+    const onFit = vi.fn()
+    const canvas = { current: { fit, zoomTo: vi.fn(), zoomBy: vi.fn() } } as unknown as Parameters<typeof EditorFrame>[0]['canvas']
+    render(
+      <KitEditorProvider editor={fakeEditor(store())} tools={null}>
+        <EditorFrame tabs={[]} canvas={canvas} zoom={1} onFit={onFit}>
+          {null}
+        </EditorFrame>
+      </KitEditorProvider>,
+    )
+    await act(async () => void document.querySelector('.kui-app')?.dispatchEvent(new KeyboardEvent('keydown', { key: '0', code: 'Digit0', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true })))
+    expect(onFit).toHaveBeenCalledTimes(1)
+    expect(fit).not.toHaveBeenCalled()
+  })
+})
+
 describe('CommandButton', () => {
   it('a command the editor cannot run stays disabled even when the kit says enabled', () => {
     const editor = { ...fakeEditor(store({ disable: ['command:x'] })), enabled: () => false }

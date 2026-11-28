@@ -152,7 +152,7 @@ export {
   type OverlayStyle,
   type OverlayStylePatch,
 } from './engine/engineOverlays'
-export { HAND_TOOL, ZOOM_TOOL, dragRect, type KitPointer, type KitTool } from './engine/kitTools'
+export { HAND_TOOL, ZOOM_TOOL, dragRect, type KitGesture, type KitOverlay, type KitPointer, type KitTool, type KitToolContext } from './engine/kitTools'
 export type { KitCommand, KitModuleManifest, KitModuleRuntime } from './engine/kitModule'
 export type { RasterDecoration, RasterPane, RasterPins, RasterRect, RasterView, RasterViewportStats } from './engine/rasterViewport'
 export { viewPanes } from './engine/rasterViewport'

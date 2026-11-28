@@ -291,6 +291,21 @@ describe('Single line groups', () => {
     ])
   })
 
+  it("draws a primary RibbonMenu's open menu in Single line's row, under the primary item (Stage S of PDF usable by hand)", () => {
+    const host = line(
+      <RibbonGroup label="Comment">
+        <RibbonMenu icon={Type} label="More" primary testId="more">
+          <button type="button">Note…</button>
+        </RibbonMenu>
+      </RibbonGroup>,
+    )
+    act(() => (host.querySelector('[data-testid="more"]') as HTMLButtonElement).click())
+    const row = host.querySelector('.kui-line-inline [role="menu"] button')
+    expect(row?.textContent).toBe('Note…')
+    // The row hides every control not under a primary item (tessera's `.kui-line-inline` rule).
+    expect(row?.closest('[data-primary]')).not.toBeNull()
+  })
+
   it('keeps labels and sizes in the Classic ribbon whatever lineLabel says', () => {
     const host = render(context(), <RibbonButton label="Bold" icon={Type} size="large" lineLabel primary />)
     expect(host.querySelector('button')?.getAttribute('data-size')).toBe('large')

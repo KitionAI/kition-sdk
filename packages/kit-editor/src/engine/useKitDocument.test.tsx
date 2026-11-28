@@ -138,6 +138,32 @@ describe('useKitDocument skipUnchangedPaint', () => {
   })
 })
 
+describe('useKitDocument reads (an agent reading, Stage S of PDF usable by hand)', () => {
+  it('a read that changed nothing info holds refreshes nothing: no change, no describe, no repaint', async () => {
+    const { session, describes, renders } = await mount()
+    const before = { describes: describes.count, change: session().change, renders: renders.count, repaint: session().repaints.get() }
+    // `view.*` leaves the fake engine's info as it was, as a worker that sends no new info does.
+    await act(async () => void (await session().run('view.list', {}, null, { reads: true })))
+    expect(session().change).toBe(before.change)
+    expect(describes.count).toBe(before.describes)
+    expect(renders.count).toBe(before.renders)
+    expect(session().repaints.get()).toBe(before.repaint)
+  })
+
+  it('a read that did change what info holds refreshes as usual, and without the option every command does', async () => {
+    const { session, engine } = await mount()
+    const start = session().change.revision
+    await act(async () => void (await session().run('view.list', {})))
+    expect(session().change.revision).toBe(start + 1)
+    engine.execute.mockImplementationOnce(async () => {
+      engine.info = { ...engine.info, inspected: { playhead: 3 } }
+      return null
+    })
+    await act(async () => void (await session().run('view.list', {}, null, { reads: true })))
+    expect(session().change.revision).toBe(start + 2)
+  })
+})
+
 describe('useKitDocument following its file (checkFile, followFile)', () => {
   /** A file whose stamp the test moves, as another program saving it would. */
   async function mountFile(options: KitDocumentOptions = {}) {

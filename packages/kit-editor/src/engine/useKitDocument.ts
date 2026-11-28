@@ -46,6 +46,15 @@ export type KitRunOptions = {
    */
   skipUnchangedPaint?: boolean
   /**
+   * The command only reads (its catalog says it changes nothing: `mutates: false`). When it moved
+   * nothing `info` holds (the engine's revision, size, saved state and `inspect()` are as they
+   * were), nothing refreshes, whatever `refresh` says: the change counter stays (so what the
+   * editor keeps per change, a text selection or a find match, stays too), and there is no
+   * describe, no repaint and no host notification. One that did move them refreshes as `refresh`
+   * says. An agent's read (`ai/run`) runs so.
+   */
+  reads?: boolean
+  /**
    * The origin the command runs as (KitModel M11): `ai/run` runs its
    * steps as the agent, so they are the agent's undo steps and the person's Undo keeps them
    * (M12a). An engine that does not run commands as an origin (no `executeAs`) runs them as the
@@ -412,6 +421,7 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
       const open = docRef.current
       if (!open) return null
       const before = options.skipUnchangedPaint ? { revision: open.info.revision, inspected: JSON.stringify(open.info.inspected) } : null
+      const infoBefore = open.info
       const result = await open.execute(command, params, options.origin, options.agent)
       if (docRef.current === open) {
         if (open.closed) {
@@ -424,6 +434,8 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
           setConflict(false)
           return result
         }
+        // A read that changed nothing `info` holds (the engine sent no new info) refreshes nothing.
+        if (options.reads && open.info === infoBefore) return result
         const mode = options.refresh ?? 'all'
         const unchanged = before != null && open.info.revision === before.revision && JSON.stringify(open.info.inspected) === before.inspected
         if (mode === 'all') refresh(unchanged ? NOTHING : damage)
@@ -647,5 +659,8 @@ export function useKitDocument<T>(host: KitHost, manifest: KitModuleManifest, pa
     return view
   }, [repaints])
 
-  return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, inOrder, save, saveCheckpoint, replica, model, draft, reopen, keepMine, checkFile, holdFile }
+  /** Whether commands or tool calls sent to the engine are still waiting for its answer. */
+  const pending = useCallback(() => inflight.current.size > 0, [])
+
+  return { path, manifest, doc, info, state, change, repaints: repaintView, dirty, failure, openMs, saving, conflict, run, tool, commands, disabledCommands, inOrder, pending, save, saveCheckpoint, replica, model, draft, reopen, keepMine, checkFile, holdFile }
 }

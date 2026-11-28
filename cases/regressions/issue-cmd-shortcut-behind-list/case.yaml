@@ -1,0 +1,25 @@
+format: 1
+id: regressions/issue-cmd-shortcut-behind-list
+feature: sdk.editor.pages-by-hand
+intent: >-
+  A shortcut with Cmd or Ctrl whose command the list of what can run calls disabled is asked of
+  the engine, in the order of the input (runWhenEnabled), while that list may be behind the engine
+  (listBehind: not read for the document's last change yet, or commands and tool events still on
+  their way), as a plain key already was: Cmd+Z right after an edit undoes it instead of being
+  dropped. Copy, cut and paste keep their default (the clipboard event); a command no engine
+  answer could let run is not asked; with the list current the key keeps its default.
+layer: gate
+source:
+  kind: issue
+  from: Kition PDF stage 1 (PDF usable by hand), fixed in stage S
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/editor.test.tsx, packages/kit-editor/src/editor.gesture.test.tsx, -t, behind|Cmd the list]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-27"
