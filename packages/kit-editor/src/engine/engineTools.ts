@@ -99,6 +99,29 @@ type EngineToolsOptions = {
    * tool's answer to the release. Without it the right button reaches no tool and does nothing.
    */
   onContextMenu?: (at: KitPointer, answer: EngineToolResponse | null) => void
+  /**
+   * The tool's answers do not render the component that calls `useEngineTools` (and what it
+   * holds, an editor's whole tree) for each pointer move: `decorate` stays the same function and
+   * draws the overlays of the latest answer, which the canvas redraws as each answer comes
+   * (`answers`); the result changes only when the cursor, whether the tool takes text, its caret,
+   * its lock or the marching ants do. Off by default: `decorate` is a new drawing for each answer.
+   */
+  quietAnswers?: boolean
+}
+
+/** The engine tool's latest answer, read when asked and heard as each one comes. */
+export type EngineToolAnswers = {
+  get: () => EngineToolResponse | null
+  subscribe: (listener: () => void) => () => void
+}
+
+const NO_REQUESTS: EngineToolRequest[] = []
+const NO_OVERLAYS: EngineToolOverlay[] = []
+
+/** Whether two answers show the same thing besides their overlays (`quietAnswers`). */
+function sameShown(a: EngineToolResponse, b: EngineToolResponse) {
+  const caret = (c: EngineToolCaret | undefined) => (c ? `${c.x},${c.y},${c.height},${c.angle ?? 0}` : '')
+  return a.cursor === b.cursor && a.busy === b.busy && a.wantsText === b.wantsText && Boolean(a.takesKeys) === Boolean(b.takesKeys) && Boolean(a.toolLocked) === Boolean(b.toolLocked) && caret(a.caret) === caret(b.caret)
 }
 
 /** Whether the host's UI configuration refuses a tool, by engine id. */
@@ -130,6 +153,9 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   const [chosen, setChosen] = useState(options.initial)
   const [denied, setDeniedState] = useState<ToolDenied>(() => NONE_DENIED)
   const [response, setResponse] = useState<EngineToolResponse | null>(null)
+  /** Whether the latest overlays animate, kept apart from them under `quietAnswers`. */
+  const [quietAnimated, setQuietAnimated] = useState(false)
+  const listeners = useRef(new Set<() => void>())
   const [status, setStatus] = useState<string | null>(null)
   const latest = useRef(options)
   latest.current = options
@@ -201,7 +227,12 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   const answer = useCallback((next: EngineToolResponse | null, selection?: number) => {
     if (!next || !mounted.current) return
     latestResponse.current = next
-    setResponse(next)
+    if (latest.current.quietAnswers) {
+      const shown = { ...next, requests: NO_REQUESTS, overlays: NO_OVERLAYS }
+      setResponse((was) => (was && sameShown(was, shown) ? was : shown))
+      setQuietAnimated(overlaysAnimate(next.overlays))
+    } else setResponse(next)
+    for (const listener of [...listeners.current]) listener()
     let switchTo: string | null = null
     for (const request of next.requests) {
       if (request.kind === 'switchTool') {
@@ -391,12 +422,36 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
     return accent && !overlayStyle?.accent ? { ...resolved, accent } : resolved
   }, [accent, overlayStyle])
   // Drawn once per frame: a kit's decoration that still draws them over `KitDocumentCanvas`'s own does not draw them again.
-  const decorate = useMemo(
-    () => (overlays?.length && !hostTool ? drawnOnce(drawEngineOverlays(overlays, style, drawOverlay)) : null),
-    [drawOverlay, hostTool, overlays, style],
+  const quiet = options.quietAnswers === true
+  const loud = useMemo(
+    () => (!quiet && overlays?.length && !hostTool ? drawnOnce(drawEngineOverlays(overlays, style, drawOverlay)) : null),
+    [drawOverlay, hostTool, overlays, quiet, style],
   )
+  // Under `quietAnswers`: one drawing of whatever the latest answer's overlays are.
+  const still = useMemo(
+    () =>
+      quiet && !hostTool
+        ? drawnOnce((context, toScreen, raster) => {
+            const shown = latestResponse.current?.overlays
+            if (shown?.length) drawEngineOverlays(shown, style, drawOverlay)(context, toScreen, raster)
+          })
+        : null,
+    [drawOverlay, hostTool, quiet, style],
+  )
+  const decorate = quiet ? still : loud
   // Marching ants move: the canvas redraws the overlays on a timer while they are shown, only then.
-  const animated = !hostTool && overlaysAnimate(overlays)
+  const animated = !hostTool && (quiet ? quietAnimated : overlaysAnimate(overlays))
+  /** The latest answer and each one as it comes (the canvas redraws on them under `quietAnswers`). */
+  const answers = useMemo<EngineToolAnswers>(
+    () => ({
+      get: () => latestResponse.current,
+      subscribe: (listener) => {
+        listeners.current.add(listener)
+        return () => void listeners.current.delete(listener)
+      },
+    }),
+    [],
+  )
 
   /**
    * Gives a key to the tool when it is mid-gesture or taking text; returns whether it did.
@@ -500,8 +555,8 @@ export function useEngineTools(tool: ToolCall, ready: boolean, change: KitChange
   const locked = Boolean(response?.toolLocked) && !hostTool
   const caret = (wantsText && validCaret(response?.caret)) || null
   return useMemo(
-    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, compose, canvasTool, decorate, animated, status, wantsText, caret, locked, keyDown, toolForKey }),
-    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, compose, canvasTool, decorate, animated, status, wantsText, caret, locked, keyDown, toolForKey],
+    () => ({ tools, active, select: setActive, setDenied, refresh, viewZoom, typeText, compose, canvasTool, decorate, animated, status, wantsText, caret, locked, keyDown, toolForKey, answers, quietAnswers: quiet }),
+    [tools, active, setActive, setDenied, refresh, viewZoom, typeText, compose, canvasTool, decorate, animated, status, wantsText, caret, locked, keyDown, toolForKey, answers, quiet],
   )
 }
 

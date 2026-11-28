@@ -121,6 +121,36 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
   not scroll back), `hold` holds the pointer the gesture is given just inside the edge, and
   `onEdge(past)` tells the kit how far past the edges the pointer is, then null once when it is
   back. Past the left or top edge counts only while the view can go back that way. Off by default.
+- A mouse wheel's notch with Cmd or Ctrl zooms `WHEEL_NOTCH_ZOOM` (1.2) times, at most five
+  notches an event, and a trackpad pinch continuously. `wheelZoom(zoom, { notches, direction,
+  deltaY })` (on `KitDocumentCanvas` and `KitCanvas`) answers a kit's own steps (the next multiple
+  of 10% a notch); `wheelNotches(event)` and `defaultWheelZoom` are exported.
+- A right-click on the canvas calls the tool's `contextMenu(pointer)` in document pixels; on a Mac
+  a click with Ctrl held is one too, and no press, for a tool that has one. The browser's menu
+  never opens there. `useEngineTools`' `onContextMenu(at, answer)` gives the engine the right-click
+  as a press and a release with `button: "secondary"` (`ToolPointer::button`), in the order of the
+  input, then calls it with the release's answer, where the kit opens its menu (the engine chose
+  what the menu is for, selecting what was under the pointer). A press's `clicks` reach the engine
+  as `ToolPointer::clicks` (3: a triple click).
+- An answer with `takesKeys` (`KitTools::takes_keys`) gives the tool the editing keys (arrows,
+  Home, End, Enter, Tab, Delete, Backspace) though it is neither busy nor taking text; Escape stays
+  the frame's. Keys to the tool carry `mods.control` apart from `mods.command`, so a Mac's
+  Ctrl+Arrow is not its Cmd+Arrow.
+- An input method's composition in the text sink reaches the tool as `toolPreedit(text, cursor,
+  zoom)` (`KitTools::preedit`; `TextSink`'s `onCompose`, `useEngineTools`' `compose`), ended with
+  the empty text before its finished text comes as `toolText`. An answer's `caret` (`{ x, y,
+  height }` in document pixels, `KitTools::caret`) is `useEngineTools`' `caret` while the tool
+  takes text, and the canvas keeps the text sink on it (one line as tall as the caret) as the view
+  moves, so the candidate window opens under the caret's line.
+- `tools.select(id, { locked: true })` chooses a tool locked (Lock Drawing Mode: it stays for one
+  object after another until Escape or another tool, `KitTools::lock_tool`); `tools.locked` says
+  whether the engine keeps it (`toolLocked`).
+- A damage of the empty area at the origin (`ToolDamage::NONE`) repaints nothing: the answer moved
+  the document's state, not its pixels. `useKitSession` takes `quietGestures` too.
+- `useEngineTools`' `quietAnswers` keeps the tool's answers out of the caller's state: `decorate`
+  stays one function drawing the latest answer's overlays, which the canvas redraws as each answer
+  comes (`answers`: `get()` and `subscribe(listener)`), and the result changes only with the
+  cursor, whether the tool takes text, its caret, its lock or the marching ants.
 
 ## Keys, reads and the frame
 
@@ -136,6 +166,9 @@ plain `RasterDecoration`, for a kit that draws overlays from elsewhere.
   frame by default) with the key, once; copy, cut and paste only move the keyboard there. It is
   heard as the key bubbles to the document, after a kit's own listeners.
 - `onFit` says what the status bar's Fit and Cmd+0 fit (a pager's current page).
+- A bare Home and End are command shortcuts as Page Up and Page Down are (a tool that takes keys
+  has them first), and a command runs from each of its keys: its `shortcut`, which menus show, and
+  its `moreShortcuts` (`KitCommand::more_shortcuts`; `commandShortcuts(command)` lists them).
 - In Single line, a primary `RibbonMenu`'s open menu is drawn in the row with it.
 - `zoomKeys` says who has Cmd+0, Cmd+= and Cmd+-: `frame` (the default) fits and zooms before any
   command; `commands` lets a command whose shortcut is one of them run first (a sheet's Hide

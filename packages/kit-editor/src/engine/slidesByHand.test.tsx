@@ -174,6 +174,19 @@ describe('the canvas (Stage S of slide usable by hand)', () => {
     act(() => { surface.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 10, deltaY: 0 })) })
     expect(field.style.left).toBe('40px')
   })
+
+  it('redraws its decoration each time redrawOn tells', async () => {
+    const { RasterViewport } = await import('./rasterViewport')
+    const draw = vi.spyOn(RasterViewport.prototype, 'draw')
+    const listeners = new Set<() => void>()
+    mount(plain, { redrawOn: { subscribe: (listener) => (listeners.add(listener), () => void listeners.delete(listener)) } })
+    const before = draw.mock.calls.length
+    act(() => listeners.forEach((listener) => listener()))
+    expect(draw.mock.calls.length).toBe(before + 1)
+    act(() => root!.unmount())
+    root = null
+    expect(listeners.size).toBe(0)
+  })
 })
 
 describe('the engine tools (Stage S of slide usable by hand)', () => {
@@ -339,5 +352,49 @@ describe('shortcuts (Stage S of slide usable by hand)', () => {
     expect(commandShortcuts(command('file.saveTwice', null, ['Cmd+S', 'F12']))).toEqual(['F12'])
     // The catalog's JSON carries them.
     expect(kitModuleCommands(JSON.stringify([{ id: 'edit.redo', title: 'Redo', menu: null, shortcut: 'Cmd+Y', moreShortcuts: ['Cmd+Shift+Z'], mutates: true, enabled: true }]))[0].moreShortcuts).toEqual(['Cmd+Shift+Z'])
+  })
+})
+
+describe('quiet answers (Stage S of slide usable by hand)', () => {
+  const idle: EngineToolResponse = { requests: [], overlays: [], cursor: 'default', busy: false, wantsText: false }
+  const at: KitPointer = { x: 1, y: 2, clientX: 1, clientY: 2, canvasX: 1, canvasY: 2, pressure: 1, shift: false, alt: false, meta: false }
+  const context = { viewport: { view: { zoom: 1 } } } as unknown as KitToolContext
+
+  async function mount(quietAnswers: boolean, answer: () => EngineToolResponse) {
+    const results: ReturnType<typeof useEngineTools>[] = []
+    const tool = (async (name: string) => (name === 'tools' ? [{ id: 'select', label: 'Select', group: 0 }] : answer())) as Parameters<typeof useEngineTools>[0]
+    const change: KitChange = { revision: 0, damage: null }
+    function Probe() {
+      results.push(useEngineTools(tool, true, change, { initial: 'select', quietAnswers }))
+      return null
+    }
+    const root = createRoot(document.createElement('div'))
+    cleanups.push(() => act(() => root.unmount()))
+    await act(async () => root.render(<Probe />))
+    return results
+  }
+
+  it("keeps the caller's render and its drawing for answers that only move the overlays, and tells each answer", async () => {
+    let n = 0
+    const marquee = () => ({ ...idle, overlays: [{ kind: 'marquee' as const, x0: 0, y0: 0, x1: ++n, y1: 1 }] })
+    const results = await mount(true, marquee)
+    await act(async () => results.at(-1)!.refresh())
+    const settled = results.at(-1)!
+    const heard: number[] = []
+    const stop = settled.answers.subscribe(() => heard.push((settled.answers.get()?.overlays[0] as { x1: number }).x1))
+    const renders = results.length
+    for (let move = 0; move < 3; move += 1) await act(async () => settled.canvasTool.hover!(at, context))
+    expect(results.length).toBe(renders)
+    expect(results.at(-1)!.decorate).toBe(settled.decorate)
+    expect(settled.quietAnswers).toBe(true)
+    expect(heard).toHaveLength(3)
+    expect(heard.at(-1)).toBe(n)
+    stop()
+    // Without it each answer is a new drawing.
+    const loud = await mount(false, marquee)
+    await act(async () => loud.at(-1)!.refresh())
+    const before = loud.at(-1)!.decorate
+    await act(async () => loud.at(-1)!.canvasTool.hover!(at, context))
+    expect(loud.at(-1)!.decorate).not.toBe(before)
   })
 })

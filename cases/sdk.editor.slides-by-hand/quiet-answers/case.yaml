@@ -1,0 +1,23 @@
+format: 1
+id: sdk.editor.slides-by-hand/quiet-answers
+feature: sdk.editor.slides-by-hand
+intent: >-
+  With useEngineTools' quietAnswers, the tool's answers that only move its overlays do not render
+  the component that called it again and keep its decorate the same function, which draws the
+  latest overlays; answers tells each answer as it comes, and the canvas redraws on it (redrawOn).
+  Without it each answer is a new drawing, as before.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor tests (stage S of slide usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/slidesByHand.test.tsx, -t, quiet answers|redrawOn]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 60
+since: "2026-11-28"

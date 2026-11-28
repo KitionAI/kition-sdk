@@ -1229,6 +1229,7 @@ export function KitDocumentCanvas({
           framed={framed}
           wheelZoom={wheelZoom}
           caret={tools?.caret ?? null}
+          redrawOn={tools?.quietAnswers ? tools.answers : null}
           animated={animated || tools?.animated === true}
           wheelPan={wheelPan}
           edgeScroll={edgeScroll}

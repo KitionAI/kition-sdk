@@ -2406,7 +2406,7 @@ features:
       - sdk.editor.sheet-by-hand/ants-overlay-json
     since: "2026-11-28"
   - id: sdk.editor.slides-by-hand
-    title: "The editor and its engine tools reach what a hand does on slides: a wheel notch zooms a step (or the kit's own); a right-click reaches the tool in document pixels and the engine as a secondary press; a triple click's count; the editing keys reach a tool that takes them with nothing selected, Cmd and Ctrl apart; an input method's composition reaches the tool and the hidden text field sits on its caret; a tool chosen locked; an answer that changed no pixel repaints nothing; quietGestures from useKitSession; a bare Home and End bind, and a command runs from several keys"
+    title: "The editor and its engine tools reach what a hand does on slides: a wheel notch zooms a step (or the kit's own); a right-click reaches the tool in document pixels and the engine as a secondary press; a triple click's count; the editing keys reach a tool that takes them with nothing selected, Cmd and Ctrl apart; an input method's composition reaches the tool and the hidden text field sits on its caret; a tool chosen locked; an answer that changed no pixel repaints nothing; quietGestures from useKitSession; a bare Home and End bind, and a command runs from several keys; quietAnswers keeps the tool's answers out of the caller's state"
     dimension: [function]
     priority: P1
     status: has
@@ -2428,10 +2428,12 @@ features:
       - packages/kit-editor/src/engine/kitModule.ts
       - crates/kition-kit/src/lib.rs
       - crates/kition-kit/tests/more_shortcuts.rs
+      - packages/kit-editor/README.md
     cases:
       - sdk.editor.slides-by-hand/engine-tool-answers
       - sdk.editor.slides-by-hand/canvas-and-tools
       - sdk.editor.slides-by-hand/shortcuts
+      - sdk.editor.slides-by-hand/quiet-answers
     since: "2026-11-28"
   - id: sdk.dev-host.watch-page
     title: watchPage (@kition/sdk/dev-host/watch-page) prints the step a Playwright test was running when its page crashed, or was closed when the test did not close it; runModeSmoke watches every page it opens

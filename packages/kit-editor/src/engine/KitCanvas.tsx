@@ -152,6 +152,8 @@ type KitCanvasProps = {
    * the next multiple of 10% a notch); `defaultWheelZoom` by default.
    */
   wheelZoom?: (zoom: number, wheel: KitWheelZoom) => number
+  /** Redraws the decoration each time it tells (an engine tool's answers under `quietAnswers`). */
+  redrawOn?: { subscribe: (listener: () => void) => () => void } | null
   /**
    * The text caret while the tool takes text, in document pixels (its top and height): the
    * editor's hidden text field (`TextSink`) is kept on it as the view moves, so an input method's
@@ -271,7 +273,7 @@ function useOverlay(overlayRef: RefObject<HTMLCanvasElement | null>, viewportRef
  * Hand tool pan; the wheel pans, and zooms with Cmd or Ctrl (and pinch). Escape drops a held
  * gesture.
  */
-export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMemory, initialArea = null, panBounds = null, decorate = null, animated = false, spacePans = true, framed = true, wheelZoom, caret = null, wheelPan = null, edgeScroll = null, children, ref }: KitCanvasProps) {
+export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMemory, initialArea = null, panBounds = null, decorate = null, animated = false, spacePans = true, framed = true, wheelZoom, caret = null, redrawOn = null, wheelPan = null, edgeScroll = null, children, ref }: KitCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<RasterViewport | null>(null)
@@ -418,6 +420,8 @@ export function KitCanvas({ doc, change, repaint, tool, onView, onRender, viewMe
     const timer = window.setInterval(() => viewport.draw(), DECORATION_FRAME_MS)
     return () => window.clearInterval(timer)
   }, [animated, decorate, doc])
+
+  useEffect(() => redrawOn?.subscribe(() => viewportRef.current?.draw()), [redrawOn])
 
   useEffect(() => {
     if (!spacePans) return undefined

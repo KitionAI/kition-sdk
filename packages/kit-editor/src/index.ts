@@ -138,7 +138,7 @@ export type { MenuRow } from './uiCatalog'
 export { KitCanvas, type KitCanvasHandle, type KitCanvasView, type KitEdgePast, type KitEdgeScroll, type KitWheelPan } from './engine/KitCanvas'
 export { canvasColor, useEngineBackdrop, type EngineBackdropOptions } from './engine/backdrop'
 export { KitEngine, type KitEngineInfo, type KitEngineSchema } from './engine/kitEngine'
-export { useEngineTools, type EngineToolCaret, type EngineToolChoice, type EngineToolInfo, type EngineToolResponse } from './engine/engineTools'
+export { useEngineTools, type EngineToolAnswers, type EngineToolCaret, type EngineToolChoice, type EngineToolInfo, type EngineToolResponse } from './engine/engineTools'
 export { WHEEL_NOTCH_ZOOM, defaultWheelZoom, wheelNotches, type KitWheelZoom } from './engine/KitCanvas'
 export {
   DEFAULT_OVERLAY_STYLE,
@@ -165,7 +165,7 @@ export type { KitCheckpoint, KitCheckpointRequest, KitCheckpoints, KitHost, KitS
 export { CHECKPOINT_DESCRIPTION_LIMIT, CHECKPOINT_ERROR_REASONS, CHECKPOINT_LABEL_LIMIT, CHECKPOINT_LIST_LIMIT, KIT_CHECKPOINT_ORIGIN, VIEW_STATE_BYTES_LIMIT, VIEW_STATE_ERROR_REASONS, VIEW_STATE_JSON_LIMIT, historyErrorReason } from '@kition/kit-ui-protocol'
 export type { KitCheckpointErrorReason, KitViewStateErrorReason } from '@kition/kit-ui-protocol'
 export type { KitChange, KitDocumentOptions, KitRefresh, KitRepaint, KitRepaints, KitRunOptions } from './engine/useKitDocument'
-export { RESERVED_SHORTCUTS, bindableShortcut, commandForShortcut, shortcutMatches, type CtrlShortcuts } from './engine/kitShortcuts'
+export { RESERVED_SHORTCUTS, bindableShortcut, commandForShortcut, commandShortcuts, shortcutMatches, type CtrlShortcuts } from './engine/kitShortcuts'
 export { oneInFlight } from './oneInFlight'
 export { kitLeases, leaseHeldByOther, scopesCollide, useLease, useLeases, type KitLease, type KitLeases, type LeaseOutcome } from './lease'
 export { drawPresence, kitPresence, peerColor, remoteCarets, remoteSelections, usePresence, useRemoteCarets, useRemoteSelections, PRESENCE_INTERVAL_MS, type KitPeerPresence, type KitPresence, type KitPresenceCaret, type KitPresenceStore, type PresenceRect, type RemoteCaret, type RemoteSelection } from './presence'
