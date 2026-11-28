@@ -82,6 +82,10 @@ pub struct KitCommand {
     pub menu: Option<Vec<String>>,
     /// A shortcut as `Cmd+Shift+N`, `Alt+Backspace`, or `F12`; `Cmd` is Control off macOS.
     pub shortcut: Option<String>,
+    /// More keys that run the command besides [`KitCommand::shortcut`], which is the one the menus
+    /// show: Redo's `Cmd+Shift+Z` beside `Cmd+Y`, the last slide's `End` beside `Cmd+End`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub more_shortcuts: Vec<String>,
     /// A short description of the parameters, for people and for agents.
     pub params: Option<String>,
     /// The parameters as a DeepSeek Harness `ParameterSchemaSpec` (standard E7, A5); a command

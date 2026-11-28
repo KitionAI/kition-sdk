@@ -62,11 +62,17 @@ export function shortcutMatches(shortcut: string, event: KeyLike, mac = isMac(),
 
 /**
  * Whether the frame binds `shortcut`: with a modifier, or Delete, Backspace, Page Up, Page Down,
- * or a function key; never Kition's own.
+ * Home, End, or a function key; never Kition's own. A tool that takes keys (busy, taking text,
+ * `takesKeys`) has Home and End before any command does.
  */
-export function bindableShortcut(shortcut: string | null): shortcut is string {
+export function bindableShortcut(shortcut: string | null | undefined): shortcut is string {
   if (!shortcut || HOST_SHORTCUTS.has(shortcut)) return false
-  return shortcut.includes('+') || /^(Delete|Backspace|PageUp|PageDown|F[0-9]{1,2})$/.test(shortcut)
+  return shortcut.includes('+') || /^(Delete|Backspace|PageUp|PageDown|Home|End|F[0-9]{1,2})$/.test(shortcut)
+}
+
+/** Every key a command is bound to: its shortcut, then its more shortcuts, those the frame binds. */
+export function commandShortcuts(command: Pick<KitCommand, 'shortcut' | 'moreShortcuts'>): string[] {
+  return [command.shortcut, ...(command.moreShortcuts ?? [])].filter(bindableShortcut)
 }
 
 /**
@@ -76,7 +82,8 @@ export function bindableShortcut(shortcut: string | null): shortcut is string {
  * with Cmd wins where both match.
  */
 export function commandForShortcut(commands: readonly KitCommand[], event: KeyLike, mac = isMac(), ctrl: CtrlShortcuts = 'control') {
-  const bound = commands.filter((command) => bindableShortcut(command.shortcut))
-  const find = (mode: CtrlShortcuts) => bound.find((command) => shortcutMatches(command.shortcut!, event, mac, true, mode)) ?? bound.find((command) => shortcutMatches(command.shortcut!, event, mac, false, mode))
+  const bound = commands.map((command) => ({ command, keys: commandShortcuts(command) })).filter((item) => item.keys.length)
+  const matching = (exact: boolean, mode: CtrlShortcuts) => bound.find((item) => item.keys.some((key) => shortcutMatches(key, event, mac, exact, mode)))?.command
+  const find = (mode: CtrlShortcuts) => matching(true, mode) ?? matching(false, mode)
   return find('control') ?? (ctrl === 'primary' && !mac ? find('primary') : undefined)
 }

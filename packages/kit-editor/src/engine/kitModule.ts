@@ -20,6 +20,8 @@ export type KitCommand = {
   menu: string[]
   /** As `Cmd+Shift+N`; `Cmd` is Control off macOS. */
   shortcut: string | null
+  /** More keys that run it besides `shortcut`, the one menus show (KitCommand::more_shortcuts). */
+  moreShortcuts?: string[]
   /** The parameters as a DeepSeek Harness `ParameterSchemaSpec`; commands with one can be agent tools. */
   schema?: Record<string, unknown> | null
   /** What the command answers, as one `ValueSchemaSpec` (KHP A1 `output.schema`); hosts send it as the tool's MCP `outputSchema`. */
@@ -279,7 +281,7 @@ export async function kitModuleAvailable(manifest: KitModuleManifest) {
 
 /** A kit's commands from its SDK's `commands()` JSON. */
 export function kitModuleCommands(json: string): KitCommand[] {
-  const commands = JSON.parse(json) as Array<{ id: string; title: string; menu: string[] | null; shortcut: string | null; mutates: boolean; enabled: boolean; description?: string | null; schema?: Record<string, unknown> | null; outputSchema?: Record<string, unknown> | null; params?: string | null }>
+  const commands = JSON.parse(json) as Array<{ id: string; title: string; menu: string[] | null; shortcut: string | null; moreShortcuts?: string[]; mutates: boolean; enabled: boolean; description?: string | null; schema?: Record<string, unknown> | null; outputSchema?: Record<string, unknown> | null; params?: string | null }>
   return commands.map((command) => ({
     id: command.id,
     title: command.title,
@@ -289,6 +291,7 @@ export function kitModuleCommands(json: string): KitCommand[] {
     enabled: command.enabled,
     menu: command.menu ?? [],
     shortcut: command.shortcut,
+    ...(command.moreShortcuts?.length ? { moreShortcuts: command.moreShortcuts } : {}),
     schema: command.schema ?? null,
     outputSchema: command.outputSchema ?? null,
     params: command.params ?? null,

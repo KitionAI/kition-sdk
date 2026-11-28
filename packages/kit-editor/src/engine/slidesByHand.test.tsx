@@ -15,6 +15,8 @@ import type { KitPointer, KitTool, KitToolContext } from './kitTools'
 import { NOTHING } from './owedDamage'
 import { toolDamage, type KitChange } from './useKitDocument'
 import { TextSink } from '../TextSink'
+import { bindableShortcut, commandForShortcut, commandShortcuts } from './kitShortcuts'
+import { kitModuleCommands, type KitCommand } from './kitModule'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -310,5 +312,32 @@ describe('the text sink (Stage S of slide usable by hand)', () => {
     field.value = '你'
     composition('compositionend', '你')
     expect(seen).toEqual(['compose n 1', 'compose ni 2', 'compose  0', 'text 你'])
+  })
+})
+
+describe('shortcuts (Stage S of slide usable by hand)', () => {
+  const command = (id: string, shortcut: string | null, moreShortcuts?: string[]): KitCommand => ({ id, title: id, description: null, group: id.split('.')[0], mutates: true, enabled: true, menu: [], shortcut, ...(moreShortcuts ? { moreShortcuts } : {}) })
+  const press = (key: string, code: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, code, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods })
+
+  it('binds a bare Home and End, as Page Up and Page Down', () => {
+    expect(bindableShortcut('Home')).toBe(true)
+    expect(bindableShortcut('End')).toBe(true)
+    expect(bindableShortcut('ArrowDown')).toBe(false)
+    const commands = [command('slide.first', 'Home'), command('slide.last', 'End')]
+    expect(commandForShortcut(commands, press('Home', 'Home'), true)?.id).toBe('slide.first')
+    expect(commandForShortcut(commands, press('End', 'End'), false)?.id).toBe('slide.last')
+  })
+
+  it("runs a command from any of its keys, the menu's one first", () => {
+    const commands = [command('edit.redo', 'Cmd+Y', ['Cmd+Shift+Z']), command('slide.last', 'Cmd+End', ['End'])]
+    expect(commandShortcuts(commands[0])).toEqual(['Cmd+Y', 'Cmd+Shift+Z'])
+    expect(commandForShortcut(commands, press('y', 'KeyY', { metaKey: true }), true)?.id).toBe('edit.redo')
+    expect(commandForShortcut(commands, press('Z', 'KeyZ', { metaKey: true, shiftKey: true }), true)?.id).toBe('edit.redo')
+    expect(commandForShortcut(commands, press('End', 'End'), true)?.id).toBe('slide.last')
+    expect(commandForShortcut(commands, press('z', 'KeyZ', { metaKey: true }), true)).toBeUndefined()
+    // Kition's own keys stay Kition's in the more shortcuts too.
+    expect(commandShortcuts(command('file.saveTwice', null, ['Cmd+S', 'F12']))).toEqual(['F12'])
+    // The catalog's JSON carries them.
+    expect(kitModuleCommands(JSON.stringify([{ id: 'edit.redo', title: 'Redo', menu: null, shortcut: 'Cmd+Y', moreShortcuts: ['Cmd+Shift+Z'], mutates: true, enabled: true }]))[0].moreShortcuts).toEqual(['Cmd+Shift+Z'])
   })
 })

@@ -1,0 +1,25 @@
+format: 1
+id: sdk.editor.slides-by-hand/shortcuts
+feature: sdk.editor.slides-by-hand
+intent: >-
+  A bare Home and End are command shortcuts the frame binds (a tool that takes keys has them
+  first), and a command runs from any of its keys: its shortcut, which menus show, and its
+  more_shortcuts (moreShortcuts in the catalog's JSON, left out when it has none); Kition's own keys
+  stay Kition's there too.
+layer: gate
+source:
+  kind: synthetic
+  from: SDK editor and kition-kit tests (stage S of slide usable by hand)
+  license: owned
+input: []
+steps:
+  - exec:
+      cmd: [pnpm, exec, vitest, run, packages/kit-editor/src/engine/slidesByHand.test.tsx, -t, shortcuts]
+  - exec:
+      cmd: [cargo, test, -q, -p, kition-kit, --test, more_shortcuts]
+expected:
+  - actual: out:exec
+    compare: exit
+    value: 0
+timeout_s: 300
+since: "2026-11-28"
